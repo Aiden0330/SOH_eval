@@ -1,7 +1,12 @@
 # SOH Benchmark Framework (`soh_bench`) — Design Spec (v2)
 
+> **⚠️ SUPERSEDED (2026-06-26)** by [Sub-project A — `sohbench` spec](2026-06-26-subproject-A-benchmark-harness-spec.md).
+> This v1/v2 line was anchored to the old `D:\battery_SOH` skills' `eval_harness`/`data_unify` contracts, which
+> the clean-room directive retired. Kept for history only. The research-grounded, clean-room design lives in the
+> sub-project A spec.
+
 > **Date**: 2026-06-26
-> **Status**: v2 — revised after base-contract re-evaluation; ready for implementation plan
+> **Status**: v2 — SUPERSEDED (see banner above)
 > **Supersedes**: v1 (brainstorming-approved). Changes driven by
 > [`2026-06-26-soh-reeval-and-redesign.md`](2026-06-26-soh-reeval-and-redesign.md) (routed via
 > phm-router → soh-adapt-v2; audited against eval_harness / data_unify / features / retrain / cpp_export).

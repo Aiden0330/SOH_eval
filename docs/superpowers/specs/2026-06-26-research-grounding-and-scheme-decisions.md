@@ -20,7 +20,7 @@
 | D5 | 防泄漏切分 | 留一电芯（cell-wise）为底线；跨域留出度量泛化 | 公认 battery-wise 协议 |
 | D6 | 数据 QC 门 | 剔除越界/疑似设备故障突降/非降解电芯 | BatteryLife 同款 QC |
 | D7 | 多团队比较架构 | BatteryML 式模块化 + 统一数据表示 + 模型接口插拔 | 既有基准平台验证范式 |
-| D8 | 公平性机制 | 统一预处理 + **多种子平均（≥5）** + 同一输入契约 | "不公平比较源于预处理不一致" |
+| D8 | 公平性机制 | 统一预处理 + **多种子平均（≥5）** + **双轨特征**（统一特征主榜 + 自带特征独立轨，标注）| "不公平比较源于预处理不一致"；BatteryML feature 接口 |
 | D9 | 指标集 | RMSE/MAE/**MAPE**/EOL区/max/**α-accuracy(15%)**/PICP/单调违例 | BatteryML(MAE) + BatteryLife(MAPE,15%-acc) |
 | D10 | 物理一致 | 单调（吞吐量维，留回跳容差）+ 值域 | 容量再生真实→必须留容差 |
 | D11 | 自研算法路线 | 传统 ML + physics-residual + 异质集成（非 DNN）| 可审计性合规，且命中域挑战 |
@@ -110,8 +110,8 @@
 ## 8. 待核验 / 待用户确认
 
 - ⚠️ 标 ⚠️二手 的数字（覆盖率、规模、法规条款细节）定稿前需对照一手原文/法规正文核验。
-- 待确认：D8 公平性的"统一输入"边界——是否允许"自带特征"模式（bring-your-own-features）与"框架统一特征"模式并存？（影响目标②不同团队算法的接入自由度 vs 可比性）
-- 待确认：A 第一版纳入哪些数据集（现有 processed：NASA/CALCE/HUST/Oxford；可补 SOHbenchmark/XJTU、MATR、RWTH 等以增工况/化学多样性）。
+- **D8 已定（2026-06-26）**：双轨特征——框架统一特征跑可比主榜，bring-your-own-features 跑独立轨并显式标注，对齐 BatteryML feature 接口。
+- 待确认：A 第一版纳入哪些数据集（现有 processed：NASA/CALCE/HUST/Oxford；可补 SOHbenchmark/XJTU、MATR、RWTH 等以增工况/化学多样性）。默认先用 4 个 ready 数据集起步、接口可扩展。
 
 ---
 
