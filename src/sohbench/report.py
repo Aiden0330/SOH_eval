@@ -1,9 +1,26 @@
 from __future__ import annotations
-import json, time
+import json, math, time
 from pathlib import Path
 import pandas as pd
 from .acceptance import evaluate_verdicts
 from .tasks import SOHEstimationTask
+
+
+def _json_safe(o):
+    """Recursively replace non-finite floats (NaN/inf) with None so the output is
+    valid JSON (browsers/JSON.parse reject bare NaN). NaN appears for failed folds
+    or estimators that are N/A on a feature set (e.g. phys_resid without throughput)."""
+    if isinstance(o, float):
+        return o if math.isfinite(o) else None
+    if isinstance(o, dict):
+        return {k: _json_safe(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_json_safe(v) for v in o]
+    return o
+
+
+def _dump(obj, path):
+    path.write_text(json.dumps(_json_safe(obj), indent=2, allow_nan=False, default=str))
 
 def write_artifacts(results: pd.DataFrame, qc_report, task, config, out_dir):
     out = Path(out_dir) / time.strftime("%Y%m%dT%H%M%S")
@@ -37,8 +54,8 @@ def write_artifacts(results: pd.DataFrame, qc_report, task, config, out_dir):
         leaderboard.append({"estimator": est, "featureset": fs_name,
                             "track": feature_mode, "protocol": proto,
                             "metrics": metrics, "verdicts": verdicts, "ci_source": ci_source})
-    (out / "leaderboard.json").write_text(json.dumps(leaderboard, indent=2))
+    _dump(leaderboard, out / "leaderboard.json")
     if qc_report is not None:
-        (out / "qc_report.json").write_text(json.dumps(qc_report.__dict__, indent=2, default=str))
-    (out / "run_config.json").write_text(json.dumps(config, indent=2, default=str))
+        _dump(qc_report.__dict__, out / "qc_report.json")
+    _dump(config, out / "run_config.json")
     return str(out)

@@ -60,3 +60,20 @@ def test_leaderboard_featureset_column(tmp_path):
     # Each entry must have the field
     for entry in lb:
         assert "featureset" in entry, f"entry missing featureset: {entry}"
+
+
+def test_nan_metrics_serialize_as_valid_json_null(tmp_path):
+    """Failed/N-A folds produce NaN metrics; the JSON must stay valid (NaN -> null)
+    so browsers (frontend) can JSON.parse it."""
+    rows = []
+    for seed in range(3):  # one estimator with all-NaN metrics (e.g. N/A on a featureset)
+        for metric in ("mae", "picp", "monotonicity_violation_rate", "value_range_violation"):
+            rows.append(dict(estimator="phys_resid", feature_mode="unified", backend="sklearn",
+                             protocol="lodo", dataset="ds", held_out_key="ds", fold=0,
+                             seed=seed, metric=metric, value=float("nan"), featureset="voltage"))
+    out = write_artifacts(pd.DataFrame(rows), qc_report=None, task=SOHEstimationTask(),
+                          config={}, out_dir=tmp_path)
+    raw = (Path(out) / "leaderboard.json").read_text()
+    assert "NaN" not in raw  # bare NaN token would break JSON.parse
+    lb = json.loads(raw)     # must parse without error
+    assert lb[0]["metrics"]["mae"]["mean"] is None
