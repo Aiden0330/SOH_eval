@@ -13,10 +13,17 @@ def qc_gate(table: pd.DataFrame, meta: pd.DataFrame, *, lower: float = 0.0,
         if bad:
             raise ValueError(f"datasets with bms_reported labels rejected: {bad}")
 
-    # value-range
-    in_range = (table["soh"] > lower) & (table["soh"] < upper)
+    # non-positive: explicit garbage drop (before range check)
+    soh = table["soh"]
+    nonpositive = soh <= 0
+    drop_reasons["soh_nonpositive"] = int(nonpositive.sum())
+    after_np = table.loc[~nonpositive].reset_index(drop=True)
+
+    # value-range: lower-inclusive, upper-exclusive [lower, upper)
+    soh2 = after_np["soh"]
+    in_range = (soh2 >= lower) & (soh2 < upper)
     drop_reasons["soh_out_of_range"] = int((~in_range).sum())
-    clean = table.loc[in_range].reset_index(drop=True)
+    clean = after_np.loc[in_range].reset_index(drop=True)
 
     # availability mask on feature columns (no fill)
     feat_cols = [c for c in clean.columns if c not in ID_COLUMNS]

@@ -7,18 +7,22 @@ def _table():
         "dataset": ["nasa"]*5,
         "cell_id": ["B0005"]*5,
         "cycle_index": [0,1,2,3,4],
-        "soh": [1.25, 0.95, 1.35, 0.0, 0.80],   # 1.35 and 0.0 are out of [0,1.3)
+        "soh": [1.25, 0.95, 1.35, 0.0, 0.80],   # 1.35 out of [0,1.3); 0.0 non-positive
         "f1": [1,2,3,4,5],
-        "f_sparse": [np.nan, np.nan, np.nan, np.nan, 1.0],  # 20% available -> dropped (<20% strictly? keep boundary)
+        "f_sparse": [np.nan, np.nan, np.nan, np.nan, 1.0],  # 20% available -> dropped
     })
 
 def test_value_range_drop():
     t = _table(); meta = build_meta(t)
     clean, rep = qc_gate(t, meta, lower=0.0, upper=1.3)
-    # 1.35 and 0.0 dropped by SOH range; f_sparse NaN rows (soh=1.25,0.95) also dropped
-    assert set(clean["soh"]) <= {1.25, 0.95, 0.80}      # 1.35 and 0.0 dropped by range
-    assert rep.drop_reasons["soh_out_of_range"] == 2
-    # n_out now includes NaN-feature-row drops in addition to SOH range drops
+    # 1.35 dropped by soh_out_of_range; 0.0 dropped by soh_nonpositive
+    assert 1.35 not in list(clean["soh"])
+    assert 0.0 not in list(clean["soh"])
+    # Total out-of-range (1.35 only, since 0.0 goes to nonpositive)
+    assert rep.drop_reasons["soh_out_of_range"] == 1
+    # Non-positive (0.0)
+    assert rep.drop_reasons["soh_nonpositive"] == 1
+    # Total dropped >= 2 (range + nonpositive, possibly more from NaN rows)
     assert rep.n_out >= 2
 
 def test_soh_above_one_is_kept():
@@ -45,3 +49,27 @@ def test_reject_bms_label_source():
     import pytest
     with pytest.raises(ValueError):
         qc_gate(t, meta, reject_bms=True)
+
+# H4: lower-inclusive — soh==lower is KEPT when lower>0
+def test_lower_inclusive_boundary_kept():
+    t = pd.DataFrame({
+        "dataset": ["nasa"]*3, "cell_id": ["B0005"]*3,
+        "cycle_index": [0,1,2], "soh": [0.6, 0.8, 1.0],
+        "f1": [1.0, 2.0, 3.0],
+    })
+    meta = build_meta(t)
+    clean, rep = qc_gate(t, meta, lower=0.6, upper=1.3)
+    assert 0.6 in list(clean["soh"]), "soh==lower should be retained (lower-inclusive)"
+    assert rep.drop_reasons.get("soh_out_of_range", 0) == 0
+
+# H4: soh=0.0 dropped via soh_nonpositive, not out_of_range
+def test_zero_soh_dropped_via_nonpositive():
+    t = pd.DataFrame({
+        "dataset": ["nasa"]*3, "cell_id": ["B0005"]*3,
+        "cycle_index": [0,1,2], "soh": [0.0, 0.8, 1.0],
+        "f1": [1.0, 2.0, 3.0],
+    })
+    meta = build_meta(t)
+    clean, rep = qc_gate(t, meta, lower=0.0, upper=1.3)
+    assert 0.0 not in list(clean["soh"])
+    assert rep.drop_reasons.get("soh_nonpositive", 0) == 1
