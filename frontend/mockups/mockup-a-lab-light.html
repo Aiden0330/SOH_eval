@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>sohbench — Lab Light</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --primary:#1E40AF; --secondary:#3B82F6; --accent:#B45309;
+    --bg:#F8FAFC; --surface:#FFFFFF; --fg:#0F2440; --muted:#5B6B82;
+    --line:#E2E8F0; --soft:#EEF3FB;
+    --pass:#15803D; --passbg:#DCFCE7; --fail:#B91C1C; --failbg:#FEE2E2; --warn:#B45309; --warnbg:#FEF3C7;
+    --radius:12px; --mono:'Fira Code',ui-monospace,monospace; --sans:'Fira Sans',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.5}
+  .wrap{max-width:1200px;margin:0 auto;padding:28px 24px 64px}
+  .tnum{font-family:var(--mono);font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+  a{color:var(--primary)}
+  header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:24px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--primary),var(--secondary));display:grid;place-items:center}
+  h1{font-size:22px;margin:0;font-weight:700;letter-spacing:-.2px}
+  .sub{color:var(--muted);font-size:13px;margin-top:2px}
+  .runmeta{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+  .runmeta b{color:var(--fg);font-family:var(--mono)}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+  .kpi .lab{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .kpi .val{font-family:var(--mono);font-size:26px;font-weight:600;margin-top:6px;letter-spacing:-.5px}
+  .kpi .hint{font-size:12px;color:var(--muted);margin-top:4px}
+  .grid{display:grid;grid-template-columns:1.55fr 1fr;gap:20px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:20px}
+  .card h2{font-size:15px;margin:0 0 4px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .card .desc{font-size:12.5px;color:var(--muted);margin:0 0 14px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:right;padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  thead th{font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600;cursor:pointer}
+  tbody tr{transition:background .15s}
+  tbody tr:hover{background:var(--soft)}
+  .algo{font-weight:600;font-family:var(--mono)}
+  .rank{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:var(--soft);color:var(--muted);font-size:11px;font-family:var(--mono);margin-right:8px}
+  tr.best .rank{background:var(--primary);color:#fff}
+  .bar-cell{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+  .bar{height:7px;border-radius:4px;background:var(--secondary);opacity:.85}
+  .pill{display:inline-block;font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
+  .pill.native{background:#EAF2FF;color:var(--primary);border-color:#CFE0FF}
+  .pill.conformal{background:#F4F6FA;color:var(--muted)}
+  .v{display:inline-flex;gap:3px}
+  .dot{width:14px;height:14px;border-radius:4px;display:inline-grid;place-items:center;font-size:9px;font-weight:700;font-family:var(--mono)}
+  .dot.p{background:var(--passbg);color:var(--pass)} .dot.f{background:var(--failbg);color:var(--fail)}
+  .gap-row{display:flex;align-items:center;gap:12px;margin:12px 0}
+  .gap-row .nm{width:52px;font-family:var(--mono);font-weight:600;font-size:13px}
+  .track{flex:1;height:26px;background:var(--soft);border-radius:7px;position:relative;overflow:hidden}
+  .seg{position:absolute;top:0;bottom:0;border-radius:7px;display:flex;align-items:center;padding:0 8px;font-family:var(--mono);font-size:11px;color:#fff}
+  .seg.in{background:#22C55E}
+  .seg.out{background:var(--fail);opacity:.92}
+  .legend{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-top:6px}
+  .legend i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:middle}
+  .picp-row{display:flex;align-items:center;gap:10px;margin:10px 0}
+  .picp-row .nm{width:52px;font-family:var(--mono);font-size:13px;font-weight:600}
+  .picp-track{flex:1;height:18px;background:var(--soft);border-radius:6px;position:relative}
+  .picp-fill{height:100%;border-radius:6px;background:var(--secondary)}
+  .picp-fill.low{background:var(--fail);opacity:.8}
+  .nominal{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--accent)}
+  .picp-val{width:46px;text-align:right;font-family:var(--mono);font-size:12.5px}
+  .qc-line{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line);font-size:13px}
+  .qc-line b{font-family:var(--mono)}
+  .note{font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.5}
+  .callout{background:linear-gradient(135deg,#EFF4FF,#FFF);border:1px solid #D7E3F8;border-radius:var(--radius);padding:16px 18px;margin-bottom:20px}
+  .callout .big{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--primary)}
+  svg.ic{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8}
+  @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo"><svg class="ic" viewBox="0 0 24 24" style="stroke:#fff"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 2 4-6"/></svg></div>
+      <div>
+        <h1>sohbench <span style="color:var(--muted);font-weight:400">· algorithm benchmark</span></h1>
+        <div class="sub">SOH estimator comparison across working-condition datasets — Lab Light</div>
+      </div>
+    </div>
+    <div class="runmeta">
+      <span>datasets <b>4</b></span><span>protocol <b>leave-one-dataset</b></span>
+      <span>seeds <b>3</b></span><span>run <b>2026-06-26</b></span>
+    </div>
+  </header>
+
+  <div class="kpis">
+    <div class="kpi"><div class="lab">Best cross-domain</div><div class="val" style="color:var(--primary)">SVR</div><div class="hint">MAE 0.197 · leave-one-dataset</div></div>
+    <div class="kpi"><div class="lab">Algorithms compared</div><div class="val">4</div><div class="hint">ridge · gbdt · svr · gpr</div></div>
+    <div class="kpi"><div class="lab">Acceptance pass rate</div><div class="val" style="color:var(--fail)">1/12</div><div class="hint">gen 0 · cal 0 · phys 1</div></div>
+    <div class="kpi"><div class="lab">Data QC pass</div><div class="val" style="color:var(--pass)">99.8%</div><div class="hint">318 rows dropped · 1 col</div></div>
+  </div>
+
+  <div class="callout">
+    <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Headline finding — generalization gap (Ridge, measured)</div>
+    <div style="display:flex;align-items:baseline;gap:14px;margin-top:6px;flex-wrap:wrap">
+      <span class="big">5.4×</span>
+      <span style="color:var(--muted)">MAE degrades from <b class="tnum">0.089</b> within-domain (leave-one-cell) to <b class="tnum">0.479</b> cross-domain (leave-one-dataset). Honest cross-domain measurement is the whole point.</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <h2><svg class="ic" viewBox="0 0 24 24" style="stroke:var(--primary)"><path d="M4 19V5m6 14V9m6 10V3"/></svg> Leaderboard — cross-domain (leave-one-dataset-out)</h2>
+        <p class="desc">Lower MAE is better. Verdicts: generalization (MAE≤0.02) · calibration (PICP≥0.90) · physical (monotonic + in-range).</p>
+        <table>
+          <thead><tr><th>Algorithm</th><th>MAE ↑</th><th>RMSE</th><th>MBE</th><th>PICP</th><th>CI</th><th>Verdicts</th></tr></thead>
+          <tbody>
+            <tr class="best"><td><span class="rank">1</span><span class="algo">svr</span></td><td><div class="bar-cell"><span class="bar" style="width:41px"></span><span class="tnum">0.197</span></div></td><td class="tnum">0.222</td><td class="tnum">−0.122</td><td class="tnum">0.192</td><td><span class="pill conformal">conformal</span></td><td><span class="v"><span class="dot f">G</span><span class="dot f">C</span><span class="dot f">P</span></span></td></tr>
+            <tr><td><span class="rank">2</span><span class="algo">gpr</span></td><td><div class="bar-cell"><span class="bar" style="width:42px"></span><span class="tnum">0.201</span></div></td><td class="tnum">0.238</td><td class="tnum">+0.083</td><td class="tnum">0.635</td><td><span class="pill native">native</span></td><td><span class="v"><span class="dot f">G</span><span class="dot f">C</span><span class="dot p">P</span></span></td></tr>
+            <tr><td><span class="rank">3</span><span class="algo">gbdt</span></td><td><div class="bar-cell"><span class="bar" style="width:43px"></span><span class="tnum">0.208</span></div></td><td class="tnum">0.238</td><td class="tnum">+0.021</td><td class="tnum">0.079</td><td><span class="pill conformal">conformal</span></td><td><span class="v"><span class="dot f">G</span><span class="dot f">C</span><span class="dot f">P</span></span></td></tr>
+            <tr><td><span class="rank">4</span><span class="algo">ridge</span></td><td><div class="bar-cell"><span class="bar" style="width:99px;background:var(--fail);opacity:.7"></span><span class="tnum">0.479</span></div></td><td class="tnum">0.500</td><td class="tnum">+0.000</td><td class="tnum">0.262</td><td><span class="pill conformal">conformal</span></td><td><span class="v"><span class="dot f">G</span><span class="dot f">C</span><span class="dot f">P</span></span></td></tr>
+          </tbody>
+        </table>
+        <p class="note">Ridge (linear) degrades most cross-domain — nonlinear kernels/trees generalize ~2.4× better here. No algorithm meets the acceptance bars: cross-domain is genuinely hard, which is what motivates the adaptation layer (sub-project B).</p>
+      </div>
+
+      <div class="card">
+        <h2><svg class="ic" viewBox="0 0 24 24" style="stroke:var(--primary)"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h18"/></svg> Within-domain vs cross-domain</h2>
+        <p class="desc">Each bar: green = within-domain MAE (leave-one-cell), red = added cross-domain error (leave-one-dataset).</p>
+        <div class="gap-row"><span class="nm">ridge</span><div class="track"><div class="seg in" style="width:18%">0.089</div><div class="seg out" style="left:18%;width:82%">0.479</div></div></div>
+        <div class="gap-row"><span class="nm">svr</span><div class="track"><div class="seg in" style="width:9%">·</div><div class="seg out" style="left:9%;width:34%">0.197</div></div></div>
+        <div class="gap-row"><span class="nm">gpr</span><div class="track"><div class="seg in" style="width:10%">·</div><div class="seg out" style="left:10%;width:35%">0.201</div></div></div>
+        <div class="gap-row"><span class="nm">gbdt</span><div class="track"><div class="seg in" style="width:8%">·</div><div class="seg out" style="left:8%;width:36%">0.208</div></div></div>
+        <div class="legend"><span><i style="background:#22C55E"></i>within-domain (loco)</span><span><i style="background:var(--fail)"></i>cross-domain (lodo)</span></div>
+        <p class="note">Within-domain shown measured for Ridge; per-algorithm loco bars illustrative pending a full leave-one-cell sweep.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2><svg class="ic" viewBox="0 0 24 24" style="stroke:var(--primary)"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0z"/><path d="M12 7v5l3 2"/></svg> Calibration — PICP vs nominal 90%</h2>
+        <p class="desc">Interval coverage. Amber line = 0.90 target. Only GPR (native) gets close; cross-domain conformal under-covers.</p>
+        <div class="picp-row"><span class="nm">gpr</span><div class="picp-track"><div class="picp-fill" style="width:63.5%"></div><div class="nominal" style="left:90%"></div></div><span class="picp-val">0.635</span></div>
+        <div class="picp-row"><span class="nm">ridge</span><div class="picp-track"><div class="picp-fill low" style="width:26.2%"></div><div class="nominal" style="left:90%"></div></div><span class="picp-val">0.262</span></div>
+        <div class="picp-row"><span class="nm">svr</span><div class="picp-track"><div class="picp-fill low" style="width:19.2%"></div><div class="nominal" style="left:90%"></div></div><span class="picp-val">0.192</span></div>
+        <div class="picp-row"><span class="nm">gbdt</span><div class="picp-track"><div class="picp-fill low" style="width:7.9%"></div><div class="nominal" style="left:90%"></div></div><span class="picp-val">0.079</span></div>
+        <p class="note">GPR uses native Gaussian-process variance; others use split-conformal, which breaks exchangeability across domains → under-coverage.</p>
+      </div>
+
+      <div class="card">
+        <h2><svg class="ic" viewBox="0 0 24 24" style="stroke:var(--primary)"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg> Data QC report</h2>
+        <p class="desc">Pre-score gate applied before any metric is computed.</p>
+        <div class="qc-line"><span>Rows in</span><b class="tnum">164,775</b></div>
+        <div class="qc-line"><span>Dropped — SOH out of [0, 1.3)</span><b class="tnum" style="color:var(--fail)">318</b></div>
+        <div class="qc-line"><span>Dropped columns (&lt;20% avail.)</span><b class="tnum">ambient_temp_c</b></div>
+        <div class="qc-line"><span>BMS-reported labels rejected</span><b class="tnum" style="color:var(--pass)">0</b></div>
+        <div class="qc-line" style="border-bottom:none"><span>Pass rate</span><b class="tnum" style="color:var(--pass)">99.81%</b></div>
+        <p class="note">SOH &gt; 1.0 retained (capacity reserve is real, capped &lt; 1.3). Chemistry-out downgraded to dataset-out: &lt;2 datasets per chemistry.</p>
+      </div>
+    </div>
+  </div>
+
+  <p class="note" style="text-align:center;margin-top:14px">Data from a real <span class="tnum">sohbench</span> run · ridge/gbdt/svr/gpr · leave-one-dataset-out · 3 seeds · NASA / CALCE CS2 / HUST / Oxford</p>
+</div>
+</body>
+</html>

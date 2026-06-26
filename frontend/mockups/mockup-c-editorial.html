@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>sohbench — Editorial Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#10182A; --paper:#FBFAF7; --card:#FFFFFF; --muted:#6A6256; --line:#E7E2D6;
+    --primary:#1E3A8A; --accent:#B45309; --accentbg:#FBEFD9;
+    --pass:#15803D; --fail:#B91C1C; --failbg:#FBE9E7;
+    --mono:'Fira Code',ui-monospace,monospace; --sans:'Fira Sans',Georgia,serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.55}
+  .wrap{max-width:1080px;margin:0 auto;padding:30px 26px 70px}
+  .tnum{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .masthead{display:flex;justify-content:space-between;align-items:baseline;border-bottom:3px solid var(--ink);padding-bottom:12px;margin-bottom:6px}
+  .masthead .name{font-weight:800;font-size:20px;letter-spacing:-.3px}
+  .masthead .name span{color:var(--accent)}
+  .masthead .meta{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin:26px 0 8px}
+  h1.head{font-size:46px;line-height:1.05;font-weight:800;letter-spacing:-1.2px;margin:0 0 14px;max-width:14ch}
+  h1.head em{font-style:normal;color:var(--primary)}
+  .lede{font-size:18px;color:#3A4156;max-width:62ch;margin:0 0 26px}
+  .lede b{font-family:var(--mono);color:var(--ink)}
+  .hero{display:grid;grid-template-columns:1.1fr .9fr;gap:26px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px;margin-bottom:34px}
+  .hero .figure{font-family:var(--mono);font-size:72px;font-weight:700;color:var(--accent);line-height:1;letter-spacing:-2px}
+  .hero .cap{font-size:14px;color:var(--muted);margin-top:8px}
+  .gapwrap .gp{display:flex;align-items:center;gap:10px;margin:9px 0}
+  .gapwrap .nm{width:46px;font-family:var(--mono);font-weight:600;font-size:13px}
+  .gtrack{flex:1;height:24px;border-radius:6px;background:#F0EDE4;position:relative;overflow:hidden}
+  .gin{position:absolute;left:0;top:0;bottom:0;background:#1E3A8A;display:flex;align-items:center;padding:0 7px;color:#fff;font-family:var(--mono);font-size:11px}
+  .gout{position:absolute;top:0;bottom:0;background:var(--accent);display:flex;align-items:center;padding:0 7px;color:#fff;font-family:var(--mono);font-size:11px}
+  .sec-t{font-family:var(--mono);font-size:13px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:8px;margin:34px 0 16px;display:flex;justify-content:space-between}
+  .rank-list{display:flex;flex-direction:column;gap:10px}
+  .entry{display:grid;grid-template-columns:42px 1fr auto;gap:18px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px}
+  .entry.win{border-color:#C9D4EE;box-shadow:0 1px 0 #C9D4EE,0 8px 24px -16px var(--primary)}
+  .entry .no{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--line)}
+  .entry.win .no{color:var(--primary)}
+  .entry .nm{font-family:var(--mono);font-size:20px;font-weight:700}
+  .entry .det{font-size:13px;color:var(--muted);margin-top:3px}
+  .entry .det b{font-family:var(--mono);color:var(--ink)}
+  .mae{text-align:right}
+  .mae .n{font-family:var(--mono);font-size:26px;font-weight:700}
+  .mae .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .vbadge{display:inline-block;font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:5px;margin-left:5px}
+  .vbadge.p{background:#E4F4E9;color:var(--pass)} .vbadge.f{background:var(--failbg);color:var(--fail)}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px}
+  .panel h3{margin:0 0 4px;font-size:17px;font-weight:700}
+  .panel p.d{font-size:13px;color:var(--muted);margin:0 0 14px}
+  .picp-row{display:flex;align-items:center;gap:10px;margin:11px 0}
+  .picp-row .nm{width:46px;font-family:var(--mono);font-size:13px;font-weight:600}
+  .picp-track{flex:1;height:18px;background:#F0EDE4;border-radius:6px;position:relative}
+  .picp-fill{height:100%;border-radius:6px;background:var(--primary)}
+  .picp-fill.low{background:var(--fail);opacity:.78}
+  .nominal{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--accent)}
+  .picp-val{width:44px;text-align:right;font-family:var(--mono);font-size:13px}
+  .qc-line{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dotted var(--line);font-size:14px}
+  .qc-line b{font-family:var(--mono)}
+  .note{font-size:12px;color:var(--muted);margin-top:12px;line-height:1.5}
+  .pull{font-size:15px;color:var(--primary);border-left:3px solid var(--accent);padding:4px 0 4px 16px;margin:18px 0;max-width:60ch}
+  @media(max-width:860px){h1.head{font-size:34px}.hero{grid-template-columns:1fr}.cols{grid-template-columns:1fr}}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="masthead">
+    <div class="name">soh<span>bench</span> · benchmark report</div>
+    <div class="meta">No. 001 — 2026·06·26</div>
+  </div>
+
+  <div class="kicker">Cross-condition SOH estimator comparison</div>
+  <h1 class="head">No algorithm <em>generalizes</em> across datasets — yet.</h1>
+  <p class="lede">Four SOH estimators were compared on identical features across four working-condition datasets. The best, <b>SVR</b>, reaches <b>0.197</b> MAE leave-one-dataset-out — but <b>none</b> clears the acceptance bars. The gap between within-domain and cross-domain accuracy is the story.</p>
+
+  <div class="hero">
+    <div>
+      <div style="font-family:var(--mono);font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">The generalization gap</div>
+      <div class="figure">5.4×</div>
+      <div class="cap">Ridge error grows from <b class="tnum" style="font-family:var(--mono)">0.089</b> within-domain to <b class="tnum" style="font-family:var(--mono)">0.479</b> cross-domain. Measuring this honestly is the framework's reason to exist.</div>
+    </div>
+    <div class="gapwrap">
+      <div class="gp"><span class="nm">ridge</span><div class="gtrack"><div class="gin" style="width:18%">.089</div><div class="gout" style="left:18%;width:82%">.479</div></div></div>
+      <div class="gp"><span class="nm">svr</span><div class="gtrack"><div class="gin" style="width:9%"></div><div class="gout" style="left:9%;width:34%">.197</div></div></div>
+      <div class="gp"><span class="nm">gpr</span><div class="gtrack"><div class="gin" style="width:10%"></div><div class="gout" style="left:10%;width:35%">.201</div></div></div>
+      <div class="gp"><span class="nm">gbdt</span><div class="gtrack"><div class="gin" style="width:8%"></div><div class="gout" style="left:8%;width:36%">.208</div></div></div>
+      <div class="note">Blue = within-domain (loco) · amber = cross-domain (lodo). Loco measured for Ridge; others illustrative.</div>
+    </div>
+  </div>
+
+  <div class="sec-t"><span>The ranking — leave-one-dataset-out</span><span>MAE ↑ better</span></div>
+  <div class="rank-list">
+    <div class="entry win"><div class="no">1</div><div><div class="nm">svr</div><div class="det">RBF kernel · RMSE <b>0.222</b> · bias <b>−0.122</b> · CI <b>conformal</b><span class="vbadge f">gen ✗</span><span class="vbadge f">cal ✗</span><span class="vbadge f">phys ✗</span></div></div><div class="mae"><div class="n">0.197</div><div class="l">MAE</div></div></div>
+    <div class="entry"><div class="no">2</div><div><div class="nm">gpr</div><div class="det">Gaussian process · RMSE <b>0.238</b> · bias <b>+0.083</b> · CI <b>native</b><span class="vbadge f">gen ✗</span><span class="vbadge f">cal ✗</span><span class="vbadge p">phys ✓</span></div></div><div class="mae"><div class="n">0.201</div><div class="l">MAE</div></div></div>
+    <div class="entry"><div class="no">3</div><div><div class="nm">gbdt</div><div class="det">Hist. gradient boosting · RMSE <b>0.238</b> · bias <b>+0.021</b> · CI <b>conformal</b><span class="vbadge f">gen ✗</span><span class="vbadge f">cal ✗</span><span class="vbadge f">phys ✗</span></div></div><div class="mae"><div class="n">0.208</div><div class="l">MAE</div></div></div>
+    <div class="entry"><div class="no">4</div><div><div class="nm">ridge</div><div class="det">Linear baseline · RMSE <b>0.500</b> · bias <b>+0.000</b> · CI <b>conformal</b><span class="vbadge f">gen ✗</span><span class="vbadge f">cal ✗</span><span class="vbadge f">phys ✗</span></div></div><div class="mae"><div class="n" style="color:var(--fail)">0.479</div><div class="l">MAE</div></div></div>
+  </div>
+
+  <div class="pull">Nonlinear kernels and trees hold ~0.20 MAE across datasets; the linear baseline more than doubles to 0.48. But the acceptance gates — MAE ≤ 0.02, PICP ≥ 0.90, physical-consistency — stay unmet. The lever is adaptation, not a bigger model.</div>
+
+  <div class="cols">
+    <div class="panel">
+      <h3>Calibration is the weak point</h3>
+      <p class="d">Prediction-interval coverage (PICP) vs the 0.90 target. Only GPR's native variance gets close; conformal under-covers cross-domain.</p>
+      <div class="picp-row"><span class="nm">gpr</span><div class="picp-track"><div class="picp-fill" style="width:63.5%"></div><div class="nominal" style="left:90%"></div></div><span class="picp-val">0.635</span></div>
+      <div class="picp-row"><span class="nm">ridge</span><div class="picp-track"><div class="picp-fill low" style="width:26.2%"></div><div class="nominal" style="left:90%"></div></div><span class="picp-val">0.262</span></div>
+      <div class="picp-row"><span class="nm">svr</span><div class="picp-track"><div class="picp-fill low" style="width:19.2%"></div><div class="nominal" style="left:90%"></div></div><span class="picp-val">0.192</span></div>
+      <div class="picp-row"><span class="nm">gbdt</span><div class="picp-track"><div class="picp-fill low" style="width:7.9%"></div><div class="nominal" style="left:90%"></div></div><span class="picp-val">0.079</span></div>
+      <p class="note">Amber line = nominal 90%. Weighted/adaptive conformal is the planned remedy for cross-domain coverage.</p>
+    </div>
+    <div class="panel">
+      <h3>Data quality, gated up front</h3>
+      <p class="d">Every row passes a QC gate before any metric is computed.</p>
+      <div class="qc-line"><span>Rows ingested</span><b class="tnum">164,775</b></div>
+      <div class="qc-line"><span>SOH out of [0, 1.3) dropped</span><b class="tnum" style="color:var(--fail)">318</b></div>
+      <div class="qc-line"><span>Low-availability column dropped</span><b class="tnum">ambient_temp_c</b></div>
+      <div class="qc-line"><span>BMS-reported labels rejected</span><b class="tnum" style="color:var(--pass)">0</b></div>
+      <div class="qc-line" style="border:none"><span>Pass rate</span><b class="tnum" style="color:var(--pass)">99.81%</b></div>
+      <p class="note">SOH above 1.0 is kept — capacity reserve is real (capped below 1.3). Chemistry-out downgraded to dataset-out: fewer than two datasets per chemistry.</p>
+    </div>
+  </div>
+
+  <p class="note" style="text-align:center;margin-top:26px">Source — a real sohbench run · ridge / gbdt / svr / gpr · leave-one-dataset-out · 3 seeds · NASA · CALCE CS2 · HUST · Oxford</p>
+</div>
+</body>
+</html>

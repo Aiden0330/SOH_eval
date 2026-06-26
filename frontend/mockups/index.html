@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>sohbench — Mockup Gallery</title>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{--bg:#0E1422;--panel:#18213A;--line:#27324C;--fg:#E6EDF7;--muted:#8FA1BE;--accent:#22D3EE;--mono:'Fira Code',monospace;--sans:'Fira Sans',sans-serif}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans)}
+  .bar{display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .bar h1{font-size:16px;margin:0;font-family:var(--mono);font-weight:600}
+  .bar .sub{color:var(--muted);font-size:12.5px}
+  .tabs{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+  .tab{font-family:var(--mono);font-size:13px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 14px;cursor:pointer;transition:all .15s}
+  .tab:hover{color:var(--fg)}
+  .tab.active{color:#04222A;background:var(--accent);border-color:var(--accent);font-weight:600}
+  .tab small{display:block;font-size:10px;opacity:.8;font-family:var(--sans)}
+  .stage{height:calc(100vh - 60px)}
+  iframe{width:100%;height:100%;border:0;background:#fff}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+  <div class="bar">
+    <h1>sohbench</h1><span class="sub">C-for-A · three dashboard directions — pick one</span>
+    <div class="tabs">
+      <button class="tab active" data-src="mockup-a-lab-light.html">A · Lab Light<small>clean research tool</small></button>
+      <button class="tab" data-src="mockup-b-ops-dark.html">B · Ops Dark<small>dense observability</small></button>
+      <button class="tab" data-src="mockup-c-editorial.html">C · Editorial<small>verdict-led report</small></button>
+    </div>
+  </div>
+  <div class="stage"><iframe id="frame" src="mockup-a-lab-light.html" title="mockup preview"></iframe></div>
+  <script>
+    const frame=document.getElementById('frame');
+    document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active'); frame.src=t.dataset.src;
+    }));
+  </script>
+</body>
+</html>

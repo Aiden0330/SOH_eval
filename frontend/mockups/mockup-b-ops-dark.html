@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>sohbench — Ops Dark</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0A0F1A; --panel:#111A2B; --panel2:#0E1626; --line:#1F2C42; --soft:#16223A;
+    --fg:#E6EDF7; --muted:#8298B8; --dim:#5E739A;
+    --primary:#3B82F6; --cyan:#22D3EE; --accent:#F59E0B;
+    --pass:#34D399; --passbg:#0E2A20; --fail:#F87171; --failbg:#2A1414; --warn:#FBBF24;
+    --mono:'Fira Code',ui-monospace,monospace; --sans:'Fira Sans',system-ui,sans-serif; --radius:10px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 500px at 70% -10%,#13213B 0,var(--bg) 60%);color:var(--fg);font-family:var(--sans);font-size:14px;line-height:1.5}
+  .wrap{max-width:1280px;margin:0 auto;padding:22px 22px 60px}
+  .tnum{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  header.top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,var(--primary),var(--cyan));display:grid;place-items:center;box-shadow:0 0 0 1px #2A3C5C,0 6px 20px -8px var(--cyan)}
+  h1{font-size:19px;margin:0;font-weight:600;font-family:var(--mono);letter-spacing:-.3px}
+  .sub{color:var(--muted);font-size:12px;margin-top:1px}
+  .status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px}
+  .live{width:8px;height:8px;border-radius:50%;background:var(--pass);box-shadow:0 0 0 3px #0E2A2055}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+  .kpi{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;position:relative;overflow:hidden}
+  .kpi::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--cyan)}
+  .kpi.warn::after{background:var(--accent)} .kpi.bad::after{background:var(--fail)} .kpi.good::after{background:var(--pass)}
+  .kpi .lab{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;font-family:var(--mono)}
+  .kpi .val{font-family:var(--mono);font-size:24px;font-weight:600;margin-top:6px}
+  .kpi .hint{font-size:11.5px;color:var(--muted);margin-top:3px}
+  .grid{display:grid;grid-template-columns:1.6fr 1fr;gap:16px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px}
+  .panel h2{font-size:13px;margin:0 0 2px;font-weight:600;font-family:var(--mono);display:flex;align-items:center;gap:8px;color:var(--fg)}
+  .panel .desc{font-size:11.5px;color:var(--muted);margin:0 0 12px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:right;padding:8px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  thead th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);font-weight:600;font-family:var(--mono)}
+  tbody tr:hover{background:var(--soft)}
+  .algo{font-weight:600;font-family:var(--mono);color:var(--fg)}
+  .rank{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:5px;background:var(--soft);color:var(--dim);font-size:10px;font-family:var(--mono);margin-right:8px}
+  tr.best .rank{background:var(--cyan);color:#04222A}
+  tr.best .algo{color:var(--cyan)}
+  .bar-cell{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+  .bar{height:6px;border-radius:3px;background:linear-gradient(90deg,var(--primary),var(--cyan))}
+  .bar.bad{background:linear-gradient(90deg,#7F1D1D,var(--fail))}
+  .pill{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+  .pill.native{background:#08263A;color:var(--cyan);border-color:#0E3B55}
+  .dot{width:14px;height:14px;border-radius:4px;display:inline-grid;place-items:center;font-size:9px;font-weight:700;font-family:var(--mono);margin-left:2px}
+  .dot.p{background:var(--passbg);color:var(--pass)} .dot.f{background:var(--failbg);color:var(--fail)}
+  .gap-row{display:flex;align-items:center;gap:10px;margin:10px 0}
+  .gap-row .nm{width:48px;font-family:var(--mono);font-weight:600;font-size:12px}
+  .track{flex:1;height:22px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;position:relative;overflow:hidden}
+  .seg{position:absolute;top:0;bottom:0;display:flex;align-items:center;padding:0 7px;font-family:var(--mono);font-size:10.5px}
+  .seg.in{background:#10b98133;border-right:2px solid var(--pass);color:var(--pass)}
+  .seg.out{background:#ef444433;border-right:2px solid var(--fail);color:#FCA5A5}
+  .legend{display:flex;gap:14px;font-size:11px;color:var(--muted);margin-top:6px;font-family:var(--mono)}
+  .legend i{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:5px}
+  .picp-row{display:flex;align-items:center;gap:10px;margin:9px 0}
+  .picp-row .nm{width:48px;font-family:var(--mono);font-size:12px;font-weight:600}
+  .picp-track{flex:1;height:16px;background:var(--panel2);border:1px solid var(--line);border-radius:5px;position:relative}
+  .picp-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--primary),var(--cyan))}
+  .picp-fill.low{background:linear-gradient(90deg,#7F1D1D,var(--fail))}
+  .nominal{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--accent);box-shadow:0 0 6px var(--accent)}
+  .picp-val{width:44px;text-align:right;font-family:var(--mono);font-size:12px}
+  .qc-line{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+  .qc-line b{font-family:var(--mono);color:var(--fg)}
+  .note{font-size:11px;color:var(--dim);margin-top:9px;line-height:1.5}
+  .hero-num{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--cyan)}
+  svg.ic{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8}
+  @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo"><svg class="ic" viewBox="0 0 24 24" style="stroke:#04222A;stroke-width:2"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 2 4-6"/></svg></div>
+      <div><h1>sohbench<span style="color:var(--dim)">/benchmark</span></h1><div class="sub">SOH estimator comparison · cross-condition</div></div>
+    </div>
+    <div class="status"><span class="live"></span> run 2026-06-26T22:17 · 4 datasets · lodo · seeds=3</div>
+  </header>
+
+  <div class="kpis">
+    <div class="kpi good"><div class="lab">best_xdomain</div><div class="val" style="color:var(--cyan)">svr</div><div class="hint">MAE 0.197</div></div>
+    <div class="kpi"><div class="lab">algorithms</div><div class="val">4</div><div class="hint">ridge gbdt svr gpr</div></div>
+    <div class="kpi bad"><div class="lab">acceptance</div><div class="val" style="color:var(--fail)">1/12</div><div class="hint">gen·cal·phys gates</div></div>
+    <div class="kpi warn"><div class="lab">gen_gap (ridge)</div><div class="val" style="color:var(--accent)">5.4×</div><div class="hint">0.089 → 0.479</div></div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="panel">
+        <h2><svg class="ic" viewBox="0 0 24 24" style="stroke:var(--cyan)"><path d="M4 19V5m6 14V9m6 10V3"/></svg> leaderboard · leave-one-dataset-out</h2>
+        <p class="desc">sorted by MAE ↑ · verdicts G/C/P = generalization / calibration / physical-consistency</p>
+        <table>
+          <thead><tr><th>algo</th><th>MAE</th><th>RMSE</th><th>MBE</th><th>max</th><th>PICP</th><th>ci</th><th>G/C/P</th></tr></thead>
+          <tbody>
+            <tr class="best"><td><span class="rank">1</span><span class="algo">svr</span></td><td><div class="bar-cell"><span class="bar" style="width:38px"></span><span class="tnum">0.197</span></div></td><td class="tnum">0.222</td><td class="tnum">−0.122</td><td class="tnum">0.558</td><td class="tnum">0.192</td><td><span class="pill">conformal</span></td><td><span class="dot f">G</span><span class="dot f">C</span><span class="dot f">P</span></td></tr>
+            <tr><td><span class="rank">2</span><span class="algo">gpr</span></td><td><div class="bar-cell"><span class="bar" style="width:39px"></span><span class="tnum">0.201</span></div></td><td class="tnum">0.238</td><td class="tnum">+0.083</td><td class="tnum">0.654</td><td class="tnum">0.635</td><td><span class="pill native">native</span></td><td><span class="dot f">G</span><span class="dot f">C</span><span class="dot p">P</span></td></tr>
+            <tr><td><span class="rank">3</span><span class="algo">gbdt</span></td><td><div class="bar-cell"><span class="bar" style="width:40px"></span><span class="tnum">0.208</span></div></td><td class="tnum">0.238</td><td class="tnum">+0.021</td><td class="tnum">0.648</td><td class="tnum">0.079</td><td><span class="pill">conformal</span></td><td><span class="dot f">G</span><span class="dot f">C</span><span class="dot f">P</span></td></tr>
+            <tr><td><span class="rank">4</span><span class="algo">ridge</span></td><td><div class="bar-cell"><span class="bar bad" style="width:92px"></span><span class="tnum">0.479</span></div></td><td class="tnum">0.500</td><td class="tnum">+0.000</td><td class="tnum">0.928</td><td class="tnum">0.262</td><td><span class="pill">conformal</span></td><td><span class="dot f">G</span><span class="dot f">C</span><span class="dot f">P</span></td></tr>
+          </tbody>
+        </table>
+        <p class="note">// linear ridge degrades most across datasets; kernel/tree learners hold ~0.20. zero algorithms clear the gates → adaptation layer (sub-project B) is the next lever.</p>
+      </div>
+
+      <div class="panel">
+        <h2><svg class="ic" viewBox="0 0 24 24" style="stroke:var(--cyan)"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h18"/></svg> within-domain → cross-domain drift</h2>
+        <p class="desc">green = loco (leave-one-cell) · red = lodo (leave-one-dataset)</p>
+        <div class="gap-row"><span class="nm">ridge</span><div class="track"><div class="seg in" style="width:18%">0.089</div><div class="seg out" style="left:18%;width:82%">0.479</div></div></div>
+        <div class="gap-row"><span class="nm">svr</span><div class="track"><div class="seg in" style="width:9%"></div><div class="seg out" style="left:9%;width:34%">0.197</div></div></div>
+        <div class="gap-row"><span class="nm">gpr</span><div class="track"><div class="seg in" style="width:10%"></div><div class="seg out" style="left:10%;width:35%">0.201</div></div></div>
+        <div class="gap-row"><span class="nm">gbdt</span><div class="track"><div class="seg in" style="width:8%"></div><div class="seg out" style="left:8%;width:36%">0.208</div></div></div>
+        <div class="legend"><span><i style="background:var(--pass)"></i>loco</span><span><i style="background:var(--fail)"></i>lodo</span></div>
+        <p class="note">// loco measured for ridge; other loco bars illustrative pending full sweep.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h2><svg class="ic" viewBox="0 0 24 24" style="stroke:var(--cyan)"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0z"/><path d="M12 7v5l3 2"/></svg> calibration · PICP vs 0.90</h2>
+        <p class="desc">amber = nominal 90% · native GP variance vs split-conformal</p>
+        <div class="picp-row"><span class="nm">gpr</span><div class="picp-track"><div class="picp-fill" style="width:63.5%"></div><div class="nominal" style="left:90%"></div></div><span class="picp-val">0.635</span></div>
+        <div class="picp-row"><span class="nm">ridge</span><div class="picp-track"><div class="picp-fill low" style="width:26.2%"></div><div class="nominal" style="left:90%"></div></div><span class="picp-val">0.262</span></div>
+        <div class="picp-row"><span class="nm">svr</span><div class="picp-track"><div class="picp-fill low" style="width:19.2%"></div><div class="nominal" style="left:90%"></div></div><span class="picp-val">0.192</span></div>
+        <div class="picp-row"><span class="nm">gbdt</span><div class="picp-track"><div class="picp-fill low" style="width:7.9%"></div><div class="nominal" style="left:90%"></div></div><span class="picp-val">0.079</span></div>
+        <p class="note">// cross-domain breaks conformal exchangeability → severe under-coverage. weighted/adaptive CP is the planned fix.</p>
+      </div>
+
+      <div class="panel">
+        <h2><svg class="ic" viewBox="0 0 24 24" style="stroke:var(--cyan)"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg> qc gate</h2>
+        <div class="qc-line"><span>rows_in</span><b class="tnum">164,775</b></div>
+        <div class="qc-line"><span>soh_out_of_range</span><b class="tnum" style="color:var(--fail)">318</b></div>
+        <div class="qc-line"><span>dropped_columns</span><b class="tnum">ambient_temp_c</b></div>
+        <div class="qc-line"><span>bms_reported_rejected</span><b class="tnum" style="color:var(--pass)">0</b></div>
+        <div class="qc-line" style="border:none"><span>pass_rate</span><b class="tnum" style="color:var(--pass)">99.81%</b></div>
+        <p class="note">// soh&gt;1.0 kept (reserve, &lt;1.3). chemistry-out → dataset-out (1 dataset/chemistry).</p>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="text-align:center;margin-top:12px">// real sohbench run · NASA · CALCE_CS2 · HUST · Oxford</p>
+</div>
+</body>
+</html>
