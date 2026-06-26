@@ -38,7 +38,9 @@ These are static mockups. The working frontend reads A's frozen artifact schema:
 A JSON Schema for `leaderboard.json` ships with sub-project A (`src/sohbench/schemas/`), so the frontend can
 validate before rendering.
 
-## Next step
+## Selected direction
 
-Pick a direction (or a blend). The chosen one becomes the basis for the implemented frontend (framework TBD —
-the mockups are framework-agnostic HTML/CSS).
+**A · Lab Light** is the chosen basis for the implemented frontend (decided 2026-06-26). B (Ops Dark) and
+C (Editorial) are kept as references / alternate views. The working frontend will be built from A's layout
+and the Data-Dense Dashboard design system, consuming A's `leaderboard.json` / `qc_report.json` /
+`verdicts.json`. Framework TBD (mockups are framework-agnostic HTML/CSS).
