@@ -1,9 +1,0 @@
-README.md
-pyproject.toml
-src/sohbench/__init__.py
-src/sohbench.egg-info/PKG-INFO
-src/sohbench.egg-info/SOURCES.txt
-src/sohbench.egg-info/dependency_links.txt
-src/sohbench.egg-info/requires.txt
-src/sohbench.egg-info/top_level.txt
-tests/test_smoke.py
