@@ -17,6 +17,11 @@ class DatasetLoader:
         missing = required - set(df.columns)
         if missing:
             raise ValueError(f"{name}: missing required columns {missing}")
+        # Normalize 'dataset' column to the canonical loader name so that
+        # build_meta's DATASET_CHEMISTRY lookup (lowercase keys) works regardless
+        # of how the pkl stores the dataset identifier (e.g. "NASA" vs "nasa").
+        df = df.copy()
+        df["dataset"] = name
         return df
 
     def load(self, names, *, qc: bool = True, **qc_kwargs):
