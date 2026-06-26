@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["estimator","track","protocol","metrics","verdicts"],
+    "properties": {
+      "estimator": {"type":"string"},
+      "track": {"enum":["unified","byo"]},
+      "protocol": {"type":"string"},
+      "metrics": {"type":"object"},
+      "verdicts": {"type":"object"}
+    }
+  }
+}
