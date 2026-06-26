@@ -1,6 +1,6 @@
 import numpy as np, pandas as pd
 from sohbench.runner import BenchmarkRunner
-from sohbench.protocols import LeaveOneCellOut
+from sohbench.protocols import LeaveOneCellOut, LeaveOneDatasetOut
 from sohbench.tasks import SOHEstimationTask
 from sohbench.estimators.baselines import RidgeEstimator
 
@@ -72,4 +72,91 @@ def test_runner_featureset_default_is_full():
                     protocols={"loco": LeaveOneCellOut()},
                     estimators=[RidgeEstimator])
     assert "featureset" in rs.columns
+    assert set(rs["featureset"]) == {"full"}
+
+
+# ── H2b: BYO track tests ──────────────────────────────────────────────────────
+
+def _table_multi_dataset():
+    """Two datasets so LeaveOneDatasetOut has >=2 folds."""
+    rows = []
+    for ds in ["ds1", "ds2"]:
+        for cell in ["c1", "c2"]:
+            for k in range(10):
+                rows.append((ds, cell, k, 1.0 - 0.01 * k, float(k), float(k * k)))
+    return pd.DataFrame(rows, columns=["dataset", "cell_id", "cycle_index", "soh", "f1", "f2"])
+
+
+def test_byo_estimator_track_is_byo_and_not_projected():
+    """ByoSelectKBestRidge runs with track='byo', featureset='(byo)',
+    even if featuresets=['voltage'] is passed — BYO ignores it."""
+    import sohbench.featuresets  # noqa: F401
+    import sohbench.estimators.byo  # noqa: F401 — registers byo_skb_ridge
+    from sohbench.estimators.byo import ByoSelectKBestRidge
+    from sohbench.metadata import build_meta
+    t = _table(); meta = build_meta(t)
+    runner = BenchmarkRunner(seeds=[0])
+    rs = runner.run(SOHEstimationTask(), table=t, meta=meta,
+                    protocols={"loco": LeaveOneCellOut()},
+                    estimators=[ByoSelectKBestRidge],
+                    featuresets=["voltage"])  # should be ignored for BYO
+    assert "track" in rs.columns
+    assert set(rs["track"]) == {"byo"}, f"expected only byo, got {set(rs['track'])}"
+    assert set(rs["featureset"]) == {"(byo)"}, f"expected (byo), got {set(rs['featureset'])}"
+
+
+def test_unified_estimator_has_track_unified():
+    """A unified estimator (RidgeEstimator) gets track='unified' on all records."""
+    import sohbench.featuresets  # noqa: F401
+    from sohbench.metadata import build_meta
+    t = _table(); meta = build_meta(t)
+    runner = BenchmarkRunner(seeds=[0])
+    rs = runner.run(SOHEstimationTask(), table=t, meta=meta,
+                    protocols={"loco": LeaveOneCellOut()},
+                    estimators=[RidgeEstimator])
+    assert "track" in rs.columns
+    assert set(rs["track"]) == {"unified"}
+
+
+# ── H1b: cross_domain → WeightedConformalWrapper ─────────────────────────────
+
+def test_cross_domain_protocol_uses_weighted_conformal():
+    """Under LeaveOneDatasetOut (cross_domain=True), non-native estimators get
+    ci_source='weighted_conformal'."""
+    from sohbench.metadata import build_meta
+    t = _table_multi_dataset(); meta = build_meta(t)
+    runner = BenchmarkRunner(seeds=[0])
+    rs = runner.run(SOHEstimationTask(), table=t, meta=meta,
+                    protocols={"lodo": LeaveOneDatasetOut()},
+                    estimators=[RidgeEstimator])
+    ci_sources = set(rs["ci_source"])
+    assert "weighted_conformal" in ci_sources, \
+        f"expected weighted_conformal, got {ci_sources}"
+    assert "conformal" not in ci_sources
+
+
+def test_loco_protocol_uses_plain_conformal():
+    """Under LeaveOneCellOut (cross_domain=False), non-native estimators get
+    ci_source='conformal'."""
+    from sohbench.metadata import build_meta
+    t = _table(); meta = build_meta(t)
+    runner = BenchmarkRunner(seeds=[0])
+    rs = runner.run(SOHEstimationTask(), table=t, meta=meta,
+                    protocols={"loco": LeaveOneCellOut()},
+                    estimators=[RidgeEstimator])
+    ci_sources = set(rs["ci_source"])
+    assert "conformal" in ci_sources, f"expected conformal, got {ci_sources}"
+    assert "weighted_conformal" not in ci_sources
+
+
+def test_backward_compat_records_have_track_unified():
+    """Existing callers that don't pass featuresets still get track='unified'
+    and featureset='full' on every record."""
+    from sohbench.metadata import build_meta
+    t = _table(); meta = build_meta(t)
+    runner = BenchmarkRunner(seeds=[0])
+    rs = runner.run(SOHEstimationTask(), table=t, meta=meta,
+                    protocols={"loco": LeaveOneCellOut()},
+                    estimators=[RidgeEstimator])
+    assert set(rs["track"]) == {"unified"}
     assert set(rs["featureset"]) == {"full"}
