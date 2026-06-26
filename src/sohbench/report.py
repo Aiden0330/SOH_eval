@@ -20,8 +20,9 @@ def write_artifacts(results: pd.DataFrame, qc_report, task, config, out_dir):
                    for m, r in agg.iterrows()}
         flat = {m: v["mean"] for m, v in metrics.items()}
         verdicts = {v.name: v.passed for v in evaluate_verdicts(flat, task)}
+        ci_source = g["ci_source"].iloc[0] if "ci_source" in g.columns else "conformal"
         leaderboard.append({"estimator": est, "track": feature_mode, "protocol": proto,
-                            "metrics": metrics, "verdicts": verdicts, "ci_source": "conformal"})
+                            "metrics": metrics, "verdicts": verdicts, "ci_source": ci_source})
     (out / "leaderboard.json").write_text(json.dumps(leaderboard, indent=2))
     if qc_report is not None:
         (out / "qc_report.json").write_text(json.dumps(qc_report.__dict__, indent=2, default=str))

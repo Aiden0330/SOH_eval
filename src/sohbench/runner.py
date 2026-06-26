@@ -18,11 +18,14 @@ class BenchmarkRunner:
                     for seed in self.seeds:
                         np.random.seed(seed)
                         rec_base = dict(estimator=est_name, protocol=pname,
-                                        held_out_key=fold.held_out_key, fold=fi, seed=seed)
+                                        held_out_key=fold.held_out_key, fold=fi, seed=seed,
+                                        ci_source="conformal")
                         try:
                             est = est_factory() if isinstance(est_factory, type) else est_factory
-                            if not hasattr(est, "predict_interval"):
+                            native_ci = hasattr(est, "predict_interval")
+                            if not native_ci:
                                 est = ConformalWrapper(est, alpha=1 - task.acceptance["calibration"]["nominal"])
+                            rec_base["ci_source"] = "native" if native_ci else "conformal"
                             ytr = tr[task.target].to_numpy()
                             est.fit(tr, ytr, meta)
                             yte = te[task.target].to_numpy()
