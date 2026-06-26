@@ -27,6 +27,15 @@ def qc_gate(table: pd.DataFrame, meta: pd.DataFrame, *, lower: float = 0.0,
             dropped_columns.append(c)
     clean = clean.drop(columns=dropped_columns)
 
+    # Drop rows that still contain NaN in any kept feature column after the column-availability
+    # mask step above.  Such rows would cause Ridge.fit (and any other numpy-backed estimator)
+    # to raise with "Input X contains NaN".  We record the count so callers can audit.
+    kept_feat_cols = [c for c in clean.columns if c not in ID_COLUMNS]
+    if kept_feat_cols:
+        nan_row_mask = clean[kept_feat_cols].isna().any(axis=1)
+        drop_reasons["nan_feature_row"] = int(nan_row_mask.sum())
+        clean = clean.loc[~nan_row_mask].reset_index(drop=True)
+
     n_out = n_in - len(clean)
     rep = QCReport(
         pass_rate=(len(clean) / n_in) if n_in else 0.0,

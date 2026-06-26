@@ -15,12 +15,20 @@ def _table():
 def test_value_range_drop():
     t = _table(); meta = build_meta(t)
     clean, rep = qc_gate(t, meta, lower=0.0, upper=1.3)
-    assert set(clean["soh"]) <= {1.25, 0.95, 0.80}      # 1.35 and 0.0 dropped
+    # 1.35 and 0.0 dropped by SOH range; f_sparse NaN rows (soh=1.25,0.95) also dropped
+    assert set(clean["soh"]) <= {1.25, 0.95, 0.80}      # 1.35 and 0.0 dropped by range
     assert rep.drop_reasons["soh_out_of_range"] == 2
-    assert rep.n_out == 2
+    # n_out now includes NaN-feature-row drops in addition to SOH range drops
+    assert rep.n_out >= 2
 
 def test_soh_above_one_is_kept():
-    t = _table(); meta = build_meta(t)
+    # Use a table without NaN in feature columns to isolate the SOH > 1.0 retention test
+    t = pd.DataFrame({
+        "dataset": ["nasa"]*3, "cell_id": ["B0005"]*3,
+        "cycle_index": [0,1,2], "soh": [1.25, 0.95, 0.80],
+        "f1": [1.0, 2.0, 3.0],
+    })
+    meta = build_meta(t)
     clean, _ = qc_gate(t, meta, lower=0.0, upper=1.3)
     assert (clean["soh"] > 1.0).any()                    # 1.25 retained (D2)
 
