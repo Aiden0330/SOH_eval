@@ -1,0 +1,26 @@
+{
+  "pass_rate": 0.9980700955848885,
+  "n_in": 164775,
+  "n_out": 318,
+  "drop_reasons": {
+    "soh_out_of_range": 18,
+    "nan_feature_row": 300
+  },
+  "dropped_columns": [
+    "ambient_temp_c"
+  ],
+  "per_dataset": {
+    "nasa": {
+      "rows": 2529
+    },
+    "calce_cs2": {
+      "rows": 15287
+    },
+    "hust": {
+      "rows": 146122
+    },
+    "oxford": {
+      "rows": 519
+    }
+  }
+}

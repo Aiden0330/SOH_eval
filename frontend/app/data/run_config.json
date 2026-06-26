@@ -1,0 +1,26 @@
+{
+  "datasets": [
+    "nasa",
+    "calce_cs2",
+    "hust",
+    "oxford"
+  ],
+  "estimators": [
+    "ridge",
+    "gbdt",
+    "mlp",
+    "phys_resid"
+  ],
+  "protocols": [
+    "lodo"
+  ],
+  "seeds": [
+    0,
+    1
+  ],
+  "featuresets": [
+    "full",
+    "voltage",
+    "ic_dva"
+  ]
+}
