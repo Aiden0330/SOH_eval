@@ -1,0 +1,20 @@
+[project]
+name = "sohbench"
+version = "0.1.0"
+description = "SOH benchmark & evaluation harness (sub-project A)"
+requires-python = ">=3.11"
+dependencies = ["numpy", "pandas", "scikit-learn", "scipy", "pyarrow", "jsonschema"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
