@@ -22,6 +22,7 @@ def _json_safe(o):
 def _dump(obj, path):
     path.write_text(json.dumps(_json_safe(obj), indent=2, allow_nan=False, default=str))
 
+
 def write_artifacts(results: pd.DataFrame, qc_report, task, config, out_dir):
     out = Path(out_dir) / time.strftime("%Y%m%dT%H%M%S")
     out.mkdir(parents=True, exist_ok=True)
@@ -29,10 +30,11 @@ def write_artifacts(results: pd.DataFrame, qc_report, task, config, out_dir):
     results.to_csv(out / "results.csv", index=False)
 
     leaderboard = []
-    feature_mode = results["feature_mode"].iloc[0] if "feature_mode" in results else "unified"
 
     # Group by featureset when the column is present; fall back for backward compat.
     has_featureset = "featureset" in results.columns
+    has_track = "track" in results.columns
+
     if has_featureset:
         group_cols = ["estimator", "featureset", "protocol"]
     else:
@@ -45,15 +47,30 @@ def write_artifacts(results: pd.DataFrame, qc_report, task, config, out_dir):
             est, proto = group_key
             fs_name = "full"
 
-        agg = g.groupby("metric")["value"].agg(["mean","std"])
-        metrics = {m: {"mean": float(r["mean"]), "std": float(r["std"] if r["std"]==r["std"] else 0.0)}
+        # Read track from this group's records; default to "unified" for backward compat.
+        if has_track:
+            track = g["track"].iloc[0]
+        else:
+            # Fallback: infer from feature_mode column if present, else "unified"
+            track = results["feature_mode"].iloc[0] if "feature_mode" in results.columns else "unified"
+
+        agg = g.groupby("metric")["value"].agg(["mean", "std"])
+        metrics = {m: {"mean": float(r["mean"]),
+                        "std": float(r["std"] if r["std"] == r["std"] else 0.0)}
                    for m, r in agg.iterrows()}
         flat = {m: v["mean"] for m, v in metrics.items()}
         verdicts = {v.name: v.passed for v in evaluate_verdicts(flat, task)}
         ci_source = g["ci_source"].iloc[0] if "ci_source" in g.columns else "conformal"
-        leaderboard.append({"estimator": est, "featureset": fs_name,
-                            "track": feature_mode, "protocol": proto,
-                            "metrics": metrics, "verdicts": verdicts, "ci_source": ci_source})
+        leaderboard.append({
+            "estimator": est,
+            "featureset": fs_name,
+            "track": track,
+            "protocol": proto,
+            "metrics": metrics,
+            "verdicts": verdicts,
+            "ci_source": ci_source,
+        })
+
     _dump(leaderboard, out / "leaderboard.json")
     if qc_report is not None:
         _dump(qc_report.__dict__, out / "qc_report.json")

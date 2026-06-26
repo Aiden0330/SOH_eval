@@ -9,6 +9,7 @@ from .report import write_artifacts
 import sohbench.estimators.baselines  # noqa: F401  (register ridge/gbdt/svr/gpr)
 import sohbench.estimators.physics   # noqa: F401  (register phys_resid)
 import sohbench.estimators.neural    # noqa: F401  (register mlp)
+import sohbench.estimators.byo       # noqa: F401  (register byo_skb_ridge)
 import sohbench.featuresets          # noqa: F401  (register full/voltage/ic_dva/partial_window/capacity_time)
 
 _PROTOCOLS = {"loco": LeaveOneCellOut, "lodo": LeaveOneDatasetOut, "lcho": LeaveOneChemistryOut}
@@ -24,7 +25,11 @@ def run_benchmark(data_dir, datasets, estimators, protocols, seeds, out_dir,
     rs = BenchmarkRunner(seeds=seeds).run(SOHEstimationTask(), table=table, meta=meta,
                                           protocols=protos, estimators=ests,
                                           featuresets=featuresets)
-    rs["feature_mode"] = "unified"; rs["backend"] = "sklearn"; rs["dataset"] = ",".join(datasets)
+    # NOTE: do NOT force-set rs["track"] or rs["feature_mode"] to a global value here.
+    # The runner sets track="unified" or track="byo" per-estimator; report.py reads it.
+    # We add a backend column for metadata, and a dataset column for config traceability.
+    rs["backend"] = "sklearn"
+    rs["dataset"] = ",".join(datasets)
     return write_artifacts(rs, qc_report=qc, task=SOHEstimationTask(),
                            config={"datasets": datasets, "estimators": estimators,
                                    "protocols": protocols, "seeds": seeds,
