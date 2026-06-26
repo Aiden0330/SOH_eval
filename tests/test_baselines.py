@@ -17,3 +17,15 @@ def test_ridge_is_estimator_and_predicts():
     p = est.predict(X, meta=None)
     assert p.shape == (len(X),)
     assert np.mean(np.abs(p - y)) < 0.05
+
+
+def test_ridge_clamps_out_of_distribution_predictions():
+    # Train on a normal range, then predict on wildly out-of-distribution
+    # features (the leave-one-domain scaling blow-up). Output must stay in [0,1.3].
+    X, y = _xy()
+    est = RidgeEstimator().fit(X, y, meta=None)
+    ood = X.copy()
+    ood["f1"] = 1e6
+    ood["f2"] = -1e6
+    p = est.predict(ood, meta=None)
+    assert np.all(p >= 0.0) and np.all(p <= 1.3)
