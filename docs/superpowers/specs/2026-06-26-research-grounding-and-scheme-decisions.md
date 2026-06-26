@@ -21,7 +21,7 @@
 | D6 | 数据 QC 门 | 剔除越界/疑似设备故障突降/非降解电芯 | BatteryLife 同款 QC |
 | D7 | 多团队比较架构 | BatteryML 式模块化 + 统一数据表示 + 模型接口插拔 | 既有基准平台验证范式 |
 | D8 | 公平性机制 | 统一预处理 + **多种子平均（≥5）** + **双轨特征**（统一特征主榜 + 自带特征独立轨，标注）| "不公平比较源于预处理不一致"；BatteryML feature 接口 |
-| D9 | 指标集 | RMSE/MAE/**MAPE**/EOL区/max/**α-accuracy(15%)**/PICP/单调违例 | BatteryML(MAE) + BatteryLife(MAPE,15%-acc) |
+| D9 | 指标集 | RMSE/MAE/**MAPE**/**MBE(带符号偏置)**/**高估率**/EOL区/max/**α-accuracy(15%)**/PICP/单调违例 | BatteryML(MAE) + BatteryLife(MAPE,15%-acc) + 安全侧偏置 |
 | D10 | 物理一致 | 单调（吞吐量维，留回跳容差）+ 值域 | 容量再生真实→必须留容差 |
 | D11 | 自研算法路线 | 传统 ML + physics-residual + 异质集成（非 DNN）| 可审计性合规，且命中域挑战 |
 | D12 | 安全预警扩展缝 | 算法无关接口 + 一致性/突降特征预留 | 电芯不一致→热失控是工业关切 |

@@ -40,7 +40,7 @@ external DL/pytorch algorithms can be compared freely.
 | D5 | Leave-one-cell-out (anti-leakage baseline) + leave-one-dataset-out + leave-one-chemistry-out (separability-asserted); forward-chaining designed-for |
 | D6 | Pre-score QC gate: value-range, sudden-drop fault exclusion, non-degrading/short-life exclusion, feature-availability mask (no mean-fill), label-source |
 | D8 | Fairness: unified preprocessing + **multi-seed averaging (≥5)** + **dual feature mode** (unified-feature main leaderboard + bring-your-own-features track, labeled) |
-| D9 | Metrics: RMSE / MAE / MAPE / EOL-region error / max error / 15%-accuracy / PICP / monotonicity-violation-rate / value-range-violation |
+| D9 | Metrics: RMSE / MAE / MAPE / **MBE (signed bias)** / **overestimation-rate** / EOL-region error / max error / 15%-accuracy / PICP / monotonicity-violation-rate / value-range-violation |
 | D10 | Physical-consistency: monotonicity on throughput axis with rebound tolerance (capacity regeneration is real) + value-range |
 | D12 | Algorithm-agnostic **Task** abstraction so safety-warning evaluation can be added later without reworking the harness |
 
@@ -155,8 +155,10 @@ Pure functions `(y_true, y_pred[, intervals][, order]) -> float`:
 
 | Metric | Note |
 |---|---|
-| `rmse`, `mae`, `max_error` | standard error |
+| `rmse`, `mae`, `max_error` | standard (unsigned-magnitude) error |
 | `mape` | field-standard relative error |
+| `mean_bias_error` (MBE/ME) | mean of signed `(pred − true)` — systematic over/under-estimation direction |
+| `overestimation_rate` | fraction of samples with `pred > true` (+ optional over-side conditional MAE) — safety-asymmetric: over-estimating SOH makes a battery look healthier than it is |
 | `alpha_accuracy` (15%) | fraction within 15% relative error (BatteryLife) |
 | `eol_region_error` | RMSE over SOH ≤ `eol_threshold` (default 0.8) |
 | `picp` | interval coverage; native or conformal-derived (labeled) |
@@ -225,7 +227,9 @@ A JSON Schema for `leaderboard.json` / `qc_report.json` / `verdicts.json` is shi
 Tests first, per module; critical tests encode the hard rules:
 
 - **metrics**: known-array rmse/mae/mape/max/alpha; `eol_region_error` filters by threshold; `picp` coverage;
-  `monotonicity_violation_rate` counts only > tol rises along order; `value_range_violation` flags out-of-range.
+  `monotonicity_violation_rate` counts only > tol rises along order; `value_range_violation` flags out-of-range;
+  `mean_bias_error` sign correctness (positive when systematically over-estimating); `overestimation_rate`
+  fraction correct on crafted over/under predictions.
 - **qc**: soh=1.25 kept (legal), soh=1.35 / 0.0 dropped + counted; `bms_reported` rejected; sudden-drop excluded;
   low-availability column dropped with **no synthetic fill** (assert no new values introduced).
 - **protocols (leakage gate)**: synthetic data → **no cell in both train and test**; dataset-out holds a whole
