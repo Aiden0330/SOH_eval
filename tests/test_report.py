@@ -30,3 +30,33 @@ def test_leaderboard_matches_schema(tmp_path):
     lb = json.loads((Path(out)/"leaderboard.json").read_text())
     schema = json.loads((Path(__file__).parents[1]/"src/sohbench/schemas/leaderboard.schema.json").read_text())
     jsonschema.validate(lb, schema)
+
+
+def _results_with_featureset():
+    """Results frame that includes a featureset column (two featuresets)."""
+    rows = []
+    for fs in ["full", "voltage"]:
+        for seed in range(5):
+            for metric, val in [("mae", 0.01), ("picp", 0.92),
+                                 ("monotonicity_violation_rate", 0.0),
+                                 ("value_range_violation", 0.0)]:
+                rows.append(dict(estimator="ridge", feature_mode="unified", backend="sklearn",
+                                 protocol="loco", dataset="ds", held_out_key="c1", fold=0,
+                                 seed=seed, metric=metric, value=val,
+                                 featureset=fs))
+    return pd.DataFrame(rows)
+
+
+def test_leaderboard_featureset_column(tmp_path):
+    """When results carry featureset, leaderboard entries include featureset."""
+    import json
+    out = write_artifacts(_results_with_featureset(), qc_report=None,
+                          task=SOHEstimationTask(), config={}, out_dir=tmp_path)
+    lb = json.loads((Path(out) / "leaderboard.json").read_text())
+    # Both featuresets should appear
+    featuresets_in_lb = {e["featureset"] for e in lb}
+    assert featuresets_in_lb == {"full", "voltage"}, \
+        f"expected both featuresets in leaderboard, got {featuresets_in_lb}"
+    # Each entry must have the field
+    for entry in lb:
+        assert "featureset" in entry, f"entry missing featureset: {entry}"

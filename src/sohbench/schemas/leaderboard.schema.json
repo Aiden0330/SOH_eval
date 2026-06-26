@@ -6,6 +6,7 @@
     "required": ["estimator","track","protocol","metrics","verdicts"],
     "properties": {
       "estimator": {"type":"string"},
+      "featureset": {"type":"string"},
       "track": {"enum":["unified","byo"]},
       "protocol": {"type":"string"},
       "metrics": {"type":"object"},

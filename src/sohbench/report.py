@@ -12,16 +12,30 @@ def write_artifacts(results: pd.DataFrame, qc_report, task, config, out_dir):
     results.to_csv(out / "results.csv", index=False)
 
     leaderboard = []
-    group_cols = ["estimator","protocol"]
     feature_mode = results["feature_mode"].iloc[0] if "feature_mode" in results else "unified"
-    for (est, proto), g in results.groupby(group_cols):
+
+    # Group by featureset when the column is present; fall back for backward compat.
+    has_featureset = "featureset" in results.columns
+    if has_featureset:
+        group_cols = ["estimator", "featureset", "protocol"]
+    else:
+        group_cols = ["estimator", "protocol"]
+
+    for group_key, g in results.groupby(group_cols):
+        if has_featureset:
+            est, fs_name, proto = group_key
+        else:
+            est, proto = group_key
+            fs_name = "full"
+
         agg = g.groupby("metric")["value"].agg(["mean","std"])
         metrics = {m: {"mean": float(r["mean"]), "std": float(r["std"] if r["std"]==r["std"] else 0.0)}
                    for m, r in agg.iterrows()}
         flat = {m: v["mean"] for m, v in metrics.items()}
         verdicts = {v.name: v.passed for v in evaluate_verdicts(flat, task)}
         ci_source = g["ci_source"].iloc[0] if "ci_source" in g.columns else "conformal"
-        leaderboard.append({"estimator": est, "track": feature_mode, "protocol": proto,
+        leaderboard.append({"estimator": est, "featureset": fs_name,
+                            "track": feature_mode, "protocol": proto,
                             "metrics": metrics, "verdicts": verdicts, "ci_source": ci_source})
     (out / "leaderboard.json").write_text(json.dumps(leaderboard, indent=2))
     if qc_report is not None:
