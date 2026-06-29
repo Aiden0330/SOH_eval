@@ -13,7 +13,7 @@ class BenchmarkRunner:
         self.seeds = list(seeds)
 
     def run(self, task, table, meta, protocols, estimators,
-            featuresets=None) -> pd.DataFrame:
+            featuresets=None, on_model_fitted=None) -> pd.DataFrame:
         """Run the benchmark matrix over estimators × protocols × featuresets × seeds.
 
         Parameters
@@ -31,7 +31,9 @@ class BenchmarkRunner:
 
         for est_factory in estimators:
             est_name = getattr(est_factory, "name", est_factory.__class__.__name__)
-            is_byo = getattr(est_factory, "feature_mode", "unified") == "byo"
+            est_feature_mode = getattr(est_factory, "feature_mode", "unified")
+            est_backend = getattr(est_factory, "backend", "sklearn")
+            is_byo = est_feature_mode == "byo"
 
             if is_byo:
                 # BYO estimators: single pseudo-featureset, no projection
@@ -56,6 +58,8 @@ class BenchmarkRunner:
                                 held_out_key=fold.held_out_key, fold=fi,
                                 seed=seed, ci_source="conformal",
                                 featureset=fs_name, track=track,
+                                feature_mode=est_feature_mode,
+                                backend=est_backend,
                             )
                             try:
                                 est = est_factory() if isinstance(est_factory, type) else est_factory
@@ -72,6 +76,14 @@ class BenchmarkRunner:
                                     rec_base["ci_source"] = "native"
                                 ytr = tr[task.target].to_numpy()
                                 est.fit(tr, ytr, meta)
+                                if on_model_fitted is not None:
+                                    on_model_fitted(
+                                        estimator=est,
+                                        record=dict(rec_base),
+                                        train_table=tr.copy(),
+                                        test_table=te.copy(),
+                                        meta=meta,
+                                    )
                                 yte = te[task.target].to_numpy()
                                 yp = est.predict(te, meta)
                                 row = self._point_metrics(task, yte, yp)

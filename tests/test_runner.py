@@ -160,3 +160,57 @@ def test_backward_compat_records_have_track_unified():
                     estimators=[RidgeEstimator])
     assert set(rs["track"]) == {"unified"}
     assert set(rs["featureset"]) == {"full"}
+
+
+def test_runner_calls_on_model_fitted_after_successful_fit():
+    from sohbench.contracts import Fold
+
+    class TinyProtocol:
+        def generate(self, table, meta):
+            yield Fold(
+                train_idx=np.array([0, 1, 2]),
+                test_idx=np.array([3, 4]),
+                held_out_key="demo",
+            )
+
+    class TinyEstimator:
+        name = "tiny_estimator"
+        feature_mode = "unified"
+        backend = "external"
+
+        def fit(self, X, y, meta=None):
+            self.mean_ = float(np.mean(y))
+            return self
+
+        def predict(self, X, meta=None):
+            return np.full(len(X), self.mean_)
+
+        def predict_interval(self, X, meta=None):
+            center = self.predict(X, meta)
+            return center, center
+
+    table = pd.DataFrame(
+        {
+            "dataset": ["demo"] * 5,
+            "cell_id": ["c1"] * 5,
+            "cycle_index": [0, 1, 2, 3, 4],
+            "soh": [1.0, 0.99, 0.98, 0.97, 0.96],
+            "voltage_mean": [3.5, 3.49, 3.48, 3.47, 3.46],
+        }
+    )
+    seen = []
+
+    BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(),
+        table=table,
+        meta=pd.DataFrame(),
+        protocols={"demo": TinyProtocol()},
+        estimators=[TinyEstimator],
+        featuresets=["full"],
+        on_model_fitted=lambda **kwargs: seen.append(kwargs),
+    )
+
+    assert len(seen) == 1
+    assert seen[0]["record"]["estimator"] == "tiny_estimator"
+    assert np.isclose(seen[0]["estimator"].mean_, 0.99)
+    assert list(seen[0]["train_table"]["cycle_index"]) == [0, 1, 2]
