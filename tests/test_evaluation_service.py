@@ -1,6 +1,8 @@
 import json
+import pickle
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from sohbench.evaluation_service import EvaluationService
@@ -56,6 +58,28 @@ def transform(table, meta=None):
     out["fade_from_full"] = 1.0 - out["soh"]
     return out
 '''
+
+
+class PickledPredictOnly:
+    def fit(self, X, y=None, meta=None):
+        raise AssertionError("fit must not be called")
+
+    def predict(self, X, meta=None):
+        return np.full(len(X), 0.95)
+
+
+def _model_manifest(name="api_model"):
+    return {
+        "model_name": name,
+        "model_kind": "pickle",
+        "estimator": "pickled_predict_only",
+        "featureset": "full",
+        "feature_columns": ["voltage_mean"],
+        "target": "soh",
+        "trained_on": ["train"],
+        "created_by_run": "unit",
+        "predict_contract": "predict(X, meta=None)",
+    }
 
 
 def test_inline_job_runs_uploaded_dataset_algorithm_and_featureset(tmp_path):
@@ -134,3 +158,30 @@ def test_training_job_publishes_model_catalog(tmp_path):
     assert frontend_catalog.exists()
     models = json.loads(frontend_catalog.read_text(encoding="utf-8"))["models"]
     assert any(item["estimator"] == "ridge" for item in models)
+
+
+def test_inference_job_runs_uploaded_pickle_model(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset("plugin_eval_demo", "demo.csv", _dataset_csv())
+    service.model_store.upload_model(
+        "api_model",
+        "api_model.pkl",
+        pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json",
+        json.dumps(_model_manifest()).encode("utf-8"),
+    )
+
+    job = service.create_inference_job(
+        {"datasets": ["plugin_eval_demo"], "models": ["api_model"]},
+        start=False,
+    )
+    finished = service.run_inference_job_inline(job["id"])
+
+    assert finished["status"] == "succeeded"
+    assert (Path(finished["run_dir"]) / "inference_benchmark.json").exists()
+    assert (tmp_path / "frontend_data" / "inference_benchmark.json").exists()

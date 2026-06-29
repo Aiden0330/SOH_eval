@@ -11,9 +11,10 @@ from pathlib import Path
 from . import registry as R
 from .contracts import feature_columns
 from .data import DatasetLoader
+from .inference import run_inference_benchmark
 from .model_store import ModelStore
 from .protocols import LeaveOneCellOut, LeaveOneChemistryOut, LeaveOneDatasetOut
-from .report import write_artifacts
+from .report import write_artifacts, write_inference_artifacts
 from .runner import BenchmarkRunner
 from .tasks import SOHEstimationTask
 from .trusted_plugins import TrustedPluginStore
@@ -88,13 +89,16 @@ class EvaluationService:
         self.runs_dir = Path(runs_dir)
         self.frontend_data_dir = Path(frontend_data_dir)
         self.jobs_dir = self.work_dir / "jobs"
+        self.inference_jobs_dir = self.work_dir / "inference_jobs"
         self.jobs_dir.mkdir(parents=True, exist_ok=True)
+        self.inference_jobs_dir.mkdir(parents=True, exist_ok=True)
         self.store = TrustedPluginStore(self.work_dir, self.data_dir)
         self.model_store = ModelStore(self.work_dir / "models")
 
     def catalog(self) -> dict:
         catalog = self.store.catalog()
         catalog["jobs"] = self.list_jobs()
+        catalog["inference_jobs"] = self.list_inference_jobs()
         catalog["models"] = self.model_store.catalog()
         return catalog
 
@@ -110,6 +114,22 @@ class EvaluationService:
         self._save_job(job)
         if start:
             thread = threading.Thread(target=self.run_job_inline, args=(job_id,), daemon=True)
+            thread.start()
+        return job
+
+    def create_inference_job(self, payload: dict, *, start: bool = True) -> dict:
+        request = self._normalize_inference_request(payload)
+        job_id = time.strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:8]
+        job = {
+            "id": job_id,
+            "kind": "inference",
+            "status": "queued",
+            "created_at": _now(),
+            "request": request,
+        }
+        self._save_inference_job(job)
+        if start:
+            thread = threading.Thread(target=self.run_inference_job_inline, args=(job_id,), daemon=True)
             thread.start()
         return job
 
@@ -225,6 +245,61 @@ class EvaluationService:
         self._save_job(job)
         return job
 
+    def run_inference_job_inline(self, job_id: str) -> dict:
+        job = self.get_inference_job(job_id)
+        job.update({"status": "running", "started_at": _now()})
+        self._save_inference_job(job)
+        try:
+            request = job["request"]
+            loader = DatasetLoader(self.data_dir)
+            datasets = loader.resolve_datasets(request["datasets"])
+            table, meta, _qc = loader.load(datasets)
+            records = run_inference_benchmark(
+                self.model_store,
+                table,
+                meta,
+                request["models"],
+            )
+            raw_run_dir = Path(
+                write_inference_artifacts(
+                    records,
+                    {
+                        **request,
+                        "datasets": datasets,
+                        "trusted_local_pickle_models": True,
+                    },
+                    self.runs_dir,
+                )
+            )
+            (raw_run_dir / "model_catalog.json").write_text(
+                json.dumps(
+                    {"models": self.model_store.catalog()},
+                    indent=2,
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            published_run_dir = self._publish_frontend_artifacts(raw_run_dir)
+            job.update(
+                {
+                    "status": "succeeded",
+                    "finished_at": _now(),
+                    "raw_run_dir": str(raw_run_dir),
+                    "run_dir": str(published_run_dir),
+                }
+            )
+        except Exception as exc:
+            job.update(
+                {
+                    "status": "failed",
+                    "finished_at": _now(),
+                    "error": str(exc),
+                    "traceback": traceback.format_exc(limit=12),
+                }
+            )
+        self._save_inference_job(job)
+        return job
+
     def get_job(self, job_id: str) -> dict:
         path = self.jobs_dir / f"{job_id}.json"
         if not path.exists():
@@ -234,6 +309,21 @@ class EvaluationService:
     def list_jobs(self) -> list[dict]:
         jobs = []
         for path in sorted(self.jobs_dir.glob("*.json"), reverse=True):
+            try:
+                jobs.append(json.loads(path.read_text(encoding="utf-8")))
+            except json.JSONDecodeError:
+                continue
+        return jobs
+
+    def get_inference_job(self, job_id: str) -> dict:
+        path = self.inference_jobs_dir / f"{job_id}.json"
+        if not path.exists():
+            raise KeyError(job_id)
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def list_inference_jobs(self) -> list[dict]:
+        jobs = []
+        for path in sorted(self.inference_jobs_dir.glob("*.json"), reverse=True):
             try:
                 jobs.append(json.loads(path.read_text(encoding="utf-8")))
             except json.JSONDecodeError:
@@ -261,6 +351,17 @@ class EvaluationService:
             "seeds": seeds,
         }
 
+    def _normalize_inference_request(self, payload: dict) -> dict:
+        datasets = _string_list(payload.get("datasets") or ["all"])
+        models = _string_list(payload.get("models") or [])
+        if not models:
+            raise ValueError("at least one model is required")
+        known = {item["name"] for item in self.model_store.catalog()}
+        missing = [name for name in models if name not in known]
+        if missing:
+            raise ValueError(f"unknown models: {missing}")
+        return {"datasets": datasets, "models": models}
+
     def _publish_frontend_artifacts(self, raw_run_dir: Path) -> Path:
         _sync_frontend_files(raw_run_dir, self.frontend_data_dir)
         return raw_run_dir
@@ -268,6 +369,13 @@ class EvaluationService:
     def _save_job(self, job: dict) -> None:
         self.jobs_dir.mkdir(parents=True, exist_ok=True)
         (self.jobs_dir / f"{job['id']}.json").write_text(
+            json.dumps(job, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+    def _save_inference_job(self, job: dict) -> None:
+        self.inference_jobs_dir.mkdir(parents=True, exist_ok=True)
+        (self.inference_jobs_dir / f"{job['id']}.json").write_text(
             json.dumps(job, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
@@ -293,7 +401,9 @@ def _sync_frontend_files(run_dir: Path, frontend_data_dir: Path) -> None:
 
     frontend_data_dir.mkdir(parents=True, exist_ok=True)
     for filename in ("leaderboard.json", "dataset_leaderboard.json", "qc_report.json", "run_config.json"):
-        shutil.copy2(run_dir / filename, frontend_data_dir / filename)
+        source = run_dir / filename
+        if source.exists():
+            shutil.copy2(source, frontend_data_dir / filename)
     for filename in ("model_catalog.json", "inference_benchmark.json"):
         source = run_dir / filename
         if source.exists():
