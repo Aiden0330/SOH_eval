@@ -38,6 +38,13 @@
       评测工作台
       <span class="api-state" id="api-state">连接中</span>
     </h2>
+    <div class="tab-intent training-intent">
+      <span>训练编排</span>
+      <strong>上传资源、配置矩阵、启动训练，并产出可复用 Pickle 模型。</strong>
+    </div>
+    <div class="training-layout">
+      <aside class="workbench-panel workflow-panel" id="training-workflow" aria-label="训练流程"></aside>
+      <div class="training-config-stack">
     <div class="workbench-steps" id="workbench-steps" aria-label="评测流程"></div>
     <div class="workbench-grid">
       <div class="workbench-panel upload-panel">
@@ -93,6 +100,9 @@
         </div>
       </div>
     </div>
+      </div>
+      <aside class="workbench-panel artifact-panel" id="training-artifacts" aria-label="训练产物"></aside>
+    </div>
     <div class="job-state" id="job-state">等待后端连接</div>
   </section>
 
@@ -104,6 +114,13 @@
       </div>
       <button id="start-inference" class="primary-action">启动推理测评</button>
     </div>
+    <div class="tab-intent inference-intent">
+      <span>迁移分析</span>
+      <strong>选择 Pickle 模型和目标数据集，检查兼容性、泛化精度和推理速度。</strong>
+    </div>
+    <div class="inference-workbench">
+      <aside class="workbench-panel compatibility-panel" id="inference-compatibility" aria-label="推理兼容性"></aside>
+      <div class="inference-main">
     <div class="upload-card">
       <div class="upload-card-title"><span class="resource-kind algorithm">模型</span><b>上传 Pickle 模型</b></div>
       <div class="upload-row model-upload-row">
@@ -124,6 +141,9 @@
       </div>
     </div>
     <div id="inference-results"></div>
+      </div>
+      <aside class="workbench-panel insight-panel" id="inference-insights" aria-label="推理洞察"></aside>
+    </div>
   </section>
 
   <section class="card model-library-card" id="model-library" data-mode-panel="models" hidden>
@@ -133,6 +153,11 @@
         <p class="desc">集中查看训练测评产出的模型和外部上传的 Pickle 模型。</p>
       </div>
     </div>
+    <div class="tab-intent models-intent">
+      <span>模型资产</span>
+      <strong>管理训练产物和外部 Pickle，查看 manifest、特征 schema 与最近推理表现。</strong>
+    </div>
+    <div id="model-library-summary" class="model-summary-grid" aria-label="模型资产摘要"></div>
     <div id="model-library-table"></div>
   </section>
 

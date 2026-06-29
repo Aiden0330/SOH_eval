@@ -11,15 +11,18 @@ import {
   catalogOptions,
   evaluationPlanSummary,
   datasetOptions,
+  inferenceInsightSummary,
   inferenceRows,
   inferenceSummary,
   leaderboardCoverage,
+  modelAssetRows,
   metricMean,
   modelOptions,
   nextDatasetSelection,
   scopeSummary,
   stabilityRows,
   summarizeBySelection,
+  trainingArtifactSummary,
 } from "./dashboard-core.mjs";
 
 const FALLBACK = {
@@ -303,6 +306,8 @@ function renderWorkbench() {
     renderResourceList("run-estimators", [], resourceSelection.estimators);
     renderResourceList("run-featuresets", [], resourceSelection.featuresets);
     renderRunPlan();
+    renderTrainingWorkflow(evaluationPlanSummary(buildCurrentEvaluationPayload()));
+    renderTrainingArtifacts();
     jobState.textContent = "后端未连接，静态结果仍可浏览。";
     wireWorkbenchActions(false);
     return;
@@ -315,6 +320,8 @@ function renderWorkbench() {
   renderResourceList("run-estimators", options.estimators, resourceSelection.estimators, (item) => item.featureMode || item.backend);
   renderResourceList("run-featuresets", options.featuresets, resourceSelection.featuresets, (item) => item.columns?.length ? `${item.columns.length} 列` : "选择器");
   renderRunPlan();
+  renderTrainingWorkflow(evaluationPlanSummary(buildCurrentEvaluationPayload()));
+  renderTrainingArtifacts();
   renderJobState();
   wireWorkbenchActions(true);
 }
@@ -357,6 +364,8 @@ function renderRunPlan() {
     `</div>` +
     `<div class="run-plan-note">${plan.ready ? "评测完成后会自动发布到仪表盘数据。" : "请至少选择一个数据集、算法、特征、协议和 seed。"}</div>`;
   renderWorkbenchSteps(plan);
+  renderTrainingWorkflow(plan);
+  renderTrainingArtifacts();
 }
 
 function renderWorkbenchSteps(plan = null) {
@@ -375,6 +384,58 @@ function renderWorkbenchSteps(plan = null) {
       `<b>${esc(label)}</b>` +
       `<small>${esc(hint)}</small>` +
     `</div>`).join("");
+}
+
+function renderTrainingWorkflow(plan = null) {
+  const node = $("training-workflow");
+  if (!node) return;
+  const jobStatus = CURRENT_JOB?.status || "";
+  const steps = [
+    ["资源接入", CATALOG ? "complete" : "pending", CATALOG ? "资源目录已加载" : "等待后端连接"],
+    ["组合配置", plan?.ready ? "active" : "pending", plan?.partsLabel || "请选择数据、算法、特征"],
+    ["训练执行", jobStatus === "running" || jobStatus === "queued" ? "active" : (jobStatus === "succeeded" ? "complete" : "pending"), jobStatus || "尚未启动"],
+    ["模型发布", jobStatus === "succeeded" ? "complete" : "pending", "Pickle 模型进入模型库"],
+  ];
+  node.innerHTML =
+    `<div class="panel-title"><span>训练流程</span><b>实验编排台</b></div>` +
+    `<div class="workflow-list">` +
+      steps.map(([label, state, hint], index) =>
+        `<div class="workflow-step ${esc(state)}">` +
+          `<span>${index + 1}</span>` +
+          `<div><b>${esc(label)}</b><small>${esc(hint)}</small></div>` +
+        `</div>`).join("") +
+    `</div>` +
+    `<div class="note">训练页负责上传源码算法和特征方案，完成后产出可复用 Pickle 模型。</div>`;
+}
+
+function renderTrainingArtifacts() {
+  const node = $("training-artifacts");
+  if (!node) return;
+  const summary = trainingArtifactSummary(DATA?.config || {}, currentModelCatalog());
+  const jobStatus = CURRENT_JOB?.status || "未启动";
+  node.innerHTML =
+    `<div class="panel-title"><span>训练产物</span><b>模型资产入口</b></div>` +
+    `<div class="artifact-stack">` +
+      artifactMetric("Pickle 模型", summary.label, `${summary.generatedCount} 训练产出 / ${summary.uploadedCount} 外部上传`, "model") +
+      artifactMetric("数据集范围", `${summary.datasetCount || 0} 个数据集`, "训练矩阵使用的数据源范围", "dataset") +
+      artifactMetric("任务状态", jobStatus, CURRENT_JOB?.id || "等待新任务", "job") +
+    `</div>` +
+    `<button class="secondary-action" data-mode-shortcut="models">查看模型库</button>`;
+  const button = node.querySelector("[data-mode-shortcut='models']");
+  if (button) {
+    button.onclick = () => {
+      activeMode = "models";
+      render();
+    };
+  }
+}
+
+function artifactMetric(label, value, hint, kind) {
+  return `<div class="artifact-metric ${esc(kind)}">` +
+    `<span>${esc(label)}</span>` +
+    `<b>${esc(value)}</b>` +
+    `<small>${esc(hint)}</small>` +
+  `</div>`;
 }
 
 function buildCurrentEvaluationPayload() {
@@ -466,10 +527,58 @@ function renderInferencePanel(dsOptions) {
     [...inferenceSelection.datasets],
   );
   const summary = inferenceSummary({ records: rows });
+  renderInferenceCompatibility(models, dsOptions);
+  renderInferenceInsights(inferenceInsightSummary(rows));
   $("inference-results").innerHTML = renderInferenceSummary(summary) + renderInferenceTable(rows);
   const start = $("start-inference");
   if (start) start.onclick = CATALOG ? startInferenceEvaluation : null;
   if (start) start.disabled = !CATALOG;
+}
+
+function renderInferenceCompatibility(models, dsOptions) {
+  const node = $("inference-compatibility");
+  if (!node) return;
+  const selectedModels = models.filter((item) => inferenceSelection.models.has(item.name));
+  const selectedDatasets = dsOptions.filter((item) => inferenceSelection.datasets.has(item.name));
+  const missingFeatureModels = selectedModels.filter((item) => !(item.featureColumns || []).length);
+  node.innerHTML =
+    `<div class="panel-title"><span>推理输入</span><b>兼容性预检</b></div>` +
+    `<div class="selector-summary">` +
+      artifactMetric("模型", `${selectedModels.length}/${models.length || 0}`, selectedModels.map((item) => item.name).slice(0, 3).join(" / ") || "暂无模型", "model") +
+      artifactMetric("目标数据集", `${selectedDatasets.length}/${dsOptions.length || 0}`, selectedDatasets.map((item) => item.name).slice(0, 3).join(" / ") || "暂无数据集", "dataset") +
+    `</div>` +
+    `<div class="compat-note ${missingFeatureModels.length ? "warn" : "ok"}">` +
+      `<b>${missingFeatureModels.length ? "需要复核特征 schema" : "可启动推理测评"}</b>` +
+      `<span>${missingFeatureModels.length ? `${missingFeatureModels.length} 个模型缺少特征列清单，运行前请确认 manifest。` : "已选择模型和目标数据集，后端会在运行时再次校验特征列。"}</span>` +
+    `</div>`;
+}
+
+function renderInferenceInsights(summary) {
+  const node = $("inference-insights");
+  if (!node) return;
+  node.innerHTML =
+    `<div class="panel-title"><span>自动结论</span><b>迁移分析</b></div>` +
+    `<div class="insight-stack">` +
+      insightCard("推荐模型", summary.bestTransfer?.model || "暂无", summary.recommendation, "ok") +
+      insightCard("速度参考", summary.fastest?.model || "暂无", summary.fastest ? `${fmt(summary.fastest.ms_per_1000_samples, 2)} ms / 1000 样本` : "暂无成功推理记录", "speed") +
+      insightCard("风险提示", `${summary.failedCount} 个失败组合`, summary.risk, summary.failedCount ? "warn" : "ok") +
+    `</div>` +
+    `<button class="secondary-action" data-mode-shortcut="models">查看模型资产</button>`;
+  const button = node.querySelector("[data-mode-shortcut='models']");
+  if (button) {
+    button.onclick = () => {
+      activeMode = "models";
+      render();
+    };
+  }
+}
+
+function insightCard(label, value, hint, kind) {
+  return `<div class="insight-card ${esc(kind)}">` +
+    `<span>${esc(label)}</span>` +
+    `<b>${esc(value)}</b>` +
+    `<small>${esc(hint)}</small>` +
+  `</div>`;
 }
 
 function renderInferenceSummary(summary) {
@@ -509,22 +618,39 @@ function renderInferenceTable(rows) {
 function renderModelLibrary() {
   if (!$("model-library-table")) return;
   const models = modelOptions(currentModelCatalog());
+  const assets = modelAssetRows(currentModelCatalog(), DATA?.inference || {});
+  renderModelLibrarySummary(assets);
   if (!models.length) {
     $("model-library-table").innerHTML = '<div class="note">暂无模型。训练测评完成后会产出模型，也可以在推理测评页上传 Pickle 模型。</div>';
     return;
   }
-  const rows = models.map((item) =>
+  const rows = assets.map((item) =>
     `<tr>` +
     `<td><span class="algo">${esc(item.name)}</span><small>${esc(item.badge)}</small></td>` +
     `<td>${esc(item.estimator || "未知")}</td>` +
     `<td>${esc(item.featureset || "未知")}</td>` +
     `<td>${esc((item.trainedOn || []).join(" / ") || "外部上传")}</td>` +
-    `<td class="tnum">${esc(String((item.featureColumns || []).length))}</td>` +
+    `<td class="tnum">${esc(String(item.featureColumnCount || 0))}</td>` +
+    `<td class="tnum">${item.latestMae == null ? "暂无" : fmt(item.latestMae)}</td>` +
+    `<td class="tnum">${item.latestSpeed == null ? "暂无" : `${fmt(item.latestSpeed, 2)} ms`}</td>` +
     `</tr>`).join("");
   $("model-library-table").innerHTML =
     `<div class="inference-table"><table><thead><tr>` +
-    `<th>模型</th><th>算法</th><th>特征集</th><th>训练数据</th><th>特征数</th>` +
+    `<th>模型</th><th>算法</th><th>特征集</th><th>训练数据</th><th>特征数</th><th>最近 MAE</th><th>最近速度</th>` +
     `</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function renderModelLibrarySummary(assets = []) {
+  const node = $("model-library-summary");
+  if (!node) return;
+  const generated = assets.filter((item) => item.source !== "upload").length;
+  const uploaded = assets.filter((item) => item.source === "upload").length;
+  const withInference = assets.filter((item) => item.latestMae != null).length;
+  const best = assets.find((item) => item.latestMae != null);
+  node.innerHTML =
+    artifactMetric("模型总数", `${assets.length}`, `${generated} 训练产出 / ${uploaded} 外部上传`, "model") +
+    artifactMetric("已推理模型", `${withInference}`, "拥有最近 inference-only 指标", "job") +
+    artifactMetric("最佳资产", best?.name || "暂无", best ? `最近 MAE ${fmt(best.latestMae)}` : "等待推理测评", "dataset");
 }
 
 async function uploadResource(kind) {

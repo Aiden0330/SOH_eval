@@ -9,11 +9,14 @@ import {
   catalogOptions,
   evaluationPlanSummary,
   inferenceRows,
+  inferenceInsightSummary,
   inferenceSummary,
   leaderboardCoverage,
+  modelAssetRows,
   modelOptions,
   scopeSummary,
   stabilityRows,
+  trainingArtifactSummary,
   nextDatasetSelection,
 } from "./dashboard-core.mjs";
 
@@ -290,4 +293,65 @@ function entry(estimator, featureset, mae, opts = {}) {
   });
   assert.deepEqual(payload.models, ["m1", "m2"]);
   assert.deepEqual(payload.datasets, ["nasa"]);
+}
+
+{
+  const summary = trainingArtifactSummary(
+    { datasets: ["nasa", "hust", "rwth_isea_public"] },
+    {
+      models: [
+        { name: "ridge_full", source: "training" },
+        { name: "gbdt_ic_dva", source: "training" },
+        { name: "external_xgb", source: "upload" },
+      ],
+    },
+  );
+  assert.equal(summary.pickleCount, 3);
+  assert.equal(summary.generatedCount, 2);
+  assert.equal(summary.uploadedCount, 1);
+  assert.equal(summary.datasetCount, 3);
+  assert.equal(summary.label, "3 个 Pickle 模型");
+}
+
+{
+  const insight = inferenceInsightSummary([
+    { model: "gbdt", dataset: "nasa", status: "succeeded", mae: 0.1, ms_per_1000_samples: 6 },
+    { model: "ridge", dataset: "nasa", status: "succeeded", mae: 0.2, ms_per_1000_samples: 3 },
+    { model: "mlp", dataset: "rwth", status: "failed", error: "missing feature" },
+  ]);
+  assert.equal(insight.succeededCount, 2);
+  assert.equal(insight.failedCount, 1);
+  assert.equal(insight.bestTransfer.model, "gbdt");
+  assert.equal(insight.fastest.model, "ridge");
+  assert.match(insight.recommendation, /gbdt/);
+  assert.match(insight.risk, /1/);
+}
+
+{
+  const insight = inferenceInsightSummary([]);
+  assert.equal(insight.succeededCount, 0);
+  assert.equal(insight.failedCount, 0);
+  assert.equal(insight.bestTransfer, null);
+  assert.match(insight.risk, /暂无成功推理记录/);
+}
+
+{
+  const assets = modelAssetRows(
+    {
+      models: [
+        { name: "ridge_full", source: "training", estimator: "ridge", featureset: "full", trained_on: ["nasa"], feature_columns: ["a", "b"] },
+        { name: "external_xgb", source: "upload", estimator: "xgb", featureset: "ic_dva", feature_columns: ["a"] },
+      ],
+    },
+    {
+      records: [
+        { model: "ridge_full", status: "succeeded", mae: 0.2, ms_per_1000_samples: 5 },
+        { model: "external_xgb", status: "succeeded", mae: 0.1, ms_per_1000_samples: 9 },
+      ],
+    },
+  );
+  assert.deepEqual(assets.map((row) => row.name), ["external_xgb", "ridge_full"]);
+  assert.equal(assets[0].latestMae, 0.1);
+  assert.equal(assets[0].featureColumnCount, 1);
+  assert.equal(assets[1].trainedOn.join(","), "nasa");
 }

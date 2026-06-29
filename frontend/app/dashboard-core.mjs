@@ -138,11 +138,76 @@ export function inferenceSummary(payload = {}) {
   return { count: ok.length, fastest, bestTransfer, highestThroughput };
 }
 
+export function inferenceInsightSummary(records = []) {
+  const succeeded = (records || []).filter((row) => row.status === "succeeded");
+  const failed = (records || []).filter((row) => row.status === "failed");
+  const summary = inferenceSummary({ records });
+  const bestName = summary.bestTransfer?.model || "暂无模型";
+  const fastestName = summary.fastest?.model || "暂无模型";
+  return {
+    succeededCount: succeeded.length,
+    failedCount: failed.length,
+    bestTransfer: summary.bestTransfer,
+    fastest: summary.fastest,
+    highestThroughput: summary.highestThroughput,
+    recommendation: summary.bestTransfer
+      ? `${bestName} 当前迁移精度最好，可优先进入模型库复核。`
+      : "暂无成功推理记录，先选择模型和数据集启动推理测评。",
+    risk: failed.length
+      ? `${failed.length} 个组合未完成，优先检查 Pickle 模型的特征列兼容性。`
+      : (summary.fastest
+        ? `${fastestName} 当前推理速度表现最好，仍需结合 MAE 判断是否可部署。`
+        : "暂无成功推理记录，完成 inference-only 测评后再判断迁移风险。"),
+  };
+}
+
 export function buildInferencePayload({ models = [], datasets = [] } = {}) {
   return {
     models: nonEmptyStrings(models),
     datasets: nonEmptyStrings(datasets),
   };
+}
+
+export function trainingArtifactSummary(config = {}, modelCatalog = {}) {
+  const models = Array.isArray(modelCatalog.models) ? modelCatalog.models : [];
+  const generatedCount = models.filter((item) => item.source !== "upload").length;
+  const uploadedCount = models.filter((item) => item.source === "upload").length;
+  const pickleCount = models.length;
+  const datasetCount = Array.isArray(config.datasets) ? config.datasets.length : 0;
+  return {
+    pickleCount,
+    datasetCount,
+    generatedCount,
+    uploadedCount,
+    label: `${pickleCount} 个 Pickle 模型`,
+  };
+}
+
+export function modelAssetRows(modelCatalog = {}, inferencePayload = {}) {
+  const latestByModel = new Map();
+  (inferencePayload.records || []).forEach((row) => {
+    if (!row?.model || row.status !== "succeeded") return;
+    const current = latestByModel.get(row.model);
+    const currentMae = current?.mae ?? Infinity;
+    const nextMae = row.mae ?? Infinity;
+    if (!current || nextMae < currentMae) latestByModel.set(row.model, row);
+  });
+
+  return modelOptions(modelCatalog).map((model) => {
+    const latest = latestByModel.get(model.name);
+    return {
+      ...model,
+      trainedOn: model.trainedOn || [],
+      featureColumnCount: (model.featureColumns || []).length,
+      latestMae: latest?.mae ?? null,
+      latestSpeed: latest?.ms_per_1000_samples ?? null,
+      latestDataset: latest?.dataset || "",
+    };
+  }).sort((a, b) => {
+    const am = a.latestMae ?? Infinity;
+    const bm = b.latestMae ?? Infinity;
+    return am - bm || a.name.localeCompare(b.name);
+  });
 }
 
 export function buildEvaluationPayload({
