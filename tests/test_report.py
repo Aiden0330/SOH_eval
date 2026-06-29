@@ -124,3 +124,58 @@ def test_nan_metrics_serialize_as_valid_json_null(tmp_path):
     assert "NaN" not in raw  # bare NaN token would break JSON.parse
     lb = json.loads(raw)     # must parse without error
     assert lb[0]["metrics"]["mae"]["mean"] is None
+
+
+def test_write_artifacts_emits_dataset_leaderboard(tmp_path):
+    rows = []
+    for held_out, mae in [("nasa", 0.20), ("hust", 0.05)]:
+        for metric, val in [
+            ("mae", mae),
+            ("picp", 0.91),
+            ("monotonicity_violation_rate", 0.0),
+            ("value_range_violation", 0.0),
+        ]:
+            rows.append(dict(
+                estimator="ridge", feature_mode="unified", backend="sklearn",
+                protocol="lodo", dataset="nasa,hust", held_out_key=held_out,
+                fold=0, seed=0, metric=metric, value=val,
+                featureset="full", track="unified", ci_source="weighted_conformal",
+            ))
+    out = write_artifacts(pd.DataFrame(rows), qc_report=None,
+                          task=SOHEstimationTask(), config={}, out_dir=tmp_path)
+
+    by_dataset = json.loads((Path(out) / "dataset_leaderboard.json").read_text())
+    assert {e["held_out_key"] for e in by_dataset} == {"nasa", "hust"}
+    hust = next(e for e in by_dataset if e["held_out_key"] == "hust")
+    assert hust["metrics"]["mae"]["mean"] == 0.05
+    assert hust["verdicts"]["calibration"] is True
+
+
+def test_write_inference_artifacts(tmp_path):
+    from sohbench.report import write_inference_artifacts
+
+    out = write_inference_artifacts(
+        [
+            {
+                "model": "predict_only",
+                "dataset": "new_a",
+                "n_samples": 2,
+                "mae": 0.01,
+                "rmse": 0.02,
+                "mean_bias_error": 0.0,
+                "predict_ms": 1.2,
+                "load_ms": 0.4,
+                "ms_per_1000_samples": 600.0,
+                "samples_per_second": 1666.7,
+                "status": "succeeded",
+                "error": "",
+            }
+        ],
+        {"datasets": ["new_a"], "models": ["predict_only"]},
+        tmp_path,
+    )
+    run_dir = Path(out)
+    assert (run_dir / "inference_results.csv").exists()
+    assert (run_dir / "inference_benchmark.json").exists()
+    payload = json.loads((run_dir / "inference_benchmark.json").read_text(encoding="utf-8"))
+    assert payload["records"][0]["model"] == "predict_only"

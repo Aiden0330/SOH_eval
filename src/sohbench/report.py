@@ -23,13 +23,56 @@ def _dump(obj, path):
     path.write_text(json.dumps(_json_safe(obj), indent=2, allow_nan=False, default=str))
 
 
+def _leaderboard_entries(results: pd.DataFrame, task, group_cols: list[str]) -> list[dict]:
+    entries = []
+    has_track = "track" in results.columns
+
+    for group_key, g in results.groupby(group_cols):
+        if not isinstance(group_key, tuple):
+            group_key = (group_key,)
+        keys = dict(zip(group_cols, group_key))
+
+        est = keys["estimator"]
+        fs_name = keys.get("featureset", "full")
+        proto = keys["protocol"]
+        track = keys.get("track")
+        if track is None:
+            if has_track:
+                track = g["track"].iloc[0]
+            else:
+                track = results["feature_mode"].iloc[0] if "feature_mode" in results.columns else "unified"
+
+        agg = g.groupby("metric")["value"].agg(["mean", "std"])
+        metrics = {m: {"mean": float(r["mean"]),
+                        "std": float(r["std"] if r["std"] == r["std"] else 0.0)}
+                   for m, r in agg.iterrows()}
+        flat = {m: v["mean"] for m, v in metrics.items()}
+        verdicts = {v.name: v.passed for v in evaluate_verdicts(flat, task)}
+        ci_source = g["ci_source"].iloc[0] if "ci_source" in g.columns else "conformal"
+
+        entry = {
+            "estimator": est,
+            "featureset": fs_name,
+            "track": track,
+            "protocol": proto,
+            "metrics": metrics,
+            "verdicts": verdicts,
+            "ci_source": ci_source,
+        }
+        if "held_out_key" in keys:
+            entry["held_out_key"] = str(keys["held_out_key"])
+        if "backend" in g.columns:
+            entry["backend"] = g["backend"].iloc[0]
+        entries.append(entry)
+
+    return entries
+
+
 def write_artifacts(results: pd.DataFrame, qc_report, task, config, out_dir):
     out = Path(out_dir) / time.strftime("%Y%m%dT%H%M%S")
     out.mkdir(parents=True, exist_ok=True)
     results.to_parquet(out / "results.parquet")
     results.to_csv(out / "results.csv", index=False)
-
-    leaderboard = []
 
     # Group by featureset when the column is present; fall back for backward compat.
     has_featureset = "featureset" in results.columns
@@ -39,40 +82,59 @@ def write_artifacts(results: pd.DataFrame, qc_report, task, config, out_dir):
         group_cols = ["estimator", "featureset", "protocol"]
     else:
         group_cols = ["estimator", "protocol"]
+    if has_track:
+        group_cols.append("track")
 
-    for group_key, g in results.groupby(group_cols):
-        if has_featureset:
-            est, fs_name, proto = group_key
-        else:
-            est, proto = group_key
-            fs_name = "full"
+    leaderboard = _leaderboard_entries(results, task, group_cols)
 
-        # Read track from this group's records; default to "unified" for backward compat.
-        if has_track:
-            track = g["track"].iloc[0]
-        else:
-            # Fallback: infer from feature_mode column if present, else "unified"
-            track = results["feature_mode"].iloc[0] if "feature_mode" in results.columns else "unified"
-
-        agg = g.groupby("metric")["value"].agg(["mean", "std"])
-        metrics = {m: {"mean": float(r["mean"]),
-                        "std": float(r["std"] if r["std"] == r["std"] else 0.0)}
-                   for m, r in agg.iterrows()}
-        flat = {m: v["mean"] for m, v in metrics.items()}
-        verdicts = {v.name: v.passed for v in evaluate_verdicts(flat, task)}
-        ci_source = g["ci_source"].iloc[0] if "ci_source" in g.columns else "conformal"
-        leaderboard.append({
-            "estimator": est,
-            "featureset": fs_name,
-            "track": track,
-            "protocol": proto,
-            "metrics": metrics,
-            "verdicts": verdicts,
-            "ci_source": ci_source,
-        })
+    dataset_group_cols = group_cols + ["held_out_key"] if "held_out_key" in results.columns else []
+    dataset_leaderboard = (
+        _leaderboard_entries(results, task, dataset_group_cols)
+        if dataset_group_cols else []
+    )
 
     _dump(leaderboard, out / "leaderboard.json")
+    _dump(dataset_leaderboard, out / "dataset_leaderboard.json")
     if qc_report is not None:
         _dump(qc_report.__dict__, out / "qc_report.json")
     _dump(config, out / "run_config.json")
     return str(out)
+
+
+def write_inference_artifacts(records: list[dict], config: dict, out_dir):
+    out = Path(out_dir) / time.strftime("%Y%m%dT%H%M%S")
+    out.mkdir(parents=True, exist_ok=True)
+    frame = pd.DataFrame.from_records(records)
+    frame.to_parquet(out / "inference_results.parquet")
+    frame.to_csv(out / "inference_results.csv", index=False)
+    _dump(
+        {
+            "records": records,
+            "summary": _inference_summary(records),
+        },
+        out / "inference_benchmark.json",
+    )
+    _dump(config, out / "inference_run_config.json")
+    return str(out)
+
+
+def _inference_summary(records: list[dict]) -> dict:
+    succeeded = [row for row in records if row.get("status") == "succeeded"]
+    fastest = min(
+        succeeded,
+        key=lambda row: row.get("ms_per_1000_samples") or float("inf"),
+        default=None,
+    )
+    best = min(
+        [row for row in succeeded if row.get("mae") is not None],
+        key=lambda row: row.get("mae"),
+        default=None,
+    )
+    return {
+        "n_records": len(records),
+        "n_succeeded": len(succeeded),
+        "fastest_model": fastest.get("model") if fastest else None,
+        "fastest_ms_per_1000_samples": fastest.get("ms_per_1000_samples") if fastest else None,
+        "best_transfer_model": best.get("model") if best else None,
+        "best_transfer_mae": best.get("mae") if best else None,
+    }
