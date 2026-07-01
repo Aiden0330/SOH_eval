@@ -1,0 +1,48 @@
+{
+  "records": [
+    {
+      "model": "ridge_voltage_loco_nasa_B0005_seed0",
+      "dataset": "calce_cs2",
+      "featureset": "voltage",
+      "estimator": "ridge",
+      "n_samples": 15411,
+      "load_ms": 0.9849000052781776,
+      "monotonicity_violation_rate": 0.47222582738481506,
+      "value_range_violation": 0.001362663032898579,
+      "mae": 0.16561086172315068,
+      "rmse": 0.1985146206373288,
+      "mean_bias_error": -0.05662170161843638,
+      "predict_ms": 13.486300005752128,
+      "ms_per_1000_samples": 0.8751086889723009,
+      "samples_per_second": 1142715.1993821105,
+      "status": "succeeded",
+      "error": ""
+    },
+    {
+      "model": "ridge_voltage_loco_nasa_B0005_seed0",
+      "dataset": "nasa",
+      "featureset": "voltage",
+      "estimator": "ridge",
+      "n_samples": 2705,
+      "load_ms": 0.9849000052781776,
+      "monotonicity_violation_rate": 0.4822485207100592,
+      "value_range_violation": 0.0,
+      "mae": 0.09369029177987179,
+      "rmse": 0.1317677206819289,
+      "mean_bias_error": -0.020774848219854935,
+      "predict_ms": 11.289699999906588,
+      "ms_per_1000_samples": 4.173641404771382,
+      "samples_per_second": 239598.92645706984,
+      "status": "succeeded",
+      "error": ""
+    }
+  ],
+  "summary": {
+    "n_records": 2,
+    "n_succeeded": 2,
+    "fastest_model": "ridge_voltage_loco_nasa_B0005_seed0",
+    "fastest_ms_per_1000_samples": 0.8751086889723009,
+    "best_transfer_model": "ridge_voltage_loco_nasa_B0005_seed0",
+    "best_transfer_mae": 0.09369029177987179
+  }
+}

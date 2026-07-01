@@ -1,0 +1,61 @@
+[
+  {
+    "estimator": "ridge",
+    "featureset": "voltage",
+    "track": "unified",
+    "protocol": "loco",
+    "metrics": {
+      "alpha_accuracy": {
+        "mean": 0.6298123980679562,
+        "std": 0.31681936830435736
+      },
+      "eol_region_error": {
+        "mean": 0.1210113998869249,
+        "std": 0.07364821685458975
+      },
+      "mae": {
+        "mean": 0.10499409568640344,
+        "std": 0.062265761352479916
+      },
+      "mape": {
+        "mean": 0.6119733290484276,
+        "std": 1.3337316830305253
+      },
+      "max_error": {
+        "mean": 0.3729893149887554,
+        "std": 0.17877511568370894
+      },
+      "mean_bias_error": {
+        "mean": -0.00796297293515267,
+        "std": 0.09674951060468807
+      },
+      "monotonicity_violation_rate": {
+        "mean": 0.2734150736086702,
+        "std": 0.10935743264387945
+      },
+      "overestimation_rate": {
+        "mean": 0.44782129807809257,
+        "std": 0.3514081892926595
+      },
+      "picp": {
+        "mean": 0.8911643841180086,
+        "std": 0.17783191711191107
+      },
+      "rmse": {
+        "mean": 0.1297251789407642,
+        "std": 0.0675689382067356
+      },
+      "value_range_violation": {
+        "mean": 0.0,
+        "std": 0.0
+      }
+    },
+    "verdicts": {
+      "generalization": false,
+      "calibration": false,
+      "physical_consistency": false
+    },
+    "ci_source": "conformal",
+    "backend": "sklearn"
+  }
+]

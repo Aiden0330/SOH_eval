@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOH Bench Figma Optimized Mockups</title>
+<style>
+:root{
+  --font: "Noto Sans SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --ink:#0f172a;
+  --muted:#64748b;
+  --line:#dbe5f0;
+  --paper:#fff;
+  --bg:#eef3f8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px}
+button{font:inherit}
+.app{min-height:100vh;display:grid;grid-template-rows:auto minmax(0,1fr);gap:14px;padding:16px}
+.reviewbar{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;box-shadow:0 14px 34px rgba(15,23,42,.08)}
+.reviewbar h1{margin:0;font-size:21px;letter-spacing:0}
+.reviewbar p{margin:5px 0 0;color:var(--muted);line-height:1.55}
+.tokens{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.token{border-radius:999px;padding:6px 10px;font-weight:800;font-size:12px}
+.green{background:#dcfce7;color:#166534}.blue{background:#dbeafe;color:#1e3a8a}.amber{background:#fef3c7;color:#92400e}.violet{background:#f3e8ff;color:#581c87}
+.switch{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.switch button{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px;font-weight:900;cursor:pointer;color:#334155}
+.switch button[aria-selected=true]{background:#0f172a;color:#fff;border-color:#0f172a}
+.figma-link{border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:10px;padding:9px 12px;text-decoration:none;font-weight:900}
+.stage{min-height:0;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#fff}
+.mock{display:none;height:calc(100vh - 136px);min-height:680px;overflow:hidden}
+.mock.active{display:grid}
+.mono{font-family:var(--mono)}
+.clip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{border-radius:999px;padding:4px 9px;font-size:12px;font-weight:900;display:inline-flex;align-items:center;gap:6px}
+.btn{border:0;border-radius:10px;padding:9px 12px;font-weight:900}
+.metric{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px;box-shadow:inset 4px 0 0 var(--accent,#2563eb);min-width:0}
+.metric small{display:block;color:var(--muted)}
+.metric b{display:block;margin-top:4px;font-size:23px;line-height:1.05}
+.metric span{display:block;margin-top:6px;color:#475569;font-size:12px;overflow-wrap:anywhere}
+.scroll{min-height:0;overflow:auto}
+.note{border:1px dashed #cbd5e1;background:#f8fafc;border-radius:12px;padding:10px;color:#475569;line-height:1.5}
+
+/* Style A */
+.professional{grid-template-columns:202px minmax(0,1fr);background:#f8fafc}
+.pro-side{background:#fff;border-right:1px solid var(--line);display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:18px;padding:18px}
+.brand{font-weight:1000;font-size:20px;letter-spacing:0}.brand small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.nav{display:grid;gap:8px;align-content:start}
+.nav div{height:40px;border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;padding:0 12px;color:#475569;font-weight:800}
+.nav div.active{background:#eef2ff;color:#3730a3;border-color:#c7d2fe}
+.pro-main{min-width:0;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:12px;padding:16px}
+.topline{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.topline h2{margin:0;font-size:24px}.topline p{margin:4px 0 0;color:var(--muted)}
+.actions{display:flex;gap:8px}.primary{background:#111827;color:#fff}.secondary{background:#fff;color:#111827;border:1px solid var(--line)}
+.metric-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.pro-body{min-height:0;display:grid;grid-template-columns:320px minmax(0,1fr) 280px;gap:12px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:14px;min-width:0;min-height:0;overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr)}
+.panel h3{margin:0;font-size:16px}.panel-head{padding:13px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center}
+.dataset-list{padding:12px;display:grid;gap:8px;align-content:start}
+.check-row{height:36px;border:1px solid #e2e8f0;border-radius:9px;background:#fff;display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:center;padding:0 10px}
+.box{width:17px;height:17px;border:1px solid #94a3b8;border-radius:4px;background:#fff;display:grid;place-items:center;color:#fff;font-size:11px}.box.on{background:#2563eb;border-color:#2563eb}
+.model-window{margin-top:8px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:10px;height:112px;overflow:auto;padding:8px 10px;color:#334155}
+.compare-table{display:grid;grid-template-rows:auto minmax(0,1fr)}
+.thead,.trow{display:grid;grid-template-columns:minmax(150px,1.4fr) 90px 90px 110px 90px;gap:10px;align-items:center}
+.thead{position:sticky;top:0;background:#eef2ff;color:#3730a3;font-weight:1000;z-index:2;padding:10px 12px}
+.trow{padding:10px 12px;border-bottom:1px solid #edf2f7}
+.trow.best{background:#f0fdf4;color:#166534;font-weight:900}
+.audit{padding:12px;display:grid;gap:10px;align-content:start}
+.audit-item{border:1px solid #e2e8f0;background:#f8fafc;border-radius:10px;padding:10px}.audit-item b{display:block}.audit-item span{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+
+/* Style B */
+.ai{grid-template-columns:330px minmax(0,1fr) 330px;background:#08111f;color:#e5f8ff;position:relative}
+.ai:before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(34,211,238,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(34,211,238,.08) 1px,transparent 1px);background-size:28px 28px;pointer-events:none}
+.ai>*{position:relative;z-index:1}
+.ai-left,.ai-right{background:rgba(8,17,31,.82);border-right:1px solid #164e63;padding:18px;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:14px}
+.ai-right{border-right:0;border-left:1px solid #164e63}
+.ai h2,.ai h3{margin:0}.ai p{margin:5px 0 0;color:#8fb6c1;line-height:1.55}
+.ai-card{border:1px solid #164e63;background:rgba(15,31,48,.9);border-radius:14px;padding:12px;min-width:0}
+.ai-card small{display:block;color:#8fb6c1}.ai-card b{display:block;margin-top:3px;font-family:var(--mono);font-size:18px}.ai-card span{display:block;margin-top:5px;color:#b8dce4;overflow-wrap:anywhere}
+.ai-main{min-width:0;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:14px;padding:18px}
+.ai-top{display:flex;justify-content:space-between;gap:10px}.ai-top h2{font-family:var(--mono);font-size:23px}
+.live{border:1px solid #155e75;background:#082f49;color:#67e8f9;border-radius:999px;height:34px;padding:0 12px;display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;font-weight:900}
+.dot{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 12px #22c55e}
+.ai-prompt{border:1px solid #164e63;background:#0d1f31;border-radius:14px;padding:14px;display:flex;justify-content:space-between;gap:12px}
+.ai-run{background:#22d3ee;color:#082f49}
+.matrix{border:1px solid #164e63;background:#0d1f31;border-radius:16px;min-height:0;overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr)}
+.matrix-head{padding:14px;border-bottom:1px solid #164e63;display:flex;justify-content:space-between}.matrix-head b{font-size:16px}
+.heat{padding:14px;display:grid;grid-template-columns:84px repeat(7,1fr);gap:8px;align-content:start;overflow:auto}
+.hcell{height:42px;border-radius:10px;display:grid;place-items:center;font-family:var(--mono);font-weight:900;color:#082f49}
+.hlabel{height:42px;display:grid;place-items:center;color:#9fd7e2;font-family:var(--mono);font-size:12px}
+.stream{padding:12px;display:grid;gap:10px;align-content:start;overflow:auto}
+.msg{border:1px solid #155e75;background:#0b2537;border-radius:11px;padding:10px}.msg b{color:#67e8f9}.msg span{display:block;color:#c7edf4;margin-top:4px}
+
+/* Style C */
+.saas{grid-template-columns:220px minmax(0,1fr);background:#fff}
+.snav{background:#0f172a;color:#e2e8f0;padding:18px;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:20px}
+.snav .brand{color:#fff}.snav .item{height:40px;border:1px solid #1e293b;border-radius:10px;display:flex;align-items:center;padding:0 12px;font-weight:800}.snav .item.active{background:#2563eb;border-color:#2563eb;color:#fff}
+.sbody{min-width:0;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:12px;padding:16px;background:#f8fafc}
+.sgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.ops{min-height:0;display:grid;grid-template-columns:500px minmax(0,1fr);gap:12px}
+.tasks{padding:12px;display:grid;gap:10px;align-content:start}
+.task{border:1px solid var(--line);background:#fff;border-radius:12px;padding:12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center}
+.task b{display:block}.task span{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+.registry{display:grid;grid-template-rows:auto minmax(0,1fr)}
+.search{border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#94a3b8;padding:9px 11px;min-width:220px}
+
+@media (max-width:1100px){
+  .reviewbar{grid-template-columns:1fr}.switch{justify-content:flex-start}
+  .mock{height:auto;min-height:0;overflow:auto}
+  .professional,.ai,.saas{grid-template-columns:1fr}
+  .pro-side,.snav,.ai-left,.ai-right{display:none}
+  .pro-body,.ops{grid-template-columns:1fr}
+  .metric-row,.sgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="reviewbar">
+    <div>
+      <h1>SOH 评测平台｜结合 Figma 的三风格优化 Mockup</h1>
+      <p>基于 Figma 的 Variables、Auto Layout、固定滚动容器和组件职责拆分思路，重新区分三个页签：训练评测、推理迁移、资产运营。</p>
+      <div class="tokens">
+        <span class="token green">Auto Layout 结构</span>
+        <span class="token blue">可迁移变量/组件</span>
+        <span class="token amber">固定高度模型列表</span>
+        <span class="token violet">页签差异化信息架构</span>
+      </div>
+    </div>
+    <div class="switch" role="tablist" aria-label="三种风格">
+      <a class="figma-link" href="https://www.figma.com/design/CgbCzr2Sj34SYJMLRd3YIU" target="_blank" rel="noreferrer">打开 Figma 文件</a>
+      <button type="button" role="tab" aria-selected="true" data-target="professional">专业风格</button>
+      <button type="button" role="tab" aria-selected="false" data-target="ai">AI 科技风格</button>
+      <button type="button" role="tab" aria-selected="false" data-target="saas">SaaS 风格</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <section id="professional" class="mock professional active" role="tabpanel">
+      <aside class="pro-side">
+        <div class="brand">SOH Bench<small>Fairness Audit</small></div>
+        <nav class="nav">
+          <div>总览</div><div>数据集范围</div><div class="active">算法对比</div><div>模型资产</div><div>报告导出</div>
+        </nav>
+        <div class="note">Figma 建议：左侧导航固定，主内容区域滚动；训练页不混入 Pickle 上传和推理诊断。</div>
+      </aside>
+      <div class="pro-main">
+        <div class="topline">
+          <div><h2>训练评测 · 公平性审计工作台</h2><p>面向论文复现和正式报告，强调数据范围、算法优劣、实验可追溯。</p></div>
+          <div class="actions"><button class="btn secondary">导出 DOCX</button><button class="btn primary">生成审计报告</button></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric" style="--accent:#2563eb"><small>覆盖数据集</small><b>7 / 7</b><span>HUST、CALCE、RWTH、UConn 等</span></div>
+          <div class="metric" style="--accent:#16a34a"><small>算法矩阵</small><b>6 类</b><span>传统 ML + 深度模型</span></div>
+          <div class="metric" style="--accent:#7c3aed"><small>最优 MAE</small><b>0.024</b><span>RWTH → UConn</span></div>
+          <div class="metric" style="--accent:#d97706"><small>失败组合</small><b>13</b><span>优先检查特征兼容性</span></div>
+        </div>
+        <div class="pro-body">
+          <section class="panel">
+            <div class="panel-head"><h3>数据集范围</h3><span class="pill blue">训练页专属</span></div>
+            <div class="dataset-list scroll">
+              <div class="check-row"><span class="box on">✓</span><span class="clip mono">hust</span><small>186 cell</small></div>
+              <div class="check-row"><span class="box on">✓</span><span class="clip mono">snl_lfp</span><small>124 cell</small></div>
+              <div class="check-row"><span class="box on">✓</span><span class="clip mono">calce_cs2</span><small>168 cell</small></div>
+              <div class="check-row"><span class="box on">✓</span><span class="clip mono">rwth_isea_public</span><small>72 cell</small></div>
+              <div class="check-row"><span class="box"></span><span class="clip mono">nasa</span><small>42 cell</small></div>
+              <div class="model-window mono">模型列表固定高度，可滚动查看 220 个模型<br>byo_skb_ridge_seed0<br>rf_cycle_health_seed4<br>lstm_transfer_v2...</div>
+            </div>
+          </section>
+          <section class="panel compare-table">
+            <div class="panel-head"><h3>算法优劣对比</h3><span class="pill green">公平排名</span></div>
+            <div class="scroll">
+              <div class="thead"><span>算法</span><span>MAE</span><span>RMSE</span><span>训练时长</span><span>稳定性</span></div>
+              <div class="trow best"><span class="mono">Ridge + BYO</span><span>0.024</span><span>0.031</span><span>12m</span><span>高</span></div>
+              <div class="trow"><span class="mono">XGBoost</span><span>0.028</span><span>0.038</span><span>31m</span><span>中高</span></div>
+              <div class="trow"><span class="mono">RandomForest</span><span>0.033</span><span>0.044</span><span>28m</span><span>中</span></div>
+              <div class="trow"><span class="mono">TCN</span><span>0.030</span><span>0.040</span><span>4h10m</span><span>中高</span></div>
+              <div class="trow"><span class="mono">LSTM</span><span>0.041</span><span>0.057</span><span>5h42m</span><span>低</span></div>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><h3>审计轨迹</h3></div>
+            <div class="audit scroll">
+              <div class="audit-item"><b>数据指纹已锁定</b><span>保证比较范围一致</span></div>
+              <div class="audit-item"><b>特征版本 v2.4</b><span>训练矩阵可复现</span></div>
+              <div class="audit-item"><b>训练产物 220 个</b><span>可进入推理资产库</span></div>
+              <div class="audit-item"><b>报告可导出</b><span>DOCX + Markdown</span></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section id="ai" class="mock ai" role="tabpanel">
+      <aside class="ai-left">
+        <div><h3>推理任务编排</h3><p>Pickle 模型、目标数据集、特征映射、运行预算在这里闭环。</p></div>
+        <div class="scroll" style="display:grid;gap:10px;align-content:start">
+          <div class="ai-card"><small>模型资产</small><b>ridge_byo_v2.pkl</b><span>来源：训练产物</span></div>
+          <div class="ai-card"><small>目标数据集</small><b>RWTH + UConn</b><span>用于迁移泛化验证</span></div>
+          <div class="ai-card"><small>特征映射</small><b>20 / 20 columns</b><span>容量、温度、电压衍生特征全部匹配</span></div>
+          <div class="ai-card"><small>运行预算</small><b>并发 4 · 超时 30m</b></div>
+        </div>
+        <button class="btn ai-run">启动推理评测</button>
+      </aside>
+      <div class="ai-main">
+        <div class="ai-top">
+          <div><h2>Transfer Intelligence Cockpit</h2><p>推理页只回答迁移泛化、兼容性和时延，不复用训练排行榜。</p></div>
+          <div class="live"><span class="dot"></span>LIVE INFERENCE</div>
+        </div>
+        <div class="ai-prompt">
+          <div><b>AI 诊断提示</b><p>发现 RWTH → NASA 的温度相关特征缺失，建议启用 delta_voltage + normalized_capacity 特征方案后重试。</p></div>
+          <button class="btn ai-run">生成修复建议</button>
+        </div>
+        <section class="matrix">
+          <div class="matrix-head"><b>模型 × 数据集兼容性热力图</b><span class="pill" style="background:#063746;color:#67e8f9">特征漂移监测</span></div>
+          <div class="heat">
+            <div></div><div class="hlabel">HUST</div><div class="hlabel">CALCE</div><div class="hlabel">RWTH</div><div class="hlabel">SNL</div><div class="hlabel">UCONN</div><div class="hlabel">NASA</div><div class="hlabel">OX</div>
+            <div class="hlabel">Ridge</div><div class="hcell" style="background:#22c55e">95</div><div class="hcell" style="background:#22c55e">88</div><div class="hcell" style="background:#84cc16">72</div><div class="hcell" style="background:#84cc16">81</div><div class="hcell" style="background:#84cc16">79</div><div class="hcell" style="background:#fbbf24">68</div><div class="hcell" style="background:#fbbf24">61</div>
+            <div class="hlabel">XGB</div><div class="hcell" style="background:#84cc16">84</div><div class="hcell" style="background:#84cc16">80</div><div class="hcell" style="background:#fbbf24">66</div><div class="hcell" style="background:#84cc16">77</div><div class="hcell" style="background:#84cc16">73</div><div class="hcell" style="background:#f97316">60</div><div class="hcell" style="background:#f97316">58</div>
+            <div class="hlabel">LSTM</div><div class="hcell" style="background:#f97316">52</div><div class="hcell" style="background:#fbbf24">63</div><div class="hcell" style="background:#fbbf24">69</div><div class="hcell" style="background:#f97316">54</div><div class="hcell" style="background:#fbbf24">60</div><div class="hcell" style="background:#ef4444">45</div><div class="hcell" style="background:#ef4444">42</div>
+          </div>
+        </section>
+      </div>
+      <aside class="ai-right">
+        <div><h3>自动结论</h3><p>状态色必须配文字标签，避免只靠颜色表达风险。</p></div>
+        <div class="scroll" style="display:grid;gap:10px;align-content:start">
+          <div class="ai-card"><small>推荐模型</small><b>Ridge BYO</b><span>低延迟 / 高稳定</span></div>
+          <div class="ai-card"><small>推理时延</small><b>38 ms</b><span>P95 across 7 datasets</span></div>
+          <div class="ai-card"><small>迁移风险</small><b>中</b><span>13 个组合需复核</span></div>
+          <div class="msg"><b>Figma 注</b><span>右侧结论区独立组件化，可在推理页复用，不出现在训练页。</span></div>
+        </div>
+      </aside>
+    </section>
+
+    <section id="saas" class="mock saas" role="tabpanel">
+      <aside class="snav">
+        <div class="brand">SOH Ops<small>Evaluation Hub</small></div>
+        <nav style="display:grid;gap:8px;align-content:start">
+          <div class="item active">工作台</div><div class="item">上传注册</div><div class="item">训练任务</div><div class="item">推理验证</div><div class="item">资产库</div><div class="item">报告</div>
+        </nav>
+        <div>Battery SOH Lab</div>
+      </aside>
+      <div class="sbody">
+        <div class="topline">
+          <div><h2>评测运营工作台</h2><p>面向日常使用：上传、注册、启动任务、查看资产与导出报告。</p></div>
+          <div class="actions"><button class="btn secondary">导出报告</button><button class="btn primary">新建测评</button></div>
+        </div>
+        <div class="sgrid">
+          <div class="metric" style="--accent:#2563eb"><small>待处理上传</small><b>9</b><span>算法 / 特征 / 数据集</span></div>
+          <div class="metric" style="--accent:#16a34a"><small>运行中任务</small><b>4</b><span>训练 2 · 推理 2</span></div>
+          <div class="metric" style="--accent:#7c3aed"><small>可复用模型</small><b>220</b><span>Pickle 资产</span></div>
+          <div class="metric" style="--accent:#f59e0b"><small>报告模板</small><b>6</b><span>DOCX + Markdown</span></div>
+        </div>
+        <div class="ops">
+          <section class="panel">
+            <div class="panel-head"><h3>任务流</h3><span class="pill green">下一步动作优先</span></div>
+            <div class="tasks scroll">
+              <div class="task"><div><b>上传数据集</b><span>解析元数据、生成指纹</span></div><span class="pill green">完成</span></div>
+              <div class="task"><div><b>上传算法代码</b><span>训练后输出 Pickle</span></div><span class="pill blue">运行中</span></div>
+              <div class="task"><div><b>上传 Pickle 模型</b><span>进入推理资产库</span></div><span class="pill amber">待确认</span></div>
+              <div class="task"><div><b>启动对比评测</b><span>选择数据集和指标</span></div><span class="pill violet">可启动</span></div>
+              <div class="note">Figma 建议：SaaS 首页少放大表格，优先展示任务状态、入口和待办。</div>
+            </div>
+          </section>
+          <section class="panel registry">
+            <div class="panel-head"><h3>模型资产库</h3><span class="search">搜索模型 / 数据集</span></div>
+            <div class="scroll">
+              <div class="thead"><span>模型</span><span>算法</span><span>来源</span><span>目标</span><span>状态</span></div>
+              <div class="trow"><span class="mono clip">byo_skb_ridge_21</span><span>Ridge</span><span>训练产物</span><span>7 数据集</span><span>可推理</span></div>
+              <div class="trow"><span class="mono clip">xgb_transfer_04</span><span>XGB</span><span>上传模型</span><span>RWTH</span><span>待验证</span></div>
+              <div class="trow"><span class="mono clip">tcn_deep_v2</span><span>TCN</span><span>训练产物</span><span>CALCE</span><span>运行中</span></div>
+              <div class="trow"><span class="mono clip">rf_cycle_seed7</span><span>RF</span><span>训练产物</span><span>HUST</span><span>可推理</span></div>
+              <div class="trow"><span class="mono clip">lstm_pack_b</span><span>LSTM</span><span>上传模型</span><span>SNL</span><span>失败</span></div>
+              <div class="trow"><span class="mono clip">ridge_byo_35</span><span>Ridge</span><span>训练产物</span><span>UConn</span><span>可推理</span></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+const tabs = [...document.querySelectorAll('[role="tab"]')];
+const panels = [...document.querySelectorAll('[role="tabpanel"]')];
+tabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    tabs.forEach(t => t.setAttribute('aria-selected', String(t === tab)));
+    panels.forEach(panel => panel.classList.toggle('active', panel.id === tab.dataset.target));
+  });
+});
+</script>
+</body>
+</html>

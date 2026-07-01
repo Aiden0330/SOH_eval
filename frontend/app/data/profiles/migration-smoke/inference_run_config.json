@@ -1,0 +1,23 @@
+{
+  "datasets": [
+    "nasa",
+    "calce_cs2"
+  ],
+  "models": [
+    "ridge_voltage_loco_nasa_B0005_seed0"
+  ],
+  "launch_strategy": "compatible_only",
+  "selected_datasets": [
+    "nasa",
+    "calce_cs2"
+  ],
+  "submitted_datasets": [
+    "nasa",
+    "calce_cs2"
+  ],
+  "skipped_datasets": [],
+  "job_id": "20260630T193330-47f4f611",
+  "trusted_local_pickle_models": true,
+  "run_dir": "runs\\20260630T193330",
+  "raw_run_dir": "runs\\20260630T193330"
+}

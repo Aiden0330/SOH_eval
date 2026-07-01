@@ -101,3 +101,26 @@ class TestMLPEstimator:
         est.fit(X, y, meta=pd.DataFrame())
         p = est.predict(X, meta=pd.DataFrame())
         assert p.shape == (len(X),)
+
+    def test_subsampling_caps_large_fit_matrix(self):
+        """Large real-data folds should not send every row into MLPRegressor.fit."""
+        X, y = _smooth_trend_table(n=100)
+        est = MLPEstimator(n_max=25, random_state=7)
+
+        class FitSpy:
+            def __init__(self):
+                self.n_rows = None
+                self.n_targets = None
+
+            def fit(self, Z, yy):
+                self.n_rows = len(Z)
+                self.n_targets = len(yy)
+                return self
+
+        spy = FitSpy()
+        est._model = spy
+
+        est.fit(X, y, meta=None)
+
+        assert spy.n_rows == 25
+        assert spy.n_targets == 25

@@ -48,10 +48,14 @@ class WeightedConformalWrapper:
     """
     ci_source = "weighted_conformal"
 
-    def __init__(self, base, alpha: float = 0.1, calib_frac: float = 0.2):
+    def __init__(self, base, alpha: float = 0.1, calib_frac: float = 0.2,
+                 density_ratio_max_samples: int | None = 5000,
+                 random_state: int = 0):
         self.base = base
         self.alpha = alpha
         self.calib_frac = calib_frac
+        self.density_ratio_max_samples = density_ratio_max_samples
+        self.random_state = random_state
         self._q_plain: float | None = None
         self._calib_resid: np.ndarray | None = None
         self._calib_features: np.ndarray | None = None
@@ -111,11 +115,14 @@ class WeightedConformalWrapper:
                 X_test_arr = np.asarray(X_test, dtype=float)
 
             X_calib = self._calib_features
-            n_calib = len(X_calib)
-            n_test = len(X_test_arr)
+            rng = np.random.default_rng(self.random_state)
+            X_calib_fit = self._sample_rows(X_calib, rng)
+            X_test_fit = self._sample_rows(X_test_arr, rng)
+            n_calib = len(X_calib_fit)
+            n_test = len(X_test_fit)
 
             # Labels: 0 = calibration, 1 = test
-            X_lr = np.vstack([X_calib, X_test_arr])
+            X_lr = np.vstack([X_calib_fit, X_test_fit])
             y_lr = np.concatenate([np.zeros(n_calib), np.ones(n_test)])
 
             # Check degenerate: only one class
@@ -132,7 +139,7 @@ class WeightedConformalWrapper:
             if 1 not in class_labels and 1.0 not in class_labels:
                 return self._q_plain
             idx1 = class_labels.index(1) if 1 in class_labels else class_labels.index(1.0)
-            p1 = proba[:, idx1]
+            p1 = lr.predict_proba(X_calib)[:, idx1]
 
             # Density ratio w = p(test) / p(calib) = p1 / (1 - p1)
             p1 = np.clip(p1, 1e-6, 1 - 1e-6)
@@ -144,6 +151,13 @@ class WeightedConformalWrapper:
 
         except Exception:
             return self._q_plain
+
+    def _sample_rows(self, X: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+        max_samples = self.density_ratio_max_samples
+        if max_samples is None or len(X) <= max_samples:
+            return X
+        idx = rng.choice(len(X), int(max_samples), replace=False)
+        return X[idx]
 
 
 def _weighted_quantile_1d(values: np.ndarray, weights: np.ndarray, q: float) -> float:

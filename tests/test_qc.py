@@ -43,6 +43,24 @@ def test_availability_drop_no_fill():
     assert "f_sparse" not in clean.columns
     assert not clean["f1"].isna().any()                  # no synthetic fill introduced
 
+
+def test_structural_feature_gaps_do_not_drop_whole_datasets():
+    t = pd.DataFrame({
+        "dataset": ["alpha", "alpha", "beta", "beta"],
+        "cell_id": ["a1", "a1", "b1", "b1"],
+        "cycle_index": [0, 1, 0, 1],
+        "soh": [1.0, 0.98, 1.0, 0.97],
+        "alpha_only_feature": [0.1, 0.2, np.nan, np.nan],
+        "beta_only_feature": [np.nan, np.nan, 0.3, 0.4],
+    })
+    meta = build_meta(t)
+
+    clean, rep = qc_gate(t, meta, availability_min=0.2)
+
+    assert set(clean["dataset"]) == {"alpha", "beta"}
+    assert len(clean) == len(t)
+    assert rep.drop_reasons["nan_feature_row"] == 0
+
 def test_reject_bms_label_source():
     t = _table()
     meta = build_meta(t); meta.loc[:, "label_source"] = "bms_reported"

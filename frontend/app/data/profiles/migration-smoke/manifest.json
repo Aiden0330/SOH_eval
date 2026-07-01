@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "profile": "migration-smoke",
+  "label": "真实数据小迁移验收",
+  "kind": "migration_acceptance",
+  "created_at": "2026-06-30 19:33:30",
+  "artifact_files": [
+    "leaderboard.json",
+    "dataset_leaderboard.json",
+    "qc_report.json",
+    "run_config.json",
+    "model_catalog.json",
+    "inference_benchmark.json",
+    "inference_run_config.json"
+  ],
+  "source_artifacts": {
+    "leaderboard.json": "runs\\20260630T193330\\leaderboard.json",
+    "dataset_leaderboard.json": "runs\\20260630T193330\\dataset_leaderboard.json",
+    "qc_report.json": "runs\\20260630T193330\\qc_report.json",
+    "run_config.json": "runs\\20260630T193330\\run_config.json",
+    "model_catalog.json": "runs\\20260630T193330\\model_catalog.json",
+    "inference_benchmark.json": "runs\\20260630T193330\\inference_benchmark.json",
+    "inference_run_config.json": "runs\\20260630T193330\\inference_run_config.json"
+  },
+  "datasets": [
+    "nasa",
+    "calce_cs2"
+  ],
+  "training_dataset": "nasa",
+  "estimator": "ridge",
+  "featureset": "voltage",
+  "protocol": "loco",
+  "seeds": [
+    0
+  ],
+  "training_job_id": "20260630T193327-247fd0a7",
+  "inference_job_id": "20260630T193330-47f4f611",
+  "training_run_dir": "runs\\20260630T193330",
+  "inference_run_dir": "runs\\20260630T193330",
+  "model": {
+    "name": "ridge_voltage_loco_nasa_B0005_seed0",
+    "path": "work\\migration_acceptance\\models\\ridge_voltage_loco_nasa_B0005_seed0",
+    "featureset": "voltage",
+    "feature_columns": [
+      "voltage_mean",
+      "voltage_std",
+      "voltage_min",
+      "voltage_max"
+    ],
+    "trained_on": [
+      "nasa"
+    ],
+    "created_by_run": "20260630T193327-247fd0a7"
+  },
+  "models": [
+    {
+      "name": "ridge_voltage_loco_nasa_B0005_seed0",
+      "path": "work\\migration_acceptance\\models\\ridge_voltage_loco_nasa_B0005_seed0",
+      "featureset": "voltage",
+      "feature_columns": [
+        "voltage_mean",
+        "voltage_std",
+        "voltage_min",
+        "voltage_max"
+      ],
+      "trained_on": [
+        "nasa"
+      ],
+      "created_by_run": "20260630T193327-247fd0a7"
+    }
+  ],
+  "launch_strategy": "compatible_only",
+  "selected_datasets": [
+    "nasa",
+    "calce_cs2"
+  ],
+  "submitted_datasets": [
+    "nasa",
+    "calce_cs2"
+  ],
+  "skipped_datasets": []
+}

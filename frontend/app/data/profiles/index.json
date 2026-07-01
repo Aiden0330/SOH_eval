@@ -1,0 +1,27 @@
+{
+  "profiles": [
+    {
+      "name": "migration-smoke",
+      "label": "真实数据小迁移验收",
+      "kind": "migration_acceptance",
+      "created_at": "2026-06-30 19:33:30",
+      "datasets": [
+        "nasa",
+        "calce_cs2"
+      ],
+      "training_job_id": "20260630T193327-247fd0a7",
+      "inference_job_id": "20260630T193330-47f4f611"
+    },
+    {
+      "name": "smoke",
+      "label": "Smoke 闭环验收",
+      "kind": "smoke_acceptance",
+      "created_at": "2026-06-30 19:30:29",
+      "datasets": [
+        "smoke_eval_demo"
+      ],
+      "training_job_id": "20260630T193028-c7f9c8b0",
+      "inference_job_id": "20260630T193029-634d765d"
+    }
+  ]
+}

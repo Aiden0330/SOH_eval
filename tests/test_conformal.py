@@ -108,3 +108,34 @@ def test_weighted_conformal_degenerate_fallback():
     assert w._n_calib == 3  # confirms < 5 path
     lo, hi = w.predict_interval(X, meta=None)
     assert np.all(hi >= lo)  # no crash, valid interval
+
+
+def test_weighted_conformal_density_ratio_subsamples_large_matrices(monkeypatch):
+    calls = []
+
+    class SpyLogisticRegression:
+        def __init__(self, max_iter=200):
+            self.classes_ = np.array([0, 1])
+
+        def fit(self, X, y):
+            calls.append(X.shape)
+            return self
+
+        def predict_proba(self, X):
+            return np.column_stack([np.full(len(X), 0.5), np.full(len(X), 0.5)])
+
+    monkeypatch.setattr("sklearn.linear_model.LogisticRegression", SpyLogisticRegression)
+    X, y = _xy(100)
+    X_test, _ = _xy(80)
+    w = WeightedConformalWrapper(
+        ConstResidEstimator(),
+        alpha=0.1,
+        calib_frac=0.5,
+        density_ratio_max_samples=12,
+        random_state=7,
+    )
+
+    w.fit(X, y, meta=None)
+    w._weighted_quantile(X_test, alpha=0.1)
+
+    assert calls == [(24, 1)]

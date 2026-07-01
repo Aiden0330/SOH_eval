@@ -16,8 +16,9 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
 
 from ..contracts import feature_columns
+from ..preprocessing import FeatureMedianImputer
 from ..registry import register_estimator
-from .baselines import SOH_LOW, SOH_HIGH
+from .baselines import SOH_LOW, SOH_HIGH, _subsample
 
 __all__ = ["MLPEstimator"]
 
@@ -34,6 +35,9 @@ class MLPEstimator:
         Maximum training epochs.
     random_state:
         Seed for reproducibility.
+    n_max:
+        Maximum rows sent into MLPRegressor.fit. Large real-data folds are
+        subsampled for tractability.
     """
 
     name: str = "mlp"
@@ -45,12 +49,15 @@ class MLPEstimator:
         hidden_layer_sizes: tuple[int, ...] = (64, 32),
         max_iter: int = 300,
         random_state: int = 0,
+        n_max: int = 5000,
     ) -> None:
         self._hidden_layer_sizes = hidden_layer_sizes
         self._max_iter = max_iter
         self._random_state = random_state
+        self._n_max = n_max
 
         self._scaler = StandardScaler()
+        self._imputer = FeatureMedianImputer()
         self._model = MLPRegressor(
             hidden_layer_sizes=hidden_layer_sizes,
             early_stopping=True,
@@ -62,13 +69,15 @@ class MLPEstimator:
     def fit(self, X: pd.DataFrame, y: np.ndarray, meta=None) -> "MLPEstimator":
         """Fit scaler and MLP on feature columns of *X*."""
         self._cols = feature_columns(X)
-        Z = self._scaler.fit_transform(X[self._cols].to_numpy())
-        self._model.fit(Z, np.asarray(y, dtype=float))
+        X_arr = self._imputer.fit(X, self._cols).transform_array(X)
+        X_sub, y_sub = _subsample(X_arr, np.asarray(y, dtype=float), self._n_max, self._random_state)
+        Z = self._scaler.fit_transform(X_sub)
+        self._model.fit(Z, y_sub)
         return self
 
     def predict(self, X: pd.DataFrame, meta=None) -> np.ndarray:
         """Predict SOH; output clamped to ``[0.0, 1.3]``."""
         if self._cols is None:
             raise RuntimeError("Call fit() before predict().")
-        Z = self._scaler.transform(X[self._cols].to_numpy())
+        Z = self._scaler.transform(self._imputer.transform_array(X))
         return np.clip(self._model.predict(Z), SOH_LOW, SOH_HIGH)

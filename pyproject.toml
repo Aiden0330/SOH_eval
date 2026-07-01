@@ -7,6 +7,7 @@ dependencies = ["numpy", "pandas", "scikit-learn", "scipy", "pyarrow", "jsonsche
 
 [project.optional-dependencies]
 dev = ["pytest"]
+dl = ["torch"]
 
 [build-system]
 requires = ["setuptools>=68"]

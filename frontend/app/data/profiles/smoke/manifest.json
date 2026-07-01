@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "profile": "smoke",
+  "label": "Smoke 闭环验收",
+  "kind": "smoke_acceptance",
+  "created_at": "2026-06-30 19:30:29",
+  "artifact_files": [
+    "leaderboard.json",
+    "dataset_leaderboard.json",
+    "qc_report.json",
+    "run_config.json",
+    "model_catalog.json",
+    "inference_benchmark.json",
+    "inference_run_config.json"
+  ],
+  "source_artifacts": {
+    "leaderboard.json": "runs\\20260630T193029\\leaderboard.json",
+    "dataset_leaderboard.json": "runs\\20260630T193029\\dataset_leaderboard.json",
+    "qc_report.json": "runs\\20260630T193029\\qc_report.json",
+    "run_config.json": "runs\\20260630T193029\\run_config.json",
+    "model_catalog.json": "runs\\20260630T193029\\model_catalog.json",
+    "inference_benchmark.json": "runs\\20260630T193029\\inference_benchmark.json",
+    "inference_run_config.json": "runs\\20260630T193029\\inference_run_config.json"
+  },
+  "datasets": [
+    "smoke_eval_demo"
+  ],
+  "training_dataset": "smoke_eval_demo",
+  "estimator": "smoke_linear_decay",
+  "featureset": "smoke_cycle_shape",
+  "protocol": "loco",
+  "seeds": [
+    0
+  ],
+  "training_job_id": "20260630T193028-c7f9c8b0",
+  "inference_job_id": "20260630T193029-634d765d",
+  "training_run_dir": "runs\\20260630T193029",
+  "inference_run_dir": "runs\\20260630T193029",
+  "model": {
+    "name": "smoke_linear_decay_smoke_cycle_shape_loco_smoke_eval_demo_smoke_cell_01_seed0",
+    "path": "work\\trusted_plugins\\models\\smoke_linear_decay_smoke_cycle_shape_loco_smoke_eval_demo_smoke_cell_01_seed0",
+    "featureset": "smoke_cycle_shape",
+    "feature_columns": [
+      "smoke_cycle_norm",
+      "smoke_fade_from_full"
+    ],
+    "trained_on": [
+      "smoke_eval_demo"
+    ],
+    "created_by_run": "20260630T193028-c7f9c8b0"
+  },
+  "models": [
+    {
+      "name": "smoke_linear_decay_smoke_cycle_shape_loco_smoke_eval_demo_smoke_cell_01_seed0",
+      "path": "work\\trusted_plugins\\models\\smoke_linear_decay_smoke_cycle_shape_loco_smoke_eval_demo_smoke_cell_01_seed0",
+      "featureset": "smoke_cycle_shape",
+      "feature_columns": [
+        "smoke_cycle_norm",
+        "smoke_fade_from_full"
+      ],
+      "trained_on": [
+        "smoke_eval_demo"
+      ],
+      "created_by_run": "20260630T193028-c7f9c8b0"
+    }
+  ],
+  "launch_strategy": "compatible_only",
+  "selected_datasets": [
+    "smoke_eval_demo"
+  ],
+  "submitted_datasets": [
+    "smoke_eval_demo"
+  ],
+  "skipped_datasets": []
+}

@@ -43,7 +43,29 @@ def test_gpr_has_native_interval():
 
 
 def test_subsampling_keeps_large_fit_tractable():
-    # 20k rows must fit quickly because GPR/SVR subsample internally
+    # 20k rows must fit quickly because large learners subsample internally
     X, y = _xy(20000)
-    for cls in (SVREstimator, GPREstimator):
+    for cls in (GBDTEstimator, SVREstimator, GPREstimator):
         cls().fit(X, y, meta=None)  # must not hang / raise
+
+
+def test_gbdt_subsample_cap(monkeypatch):
+    fit_shapes = []
+
+    class SpyHGBR:
+        def __init__(self, **kwargs):
+            pass
+
+        def fit(self, X, y):
+            fit_shapes.append(X.shape)
+            return self
+
+        def predict(self, X):
+            return np.zeros(len(X))
+
+    monkeypatch.setattr("sohbench.estimators.baselines.HistGradientBoostingRegressor", SpyHGBR)
+    X, y = _xy(100)
+
+    GBDTEstimator(n_max=12).fit(X, y, meta=None)
+
+    assert fit_shapes == [(12, 2)]

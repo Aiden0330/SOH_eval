@@ -1,0 +1,53 @@
+{
+  "datasets": [
+    "nasa"
+  ],
+  "estimators": [
+    "ridge"
+  ],
+  "featuresets": [
+    "voltage"
+  ],
+  "protocols": [
+    "loco"
+  ],
+  "seeds": [
+    0
+  ],
+  "trusted_local_plugins": true,
+  "saved_models": [
+    "ridge_voltage_loco_nasa_B0005_seed0",
+    "ridge_voltage_loco_nasa_B0006_seed0",
+    "ridge_voltage_loco_nasa_B0007_seed0",
+    "ridge_voltage_loco_nasa_B0018_seed0",
+    "ridge_voltage_loco_nasa_B0025_seed0",
+    "ridge_voltage_loco_nasa_B0026_seed0",
+    "ridge_voltage_loco_nasa_B0027_seed0",
+    "ridge_voltage_loco_nasa_B0028_seed0",
+    "ridge_voltage_loco_nasa_B0029_seed0",
+    "ridge_voltage_loco_nasa_B0030_seed0",
+    "ridge_voltage_loco_nasa_B0031_seed0",
+    "ridge_voltage_loco_nasa_B0032_seed0",
+    "ridge_voltage_loco_nasa_B0033_seed0",
+    "ridge_voltage_loco_nasa_B0034_seed0",
+    "ridge_voltage_loco_nasa_B0036_seed0",
+    "ridge_voltage_loco_nasa_B0038_seed0",
+    "ridge_voltage_loco_nasa_B0039_seed0",
+    "ridge_voltage_loco_nasa_B0040_seed0",
+    "ridge_voltage_loco_nasa_B0041_seed0",
+    "ridge_voltage_loco_nasa_B0042_seed0",
+    "ridge_voltage_loco_nasa_B0043_seed0",
+    "ridge_voltage_loco_nasa_B0044_seed0",
+    "ridge_voltage_loco_nasa_B0045_seed0",
+    "ridge_voltage_loco_nasa_B0046_seed0",
+    "ridge_voltage_loco_nasa_B0047_seed0",
+    "ridge_voltage_loco_nasa_B0048_seed0",
+    "ridge_voltage_loco_nasa_B0049_seed0",
+    "ridge_voltage_loco_nasa_B0051_seed0",
+    "ridge_voltage_loco_nasa_B0053_seed0",
+    "ridge_voltage_loco_nasa_B0054_seed0",
+    "ridge_voltage_loco_nasa_B0055_seed0",
+    "ridge_voltage_loco_nasa_B0056_seed0"
+  ],
+  "model_warnings": []
+}

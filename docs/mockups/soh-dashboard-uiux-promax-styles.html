@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOH Bench UI/UX Pro Max Mockups</title>
+<style>
+:root{
+  --mono:"Fira Code",ui-monospace,Consolas,monospace;
+  --sans:"Fira Sans",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#eef2f7;color:#111827;font-family:var(--sans);font-size:14px}
+button{font:inherit}
+.viewer{min-height:100vh;display:grid;grid-template-rows:auto minmax(0,1fr);gap:14px;padding:16px}
+.switcher{border:1px solid #d8e0ea;background:#fff;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;gap:16px;align-items:center}
+.switcher h1{margin:0;font-size:18px}
+.switcher span{display:block;margin-top:2px;color:#64748b;font-size:12px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tabs button{border:1px solid #d8e0ea;background:#fff;border-radius:8px;padding:8px 12px;font-weight:800;cursor:pointer}
+.tabs button[aria-selected="true"]{background:#111827;color:#fff;border-color:#111827}
+.mock{display:none;min-height:0;border-radius:14px;overflow:hidden;border:1px solid #d8e0ea}
+.mock.active{display:block}
+.mono{font-family:var(--mono)}
+.clip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9}
+
+/* Professional Trust & Authority */
+.professional{height:calc(100vh - 104px);background:#f4f6f8;color:#172033;display:grid;grid-template-columns:248px minmax(0,1fr);font-size:13px}
+.pro-nav{background:#101820;color:#f8fafc;padding:18px 16px;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;gap:18px}
+.pro-brand{display:flex;gap:10px;align-items:center}
+.pro-mark{width:34px;height:34px;border:1px solid #334155;border-radius:8px;display:grid;place-items:center;color:#22c55e}
+.pro-brand b{display:block;font-size:16px}.pro-brand small{color:#94a3b8}
+.pro-status{border:1px solid #334155;border-radius:8px;padding:10px;background:#0b1219}
+.pro-status strong{display:block;font-family:var(--mono);font-size:20px;color:#22c55e}
+.pro-menu{display:grid;gap:8px}
+.pro-item{display:flex;justify-content:space-between;align-items:center;border:1px solid #263341;background:#111c26;border-radius:8px;padding:10px;color:#cbd5e1}
+.pro-item.active{background:#f8fafc;color:#101820;border-color:#f8fafc}
+.pro-main{min-width:0;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:12px;padding:16px;overflow:hidden}
+.pro-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.pro-top h2{margin:0;font-size:22px}.pro-top p{margin:4px 0 0;color:#64748b}
+.pro-actions{display:flex;gap:8px}.pro-primary{border:1px solid #101820;background:#101820;color:#fff;border-radius:8px;padding:8px 12px;font-weight:800}.pro-secondary{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:8px 12px;font-weight:800}
+.pro-cert-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.pro-cert{border:1px solid #d8e0ea;border-radius:8px;background:#fff;padding:10px;box-shadow:inset 3px 0 0 #22c55e}.pro-cert small{color:#64748b}.pro-cert b{display:block;font-family:var(--mono);font-size:18px;margin-top:2px}
+.pro-work{min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px}
+.pro-panel{min-height:0;background:#fff;border:1px solid #d8e0ea;border-radius:10px;display:grid;grid-template-rows:auto auto minmax(0,1fr);overflow:hidden}
+.pro-panel-head{padding:12px;border-bottom:1px solid #d8e0ea;display:flex;justify-content:space-between;align-items:center;font-weight:800}
+.pro-filter{padding:10px 12px;border-bottom:1px solid #d8e0ea;display:grid;grid-template-columns:minmax(240px,1fr) repeat(3,140px);gap:8px}
+.pro-input{border:1px solid #cbd5e1;border-radius:8px;padding:8px;color:#64748b}
+.pro-table{min-height:0;overflow:auto}
+.pro-row{display:grid;grid-template-columns:minmax(300px,1.3fr) 150px 100px minmax(240px,1fr) 70px;gap:12px;align-items:center;padding:10px 12px;border-bottom:1px solid #e5edf5}
+.pro-row.head{position:sticky;top:0;background:#eef2f7;color:#475569;font-weight:800;z-index:2}
+.pro-badge{display:inline-block;margin-top:3px;border:1px solid #bbf7d0;color:#166534;background:#f0fdf4;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:800}
+.pro-side{min-height:0;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:10px}
+.pro-card{border:1px solid #d8e0ea;border-radius:10px;background:#fff;padding:12px}.pro-card h3{margin:0 0 8px;font-size:14px}.pro-card small{color:#64748b}.pro-card b{display:block;font-family:var(--mono);font-size:18px;margin-top:3px;overflow-wrap:anywhere}
+.pro-audit{min-height:0;overflow:auto;border:1px solid #d8e0ea;border-radius:10px;background:#fff}.pro-audit div{padding:10px 12px;border-bottom:1px solid #e5edf5}.pro-audit b{display:block}.pro-audit span{color:#64748b;font-size:12px}
+
+/* AI Tech */
+.ai-tech{height:calc(100vh - 104px);background:#080c10;color:#e6fbff;display:grid;grid-template-columns:minmax(0,1fr) 360px;position:relative;overflow:hidden}
+.ai-tech:before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(45,212,191,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(45,212,191,.08) 1px,transparent 1px);background-size:28px 28px;pointer-events:none}
+.ai-main,.ai-side{position:relative;z-index:1}
+.ai-main{min-width:0;padding:18px;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:14px}
+.ai-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.ai-head h2{margin:0;font-size:24px;font-family:var(--mono);letter-spacing:.2px}.ai-head p{margin:6px 0 0;color:#87a6ad}
+.ai-live{display:flex;gap:8px;align-items:center;border:1px solid #164e63;background:#0b1720;border-radius:999px;padding:7px 10px;color:#67e8f9;font-family:var(--mono);font-size:12px}
+.ai-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 12px #22c55e}
+.ai-prompt{border:1px solid #164e63;background:rgba(9,20,28,.92);border-radius:12px;padding:14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center}
+.ai-prompt b{display:block;color:#e6fbff}.ai-prompt span{display:block;color:#87a6ad;margin-top:3px}
+.ai-command{border:1px solid #22d3ee;background:#072533;color:#e6fbff;border-radius:8px;padding:9px 13px;font-weight:800}
+.ai-grid{min-height:0;display:grid;grid-template-columns:300px minmax(0,1fr);gap:14px}
+.ai-stack{display:grid;gap:10px;min-height:0}
+.ai-card{border:1px solid #164e63;background:rgba(9,20,28,.88);border-radius:12px;padding:12px;min-width:0}
+.ai-card small{display:block;color:#87a6ad}.ai-card b{display:block;font-family:var(--mono);font-size:18px;margin-top:3px}.ai-card span{display:block;color:#87a6ad;margin-top:4px;font-size:12px;overflow-wrap:anywhere}
+.ai-neural{min-height:0;border:1px solid #164e63;border-radius:12px;background:rgba(9,20,28,.9);display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden}
+.ai-neural-head{padding:12px;border-bottom:1px solid #164e63;display:flex;justify-content:space-between;font-family:var(--mono);font-weight:800}
+.ai-stream{overflow:auto;min-height:0;padding:12px;display:grid;gap:10px;align-content:start}
+.ai-msg{border:1px solid #1f6173;background:#0c1d28;border-radius:10px;padding:10px 11px}.ai-msg b{display:block;color:#67e8f9}.ai-msg span{display:block;color:#b6d9df;margin-top:4px}
+.ai-result{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.ai-mini{border:1px solid #164e63;background:#07141c;border-radius:8px;padding:9px}.ai-mini small{color:#87a6ad}.ai-mini b{display:block;font-family:var(--mono);margin-top:3px}
+.ai-side{border-left:1px solid #164e63;background:rgba(5,10,14,.88);padding:18px;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:14px}
+.ai-side h3{margin:0;font-family:var(--mono);font-size:18px}.ai-side p{margin:4px 0 0;color:#87a6ad}
+.ai-models{min-height:0;overflow:auto;border:1px solid #164e63;border-radius:12px;background:#071017}.ai-model{padding:10px 11px;border-bottom:1px solid #123846}.ai-model b{display:block;font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ai-model span{display:inline-block;margin-top:5px;color:#22d3ee;border:1px solid #155e75;border-radius:999px;padding:1px 8px;font-size:11px}
+
+/* SaaS Flat */
+.saas{height:calc(100vh - 104px);background:#f8fafc;color:#0f172a;display:grid;grid-template-columns:220px minmax(0,1fr)}
+.saas-nav{background:#fff;border-right:1px solid #e2e8f0;padding:18px 14px;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;gap:18px}
+.saas-logo b{display:block;font-size:18px}.saas-logo span{display:block;color:#64748b;font-size:12px;margin-top:3px}
+.saas-menu{display:grid;gap:6px}.saas-menu button{border:0;background:transparent;text-align:left;border-radius:8px;padding:10px 11px;font-weight:800;color:#475569;cursor:pointer}.saas-menu button.active{background:#1e40af;color:#fff}
+.saas-main{min-width:0;padding:18px;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:14px;overflow:hidden}
+.saas-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.saas-head h2{margin:0;font-size:25px}.saas-head p{margin:4px 0 0;color:#64748b}
+.saas-cta{border:1px solid #1e40af;background:#1e40af;color:#fff;border-radius:8px;padding:9px 13px;font-weight:800}
+.saas-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.saas-metric{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px}.saas-metric small{color:#64748b}.saas-metric b{display:block;font-family:var(--mono);font-size:21px;margin-top:4px}
+.saas-work{min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px}
+.saas-panel{min-height:0;background:#fff;border:1px solid #e2e8f0;border-radius:12px;display:grid;grid-template-rows:auto auto minmax(0,1fr);overflow:hidden}
+.saas-panel-head{padding:13px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;font-weight:800}
+.saas-tools{padding:10px 13px;border-bottom:1px solid #e2e8f0;display:grid;grid-template-columns:minmax(260px,1fr) 140px 140px 120px;gap:8px}
+.saas-input{border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;color:#64748b}
+.saas-table{overflow:auto;min-height:0}
+.saas-row{display:grid;grid-template-columns:minmax(300px,1.4fr) 150px 110px 120px 90px;gap:12px;align-items:center;padding:10px 13px;border-bottom:1px solid #eef2f7}
+.saas-row.head{position:sticky;top:0;background:#f1f5f9;color:#64748b;font-weight:800;z-index:2}.saas-row b{font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.saas-source{display:inline-block;margin-top:4px;background:#dbeafe;color:#1e40af;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:800}
+.saas-detail{min-height:0;display:grid;gap:10px;align-content:start}.saas-detail-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:13px}.saas-detail-card small{color:#64748b}.saas-detail-card b{display:block;font-family:var(--mono);font-size:16px;margin-top:4px;overflow-wrap:anywhere}
+@media(max-width:900px){
+  .professional,.ai-tech,.saas{height:auto;min-height:calc(100vh - 104px);grid-template-columns:1fr}
+  .pro-nav,.ai-side,.saas-nav{display:none}
+  .pro-cert-row,.pro-work,.pro-filter,.ai-grid,.saas-metrics,.saas-work,.saas-tools{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<main class="viewer">
+  <header class="switcher">
+    <div>
+      <h1>SOH Bench 三种前端页面 Mockup</h1>
+      <span>基于 ui-ux-pro-max 检索：Trust & Authority / AI-Native UI / Flat SaaS Design</span>
+    </div>
+    <nav class="tabs" aria-label="mockup style">
+      <button data-target="professional" aria-selected="true">专业风格</button>
+      <button data-target="ai-tech" aria-selected="false">AI 科技风格</button>
+      <button data-target="saas" aria-selected="false">SaaS 风格</button>
+    </nav>
+  </header>
+
+  <section class="mock professional active" id="professional">
+    <aside class="pro-nav">
+      <div class="pro-brand">
+        <div class="pro-mark"><svg class="svg" viewBox="0 0 24 24"><path d="M4 18h16M6 15l4-5 4 3 4-7"/></svg></div>
+        <div><b>SOH Bench</b><small>可信评测控制台</small></div>
+      </div>
+      <div class="pro-status"><small>本机可信模式</small><strong>ONLINE</strong></div>
+      <nav class="pro-menu">
+        <div class="pro-item"><span>训练测评</span><b>12</b></div>
+        <div class="pro-item"><span>推理测评</span><b>7</b></div>
+        <div class="pro-item active"><span>模型库</span><b>220</b></div>
+        <div class="pro-item"><span>审计记录</span><b>34</b></div>
+      </nav>
+      <div class="pro-status"><small>数据目录</small><span class="mono">D:\battery_SOH\data</span></div>
+    </aside>
+    <section class="pro-main">
+      <div class="pro-top">
+        <div><h2>模型资产审计与可信发布</h2><p>专业风格强调高可信、审计轨迹、稳定表格和清晰状态。</p></div>
+        <div class="pro-actions"><button class="pro-secondary">导出审计</button><button class="pro-primary">上传 Pickle</button></div>
+      </div>
+      <div class="pro-cert-row">
+        <div class="pro-cert"><small>模型总数</small><b>220</b></div>
+        <div class="pro-cert"><small>训练产物</small><b>220</b></div>
+        <div class="pro-cert"><small>外部上传</small><b>0</b></div>
+        <div class="pro-cert"><small>失败组合</small><b style="color:#b45309">7</b></div>
+      </div>
+      <div class="pro-work">
+        <div class="pro-panel">
+          <div class="pro-panel-head"><span>模型注册表</span><span class="mono">sticky header / fixed scroll</span></div>
+          <div class="pro-filter"><div class="pro-input">搜索模型名、cell id、manifest</div><div class="pro-input">算法：全部</div><div class="pro-input">来源：全部</div><div class="pro-input">状态：全部</div></div>
+          <div class="pro-table">
+            <div class="pro-row head"><span>模型</span><span>算法</span><span>特征集</span><span>训练数据</span><span>特征数</span></div>
+            <div class="pro-row"><span><b class="clip">byo_skb_ridge_byo_loco_calce_cs2_CS2_21_seed0</b><span class="pro-badge">训练产物</span></span><span class="mono">byo_skb_ridge</span><span class="mono">(byo)</span><span class="mono clip">calce_cs2 / hust / nasa / oxford / rwth_isea_public</span><span class="mono">20</span></div>
+            <div class="pro-row"><span><b class="clip">trusted_huber_decay_rwth_cycle_shape_seed0</b><span class="pro-badge">训练产物</span></span><span class="mono">trusted_huber</span><span class="mono">rwth_shape</span><span class="mono clip">rwth_isea_public</span><span class="mono">4</span></div>
+            <div class="pro-row"><span><b class="clip">external_xgb_ic_dva_uploaded_v1</b><span class="pro-badge" style="background:#fff7ed;border-color:#fed7aa;color:#9a3412">上传模型</span></span><span class="mono">xgboost</span><span class="mono">ic_dva</span><span class="mono clip">外部上传</span><span class="mono">8</span></div>
+            <div class="pro-row"><span><b class="clip">ridge_full_loco_nasa_seed0</b><span class="pro-badge">训练产物</span></span><span class="mono">ridge</span><span class="mono">full</span><span class="mono clip">nasa / calce_cs2</span><span class="mono">16</span></div>
+            <div class="pro-row"><span><b class="clip">gbdt_voltage_loco_oxford_seed0</b><span class="pro-badge">训练产物</span></span><span class="mono">gbdt</span><span class="mono">voltage</span><span class="mono clip">oxford / uconn</span><span class="mono">4</span></div>
+          </div>
+        </div>
+        <aside class="pro-side">
+          <div class="pro-card"><h3>选中模型</h3><small>manifest 校验</small><b>byo_skb_ridge...CS2_21</b></div>
+          <div class="pro-card"><h3>可信结论</h3><small>当前模型可进入推理页复核，注意 rwth 扩展特征。</small><b style="color:#15803d">READY</b></div>
+          <div class="pro-audit">
+            <div><b>09:05 推理完成</b><span>7 个组合写入 inference_benchmark.json</span></div>
+            <div><b>08:58 训练任务运行中</b><span>7 数据集 x 12 算法 x 6 特征集</span></div>
+            <div><b>08:41 RWTH 导入</b><span>新增公开数据集和特征方案</span></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </section>
+
+  <section class="mock ai-tech" id="ai-tech">
+    <section class="ai-main">
+      <div class="ai-head">
+        <div><h2>SOH AI Evaluation Agent</h2><p>AI 科技风格把“评测工具”变成一个会解释风险、推荐下一步的智能控制台。</p></div>
+        <div class="ai-live"><span class="ai-dot"></span><span>inference agent streaming</span></div>
+      </div>
+      <div class="ai-prompt">
+        <div><b>智能建议</b><span>检测到 7 个失败组合，优先检查 Pickle manifest 中缺失的 rwth_cycle_* 特征列。</span></div>
+        <button class="ai-command">生成修复建议</button>
+      </div>
+      <div class="ai-grid">
+        <aside class="ai-stack">
+          <div class="ai-card"><small>已选择模型</small><b>1 / 220</b><span>byo_skb_ridge_byo_loco_calce_cs2_CS2_21_seed0</span></div>
+          <div class="ai-card"><small>目标数据集</small><b>7 / 7</b><span>hust、snl_lfp、rwth_isea_public 等</span></div>
+          <div class="ai-card"><small>执行模式</small><b>predict only</b><span>不训练，只测迁移泛化和推理速度</span></div>
+          <div class="ai-result">
+            <div class="ai-mini"><small>MAE</small><b>暂无</b></div>
+            <div class="ai-mini"><small>速度</small><b>暂无</b></div>
+            <div class="ai-mini"><small>风险</small><b style="color:#fbbf24">7</b></div>
+          </div>
+        </aside>
+        <section class="ai-neural">
+          <div class="ai-neural-head"><span>Agent Trace</span><span>live reasoning</span></div>
+          <div class="ai-stream">
+            <div class="ai-msg"><b>输入校验</b><span>模型 schema 需要 20 列，目标数据集中缺少 rwth_cycle_norm / rwth_sqrt_cycle / rwth_log_cycle。</span></div>
+            <div class="ai-msg"><b>迁移判断</b><span>当前模型训练覆盖 7 个数据集，但 BYO 特征对新增 RWTH 形状特征敏感。</span></div>
+            <div class="ai-msg"><b>下一步</b><span>推荐上传兼容特征方案，或在训练页重新产出包含 RWTH 特征的 Pickle 模型。</span></div>
+          </div>
+        </section>
+      </div>
+    </section>
+    <aside class="ai-side">
+      <div><h3>模型星图</h3><p>AI-native 低 chrome 侧栏，固定滚动查看模型资产。</p></div>
+      <div class="ai-card"><small>可解释性</small><b>schema first</b><span>将错误归因到特征列，而不是只展示失败。</span></div>
+      <div class="ai-models">
+        <div class="ai-model"><b>byo_skb_ridge_byo_loco_calce_cs2_CS2_21_seed0</b><span>训练产物</span></div>
+        <div class="ai-model"><b>trusted_huber_decay_rwth_cycle_shape_seed0</b><span>训练产物</span></div>
+        <div class="ai-model"><b>external_xgb_ic_dva_uploaded_v1</b><span>上传模型</span></div>
+        <div class="ai-model"><b>ridge_full_loco_nasa_seed0</b><span>训练产物</span></div>
+        <div class="ai-model"><b>gbdt_voltage_loco_oxford_seed0</b><span>训练产物</span></div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="mock saas" id="saas">
+    <aside class="saas-nav">
+      <div class="saas-logo"><b>sohbench</b><span>SaaS model ops</span></div>
+      <nav class="saas-menu"><button>概览</button><button>训练测评</button><button>推理测评</button><button class="active">模型库</button><button>数据集</button></nav>
+      <div></div>
+      <button class="saas-cta">上传模型</button>
+    </aside>
+    <section class="saas-main">
+      <div class="saas-head">
+        <div><h2>模型库</h2><p>SaaS 风格强调清爽、可筛选、可交付，适合给团队成员日常使用。</p></div>
+        <button class="saas-cta">新建推理测评</button>
+      </div>
+      <div class="saas-metrics">
+        <div class="saas-metric"><small>模型总数</small><b>220</b></div>
+        <div class="saas-metric"><small>训练产物</small><b>220</b></div>
+        <div class="saas-metric"><small>上传模型</small><b>0</b></div>
+        <div class="saas-metric"><small>失败组合</small><b style="color:#b45309">7</b></div>
+      </div>
+      <div class="saas-work">
+        <div class="saas-panel">
+          <div class="saas-panel-head"><span>全部模型</span><span class="muted">固定高度列表</span></div>
+          <div class="saas-tools"><div class="saas-input">搜索模型名</div><div class="saas-input">算法</div><div class="saas-input">特征集</div><div class="saas-input">来源</div></div>
+          <div class="saas-table">
+            <div class="saas-row head"><span>模型</span><span>算法</span><span>特征集</span><span>最近状态</span><span>特征数</span></div>
+            <div class="saas-row"><span><b>byo_skb_ridge_byo_loco_calce_cs2_CS2_21_seed0</b><span class="saas-source">训练产物</span></span><span>byo_skb_ridge</span><span>(byo)</span><span>待复核</span><span>20</span></div>
+            <div class="saas-row"><span><b>external_xgb_ic_dva_uploaded_v1</b><span class="saas-source" style="background:#fef3c7;color:#92400e">上传模型</span></span><span>xgboost</span><span>ic_dva</span><span>可推理</span><span>8</span></div>
+            <div class="saas-row"><span><b>trusted_huber_decay_rwth_cycle_shape_seed0</b><span class="saas-source">训练产物</span></span><span>trusted_huber</span><span>rwth_shape</span><span>可推理</span><span>4</span></div>
+            <div class="saas-row"><span><b>ridge_full_loco_nasa_seed0</b><span class="saas-source">训练产物</span></span><span>ridge</span><span>full</span><span>可推理</span><span>16</span></div>
+            <div class="saas-row"><span><b>gbdt_voltage_loco_oxford_seed0</b><span class="saas-source">训练产物</span></span><span>gbdt</span><span>voltage</span><span>可推理</span><span>4</span></div>
+          </div>
+        </div>
+        <aside class="saas-detail">
+          <div class="saas-detail-card"><small>模型详情</small><b>CS2_21_seed0</b></div>
+          <div class="saas-detail-card"><small>最近推理</small><b>7 个目标数据集失败</b></div>
+          <div class="saas-detail-card"><small>建议</small><b>重新训练包含 RWTH 特征的模型，或上传兼容 Pickle。</b></div>
+        </aside>
+      </div>
+    </section>
+  </section>
+</main>
+<script>
+const buttons = document.querySelectorAll(".tabs button");
+const mocks = document.querySelectorAll(".mock");
+buttons.forEach((button) => {
+  button.addEventListener("click", () => {
+    buttons.forEach((item) => item.setAttribute("aria-selected", String(item === button)));
+    mocks.forEach((mock) => mock.classList.toggle("active", mock.id === button.dataset.target));
+  });
+});
+</script>
+</body>
+</html>

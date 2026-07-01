@@ -1,0 +1,16 @@
+{
+  "pass_rate": 0.9933896437752479,
+  "n_in": 2723,
+  "n_out": 18,
+  "drop_reasons": {
+    "soh_nonpositive": 18,
+    "soh_out_of_range": 0,
+    "nan_feature_row": 0
+  },
+  "dropped_columns": [],
+  "per_dataset": {
+    "nasa": {
+      "rows": 2705
+    }
+  }
+}

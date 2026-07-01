@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOH 评测工作台 Mockup</title>
+<style>
+:root{
+  --bg:#F7FAFC;
+  --surface:#FFFFFF;
+  --soft:#EEF4FB;
+  --line:#DDE7F2;
+  --fg:#10233F;
+  --muted:#64748B;
+  --blue:#2457C5;
+  --green:#15803D;
+  --amber:#B45309;
+  --red:#B91C1C;
+  --blue-bg:#EAF2FF;
+  --green-bg:#F0FDF4;
+  --amber-bg:#FEF3C7;
+  --mono:"Fira Code",ui-monospace,Consolas,monospace;
+  --sans:"Fira Sans",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  min-height:100vh;
+  background:var(--bg);
+  color:var(--fg);
+  font-family:var(--sans);
+  font-size:14px;
+}
+.app{
+  max-width:1440px;
+  height:100vh;
+  margin:0 auto;
+  padding:18px 20px;
+  display:grid;
+  grid-template-rows:auto auto auto minmax(0,1fr) auto;
+  gap:12px;
+}
+.topbar,.scope-bar,.tabs,.workspace,.diagnostics{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:8px;
+}
+.topbar{
+  padding:12px 14px;
+  display:grid;
+  grid-template-columns:minmax(220px,1fr) repeat(4,auto);
+  gap:12px;
+  align-items:center;
+}
+.brand h1{font-size:19px;line-height:1.1;margin:0}
+.brand span{display:block;margin-top:3px;color:var(--muted);font-size:12px}
+.stat{
+  min-width:108px;
+  padding:8px 10px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:#FBFCFE;
+}
+.stat small{display:block;color:var(--muted);font-size:11px}
+.stat b{display:block;font-family:var(--mono);font-size:17px;margin-top:1px}
+.scope-bar{
+  padding:10px 12px;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  gap:12px;
+  align-items:center;
+}
+.scope-title{font-weight:800}
+.scope-chips{
+  min-width:0;
+  display:flex;
+  gap:8px;
+  overflow:hidden;
+}
+.chip{
+  border:1px solid var(--line);
+  background:#FBFCFE;
+  border-radius:999px;
+  padding:5px 10px;
+  white-space:nowrap;
+  font-family:var(--mono);
+  font-size:12px;
+}
+.chip.active{background:var(--blue-bg);border-color:#BFD2FF;color:var(--blue);font-weight:700}
+.ghost-button{
+  border:1px solid var(--line);
+  background:#fff;
+  color:var(--fg);
+  border-radius:8px;
+  padding:7px 10px;
+  font:inherit;
+  font-weight:700;
+}
+.tabs{
+  padding:6px;
+  display:flex;
+  gap:6px;
+  width:max-content;
+}
+.tab{
+  border:1px solid transparent;
+  border-radius:8px;
+  padding:8px 16px;
+  background:transparent;
+  color:var(--muted);
+  font:inherit;
+  font-weight:800;
+  cursor:pointer;
+}
+.tab[aria-selected="true"]{background:var(--blue);color:#fff}
+.workspace{
+  min-height:0;
+  padding:14px;
+  overflow:hidden;
+}
+.panel{display:none;height:100%;min-height:0}
+.panel.active{display:grid}
+.panel-head{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:flex-start;
+  margin-bottom:12px;
+}
+.panel-head h2{font-size:18px;margin:0}
+.panel-head p{margin:3px 0 0;color:var(--muted);font-size:12px}
+.primary{
+  border:1px solid var(--blue);
+  background:var(--blue);
+  color:#fff;
+  border-radius:8px;
+  padding:8px 12px;
+  font:inherit;
+  font-weight:800;
+}
+.grid-3{
+  height:calc(100% - 50px);
+  min-height:0;
+  display:grid;
+  grid-template-columns:260px minmax(0,1fr) 280px;
+  gap:12px;
+}
+.rail,.main-card,.side-card{
+  min-width:0;
+  min-height:0;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:#FBFCFE;
+  padding:12px;
+}
+.rail-title,.card-title{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  align-items:center;
+  margin-bottom:10px;
+  font-weight:800;
+}
+.rail-title small,.card-title small{color:var(--muted);font-weight:600}
+.metric-stack{display:grid;gap:8px}
+.metric{
+  min-width:0;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:#fff;
+  padding:9px 10px;
+  box-shadow:inset 3px 0 0 var(--blue);
+}
+.metric.green{box-shadow:inset 3px 0 0 var(--green)}
+.metric.amber{box-shadow:inset 3px 0 0 var(--amber)}
+.metric small{display:block;color:var(--muted);font-size:11px}
+.metric b{display:block;font-family:var(--mono);font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.metric span{display:block;color:var(--muted);font-size:11px;overflow-wrap:anywhere}
+.model-tools{
+  display:grid;
+  grid-template-columns:minmax(220px,1fr) repeat(3,160px);
+  gap:8px;
+  margin-bottom:10px;
+}
+.input,.select{
+  min-width:0;
+  border:1px solid var(--line);
+  background:#fff;
+  border-radius:8px;
+  padding:8px 10px;
+  color:var(--muted);
+}
+.model-shell{
+  height:calc(100% - 48px);
+  min-height:0;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:#fff;
+  overflow:hidden;
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr);
+}
+.table-head,.model-row{
+  display:grid;
+  grid-template-columns:minmax(320px,1.4fr) 150px 110px minmax(290px,1fr) 70px;
+  gap:12px;
+  align-items:center;
+}
+.table-head{
+  position:sticky;
+  top:0;
+  z-index:1;
+  background:var(--soft);
+  color:var(--muted);
+  font-weight:800;
+  font-size:12px;
+  padding:9px 10px;
+  border-bottom:1px solid var(--line);
+}
+.model-scroll{
+  min-height:0;
+  max-height:520px;
+  overflow:auto;
+}
+.model-row{
+  min-height:58px;
+  padding:9px 10px;
+  border-bottom:1px solid var(--line);
+}
+.model-row.selected{background:var(--blue-bg)}
+.mono{font-family:var(--mono)}
+.name{font-family:var(--mono);font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tag{display:inline-block;margin-top:3px;border:1px solid #CFE0FF;background:#EFF6FF;color:var(--blue);border-radius:999px;padding:1px 7px;font-size:11px;font-weight:800}
+.muted{color:var(--muted)}
+.detail-list{display:grid;gap:9px}
+.detail-item{border:1px solid var(--line);border-radius:8px;background:#fff;padding:9px 10px}
+.detail-item small{display:block;color:var(--muted);font-size:11px}
+.detail-item b{display:block;margin-top:2px;font-family:var(--mono);font-size:14px;overflow-wrap:anywhere}
+.flow{
+  height:calc(100% - 50px);
+  min-height:0;
+  display:grid;
+  grid-template-columns:280px minmax(0,1fr);
+  gap:12px;
+}
+.step-list{display:grid;gap:8px}
+.step{border:1px solid var(--line);background:#fff;border-radius:8px;padding:10px}
+.step b{display:block}
+.step span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.matrix-preview{
+  height:100%;
+  min-height:0;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:#fff;
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr);
+  overflow:hidden;
+}
+.matrix-header{padding:10px 12px;border-bottom:1px solid var(--line);font-weight:800}
+.matrix-body{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line);padding:1px;overflow:auto}
+.cell{min-height:58px;background:#fff;padding:8px;font-family:var(--mono)}
+.cell.good{background:#ECFDF5}.cell.mid{background:#FEF3C7}.cell.bad{background:#FEE2E2}
+.inference-grid{
+  height:calc(100% - 50px);
+  min-height:0;
+  display:grid;
+  grid-template-columns:300px minmax(0,1fr) 280px;
+  gap:12px;
+}
+.checklist{height:270px;overflow:auto;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px}
+.check{display:flex;gap:8px;padding:6px;border-radius:6px;font-family:var(--mono)}
+.check.active{background:var(--blue-bg)}
+.result-table{height:100%;min-height:0;overflow:auto;border:1px solid var(--line);background:#fff;border-radius:8px}
+.result-row{display:grid;grid-template-columns:1.4fr .8fr .8fr .8fr .8fr;padding:9px 10px;border-bottom:1px solid var(--line);gap:8px}
+.result-row.head{position:sticky;top:0;background:var(--soft);font-weight:800;color:var(--muted)}
+.diagnostics{
+  padding:9px 12px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  color:var(--muted);
+}
+@media(max-width:980px){
+  .app{height:auto;min-height:100vh}
+  .topbar,.scope-bar,.grid-3,.flow,.inference-grid{grid-template-columns:1fr}
+  .workspace{overflow:visible}
+  .panel.active{height:auto}
+  .model-tools{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<main class="app">
+  <section class="topbar">
+    <div class="brand">
+      <h1>SOH 评测工作台</h1>
+      <span>训练、推理、模型资产分开承载；全局诊断默认收起</span>
+    </div>
+    <div class="stat"><small>数据集</small><b>7</b></div>
+    <div class="stat"><small>模型</small><b>220</b></div>
+    <div class="stat"><small>算法</small><b>12</b></div>
+    <div class="stat"><small>后端</small><b style="color:var(--green)">已连接</b></div>
+  </section>
+
+  <section class="scope-bar">
+    <div class="scope-title">数据范围</div>
+    <div class="scope-chips">
+      <span class="chip active">全部 7/7</span>
+      <span class="chip">hust</span>
+      <span class="chip">snl_lfp</span>
+      <span class="chip">calce_cs2</span>
+      <span class="chip">uconn</span>
+      <span class="chip">rwth_isea_public</span>
+      <span class="chip">nasa</span>
+      <span class="chip">oxford</span>
+    </div>
+    <button class="ghost-button">展开筛选</button>
+  </section>
+
+  <nav class="tabs" aria-label="评测页签">
+    <button class="tab" data-tab="training" aria-selected="false">训练测评</button>
+    <button class="tab" data-tab="inference" aria-selected="false">推理测评</button>
+    <button class="tab" data-tab="models" aria-selected="true">模型库</button>
+  </nav>
+
+  <section class="workspace">
+    <article class="panel" id="training">
+      <div class="panel-head">
+        <div><h2>训练测评</h2><p>上传资源、配置训练矩阵、产出 Pickle 模型。</p></div>
+        <button class="primary">开始训练测评</button>
+      </div>
+      <div class="flow">
+        <aside class="rail">
+          <div class="rail-title">训练流程 <small>4 步</small></div>
+          <div class="step-list">
+            <div class="step"><b>1. 资源接入</b><span>数据集 / 算法 / 特征方案</span></div>
+            <div class="step"><b>2. 训练配置</b><span>协议、seed、组合数量</span></div>
+            <div class="step"><b>3. 执行训练</b><span>记录任务状态和日志</span></div>
+            <div class="step"><b>4. 发布模型</b><span>产出 Pickle 与 manifest</span></div>
+          </div>
+        </aside>
+        <section class="matrix-preview">
+          <div class="matrix-header">训练矩阵与结果概览</div>
+          <div class="matrix-body">
+            <div class="cell good">ridge<br>MAE 0.11</div><div class="cell mid">gbdt<br>MAE 0.17</div><div class="cell bad">mlp<br>MAE 0.26</div><div class="cell mid">svr<br>MAE 0.19</div><div class="cell good">byo<br>MAE 0.09</div>
+            <div class="cell mid">full</div><div class="cell good">ic_dva</div><div class="cell mid">voltage</div><div class="cell">capacity</div><div class="cell good">rwth_shape</div>
+            <div class="cell">训练任务</div><div class="cell good">已完成</div><div class="cell">模型产出</div><div class="cell good">220</div><div class="cell">可发布</div>
+          </div>
+        </section>
+      </div>
+    </article>
+
+    <article class="panel" id="inference">
+      <div class="panel-head">
+        <div><h2>推理测评</h2><p>选择已有模型和目标数据集，只执行 predict，比较迁移精度与速度。</p></div>
+        <button class="primary">启动推理测评</button>
+      </div>
+      <div class="inference-grid">
+        <aside class="rail">
+          <div class="rail-title">输入选择 <small>1 模型 / 7 数据集</small></div>
+          <div class="card-title">模型</div>
+          <div class="checklist">
+            <div class="check active">☑ byo_skb_ridge_CS2_21</div>
+            <div class="check">☐ byo_skb_ridge_CS2_33</div>
+            <div class="check">☐ external_xgb_v1</div>
+          </div>
+          <div class="card-title" style="margin-top:10px">目标数据集</div>
+          <div class="checklist" style="height:160px">
+            <div class="check active">☑ hust</div>
+            <div class="check active">☑ snl_lfp</div>
+            <div class="check active">☑ rwth_isea_public</div>
+          </div>
+        </aside>
+        <section class="main-card">
+          <div class="card-title">推理结果 <small>固定区域滚动</small></div>
+          <div class="result-table">
+            <div class="result-row head"><span>模型</span><span>数据集</span><span>MAE</span><span>ms/1000</span><span>状态</span></div>
+            <div class="result-row"><span class="mono">byo_skb_ridge_CS2_21</span><span>hust</span><span>0.108</span><span>4.8</span><span>成功</span></div>
+            <div class="result-row"><span class="mono">byo_skb_ridge_CS2_21</span><span>rwth</span><span>暂无</span><span>暂无</span><span>特征缺失</span></div>
+            <div class="result-row"><span class="mono">external_xgb_v1</span><span>nasa</span><span>0.132</span><span>7.1</span><span>成功</span></div>
+          </div>
+        </section>
+        <aside class="side-card">
+          <div class="rail-title">迁移洞察</div>
+          <div class="metric green"><small>推荐模型</small><b>byo_skb_ridge</b><span>当前迁移精度最好</span></div>
+          <div class="metric"><small>速度参考</small><b>4.8 ms</b><span>每 1000 样本</span></div>
+          <div class="metric amber"><small>风险提示</small><b>7 个失败组合</b><span>优先检查特征列兼容性</span></div>
+        </aside>
+      </div>
+    </article>
+
+    <article class="panel active" id="models">
+      <div class="panel-head">
+        <div><h2>模型库</h2><p>固定高度模型列表，搜索筛选后点击查看右侧详情。</p></div>
+        <button class="primary">上传 Pickle 模型</button>
+      </div>
+      <div class="grid-3">
+        <aside class="rail">
+          <div class="rail-title">资产摘要</div>
+          <div class="metric-stack">
+            <div class="metric"><small>模型总数</small><b>220</b><span>220 训练产出 / 0 外部上传</span></div>
+            <div class="metric green"><small>已推理模型</small><b>1</b><span>拥有最近 inference-only 指标</span></div>
+            <div class="metric amber"><small>待复核</small><b>7</b><span>存在特征兼容性失败</span></div>
+          </div>
+        </aside>
+        <section class="main-card">
+          <div class="model-tools">
+            <div class="input">搜索模型名 / cell id</div>
+            <div class="select">算法：全部</div>
+            <div class="select">特征集：全部</div>
+            <div class="select">来源：全部</div>
+          </div>
+          <div class="model-shell">
+            <div class="table-head"><span>模型</span><span>算法</span><span>特征集</span><span>训练数据</span><span>特征数</span></div>
+            <div class="model-scroll">
+              <div class="model-row selected"><div><div class="name">byo_skb_ridge_byo_loco_calce_cs2_CS2_21_seed0</div><span class="tag">训练产物</span></div><span class="mono">byo_skb_ridge</span><span class="mono">(byo)</span><span class="mono muted">calce_cs2 / hust / nasa / oxford / rwth_isea_public / snl_lfp / uconn</span><span class="mono">20</span></div>
+              <div class="model-row"><div><div class="name">byo_skb_ridge_byo_loco_calce_cs2_CS2_33_seed0</div><span class="tag">训练产物</span></div><span class="mono">byo_skb_ridge</span><span class="mono">(byo)</span><span class="mono muted">calce_cs2 / hust / nasa / oxford / rwth_isea_public / snl_lfp / uconn</span><span class="mono">20</span></div>
+              <div class="model-row"><div><div class="name">byo_skb_ridge_byo_loco_calce_cs2_CS2_34_seed0</div><span class="tag">训练产物</span></div><span class="mono">byo_skb_ridge</span><span class="mono">(byo)</span><span class="mono muted">calce_cs2 / hust / nasa / oxford / rwth_isea_public / snl_lfp / uconn</span><span class="mono">20</span></div>
+              <div class="model-row"><div><div class="name">byo_skb_ridge_byo_loco_hust_cell_01_seed0</div><span class="tag">训练产物</span></div><span class="mono">byo_skb_ridge</span><span class="mono">(byo)</span><span class="mono muted">hust / nasa / oxford / rwth_isea_public</span><span class="mono">20</span></div>
+              <div class="model-row"><div><div class="name">external_xgb_ic_dva_uploaded_v1</div><span class="tag">上传模型</span></div><span class="mono">xgboost</span><span class="mono">ic_dva</span><span class="mono muted">外部上传</span><span class="mono">8</span></div>
+              <div class="model-row"><div><div class="name">ridge_full_loco_nasa_seed0</div><span class="tag">训练产物</span></div><span class="mono">ridge</span><span class="mono">full</span><span class="mono muted">nasa / calce_cs2</span><span class="mono">16</span></div>
+              <div class="model-row"><div><div class="name">gbdt_voltage_loco_oxford_seed0</div><span class="tag">训练产物</span></div><span class="mono">gbdt</span><span class="mono">voltage</span><span class="mono muted">oxford / uconn</span><span class="mono">4</span></div>
+              <div class="model-row"><div><div class="name">trusted_huber_decay_rwth_cycle_shape_seed0</div><span class="tag">训练产物</span></div><span class="mono">trusted_huber_decay</span><span class="mono">rwth_cycle_shape</span><span class="mono muted">rwth_isea_public</span><span class="mono">4</span></div>
+            </div>
+          </div>
+        </section>
+        <aside class="side-card">
+          <div class="rail-title">模型详情</div>
+          <div class="detail-list">
+            <div class="detail-item"><small>名称</small><b>byo_skb_ridge_byo_loco_calce_cs2_CS2_21_seed0</b></div>
+            <div class="detail-item"><small>来源</small><b>训练产物</b></div>
+            <div class="detail-item"><small>特征 schema</small><b>20 列，包含 cycle 与 rwth 扩展特征</b></div>
+            <div class="detail-item"><small>最近推理</small><b>7 个目标数据集，7 个待复核</b></div>
+            <div class="detail-item"><small>模型文件</small><b>work/trusted_plugins/models/.../model.pkl</b></div>
+          </div>
+        </aside>
+      </div>
+    </article>
+  </section>
+
+  <section class="diagnostics">
+    <span>全局诊断：数据 QC、稳定性、全局排行榜、PICP 校准性</span>
+    <button class="ghost-button">展开</button>
+  </section>
+</main>
+<script>
+const tabs = document.querySelectorAll(".tab");
+const panels = document.querySelectorAll(".panel");
+tabs.forEach((tab) => {
+  tab.addEventListener("click", () => {
+    tabs.forEach((item) => item.setAttribute("aria-selected", String(item === tab)));
+    panels.forEach((panel) => panel.classList.toggle("active", panel.id === tab.dataset.tab));
+  });
+});
+</script>
+</body>
+</html>

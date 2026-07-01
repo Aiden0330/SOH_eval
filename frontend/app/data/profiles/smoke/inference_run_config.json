@@ -1,0 +1,20 @@
+{
+  "datasets": [
+    "smoke_eval_demo"
+  ],
+  "models": [
+    "smoke_linear_decay_smoke_cycle_shape_loco_smoke_eval_demo_smoke_cell_01_seed0"
+  ],
+  "launch_strategy": "compatible_only",
+  "selected_datasets": [
+    "smoke_eval_demo"
+  ],
+  "submitted_datasets": [
+    "smoke_eval_demo"
+  ],
+  "skipped_datasets": [],
+  "job_id": "20260630T193029-634d765d",
+  "trusted_local_pickle_models": true,
+  "run_dir": "runs\\20260630T193029",
+  "raw_run_dir": "runs\\20260630T193029"
+}

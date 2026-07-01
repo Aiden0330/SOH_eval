@@ -12,18 +12,26 @@ import {
   evaluationPlanSummary,
   datasetOptions,
   inferenceInsightSummary,
+  inferenceDatasetOptions,
+  inferenceCompatibilitySummary,
+  inferenceLaunchPlan,
   inferenceRows,
+  inferenceAuditSummary,
+  inferenceActionState,
   inferenceSummary,
   leaderboardCoverage,
   modelAssetRows,
   metricMean,
   modelOptions,
   nextDatasetSelection,
+  preferredInferenceModels,
+  profileOptions,
   scopeSummary,
   stabilityRows,
   summarizeBySelection,
+  taskHistoryRows,
   trainingArtifactSummary,
-} from "./dashboard-core.mjs";
+} from "./dashboard-core.mjs?v=task-history-20260630";
 
 const FALLBACK = {
   config: { datasets: ["nasa", "calce_cs2", "hust", "oxford"], protocols: ["lodo"], seeds: [0, 1] },
@@ -80,6 +88,7 @@ const $ = (id) => document.getElementById(id);
 const URL_PARAMS = new URLSearchParams(location.search);
 const API_BASE = URL_PARAMS.get("api") || "http://localhost:8001";
 const DATA_VERSION = URL_PARAMS.get("v") || "live";
+const INITIAL_PROFILE = safeProfileName(URL_PARAMS.get("profile") || localStorage.getItem("sohbench.profile") || "root");
 const FS_ORDER = ["full", "voltage", "ic_dva", "partial_window", "capacity_time", "(byo)"];
 const fmt = (v, d = 3, sign = false) =>
   v == null ? "无" : (sign && v >= 0 ? "+" : "") + v.toFixed(d);
@@ -94,6 +103,11 @@ const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({
 
 function fsOrder(sets) {
   return [...sets].sort((a, b) => (FS_ORDER.indexOf(a) + 1 || 99) - (FS_ORDER.indexOf(b) + 1 || 99));
+}
+
+function safeProfileName(value) {
+  const name = String(value || "root").trim();
+  return /^[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(name) ? name : "root";
 }
 
 function heat(t) {
@@ -118,39 +132,111 @@ let inferenceSelection = {
   models: new Set(),
   datasets: new Set(),
 };
+let inferenceLaunchStrategy = "compatible_only";
+let taskHistoryOpen = false;
+let taskHistoryFilters = {
+  kind: "all",
+  status: "all",
+  strategy: "all",
+  dataset: "",
+};
+let lastTaskHistoryRows = [];
+let taskHistoryExpandedIds = new Set();
+let taskHistoryBusyId = "";
+let taskHistoryMessage = "";
+let PROFILE_INDEX = { profiles: [] };
+let activeProfile = INITIAL_PROFILE;
+let activeProfileOption = { name: "root", label: "当前根目录", kind: "root", active: true };
 
 async function load(options = {}) {
   const suffix = `?v=${encodeURIComponent(DATA_VERSION)}${options.cacheBust ? `&t=${Date.now()}` : ""}`;
+  PROFILE_INDEX = await loadProfileIndex(suffix);
+  activeProfileOption = activeProfileSelection();
   try {
-    const [lb, qc, cfg, byDataset, inference, modelCatalog] = await Promise.all([
-      fetch("./data/leaderboard.json" + suffix).then((r) => { if (!r.ok) throw 0; return r.json(); }),
-      fetch("./data/qc_report.json" + suffix).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      fetch("./data/run_config.json" + suffix).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      fetch("./data/dataset_leaderboard.json" + suffix).then((r) => (r.ok ? r.json() : [])).catch(() => []),
-      fetch("./data/inference_benchmark.json" + suffix).then((r) => (r.ok ? r.json() : { records: [] })).catch(() => ({ records: [] })),
-      fetch("./data/model_catalog.json" + suffix).then((r) => (r.ok ? r.json() : { models: [] })).catch(() => ({ models: [] })),
-    ]);
-    DATA = {
-      leaderboard: lb,
-      datasetLeaderboard: byDataset || [],
-      qc,
-      config: cfg || {},
-      inference: inference || { records: [] },
-      modelCatalog: modelCatalog || { models: [] },
-    };
+    DATA = await loadProfileArtifacts(activeProfileOption.name, suffix);
   } catch (_) {
-    DATA = {
-      leaderboard: FALLBACK.leaderboard,
-      datasetLeaderboard: FALLBACK.datasetLeaderboard,
-      qc: FALLBACK.qc,
-      config: FALLBACK.config,
-      inference: FALLBACK.inference,
-      modelCatalog: FALLBACK.modelCatalog,
-      fallback: true,
-    };
+    if (activeProfileOption.name !== "root") {
+      activeProfile = "root";
+      activeProfileOption = activeProfileSelection();
+      try {
+        DATA = await loadProfileArtifacts("root", suffix);
+      } catch (_) {
+        DATA = fallbackData();
+      }
+    } else {
+      DATA = fallbackData();
+    }
   }
   await loadBackendCatalog();
   render();
+}
+
+async function loadProfileIndex(suffix = "") {
+  try {
+    const response = await fetch("./data/profiles/index.json" + suffix);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (_) {
+    return { profiles: [] };
+  }
+}
+
+function activeProfileSelection() {
+  const options = profileOptions(PROFILE_INDEX, activeProfile);
+  const selected = options.find((item) => item.active) || options[0];
+  activeProfile = selected.name;
+  return selected;
+}
+
+function profileDataPath(profile = "root") {
+  return profile === "root" ? "./data" : `./data/profiles/${encodeURIComponent(profile)}`;
+}
+
+async function loadProfileArtifacts(profile, suffix) {
+  const base = profileDataPath(profile);
+  const [lb, qc, cfg, byDataset, inference, inferenceConfig, modelCatalog, manifest] = await Promise.all([
+    fetchJson(`${base}/leaderboard.json${suffix}`),
+    fetchJson(`${base}/qc_report.json${suffix}`, null),
+    fetchJson(`${base}/run_config.json${suffix}`, {}),
+    fetchJson(`${base}/dataset_leaderboard.json${suffix}`, []),
+    fetchJson(`${base}/inference_benchmark.json${suffix}`, { records: [], summary: {} }),
+    fetchJson(`${base}/inference_run_config.json${suffix}`, {}),
+    fetchJson(`${base}/model_catalog.json${suffix}`, { models: [] }),
+    fetchJson(`${base}/manifest.json${suffix}`, {}),
+  ]);
+  return {
+    leaderboard: lb,
+    datasetLeaderboard: byDataset || [],
+    qc,
+    config: cfg || {},
+    inference: inference || { records: [], summary: {} },
+    inferenceConfig: inferenceConfig || {},
+    modelCatalog: modelCatalog || { models: [] },
+    profileManifest: manifest || {},
+  };
+}
+
+async function fetchJson(url, fallback) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    if (arguments.length > 1) return fallback;
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+function fallbackData() {
+  return {
+    leaderboard: FALLBACK.leaderboard,
+    datasetLeaderboard: FALLBACK.datasetLeaderboard,
+    qc: FALLBACK.qc,
+    config: FALLBACK.config,
+    inference: FALLBACK.inference,
+    inferenceConfig: {},
+    modelCatalog: FALLBACK.modelCatalog,
+    profileManifest: {},
+    fallback: true,
+  };
 }
 
 async function loadBackendCatalog() {
@@ -200,7 +286,8 @@ function render() {
     return;
   }
 
-  const dsOptions = datasetOptions(DATA.config, DATA.qc, DATA.datasetLeaderboard || []);
+  const dsOptions = currentDatasetOptions();
+  const inferenceDsOptions = currentInferenceDatasetOptions(dsOptions);
   const allDatasets = dsOptions.map((item) => item.name);
   if (!activeDatasets || !activeDatasets.size) activeDatasets = new Set(allDatasets);
   scoped = summarizeBySelection(aggregate, DATA.datasetLeaderboard || [], [...activeDatasets], allDatasets);
@@ -213,9 +300,11 @@ function render() {
   renderKpis(lb, dsOptions);
   renderScopeContext(dsOptions);
   renderModeTabs();
+  wireProfileSelector(profileOptions(PROFILE_INDEX, activeProfile));
   renderWorkbench();
-  renderInferencePanel(dsOptions);
+  renderInferencePanel(inferenceDsOptions);
   renderModelLibrary();
+  renderTaskHistoryDrawer();
   renderDatasetPanel(dsOptions);
   renderStabilityPanel();
   renderMatrix(lb, sets);
@@ -227,15 +316,67 @@ function render() {
   renderFoot();
 }
 
+function currentDatasetOptions() {
+  return datasetOptions(DATA.config, DATA.qc, DATA.datasetLeaderboard || []);
+}
+
+function currentInferenceDatasetOptions(dsOptions = currentDatasetOptions()) {
+  return inferenceDatasetOptions({
+    baseOptions: dsOptions,
+    catalog: CATALOG || {},
+    inference: DATA?.inference || {},
+  });
+}
+
+function currentInferenceAuditSummary() {
+  return inferenceAuditSummary({
+    inferenceConfig: DATA?.inferenceConfig || {},
+    catalog: CATALOG || {},
+    currentJob: CURRENT_JOB?.kind === "inference" ? CURRENT_JOB : null,
+  });
+}
+
 function renderRunMeta() {
   const c = DATA.config || {};
   const parts = [];
+  parts.push(`展示数据 <b>${esc(activeProfileOption.label || activeProfileOption.name || "当前根目录")}</b>`);
   if (c.datasets) parts.push(`数据集 <b>${c.datasets.length}</b>`);
   const protos = c.protocols || uniq(DATA.leaderboard.map((x) => x.protocol));
   if (protos?.length) parts.push(`协议 <b>${protos.join(",")}</b>`);
   if (c.seeds) parts.push(`种子 <b>${c.seeds.length}</b>`);
   parts.push(`来源 <b>${DATA.fallback ? "示例" : "实测"}</b>`);
   $("runmeta").innerHTML = parts.map((p) => `<span>${p}</span>`).join("");
+}
+
+function wireProfileSelector(options = []) {
+  const select = $("profile-select");
+  if (!select) return;
+  const current = activeProfileOption?.name || activeProfile || "root";
+  select.innerHTML = options.map((item) =>
+    `<option value="${esc(item.name)}">${esc(item.label)}${item.kind && item.kind !== "root" ? ` · ${esc(item.kind)}` : ""}</option>`
+  ).join("");
+  select.value = options.some((item) => item.name === current) ? current : "root";
+  select.onchange = () => {
+    activeProfile = safeProfileName(select.value);
+    localStorage.setItem("sohbench.profile", activeProfile);
+    resetProfileScopedState();
+    load({ cacheBust: true });
+  };
+}
+
+function resetProfileScopedState() {
+  activeFs = null;
+  activeDatasets = null;
+  scoped = null;
+  resourceSelection = {
+    datasets: new Set(),
+    estimators: new Set(),
+    featuresets: new Set(),
+  };
+  inferenceSelection = {
+    models: new Set(),
+    datasets: new Set(),
+  };
 }
 
 function renderKpis(lb, dsOptions) {
@@ -271,18 +412,28 @@ function renderScopeContext(dsOptions) {
   const names = summary.selectedNames.length <= 4
     ? summary.selectedNames.join(" / ")
     : `${summary.selectedNames.slice(0, 4).join(" / ")} / +${summary.selectedNames.length - 4}`;
+  const c = DATA.config || {};
+  const chip = (text, kind = "") => `<span class="chip ${esc(kind)}" title="${esc(text)}">${esc(text)}</span>`;
+  const chipList = (items, fallback, kind = "") => {
+    const visible = (items || []).filter(Boolean).slice(0, 4);
+    if (!visible.length) return chip(fallback, kind);
+    const extra = (items || []).length - visible.length;
+    return visible.map((item) => chip(item, kind)).join("") + (extra > 0 ? chip(`+${extra}`, kind) : "");
+  };
   $("scope-context").innerHTML =
-    `<div class="scope-heading">` +
-      `<span class="scope-eyebrow">全局评测上下文</span>` +
-      `<strong>${esc(summary.metricMode)}</strong>` +
-      `<span class="scope-notice">${esc(summary.notice)}</span>` +
+    `<div class="scope-group">` +
+      `<span class="scope-label">数据集</span>` +
+      `<div class="chips">${chipList(summary.selectedNames, names || "全部数据集")}</div>` +
     `</div>` +
-    `<div class="scope-strip">` +
-      scopePill("数据集", summary.datasetLabel, names || "全部数据集", summary.coverageKind) +
-      scopePill("样本", summary.rowLabel, `占 QC 样本 ${summary.shareLabel}`, "rows") +
-      scopePill("协议", summary.protocolLabel, `seed ${summary.seedLabel}`, "protocol") +
-      scopePill("来源", summary.sourceLabel, summary.scopeLabel, DATA.fallback ? "warn" : "source") +
-    `</div>`;
+    `<div class="scope-group">` +
+      `<span class="scope-label">算法</span>` +
+      `<div class="chips">${chipList(c.estimators || [], "全部算法", "green")}</div>` +
+    `</div>` +
+    `<div class="scope-group">` +
+      `<span class="scope-label">特征</span>` +
+      `<div class="chips">${chipList(c.featuresets || [], "全部特征", "amber")}</div>` +
+    `</div>` +
+    `<button class="ghost-button" type="button" title="${esc(summary.notice)}">管理范围</button>`;
 }
 
 function scopePill(label, value, hint, kind) {
@@ -394,10 +545,11 @@ function renderTrainingWorkflow(plan = null) {
     ["资源接入", CATALOG ? "complete" : "pending", CATALOG ? "资源目录已加载" : "等待后端连接"],
     ["组合配置", plan?.ready ? "active" : "pending", plan?.partsLabel || "请选择数据、算法、特征"],
     ["训练执行", jobStatus === "running" || jobStatus === "queued" ? "active" : (jobStatus === "succeeded" ? "complete" : "pending"), jobStatus || "尚未启动"],
-    ["模型发布", jobStatus === "succeeded" ? "complete" : "pending", "Pickle 模型进入模型库"],
+    ["模型发布", jobStatus === "succeeded" ? "complete" : "pending", "Pickle 模型进入模型资产库"],
   ];
   node.innerHTML =
     `<div class="panel-title"><span>训练流程</span><b>实验编排台</b></div>` +
+    `<div class="panel-scroll">` +
     `<div class="workflow-list">` +
       steps.map(([label, state, hint], index) =>
         `<div class="workflow-step ${esc(state)}">` +
@@ -405,7 +557,8 @@ function renderTrainingWorkflow(plan = null) {
           `<div><b>${esc(label)}</b><small>${esc(hint)}</small></div>` +
         `</div>`).join("") +
     `</div>` +
-    `<div class="note">训练页负责上传源码算法和特征方案，完成后产出可复用 Pickle 模型。</div>`;
+    `<div class="note">训练页负责上传源码算法和特征方案，完成后产出可复用 Pickle 模型。</div>` +
+    `</div>`;
 }
 
 function renderTrainingArtifacts() {
@@ -414,13 +567,15 @@ function renderTrainingArtifacts() {
   const summary = trainingArtifactSummary(DATA?.config || {}, currentModelCatalog());
   const jobStatus = CURRENT_JOB?.status || "未启动";
   node.innerHTML =
-    `<div class="panel-title"><span>训练产物</span><b>模型资产入口</b></div>` +
+    `<div class="panel-title"><span>训练产物</span><b>模型资产库</b></div>` +
+    `<div class="panel-scroll">` +
     `<div class="artifact-stack">` +
       artifactMetric("Pickle 模型", summary.label, `${summary.generatedCount} 训练产出 / ${summary.uploadedCount} 外部上传`, "model") +
       artifactMetric("数据集范围", `${summary.datasetCount || 0} 个数据集`, "训练矩阵使用的数据源范围", "dataset") +
       artifactMetric("任务状态", jobStatus, CURRENT_JOB?.id || "等待新任务", "job") +
     `</div>` +
-    `<button class="secondary-action" data-mode-shortcut="models">查看模型库</button>`;
+    `<button class="secondary-action" data-mode-shortcut="models">查看模型资产库</button>` +
+    `</div>`;
   const button = node.querySelector("[data-mode-shortcut='models']");
   if (button) {
     button.onclick = () => {
@@ -488,9 +643,218 @@ function renderModeTabs() {
       render();
     };
   });
+  document.querySelectorAll("[data-side-mode]").forEach((button) => {
+    const selected = button.dataset.sideMode === activeMode;
+    button.classList.toggle("active", selected);
+    button.setAttribute("aria-current", selected ? "page" : "false");
+    button.onclick = () => {
+      activeMode = button.dataset.sideMode;
+      render();
+    };
+  });
+  document.querySelectorAll("[data-mode-shortcut]").forEach((button) => {
+    button.onclick = () => {
+      activeMode = button.dataset.modeShortcut;
+      render();
+    };
+  });
   document.querySelectorAll("[data-mode-panel]").forEach((panel) => {
     panel.hidden = panel.dataset.modePanel !== activeMode;
   });
+}
+
+function renderTaskHistoryDrawer() {
+  const drawer = $("task-history-drawer");
+  const backdrop = $("task-history-backdrop");
+  if (!drawer || !backdrop) return;
+  drawer.hidden = !taskHistoryOpen;
+  backdrop.hidden = !taskHistoryOpen;
+  drawer.setAttribute("aria-hidden", taskHistoryOpen ? "false" : "true");
+
+  const history = taskHistoryRows(CATALOG || {}, taskHistoryFilters);
+  lastTaskHistoryRows = history.rows;
+  const status = $("task-history-status");
+  if (status) {
+    const current = taskHistoryFilters.status || "all";
+    status.innerHTML = `<option value="all">全部</option>` +
+      history.statusOptions.map((item) => `<option value="${esc(item)}">${esc(statusLabel(item))}</option>`).join("");
+    status.value = history.statusOptions.includes(current) ? current : "all";
+    if (status.value !== current) taskHistoryFilters.status = status.value;
+  }
+  setSelectValue("task-history-kind", taskHistoryFilters.kind);
+  setSelectValue("task-history-strategy", taskHistoryFilters.strategy);
+  const dataset = $("task-history-dataset");
+  if (dataset) dataset.value = taskHistoryFilters.dataset || "";
+
+  const summary = $("task-history-summary");
+  if (summary) {
+    const visibleCount = Math.min(history.filteredCount, 80);
+    summary.textContent = CATALOG
+      ? `显示 ${visibleCount} / ${history.totalCount} 个任务${history.filteredCount > 80 ? "，请继续筛选查看更多" : ""}`
+      : "后端未连接，暂无任务历史。";
+  }
+  const message = $("task-history-message");
+  if (message) {
+    message.textContent = taskHistoryMessage;
+    message.classList.toggle("active", Boolean(taskHistoryMessage));
+  }
+  const list = $("task-history-list");
+  if (list) {
+    list.innerHTML = history.rows.length
+      ? history.rows.slice(0, 80).map(renderTaskHistoryRow).join("")
+      : `<div class="task-history-empty">暂无匹配任务</div>`;
+  }
+  wireTaskHistoryDrawer();
+}
+
+function wireTaskHistoryDrawer() {
+  const open = $("open-task-history");
+  if (open) {
+    open.onclick = () => {
+      taskHistoryOpen = true;
+      renderTaskHistoryDrawer();
+    };
+  }
+  const close = $("close-task-history");
+  if (close) close.onclick = closeTaskHistoryDrawer;
+  const backdrop = $("task-history-backdrop");
+  if (backdrop) backdrop.onclick = closeTaskHistoryDrawer;
+  const bindSelect = (id, key) => {
+    const node = $(id);
+    if (!node) return;
+    node.onchange = () => {
+      taskHistoryFilters = { ...taskHistoryFilters, [key]: node.value };
+      renderTaskHistoryDrawer();
+    };
+  };
+  bindSelect("task-history-kind", "kind");
+  bindSelect("task-history-status", "status");
+  bindSelect("task-history-strategy", "strategy");
+  const dataset = $("task-history-dataset");
+  if (dataset) {
+    dataset.oninput = () => {
+      taskHistoryFilters = { ...taskHistoryFilters, dataset: dataset.value };
+      renderTaskHistoryDrawer();
+    };
+  }
+  document.querySelectorAll("[data-history-action='rerun']").forEach((button) => {
+    button.onclick = () => rerunTaskFromHistory(button.dataset.taskId || "");
+  });
+  document.querySelectorAll("[data-history-action='export']").forEach((button) => {
+    button.onclick = () => exportTaskAudit(button.dataset.taskId || "");
+  });
+  document.querySelectorAll(".task-history-detail").forEach((detail) => {
+    detail.ontoggle = () => {
+      const taskId = detail.dataset.taskId || "";
+      if (!taskId) return;
+      if (detail.open) taskHistoryExpandedIds.add(taskId);
+      else taskHistoryExpandedIds.delete(taskId);
+    };
+  });
+}
+
+function closeTaskHistoryDrawer() {
+  taskHistoryOpen = false;
+  renderTaskHistoryDrawer();
+}
+
+function setSelectValue(id, value) {
+  const node = $(id);
+  if (node) node.value = value || "all";
+}
+
+function renderTaskHistoryRow(row) {
+  const expanded = taskHistoryExpandedIds.has(row.id);
+  const busy = taskHistoryBusyId === row.id;
+  return `<article class="task-history-item ${esc(row.kind)} ${esc(row.status)}">` +
+    `<div class="task-history-main">` +
+      `<span>${esc(row.kindLabel)} · ${esc(row.statusLabel)}</span>` +
+      `<b>${esc(row.id || "未知任务")}</b>` +
+      `<small>${esc(row.detail)}</small>` +
+    `</div>` +
+    `<div class="task-history-meta">` +
+      `<span>${esc(row.strategyLabel)}</span>` +
+      `<span>${esc(row.datasetLabel)}</span>` +
+      `<span>${esc(row.runDir || row.error || row.createdAt || "暂无 run 目录")}</span>` +
+    `</div>` +
+    `<div class="task-history-actions">` +
+      `<button type="button" data-history-action="rerun" data-task-id="${esc(row.id)}" ${busy ? "disabled" : ""}>重新运行同配置</button>` +
+      `<button type="button" data-history-action="export" data-task-id="${esc(row.id)}">导出审计 JSON</button>` +
+    `</div>` +
+    `<details class="task-history-detail" data-task-id="${esc(row.id)}" ${expanded ? "open" : ""}>` +
+      `<summary>任务详情</summary>` +
+      `<pre>${esc(row.detailJson || "{}")}</pre>` +
+    `</details>` +
+  `</article>`;
+}
+
+function statusLabel(status) {
+  if (status === "succeeded") return "成功";
+  if (status === "failed") return "失败";
+  if (status === "running") return "运行中";
+  if (status === "queued") return "排队中";
+  return status || "未知";
+}
+
+async function rerunTaskFromHistory(taskId) {
+  const row = lastTaskHistoryRows.find((item) => item.id === taskId);
+  if (!row) return;
+  if (!CATALOG) {
+    taskHistoryMessage = "后端未连接，无法重新运行任务。";
+    renderTaskHistoryDrawer();
+    setJobMessage("后端未连接，无法重新运行任务。");
+    return;
+  }
+  taskHistoryBusyId = taskId;
+  taskHistoryMessage = "正在提交同配置任务...";
+  renderTaskHistoryDrawer();
+  try {
+    const job = await postJson(row.rerunEndpoint, row.rerunPayload);
+    CURRENT_JOB = row.kind === "inference" ? { kind: "inference", ...job } : job;
+    await loadBackendCatalog();
+    taskHistoryBusyId = "";
+    taskHistoryMessage = `已重新启动${row.kind === "inference" ? "推理" : "训练"}任务 ${job.id}`;
+    taskHistoryOpen = false;
+    if (row.kind === "inference") {
+      activeMode = "inference";
+      render();
+      setInferenceMessage(`已重新启动推理任务 ${job.id}`, "active");
+      pollInferenceJob(job.id);
+    } else {
+      activeMode = "training";
+      render();
+      setJobMessage(`已重新启动训练任务 ${job.id}`);
+      pollJob(job.id);
+    }
+  } catch (err) {
+    taskHistoryBusyId = "";
+    taskHistoryMessage = `重新运行失败：${err.message}`;
+    renderTaskHistoryDrawer();
+    const message = `重新运行失败：${err.message}`;
+    if (row.kind === "inference") setInferenceMessage(message, "fail");
+    else setJobMessage(message);
+  }
+}
+
+function exportTaskAudit(taskId) {
+  const row = lastTaskHistoryRows.find((item) => item.id === taskId);
+  if (!row) return;
+  const audit = {
+    ...(row.auditJson || {}),
+    exported_at: new Date().toISOString(),
+  };
+  const content = JSON.stringify(audit, null, 2);
+  const blob = new Blob([content], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${row.kind || "task"}-${row.id || "audit"}-audit.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  taskHistoryMessage = `已导出审计 JSON：${link.download}`;
+  renderTaskHistoryDrawer();
 }
 
 function currentModelCatalog() {
@@ -503,7 +867,9 @@ function currentModelCatalog() {
 function renderInferencePanel(dsOptions) {
   if (!$("inference-panel")) return;
   const models = modelOptions(currentModelCatalog());
-  if (!inferenceSelection.models.size && models.length) inferenceSelection.models.add(models[0].name);
+  if (!inferenceSelection.models.size && models.length) {
+    preferredInferenceModels(models, DATA?.inference || {}).forEach((name) => inferenceSelection.models.add(name));
+  }
   if (!inferenceSelection.datasets.size) dsOptions.forEach((item) => inferenceSelection.datasets.add(item.name));
 
   renderResourceList(
@@ -527,12 +893,115 @@ function renderInferencePanel(dsOptions) {
     [...inferenceSelection.datasets],
   );
   const summary = inferenceSummary({ records: rows });
-  renderInferenceCompatibility(models, dsOptions);
-  renderInferenceInsights(inferenceInsightSummary(rows));
+  renderInferenceCompatibilityPanel(models, dsOptions);
+  renderInferenceInsights(inferenceInsightSummary(rows), currentInferenceAuditSummary());
   $("inference-results").innerHTML = renderInferenceSummary(summary) + renderInferenceTable(rows);
+  const actionState = inferenceActionState({
+    backendConnected: Boolean(CATALOG),
+    selectedModelCount: models.filter((item) => inferenceSelection.models.has(item.name)).length,
+    selectedDatasetCount: dsOptions.filter((item) => inferenceSelection.datasets.has(item.name)).length,
+    currentJob: CURRENT_JOB?.kind === "inference" ? CURRENT_JOB : null,
+  });
+  renderInferenceActionState(actionState);
+  renderInferencePolicyControls(models, dsOptions);
   const start = $("start-inference");
-  if (start) start.onclick = CATALOG ? startInferenceEvaluation : null;
-  if (start) start.disabled = !CATALOG;
+  if (start) start.onclick = CATALOG ? startInferenceEvaluationWithPolicy : null;
+  if (start) start.disabled = actionState.disabled;
+}
+
+function renderInferenceActionState(actionState) {
+  const node = $("inference-job-state");
+  if (!node) return;
+  node.textContent = actionState.message;
+  node.className = `job-state inference-job-state ${actionState.tone || "ready"}`;
+}
+
+function renderInferencePolicyControls(models, dsOptions) {
+  ensureInferencePolicyUi();
+  document.querySelectorAll("[data-inference-strategy]").forEach((button) => {
+    const selected = button.dataset.inferenceStrategy === inferenceLaunchStrategy;
+    button.classList.toggle("active", selected);
+    button.setAttribute("aria-pressed", selected ? "true" : "false");
+    button.onclick = () => {
+      inferenceLaunchStrategy = button.dataset.inferenceStrategy || "compatible_only";
+      renderInferencePanel(currentInferenceDatasetOptions());
+    };
+  });
+  const note = $("inference-policy-note");
+  if (!note) return;
+  const plan = inferenceLaunchPlan({
+    modelNames: [...inferenceSelection.models],
+    datasetNames: [...inferenceSelection.datasets],
+    models,
+    datasets: dsOptions,
+    strategy: inferenceLaunchStrategy,
+  });
+  note.textContent = inferenceLaunchStrategy === "compatible_only"
+    ? `${plan.payload.datasets.length} 个数据集将提交；${plan.skippedCount ? plan.message : "未发现需要跳过的数据集。"}`
+    : "将按当前勾选提交，后端运行时校验不兼容组合。";
+}
+
+function ensureInferencePolicyUi() {
+  const start = $("start-inference");
+  if (!start) return;
+  if (!document.querySelector("[data-inference-strategy]")) {
+    const actions = document.createElement("div");
+    actions.className = "inference-actions";
+    const policy = document.createElement("div");
+    policy.className = "strategy-control";
+    policy.setAttribute("aria-label", "推理启动策略");
+    policy.innerHTML =
+      `<button type="button" data-inference-strategy="compatible_only" class="active" aria-pressed="true">仅运行兼容组合</button>` +
+      `<button type="button" data-inference-strategy="include_risk" aria-pressed="false">包含风险组合</button>`;
+    start.parentNode.insertBefore(actions, start);
+    actions.appendChild(policy);
+    actions.appendChild(start);
+  }
+  if (!$("inference-policy-note")) {
+    const note = document.createElement("div");
+    note.id = "inference-policy-note";
+    note.className = "policy-note";
+    note.setAttribute("aria-live", "polite");
+    note.textContent = "默认仅提交 schema 兼容的数据集。";
+    const jobState = $("inference-job-state");
+    if (jobState?.parentNode) jobState.parentNode.insertBefore(note, jobState);
+  }
+}
+
+function renderInferenceCompatibilityPanel(models, dsOptions) {
+  const node = $("inference-compatibility");
+  if (!node) return;
+  const selectedModels = models.filter((item) => inferenceSelection.models.has(item.name));
+  const selectedDatasets = dsOptions.filter((item) => inferenceSelection.datasets.has(item.name));
+  const compatibility = inferenceCompatibilitySummary({ models: selectedModels, datasets: selectedDatasets });
+  const riskRows = compatibility.rows.filter((row) => row.status !== "ok");
+  const details = riskRows.slice(0, 8).map((row) =>
+    `<div class="compat-row ${esc(row.status)}">` +
+      `<b>${esc(row.model || "未知模型")}</b>` +
+      `<span>${esc(row.dataset || "未知数据集")}</span>` +
+      `<small>${row.status === "warn" ? `缺失：${esc(row.missingColumns.join(", "))}` : "缺少列清单，运行时确认"}</small>` +
+    `</div>`,
+  ).join("");
+  const hiddenCount = Math.max(0, riskRows.length - 8);
+  const noteKind = compatibility.status === "idle" ? "unknown" : compatibility.status;
+  const noteTitle = compatibility.status === "warn"
+    ? "发现 schema 风险"
+    : (compatibility.status === "unknown" ? "需要运行时确认" : "可启动推理测评");
+
+  node.innerHTML =
+    `<div class="panel-title"><span>推理输入</span><b>兼容性预检</b></div>` +
+    `<div class="panel-scroll">` +
+    `<div class="selector-summary">` +
+      artifactMetric("模型", `${selectedModels.length}/${models.length || 0}`, selectedModels.map((item) => item.name).slice(0, 3).join(" / ") || "暂无模型", "model") +
+      artifactMetric("目标数据集", `${selectedDatasets.length}/${dsOptions.length || 0}`, selectedDatasets.map((item) => item.name).slice(0, 3).join(" / ") || "暂无数据集", "dataset") +
+    `</div>` +
+    `<div class="compat-note ${esc(noteKind)}">` +
+      `<b>${esc(noteTitle)}</b>` +
+      `<span>${esc(compatibility.message)}</span>` +
+      `<small>${compatibility.okCount} 可推理 / ${compatibility.warnCount} 缺失列 / ${compatibility.unknownCount} 待确认</small>` +
+    `</div>` +
+    (details ? `<div class="compat-list">${details}${hiddenCount ? `<div class="compat-more">还有 ${hiddenCount} 个风险组合</div>` : ""}</div>` : "") +
+    `</div>`;
 }
 
 function renderInferenceCompatibility(models, dsOptions) {
@@ -543,6 +1012,7 @@ function renderInferenceCompatibility(models, dsOptions) {
   const missingFeatureModels = selectedModels.filter((item) => !(item.featureColumns || []).length);
   node.innerHTML =
     `<div class="panel-title"><span>推理输入</span><b>兼容性预检</b></div>` +
+    `<div class="panel-scroll">` +
     `<div class="selector-summary">` +
       artifactMetric("模型", `${selectedModels.length}/${models.length || 0}`, selectedModels.map((item) => item.name).slice(0, 3).join(" / ") || "暂无模型", "model") +
       artifactMetric("目标数据集", `${selectedDatasets.length}/${dsOptions.length || 0}`, selectedDatasets.map((item) => item.name).slice(0, 3).join(" / ") || "暂无数据集", "dataset") +
@@ -550,20 +1020,24 @@ function renderInferenceCompatibility(models, dsOptions) {
     `<div class="compat-note ${missingFeatureModels.length ? "warn" : "ok"}">` +
       `<b>${missingFeatureModels.length ? "需要复核特征 schema" : "可启动推理测评"}</b>` +
       `<span>${missingFeatureModels.length ? `${missingFeatureModels.length} 个模型缺少特征列清单，运行前请确认 manifest。` : "已选择模型和目标数据集，后端会在运行时再次校验特征列。"}</span>` +
+    `</div>` +
     `</div>`;
 }
 
-function renderInferenceInsights(summary) {
+function renderInferenceInsights(summary, audit = currentInferenceAuditSummary()) {
   const node = $("inference-insights");
   if (!node) return;
   node.innerHTML =
     `<div class="panel-title"><span>自动结论</span><b>迁移分析</b></div>` +
+    `<div class="panel-scroll">` +
     `<div class="insight-stack">` +
       insightCard("推荐模型", summary.bestTransfer?.model || "暂无", summary.recommendation, "ok") +
       insightCard("速度参考", summary.fastest?.model || "暂无", summary.fastest ? `${fmt(summary.fastest.ms_per_1000_samples, 2)} ms / 1000 样本` : "暂无成功推理记录", "speed") +
       insightCard("风险提示", `${summary.failedCount} 个失败组合`, summary.risk, summary.failedCount ? "warn" : "ok") +
     `</div>` +
-    `<button class="secondary-action" data-mode-shortcut="models">查看模型资产</button>`;
+    renderInferenceAudit(audit) +
+    `<button class="secondary-action" data-mode-shortcut="models">查看模型资产</button>` +
+    `</div>`;
   const button = node.querySelector("[data-mode-shortcut='models']");
   if (button) {
     button.onclick = () => {
@@ -571,6 +1045,24 @@ function renderInferenceInsights(summary) {
       render();
     };
   }
+}
+
+function renderInferenceAudit(audit) {
+  if (!audit?.hasAudit) {
+    return `<div class="audit-grid">` +
+      `<div class="audit-card muted"><span>任务审计</span><b>暂无记录</b><small>启动推理任务后显示策略、过滤数据集和 run 目录。</small></div>` +
+    `</div>`;
+  }
+  return `<div class="audit-grid" aria-label="推理任务审计">` +
+    auditCard("策略", audit.strategyLabel, audit.sourceLabel) +
+    auditCard("数据集提交", `${audit.submittedCount}/${audit.selectedCount}`, `跳过 ${audit.skippedCount} 个`) +
+    auditCard("跳过数据集", audit.skippedLabel, audit.skippedCount ? "schema 风险过滤" : "未过滤") +
+    auditCard("Run 目录", audit.runDir || audit.jobId || "暂无", audit.jobId ? `任务 ${audit.jobId}` : (audit.status || "等待任务")) +
+  `</div>`;
+}
+
+function auditCard(label, value, hint) {
+  return `<div class="audit-card"><span>${esc(label)}</span><b>${esc(value)}</b><small>${esc(hint)}</small></div>`;
 }
 
 function insightCard(label, value, hint, kind) {
@@ -635,7 +1127,7 @@ function renderModelLibrary() {
     `<td class="tnum">${item.latestSpeed == null ? "暂无" : `${fmt(item.latestSpeed, 2)} ms`}</td>` +
     `</tr>`).join("");
   $("model-library-table").innerHTML =
-    `<div class="inference-table"><table><thead><tr>` +
+    `<div class="inference-table asset-table"><table><thead><tr>` +
     `<th>模型</th><th>算法</th><th>特征集</th><th>训练数据</th><th>特征数</th><th>最近 MAE</th><th>最近速度</th>` +
     `</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
@@ -647,10 +1139,21 @@ function renderModelLibrarySummary(assets = []) {
   const uploaded = assets.filter((item) => item.source === "upload").length;
   const withInference = assets.filter((item) => item.latestMae != null).length;
   const best = assets.find((item) => item.latestMae != null);
+  const audit = currentInferenceAuditSummary();
   node.innerHTML =
     artifactMetric("模型总数", `${assets.length}`, `${generated} 训练产出 / ${uploaded} 外部上传`, "model") +
     artifactMetric("已推理模型", `${withInference}`, "拥有最近 inference-only 指标", "job") +
-    artifactMetric("最佳资产", best?.name || "暂无", best ? `最近 MAE ${fmt(best.latestMae)}` : "等待推理测评", "dataset");
+    artifactMetric("最佳资产", best?.name || "暂无", best ? `最近 MAE ${fmt(best.latestMae)}` : "等待推理测评", "dataset") +
+    renderModelAuditSummary(audit);
+}
+
+function renderModelAuditSummary(audit) {
+  return artifactMetric(
+    "最近策略",
+    audit?.hasAudit ? audit.strategyLabel : "暂无",
+    audit?.hasAudit ? `${audit.sourceLabel} / 跳过 ${audit.skippedCount} 个` : "等待推理任务",
+    "job",
+  );
 }
 
 async function uploadResource(kind) {
@@ -658,12 +1161,12 @@ async function uploadResource(kind) {
     const modelFile = $("upload-model-file")?.files?.[0];
     const manifestFile = $("upload-model-manifest")?.files?.[0];
     if (!modelFile || !manifestFile) {
-      setJobMessage("请选择模型 Pickle 文件和 model_manifest.json。");
+      setInferenceMessage("请选择模型 Pickle 文件和 model_manifest.json。", "warn");
       return;
     }
     const name = ($("upload-model-name").value || modelFile.name.replace(/\.[^.]+$/, "")).trim();
     try {
-      setJobMessage("正在上传模型...");
+      setInferenceMessage("正在上传模型...", "active");
       const response = await postJson("/api/upload/model", {
         name,
         modelFilename: modelFile.name,
@@ -674,9 +1177,9 @@ async function uploadResource(kind) {
       inferenceSelection.models.add(response.resource.name);
       await loadBackendCatalog();
       render();
-      setJobMessage(`已上传模型 ${response.resource.name}`);
+      setInferenceMessage(`已上传模型 ${response.resource.name}`, "ok");
     } catch (err) {
-      setJobMessage(`模型上传失败：${err.message}`);
+      setInferenceMessage(`模型上传失败：${err.message}`, "fail");
     }
     return;
   }
@@ -726,21 +1229,51 @@ async function startEvaluation() {
   }
 }
 
+async function startInferenceEvaluationWithPolicy() {
+  const models = modelOptions(currentModelCatalog());
+  const dsOptions = currentInferenceDatasetOptions();
+  const plan = inferenceLaunchPlan({
+    modelNames: selectedValues("inference-models"),
+    datasetNames: selectedValues("inference-datasets"),
+    models,
+    datasets: dsOptions,
+    strategy: inferenceLaunchStrategy,
+  });
+  const payload = plan.payload;
+  if (!payload.models.length || !payload.datasets.length) {
+    setInferenceMessage(plan.skippedCount && !payload.datasets.length
+      ? "兼容策略已跳过全部目标数据集，请改选数据集或切换为包含风险组合。"
+      : "请至少选择一个模型和一个数据集。", "warn");
+    return;
+  }
+  try {
+    setInferenceMessage(plan.skippedCount
+      ? `正在启动推理任务，${plan.message}`
+      : "正在启动推理任务...", "active");
+    CURRENT_JOB = { kind: "inference", ...(await postJson("/api/inference-jobs", payload)) };
+    renderInferencePanel(currentInferenceDatasetOptions());
+    pollInferenceJob(CURRENT_JOB.id);
+  } catch (err) {
+    setInferenceMessage(`推理任务启动失败：${err.message}`, "fail");
+  }
+}
+
 async function startInferenceEvaluation() {
   const payload = buildInferencePayload({
     models: selectedValues("inference-models"),
     datasets: selectedValues("inference-datasets"),
   });
   if (!payload.models.length || !payload.datasets.length) {
-    setJobMessage("请至少选择一个模型和一个数据集。");
+    setInferenceMessage("请至少选择一个模型和一个数据集。", "warn");
     return;
   }
   try {
-    CURRENT_JOB = await postJson("/api/inference-jobs", payload);
-    renderInferencePanel(datasetOptions(DATA.config, DATA.qc, DATA.datasetLeaderboard || []));
+    setInferenceMessage("正在启动推理任务...", "active");
+    CURRENT_JOB = { kind: "inference", ...(await postJson("/api/inference-jobs", payload)) };
+    renderInferencePanel(currentInferenceDatasetOptions());
     pollInferenceJob(CURRENT_JOB.id);
   } catch (err) {
-    setJobMessage(`推理任务启动失败：${err.message}`);
+    setInferenceMessage(`推理任务启动失败：${err.message}`, "fail");
   }
 }
 
@@ -774,8 +1307,8 @@ async function pollInferenceJob(jobId) {
     try {
       const response = await fetch(`${API_BASE}/api/inference-jobs/${encodeURIComponent(jobId)}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      CURRENT_JOB = await response.json();
-      renderInferencePanel(datasetOptions(DATA.config, DATA.qc, DATA.datasetLeaderboard || []));
+      CURRENT_JOB = { kind: "inference", ...(await response.json()) };
+      renderInferencePanel(currentInferenceDatasetOptions());
       if (CURRENT_JOB.status === "succeeded") {
         await load({ cacheBust: true });
         activeMode = "inference";
@@ -784,7 +1317,7 @@ async function pollInferenceJob(jobId) {
       }
       if (CURRENT_JOB.status === "failed") return;
     } catch (err) {
-      setJobMessage(`推理任务轮询失败：${err.message}`);
+      setInferenceMessage(`推理任务轮询失败：${err.message}`, "fail");
       return;
     }
   }
@@ -813,6 +1346,16 @@ function fileToBase64(file) {
 function setJobMessage(message) {
   const node = $("job-state");
   if (node) node.textContent = message;
+}
+
+function setInferenceMessage(message, tone = "ready") {
+  const node = $("inference-job-state");
+  if (!node) {
+    setJobMessage(message);
+    return;
+  }
+  node.textContent = message;
+  node.className = `job-state inference-job-state ${tone}`;
 }
 
 function renderDatasetPanel(options) {
@@ -1026,7 +1569,8 @@ function renderQc() {
 function renderFoot() {
   const algos = uniq(DATA.leaderboard.map((x) => x.estimator)).join(" / ");
   const scope = scoped.usedDatasetLevel ? `已选数据集：${scoped.scopeLabel}` : "全量聚合结果";
-  $("foot").textContent = `${DATA.fallback ? "示例数据" : "sohbench 实测运行"} / ${algos} / ${scope}`;
+  const profile = activeProfileOption?.label || "当前根目录";
+  $("foot").textContent = `${DATA.fallback ? "示例数据" : "sohbench 实测运行"} / ${profile} / ${algos} / ${scope}`;
 }
 
 load();

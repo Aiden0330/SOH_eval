@@ -46,3 +46,29 @@ def test_end_to_end_featuresets(tmp_path):
     fs_in_lb = {e["featureset"] for e in lb}
     assert fs_in_lb == {"full", "voltage"}, \
         f"expected both featuresets in leaderboard, got {fs_in_lb}"
+
+
+def test_run_benchmark_all_dataset_selector_writes_resolved_config(tmp_path):
+    root = tmp_path
+    proc = root / "processed"; proc.mkdir()
+    for dataset in ["alpha", "beta"]:
+        rows = []
+        for cell in ["c1", "c2", "c3"]:
+            for k in range(15):
+                rows.append((dataset, cell, k, 1.0 - 0.01 * k, float(k)))
+        pd.DataFrame(
+            rows,
+            columns=["dataset", "cell_id", "cycle_index", "soh", "voltage_mean"],
+        ).to_pickle(proc / f"{dataset}_features.pkl")
+
+    out = run_benchmark(
+        data_dir=root,
+        datasets=["all"],
+        estimators=["ridge"],
+        protocols=["loco"],
+        seeds=[0],
+        out_dir=tmp_path / "runs",
+    )
+
+    cfg = json.loads((Path(out) / "run_config.json").read_text())
+    assert cfg["datasets"] == ["alpha", "beta"]

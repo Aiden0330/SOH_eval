@@ -29,3 +29,17 @@ def test_ridge_clamps_out_of_distribution_predictions():
     ood["f2"] = -1e6
     p = est.predict(ood, meta=None)
     assert np.all(p >= 0.0) and np.all(p <= 1.3)
+
+
+def test_ridge_imputes_structural_missing_features_from_training_fold():
+    X, y = _xy()
+    X.loc[X.index[:10], "f2"] = np.nan
+    est = RidgeEstimator().fit(X, y, meta=None)
+
+    held_out = X.copy()
+    held_out["f1"] = np.nan
+    p = est.predict(held_out, meta=None)
+
+    assert p.shape == (len(X),)
+    assert np.isfinite(p).all()
+    assert np.all(p >= 0.0) and np.all(p <= 1.3)

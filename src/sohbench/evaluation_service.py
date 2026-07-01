@@ -11,6 +11,7 @@ from pathlib import Path
 from . import registry as R
 from .contracts import feature_columns
 from .data import DatasetLoader
+from .frontend_publish import publish_frontend_profile, sync_frontend_artifacts
 from .inference import run_inference_benchmark
 from .model_store import ModelStore
 from .protocols import LeaveOneCellOut, LeaveOneChemistryOut, LeaveOneDatasetOut
@@ -266,11 +267,17 @@ class EvaluationService:
                     {
                         **request,
                         "datasets": datasets,
+                        "job_id": job_id,
                         "trusted_local_pickle_models": True,
                     },
                     self.runs_dir,
                 )
             )
+            config_path = raw_run_dir / "inference_run_config.json"
+            if config_path.exists():
+                run_config = json.loads(config_path.read_text(encoding="utf-8"))
+                run_config.update({"job_id": job_id, "run_dir": str(raw_run_dir), "raw_run_dir": str(raw_run_dir)})
+                config_path.write_text(json.dumps(run_config, indent=2, ensure_ascii=False), encoding="utf-8")
             (raw_run_dir / "model_catalog.json").write_text(
                 json.dumps(
                     {"models": self.model_store.catalog()},
@@ -313,7 +320,7 @@ class EvaluationService:
                 jobs.append(json.loads(path.read_text(encoding="utf-8")))
             except json.JSONDecodeError:
                 continue
-        return jobs
+        return sorted(jobs, key=_job_sort_key, reverse=True)
 
     def get_inference_job(self, job_id: str) -> dict:
         path = self.inference_jobs_dir / f"{job_id}.json"
@@ -328,7 +335,7 @@ class EvaluationService:
                 jobs.append(json.loads(path.read_text(encoding="utf-8")))
             except json.JSONDecodeError:
                 continue
-        return jobs
+        return sorted(jobs, key=_job_sort_key, reverse=True)
 
     def _normalize_request(self, payload: dict) -> dict:
         datasets = _string_list(payload.get("datasets") or ["all"])
@@ -360,11 +367,33 @@ class EvaluationService:
         missing = [name for name in models if name not in known]
         if missing:
             raise ValueError(f"unknown models: {missing}")
-        return {"datasets": datasets, "models": models}
+        request = {
+            "datasets": datasets,
+            "models": models,
+            "launch_strategy": str(payload.get("launch_strategy") or "unspecified"),
+            "selected_datasets": _string_list(payload.get("selected_datasets") or datasets),
+            "submitted_datasets": _string_list(payload.get("submitted_datasets") or datasets),
+            "skipped_datasets": _string_list(payload.get("skipped_datasets") or []),
+        }
+        return request
 
     def _publish_frontend_artifacts(self, raw_run_dir: Path) -> Path:
-        _sync_frontend_files(raw_run_dir, self.frontend_data_dir)
+        sync_frontend_artifacts(raw_run_dir, self.frontend_data_dir)
         return raw_run_dir
+
+    def publish_frontend_profile(
+        self,
+        profile_name: str,
+        manifest: dict,
+        *,
+        source_dirs: list[str | Path] | tuple[str | Path, ...] = (),
+    ) -> dict:
+        return publish_frontend_profile(
+            self.frontend_data_dir,
+            profile_name,
+            manifest,
+            source_dirs=source_dirs,
+        )
 
     def _save_job(self, job: dict) -> None:
         self.jobs_dir.mkdir(parents=True, exist_ok=True)
@@ -391,20 +420,15 @@ def _now() -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _job_sort_key(job: dict) -> tuple[str, str]:
+    timestamp = job.get("finished_at") or job.get("started_at") or job.get("created_at") or ""
+    return str(timestamp), str(job.get("id") or "")
+
+
 def _model_name_token(value) -> str:
     token = re.sub(r"[^A-Za-z0-9_-]+", "_", str(value)).strip("_")
     return token or "model"
 
 
 def _sync_frontend_files(run_dir: Path, frontend_data_dir: Path) -> None:
-    import shutil
-
-    frontend_data_dir.mkdir(parents=True, exist_ok=True)
-    for filename in ("leaderboard.json", "dataset_leaderboard.json", "qc_report.json", "run_config.json"):
-        source = run_dir / filename
-        if source.exists():
-            shutil.copy2(source, frontend_data_dir / filename)
-    for filename in ("model_catalog.json", "inference_benchmark.json"):
-        source = run_dir / filename
-        if source.exists():
-            shutil.copy2(source, frontend_data_dir / filename)
+    sync_frontend_artifacts(run_dir, frontend_data_dir)

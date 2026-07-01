@@ -1,0 +1,121 @@
+import json
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+from sohbench.data import DatasetLoader
+from sohbench.registry import get_estimator, get_featureset
+from sohbench.trusted_plugins import TrustedPluginStore
+
+
+def _dataset_frame(name="public_demo", cells=("c1", "c2", "c3"), n=8):
+    rows = []
+    for cell in cells:
+        for cycle in range(n):
+            soh = 1.0 - 0.01 * cycle
+            rows.append(
+                {
+                    "dataset": name,
+                    "cell_id": cell,
+                    "cycle_index": cycle,
+                    "soh": soh,
+                    "voltage_mean": 3.4 - 0.01 * cycle,
+                    "resistance_proxy": 0.02 + 0.001 * cycle,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def test_upload_dataset_validates_and_persists_normalized_pickle(tmp_path):
+    store = TrustedPluginStore(base_dir=tmp_path / "plugins", data_dir=tmp_path / "data")
+    payload = _dataset_frame("ignored_name").to_csv(index=False).encode("utf-8")
+
+    registered = store.upload_dataset(
+        name="public_demo",
+        filename="demo.csv",
+        payload=payload,
+    )
+
+    saved_path = tmp_path / "data" / "processed" / "public_demo_features.pkl"
+    saved = pd.read_pickle(saved_path)
+    assert registered["name"] == "public_demo"
+    assert registered["rows"] == len(saved)
+    assert saved["dataset"].unique().tolist() == ["public_demo"]
+    assert DatasetLoader(tmp_path / "data").discover_datasets() == ["public_demo"]
+
+
+def test_upload_estimator_plugin_smoke_tests_and_registers(tmp_path):
+    store = TrustedPluginStore(base_dir=tmp_path / "plugins", data_dir=tmp_path / "data")
+    code = b'''
+import numpy as np
+
+class Estimator:
+    name = "trusted_mean_estimator"
+    feature_mode = "unified"
+    backend = "external"
+
+    def fit(self, X, y, meta=None):
+        self.mean_ = float(np.mean(y))
+        return self
+
+    def predict(self, X, meta=None):
+        return np.full(len(X), self.mean_, dtype=float)
+'''
+
+    registered = store.upload_estimator_plugin(
+        name="mean_estimator",
+        filename="mean_estimator.py",
+        payload=code,
+    )
+
+    cls = get_estimator("trusted_mean_estimator")
+    est = cls()
+    sample = pd.DataFrame({"dataset": ["d"] * 2, "cell_id": ["c"] * 2, "cycle_index": [0, 1], "soh": [1.0, 0.9], "f": [1, 2]})
+    est.fit(sample, sample["soh"].to_numpy(), None)
+    assert registered["name"] == "trusted_mean_estimator"
+    assert est.predict(sample, None).shape == (2,)
+    assert any(item["name"] == "trusted_mean_estimator" for item in store.catalog()["estimators"])
+
+
+def test_upload_featureset_plugin_registers_transforming_feature_set(tmp_path):
+    store = TrustedPluginStore(base_dir=tmp_path / "plugins", data_dir=tmp_path / "data")
+    code = b'''
+FEATURESET_NAME = "trusted_trend_features"
+FEATURE_COLUMNS = ["cycle_norm", "fade_from_full"]
+
+def transform(table, meta=None):
+    out = table.copy()
+    max_cycle = out.groupby(["dataset", "cell_id"])["cycle_index"].transform("max").replace(0, 1)
+    out["cycle_norm"] = out["cycle_index"] / max_cycle
+    out["fade_from_full"] = 1.0 - out["soh"]
+    return out
+'''
+
+    registered = store.upload_featureset_plugin(
+        name="trend_features",
+        filename="trend_features.py",
+        payload=code,
+    )
+    transformed = store.apply_feature_transforms(
+        _dataset_frame(),
+        meta=pd.DataFrame(),
+        featuresets=["trusted_trend_features"],
+    )
+
+    fs = get_featureset("trusted_trend_features")
+    assert registered["name"] == "trusted_trend_features"
+    assert fs.columns(transformed) == ["cycle_norm", "fade_from_full"]
+    assert transformed["cycle_norm"].between(0, 1).all()
+    assert transformed["fade_from_full"].iloc[0] == 0
+    assert any(item["name"] == "trusted_trend_features" for item in store.catalog()["featuresets"])
+
+
+def test_catalog_is_persisted_for_uploaded_resources(tmp_path):
+    store = TrustedPluginStore(base_dir=tmp_path / "plugins", data_dir=tmp_path / "data")
+    store.upload_dataset("persisted_demo", "demo.csv", _dataset_frame().to_csv(index=False).encode("utf-8"))
+
+    catalog_path = tmp_path / "plugins" / "catalog.json"
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+
+    assert catalog["datasets"][0]["name"] == "persisted_demo"

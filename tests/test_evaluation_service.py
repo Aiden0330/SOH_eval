@@ -185,3 +185,76 @@ def test_inference_job_runs_uploaded_pickle_model(tmp_path):
     assert finished["status"] == "succeeded"
     assert (Path(finished["run_dir"]) / "inference_benchmark.json").exists()
     assert (tmp_path / "frontend_data" / "inference_benchmark.json").exists()
+
+
+def test_inference_job_persists_launch_strategy_audit_fields(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset("plugin_eval_demo", "demo.csv", _dataset_csv())
+    service.model_store.upload_model(
+        "api_model",
+        "api_model.pkl",
+        pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json",
+        json.dumps(_model_manifest()).encode("utf-8"),
+    )
+
+    job = service.create_inference_job(
+        {
+            "datasets": ["plugin_eval_demo"],
+            "models": ["api_model"],
+            "launch_strategy": "compatible_only",
+            "selected_datasets": ["plugin_eval_demo", "risk_demo"],
+            "submitted_datasets": ["plugin_eval_demo"],
+            "skipped_datasets": ["risk_demo"],
+        },
+        start=False,
+    )
+    assert job["request"]["launch_strategy"] == "compatible_only"
+    assert job["request"]["selected_datasets"] == ["plugin_eval_demo", "risk_demo"]
+    assert job["request"]["submitted_datasets"] == ["plugin_eval_demo"]
+    assert job["request"]["skipped_datasets"] == ["risk_demo"]
+
+    finished = service.run_inference_job_inline(job["id"])
+    config = json.loads((Path(finished["run_dir"]) / "inference_run_config.json").read_text(encoding="utf-8"))
+    assert config["launch_strategy"] == "compatible_only"
+    assert config["selected_datasets"] == ["plugin_eval_demo", "risk_demo"]
+    assert config["submitted_datasets"] == ["plugin_eval_demo"]
+    assert config["skipped_datasets"] == ["risk_demo"]
+    published_config = json.loads((tmp_path / "frontend_data" / "inference_run_config.json").read_text(encoding="utf-8"))
+    assert published_config["job_id"] == job["id"]
+    assert published_config["launch_strategy"] == "compatible_only"
+    assert published_config["skipped_datasets"] == ["risk_demo"]
+
+
+def test_list_inference_jobs_sorts_by_created_at_desc(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    older = {
+        "id": "z-old-name",
+        "kind": "inference",
+        "status": "succeeded",
+        "created_at": "2026-06-30 06:00:00",
+        "request": {"datasets": ["nasa"], "models": ["m1"]},
+    }
+    newer = {
+        "id": "a-new-name",
+        "kind": "inference",
+        "status": "succeeded",
+        "created_at": "2026-06-30 12:00:00",
+        "request": {"datasets": ["nasa"], "models": ["m1"], "launch_strategy": "compatible_only"},
+    }
+    (service.inference_jobs_dir / "z-old-name.json").write_text(json.dumps(older), encoding="utf-8")
+    (service.inference_jobs_dir / "a-new-name.json").write_text(json.dumps(newer), encoding="utf-8")
+
+    jobs = service.list_inference_jobs()
+
+    assert [job["id"] for job in jobs] == ["a-new-name", "z-old-name"]

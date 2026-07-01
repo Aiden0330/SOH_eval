@@ -1,0 +1,16 @@
+{
+  "pass_rate": 1.0,
+  "n_in": 42,
+  "n_out": 0,
+  "drop_reasons": {
+    "soh_nonpositive": 0,
+    "soh_out_of_range": 0,
+    "nan_feature_row": 0
+  },
+  "dropped_columns": [],
+  "per_dataset": {
+    "smoke_eval_demo": {
+      "rows": 42
+    }
+  }
+}

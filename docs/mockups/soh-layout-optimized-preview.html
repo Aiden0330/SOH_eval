@@ -1,0 +1,1168 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SOH 评测工作台布局预览</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --text: #111827;
+      --muted: #667085;
+      --line: #dbe3ef;
+      --blue: #3559e0;
+      --blue-soft: #edf2ff;
+      --green: #2f855a;
+      --green-soft: #edf8ef;
+      --amber: #b7791f;
+      --amber-soft: #fff7df;
+      --red: #c2410c;
+      --red-soft: #fff1ec;
+      --shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+      font-size: 14px;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 216px minmax(0, 1fr);
+      height: 100vh;
+      min-height: 720px;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      padding: 18px;
+      border-right: 1px solid var(--line);
+      background: #0f172a;
+      color: #e5e7eb;
+    }
+
+    .brand {
+      display: grid;
+      grid-template-columns: 38px minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 38px;
+      height: 38px;
+      place-items: center;
+      border-radius: var(--radius);
+      background: #22c55e;
+      color: #052e16;
+      font-weight: 800;
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 15px;
+      line-height: 1.2;
+    }
+
+    .brand span {
+      display: block;
+      margin-top: 3px;
+      color: #aab4c5;
+      font-size: 12px;
+    }
+
+    .nav {
+      display: grid;
+      gap: 6px;
+    }
+
+    .nav button {
+      display: grid;
+      grid-template-columns: 26px minmax(0, 1fr);
+      align-items: center;
+      width: 100%;
+      min-height: 40px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: var(--radius);
+      background: transparent;
+      color: #cbd5e1;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .nav button:hover,
+    .nav button.active {
+      background: rgba(255,255,255,0.1);
+      color: #ffffff;
+    }
+
+    .nav-icon {
+      width: 16px;
+      height: 16px;
+      border: 1.8px solid currentColor;
+      border-radius: 4px;
+    }
+
+    .sidebar-note {
+      margin-top: auto;
+      padding: 12px;
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,0.06);
+      color: #cbd5e1;
+      line-height: 1.55;
+    }
+
+    .main {
+      display: grid;
+      grid-template-rows: 68px 72px 56px 48px minmax(0, 1fr);
+      min-width: 0;
+      min-height: 0;
+      padding: 14px 16px 16px;
+      gap: 10px;
+    }
+
+    .topbar,
+    .kpis,
+    .scope,
+    .tabs,
+    .workbench {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px;
+      box-shadow: var(--shadow);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.2;
+    }
+
+    .subtle {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .select-pill,
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface-soft);
+      color: #344054;
+      white-space: nowrap;
+    }
+
+    .status-pill {
+      border-color: #c7ead2;
+      background: var(--green-soft);
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      overflow: hidden;
+    }
+
+    .kpi {
+      display: grid;
+      gap: 5px;
+      min-width: 0;
+      padding: 12px 14px;
+      border-right: 1px solid var(--line);
+    }
+
+    .kpi:last-child {
+      border-right: 0;
+    }
+
+    .kpi b {
+      overflow: hidden;
+      font-size: 21px;
+      line-height: 1;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .scope {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      padding: 10px 12px;
+    }
+
+    .scope-group {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      gap: 8px;
+    }
+
+    .scope-label {
+      flex: 0 0 auto;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .chips {
+      display: flex;
+      min-width: 0;
+      gap: 6px;
+      overflow: hidden;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      max-width: 150px;
+      padding: 0 9px;
+      border: 1px solid #d6e0ff;
+      border-radius: 999px;
+      background: var(--blue-soft);
+      color: #2744aa;
+      font-size: 12px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .chip.green {
+      border-color: #c7ead2;
+      background: var(--green-soft);
+      color: var(--green);
+    }
+
+    .chip.amber {
+      border-color: #f5d58a;
+      background: var(--amber-soft);
+      color: var(--amber);
+    }
+
+    .ghost-button {
+      min-height: 34px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #ffffff;
+      color: #344054;
+      cursor: pointer;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .primary-button {
+      min-height: 38px;
+      padding: 0 16px;
+      border: 0;
+      border-radius: var(--radius);
+      background: var(--blue);
+      color: #ffffff;
+      cursor: pointer;
+      font-weight: 800;
+      box-shadow: 0 10px 20px rgba(53, 89, 224, 0.22);
+    }
+
+    .tabs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px;
+    }
+
+    .tab {
+      min-height: 34px;
+      padding: 0 14px;
+      border: 0;
+      border-radius: var(--radius);
+      background: transparent;
+      color: #475467;
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .tab.active {
+      background: #111827;
+      color: #ffffff;
+    }
+
+    .workbench {
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .view {
+      display: none;
+      height: 100%;
+      min-height: 0;
+      padding: 14px;
+    }
+
+    .view.active {
+      display: grid;
+    }
+
+    .bench-grid {
+      display: grid;
+      min-width: 0;
+      min-height: 0;
+      gap: 12px;
+    }
+
+    .train-grid {
+      grid-template-columns: 244px minmax(420px, 1fr) 284px;
+    }
+
+    .infer-grid {
+      grid-template-columns: 300px minmax(460px, 1fr) 286px;
+    }
+
+    .asset-grid {
+      grid-template-columns: 250px minmax(520px, 1fr) 300px;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #ffffff;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 50px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcff;
+    }
+
+    .panel-title {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .panel-title strong {
+      overflow: hidden;
+      font-size: 16px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .panel-body {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+      min-height: 0;
+      padding: 14px;
+      overflow: auto;
+    }
+
+    .step-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+      min-height: 58px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+    }
+
+    .step.done {
+      border-color: #c7ead2;
+      background: var(--green-soft);
+    }
+
+    .step.active {
+      border-color: #c9d5ff;
+      background: var(--blue-soft);
+    }
+
+    .step-index {
+      display: grid;
+      width: 30px;
+      height: 30px;
+      place-items: center;
+      border-radius: var(--radius);
+      background: #e9eef8;
+      color: #667085;
+      font-weight: 800;
+    }
+
+    .step.active .step-index {
+      background: var(--blue);
+      color: #ffffff;
+    }
+
+    .step.done .step-index {
+      background: #dcfce7;
+      color: var(--green);
+    }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+      min-height: 0;
+    }
+
+    .upload-card,
+    .info-card,
+    .asset-card {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #ffffff;
+    }
+
+    .resource-row {
+      display: grid;
+      grid-template-columns: 76px minmax(0, 1fr) 112px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .resource-row label {
+      font-weight: 800;
+    }
+
+    .fake-input {
+      min-width: 0;
+      min-height: 34px;
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      color: #667085;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .mini-button {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+      color: #344054;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .selector-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      min-height: 220px;
+    }
+
+    .selector {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .selector h3 {
+      margin: 0;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-soft);
+      font-size: 14px;
+    }
+
+    .selector-list {
+      display: grid;
+      gap: 6px;
+      min-height: 0;
+      padding: 10px;
+      overflow: auto;
+    }
+
+    .check-row {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+      min-height: 28px;
+      color: #344054;
+    }
+
+    .box {
+      display: grid;
+      width: 16px;
+      height: 16px;
+      place-items: center;
+      border: 1.5px solid #98a2b3;
+      border-radius: 4px;
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    .box.on {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #ffffff;
+    }
+
+    .mono {
+      font-family: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+    }
+
+    .method-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      align-items: center;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .stat {
+      display: grid;
+      gap: 5px;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+    }
+
+    .stat b {
+      overflow: hidden;
+      font-size: 20px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .asset-card.blue {
+      border-left: 4px solid var(--blue);
+    }
+
+    .asset-card.green {
+      border-left: 4px solid var(--green);
+    }
+
+    .asset-card.amber {
+      border-left: 4px solid var(--amber);
+    }
+
+    .asset-card.red {
+      border-left: 4px solid var(--red);
+      background: var(--red-soft);
+    }
+
+    .run-strip {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+    }
+
+    .table-wrap {
+      min-height: 0;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    table {
+      width: 100%;
+      min-width: 680px;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #eef3fb;
+      color: #475467;
+      font-size: 12px;
+    }
+
+    tr:hover td {
+      background: #f8fbff;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: var(--blue-soft);
+      color: #2744aa;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .badge.green {
+      background: var(--green-soft);
+      color: var(--green);
+    }
+
+    .badge.amber {
+      background: var(--amber-soft);
+      color: var(--amber);
+    }
+
+    .asset-table-panel .panel-body {
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .filter-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .filter-item {
+      display: grid;
+      gap: 6px;
+    }
+
+    .filter-item input,
+    .filter-item select {
+      width: 100%;
+      min-height: 36px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #ffffff;
+      color: #344054;
+    }
+
+    @media (max-width: 1180px) {
+      body {
+        overflow: auto;
+      }
+
+      .app-shell {
+        grid-template-columns: 1fr;
+        height: auto;
+      }
+
+      .sidebar {
+        display: none;
+      }
+
+      .main {
+        height: 100vh;
+        min-height: 760px;
+      }
+
+      .train-grid,
+      .infer-grid,
+      .asset-grid {
+        grid-template-columns: 220px minmax(0, 1fr);
+      }
+
+      .bench-grid > .panel:last-child {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">SOH</div>
+        <div>
+          <strong>Battery Bench</strong>
+          <span>本机可信评测</span>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="主导航">
+        <button><span class="nav-icon"></span><span>总览</span></button>
+        <button class="active"><span class="nav-icon"></span><span>评测工作台</span></button>
+        <button><span class="nav-icon"></span><span>数据源</span></button>
+        <button><span class="nav-icon"></span><span>模型资产</span></button>
+        <button><span class="nav-icon"></span><span>报告中心</span></button>
+      </nav>
+
+      <div class="sidebar-note">
+        训练页关注产出模型，推理页关注迁移表现，模型页关注资产治理。三者共用同一高度工作区。
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1>评测工作台</h1>
+          <div class="subtle">数据集、算法、特征与 Pickle 模型统一编排</div>
+        </div>
+        <span class="select-pill">数据视图：全量数据</span>
+        <span class="status-pill">后端在线</span>
+      </header>
+
+      <section class="kpis" aria-label="核心指标">
+        <div class="kpi">
+          <span class="subtle">数据集</span>
+          <b>7</b>
+        </div>
+        <div class="kpi">
+          <span class="subtle">模型资产</span>
+          <b>220</b>
+        </div>
+        <div class="kpi">
+          <span class="subtle">训练矩阵</span>
+          <b>504</b>
+        </div>
+        <div class="kpi">
+          <span class="subtle">最近任务</span>
+          <b class="mono">running</b>
+        </div>
+      </section>
+
+      <section class="scope" aria-label="数据范围">
+        <div class="scope-group">
+          <span class="scope-label">数据集</span>
+          <div class="chips">
+            <span class="chip">CALCE_CS2</span>
+            <span class="chip">HUST</span>
+            <span class="chip">NASA</span>
+            <span class="chip">RWTH_ISEA_PUBLIC</span>
+          </div>
+        </div>
+        <div class="scope-group">
+          <span class="scope-label">算法</span>
+          <div class="chips">
+            <span class="chip green">BYO_SKB_RIDGE</span>
+            <span class="chip green">CNN1D</span>
+          </div>
+        </div>
+        <div class="scope-group">
+          <span class="scope-label">特征</span>
+          <div class="chips">
+            <span class="chip amber">CAPACITY_TIME</span>
+            <span class="chip amber">FULL</span>
+          </div>
+        </div>
+        <button class="ghost-button">管理范围</button>
+      </section>
+
+      <nav class="tabs" aria-label="评测页签">
+        <button class="tab active" data-tab="train">训练测评</button>
+        <button class="tab" data-tab="infer">推理评测</button>
+        <button class="tab" data-tab="assets">模型资产库</button>
+      </nav>
+
+      <section class="workbench">
+        <div class="view active" id="view-train">
+          <div class="bench-grid train-grid">
+            <section class="panel">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <strong>训练流程</strong>
+                  <span class="subtle">从资源到 Pickle 产物</span>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="step-list">
+                  <div class="step done">
+                    <div class="step-index">1</div>
+                    <div><strong>资源接入</strong><div class="subtle">目录与上传资源已加载</div></div>
+                  </div>
+                  <div class="step active">
+                    <div class="step-index">2</div>
+                    <div><strong>组合配置</strong><div class="subtle">7 数据集 x 12 算法 x 6 特征</div></div>
+                  </div>
+                  <div class="step">
+                    <div class="step-index">3</div>
+                    <div><strong>训练执行</strong><div class="subtle">生成训练日志与指标</div></div>
+                  </div>
+                  <div class="step">
+                    <div class="step-index">4</div>
+                    <div><strong>模型发布</strong><div class="subtle">Pickle 模型进入资产库</div></div>
+                  </div>
+                </div>
+                <div class="info-card">
+                  <strong>页面重点</strong>
+                  <span class="subtle">训练页只保留资源上传、矩阵选择和产物状态，减少与推理页重复的结论卡片。</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <strong>实验编排台</strong>
+                  <span class="subtle">中间列保持固定高度，列表在面板内滚动</span>
+                </div>
+                <button class="primary-button">开始训练测评</button>
+              </div>
+              <div class="panel-body">
+                <div class="upload-card">
+                  <div class="resource-row">
+                    <label>数据</label>
+                    <div class="fake-input">选择或上传新的数据集目录</div>
+                    <button class="mini-button">上传</button>
+                  </div>
+                  <div class="resource-row">
+                    <label>算法</label>
+                    <div class="fake-input">上传算法插件，训练完成后输出 Pickle</div>
+                    <button class="mini-button">上传</button>
+                  </div>
+                  <div class="resource-row">
+                    <label>特征</label>
+                    <div class="fake-input">上传特征方案并参与矩阵组合</div>
+                    <button class="mini-button">上传</button>
+                  </div>
+                </div>
+
+                <div class="selector-grid">
+                  <div class="selector">
+                    <h3>数据集</h3>
+                    <div class="selector-list">
+                      <div class="check-row"><span class="box on">✓</span><span>CALCE_CS2</span></div>
+                      <div class="check-row"><span class="box on">✓</span><span>HUST</span></div>
+                      <div class="check-row"><span class="box on">✓</span><span>NASA</span></div>
+                      <div class="check-row"><span class="box on">✓</span><span>OXFORD</span></div>
+                      <div class="check-row"><span class="box on">✓</span><span>RWTH_ISEA_PUBLIC</span></div>
+                      <div class="check-row"><span class="box"></span><span>SNL_LFP</span></div>
+                      <div class="check-row"><span class="box"></span><span>UCONN</span></div>
+                    </div>
+                  </div>
+                  <div class="selector">
+                    <h3>算法</h3>
+                    <div class="selector-list">
+                      <div class="check-row"><span class="box on">✓</span><span class="mono">BYO_SKB_RIDGE</span></div>
+                      <div class="check-row"><span class="box on">✓</span><span class="mono">CNN1D</span></div>
+                      <div class="check-row"><span class="box on">✓</span><span class="mono">GRDT_SKLEARN</span></div>
+                      <div class="check-row"><span class="box"></span><span class="mono">SVR_RBF</span></div>
+                      <div class="check-row"><span class="box"></span><span class="mono">XGB_TREE</span></div>
+                    </div>
+                  </div>
+                  <div class="selector">
+                    <h3>特征</h3>
+                    <div class="selector-list">
+                      <div class="check-row"><span class="box on">✓</span><span>CAPACITY_TIME</span></div>
+                      <div class="check-row"><span class="box on">✓</span><span>FULL</span></div>
+                      <div class="check-row"><span class="box on">✓</span><span>IC_DVA</span></div>
+                      <div class="check-row"><span class="box"></span><span>VOLTAGE_WINDOW</span></div>
+                      <div class="check-row"><span class="box"></span><span>EARLY_CYCLE</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="run-strip">
+                  <div>
+                    <strong>预计组合数 504</strong>
+                    <div class="subtle">LOCO / LODO / LCHO 可在同一行切换，不再挤压选择列表。</div>
+                  </div>
+                  <div class="method-row">
+                    <span class="badge green">LOCO</span>
+                    <span class="badge">LODO</span>
+                    <span class="badge">LCHO</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <aside class="panel">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <strong>训练产物</strong>
+                  <span class="subtle">当前任务与模型发布</span>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="asset-card blue">
+                  <span class="subtle">Pickle 模型</span>
+                  <strong>220 个模型</strong>
+                  <span class="subtle">220 训练产出 / 0 外部上传</span>
+                </div>
+                <div class="asset-card green">
+                  <span class="subtle">数据集范围</span>
+                  <strong>7 个数据集</strong>
+                  <span class="subtle">训练矩阵使用的数据源范围</span>
+                </div>
+                <div class="asset-card amber">
+                  <span class="subtle">任务状态</span>
+                  <strong class="mono">running</strong>
+                  <span class="subtle mono">20260630T104320-32b600f5</span>
+                </div>
+                <button class="ghost-button">查看模型资产库</button>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+        <div class="view" id="view-infer">
+          <div class="bench-grid infer-grid">
+            <section class="panel">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <strong>推理输入</strong>
+                  <span class="subtle">选择已有 Pickle 与目标数据</span>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="asset-card blue">
+                  <span class="subtle">模型</span>
+                  <strong>1 / 220</strong>
+                  <span class="mono subtle">byo_skb_ridge_loco_seed0.pkl</span>
+                </div>
+                <div class="asset-card green">
+                  <span class="subtle">目标数据集</span>
+                  <strong>3 / 7</strong>
+                  <span class="subtle">HUST / RWTH / UCONN</span>
+                </div>
+                <div class="selector">
+                  <h3>模型列表</h3>
+                  <div class="selector-list" style="max-height: 210px;">
+                    <div class="check-row"><span class="box on">✓</span><span class="mono">ridge_calce_cs2_21</span></div>
+                    <div class="check-row"><span class="box"></span><span class="mono">ridge_calce_cs2_33</span></div>
+                    <div class="check-row"><span class="box"></span><span class="mono">ridge_calce_cs2_34</span></div>
+                    <div class="check-row"><span class="box"></span><span class="mono">cnn1d_hust_seed0</span></div>
+                    <div class="check-row"><span class="box"></span><span class="mono">grdt_nasa_seed0</span></div>
+                    <div class="check-row"><span class="box"></span><span class="mono">svr_rwth_seed0</span></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <strong>迁移泛化测评</strong>
+                  <span class="subtle">推理页聚焦迁移误差、吞吐与兼容性</span>
+                </div>
+                <button class="primary-button">开始推理评测</button>
+              </div>
+              <div class="panel-body">
+                <div class="summary-grid">
+                  <div class="stat"><span class="subtle">迁移 MAE</span><b>0.041</b></div>
+                  <div class="stat"><span class="subtle">P95 延迟</span><b>18 ms</b></div>
+                  <div class="stat"><span class="subtle">吞吐</span><b>2,840/s</b></div>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr><th>目标数据集</th><th>MAE</th><th>RMSE</th><th>推理时长</th><th>结论</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr><td>HUST</td><td>0.038</td><td>0.052</td><td>14 ms</td><td><span class="badge green">稳定</span></td></tr>
+                      <tr><td>RWTH_ISEA_PUBLIC</td><td>0.047</td><td>0.061</td><td>21 ms</td><td><span class="badge amber">需复核</span></td></tr>
+                      <tr><td>UCONN</td><td>0.040</td><td>0.055</td><td>19 ms</td><td><span class="badge green">稳定</span></td></tr>
+                      <tr><td>NASA</td><td>0.058</td><td>0.074</td><td>18 ms</td><td><span class="badge amber">域偏移</span></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <aside class="panel">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <strong>自动结论</strong>
+                  <span class="subtle">推荐、速度与风险</span>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="asset-card green">
+                  <span class="subtle">推荐模型</span>
+                  <strong>BYO_SKB_RIDGE</strong>
+                  <span class="subtle">跨 HUST 与 UCONN 误差最低</span>
+                </div>
+                <div class="asset-card blue">
+                  <span class="subtle">速度参考</span>
+                  <strong>18 ms P95</strong>
+                  <span class="subtle">满足在线批量推理阈值</span>
+                </div>
+                <div class="asset-card amber">
+                  <span class="subtle">风险提示</span>
+                  <strong>RWTH 域偏移</strong>
+                  <span class="subtle">建议补充特征列一致性检查</span>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+        <div class="view" id="view-assets">
+          <div class="bench-grid asset-grid">
+            <section class="panel">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <strong>资产筛选</strong>
+                  <span class="subtle">固定左栏，不拉高页面</span>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="filter-grid">
+                  <label class="filter-item">模型名称<input value="byo_skb_ridge" /></label>
+                  <label class="filter-item">算法<select><option>全部算法</option><option>BYO_SKB_RIDGE</option><option>CNN1D</option></select></label>
+                  <label class="filter-item">训练数据<select><option>全部数据集</option><option>CALCE_CS2</option><option>HUST</option></select></label>
+                  <label class="filter-item">特征数<select><option>全部</option><option>20</option><option>64</option></select></label>
+                </div>
+                <div class="asset-card green">
+                  <span class="subtle">筛选结果</span>
+                  <strong>86 个模型</strong>
+                  <span class="subtle">表格区域独立滚动</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel asset-table-panel">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <strong>模型资产库</strong>
+                  <span class="subtle">长列表固定高度，表头吸顶</span>
+                </div>
+                <button class="ghost-button">导出清单</button>
+              </div>
+              <div class="panel-body">
+                <div class="summary-grid">
+                  <div class="stat"><span class="subtle">总模型</span><b>220</b></div>
+                  <div class="stat"><span class="subtle">可推理</span><b>213</b></div>
+                  <div class="stat"><span class="subtle">需复核</span><b>7</b></div>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr><th>模型</th><th>算法</th><th>训练数据</th><th>特征</th><th>状态</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr><td class="mono">byo_skb_ridge_calce_cs2_21</td><td>BYO_SKB_RIDGE</td><td>CALCE_CS2</td><td>20</td><td><span class="badge green">可用</span></td></tr>
+                      <tr><td class="mono">byo_skb_ridge_calce_cs2_33</td><td>BYO_SKB_RIDGE</td><td>CALCE_CS2</td><td>20</td><td><span class="badge green">可用</span></td></tr>
+                      <tr><td class="mono">byo_skb_ridge_hust_seed0</td><td>BYO_SKB_RIDGE</td><td>HUST</td><td>20</td><td><span class="badge green">可用</span></td></tr>
+                      <tr><td class="mono">cnn1d_nasa_seed0</td><td>CNN1D</td><td>NASA</td><td>64</td><td><span class="badge amber">复核</span></td></tr>
+                      <tr><td class="mono">grdt_rwth_seed0</td><td>GRDT_SKLEARN</td><td>RWTH</td><td>28</td><td><span class="badge green">可用</span></td></tr>
+                      <tr><td class="mono">svr_uconn_seed0</td><td>SVR_RBF</td><td>UCONN</td><td>32</td><td><span class="badge green">可用</span></td></tr>
+                      <tr><td class="mono">xgb_snl_lfp_seed0</td><td>XGB_TREE</td><td>SNL_LFP</td><td>48</td><td><span class="badge amber">复核</span></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <aside class="panel">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <strong>资产详情</strong>
+                  <span class="subtle">选择模型后显示</span>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="asset-card blue">
+                  <span class="subtle">当前模型</span>
+                  <strong class="mono">byo_skb_ridge_calce_cs2_21</strong>
+                  <span class="subtle">训练页自动发布</span>
+                </div>
+                <div class="asset-card green">
+                  <span class="subtle">兼容特征</span>
+                  <strong>20 列</strong>
+                  <span class="subtle">capacity_time / soh / cycle_index</span>
+                </div>
+                <div class="asset-card amber">
+                  <span class="subtle">最近推理</span>
+                  <strong>RWTH 0.047 MAE</strong>
+                  <span class="subtle">建议保留迁移记录</span>
+                </div>
+                <button class="primary-button">进入推理测评</button>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const tabs = document.querySelectorAll("[data-tab]");
+    const views = {
+      train: document.getElementById("view-train"),
+      infer: document.getElementById("view-infer"),
+      assets: document.getElementById("view-assets")
+    };
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        tabs.forEach((item) => item.classList.remove("active"));
+        Object.values(views).forEach((view) => view.classList.remove("active"));
+        tab.classList.add("active");
+        views[tab.dataset.tab].classList.add("active");
+      });
+    });
+  </script>
+</body>
+</html>

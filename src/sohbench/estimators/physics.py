@@ -22,13 +22,15 @@ import pandas as pd
 from sklearn.ensemble import HistGradientBoostingRegressor
 
 from ..contracts import feature_columns
+from ..preprocessing import FeatureMedianImputer
 from ..registry import register_estimator
-from .baselines import SOH_LOW, SOH_HIGH
+from .baselines import SOH_LOW, SOH_HIGH, _subsample
 
 __all__ = ["PhysicsResidualEstimator"]
 
 _THROUGHPUT_PREFERRED = "cycle_index_feature"
 _THROUGHPUT_FALLBACK = "cycle_fraction"
+_THROUGHPUT_ID_FALLBACK = "cycle_index"
 
 
 @register_estimator
@@ -43,6 +45,9 @@ class PhysicsResidualEstimator:
         Learning rate for the residual model.
     random_state:
         Seed for the residual model.
+    n_max:
+        Maximum rows sent into the residual tree model. Large cross-dataset
+        folds are subsampled for tractability.
     """
 
     name: str = "phys_resid"
@@ -54,16 +59,20 @@ class PhysicsResidualEstimator:
         max_iter: int = 200,
         learning_rate: float = 0.1,
         random_state: int = 0,
+        n_max: int = 12000,
     ) -> None:
         self._max_iter = max_iter
         self._learning_rate = learning_rate
         self._random_state = random_state
+        self._n_max = n_max
 
         # Set after fit
         self._throughput_col: str | None = None
+        self._throughput_fill: float = 0.0
         self._prior_coeffs: np.ndarray | None = None  # [a, b]
         self._residual_model: HistGradientBoostingRegressor | None = None
         self._feature_cols: list[str] | None = None
+        self._imputer = FeatureMedianImputer()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -75,9 +84,12 @@ class PhysicsResidualEstimator:
             return _THROUGHPUT_PREFERRED
         if _THROUGHPUT_FALLBACK in X.columns:
             return _THROUGHPUT_FALLBACK
+        if _THROUGHPUT_ID_FALLBACK in X.columns:
+            return _THROUGHPUT_ID_FALLBACK
         raise ValueError(
-            f"PhysicsResidualEstimator requires either {_THROUGHPUT_PREFERRED!r} or "
-            f"{_THROUGHPUT_FALLBACK!r} to be present in X; got columns: {list(X.columns)}"
+            f"PhysicsResidualEstimator requires one of {_THROUGHPUT_PREFERRED!r}, "
+            f"{_THROUGHPUT_FALLBACK!r}, or {_THROUGHPUT_ID_FALLBACK!r} to be present "
+            f"in X; got columns: {list(X.columns)}"
         )
 
     def _prior(self, t: np.ndarray) -> np.ndarray:
@@ -106,6 +118,9 @@ class PhysicsResidualEstimator:
         # Resolve throughput proxy
         self._throughput_col = self._resolve_throughput_col(X)
         t = X[self._throughput_col].to_numpy(dtype=float)
+        finite_t = t[np.isfinite(t)]
+        self._throughput_fill = float(np.median(finite_t)) if len(finite_t) else 0.0
+        t = np.where(np.isfinite(t), t, self._throughput_fill)
 
         # Fit prior: soh - 1 ≈ -a·√t - b·t  →  [√t, t] @ [a, b] ≈ -(soh-1)
         t_safe = np.maximum(t, 0.0)
@@ -120,13 +135,19 @@ class PhysicsResidualEstimator:
 
         # Fit residual model on feature columns
         self._feature_cols = feature_columns(X)
+        X_arr = self._imputer.fit(X, self._feature_cols).transform_array(X)
         self._residual_model = HistGradientBoostingRegressor(
             max_iter=self._max_iter,
             learning_rate=self._learning_rate,
             random_state=self._random_state,
         )
-        Z = X[self._feature_cols].to_numpy()
-        self._residual_model.fit(Z, residual)
+        Z, residual_sub = _subsample(
+            X_arr,
+            residual,
+            self._n_max,
+            self._random_state,
+        )
+        self._residual_model.fit(Z, residual_sub)
 
         return self
 
@@ -141,10 +162,11 @@ class PhysicsResidualEstimator:
             t = X[self._throughput_col].to_numpy(dtype=float)
         else:
             t = np.zeros(len(X))
+        t = np.where(np.isfinite(t), t, self._throughput_fill)
 
         prior_pred = self._prior(t)
 
-        Z = X[self._feature_cols].to_numpy()
+        Z = self._imputer.transform_array(X)
         residual_pred = self._residual_model.predict(Z)
 
         return np.clip(prior_pred + residual_pred, SOH_LOW, SOH_HIGH)

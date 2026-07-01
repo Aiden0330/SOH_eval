@@ -109,6 +109,18 @@ class TestPhysicsResidualEstimator:
         est.fit(X, y, meta=None)
         assert est._throughput_col == "cycle_fraction"
 
+    def test_falls_back_to_cycle_index_when_projected_features_omit_throughput(self):
+        """Feature-set projections keep cycle_index even when throughput features are absent."""
+        X, y = _sqrt_decay_table()
+        X = X.drop(columns=["cycle_index_feature", "cycle_fraction"], errors="ignore")
+
+        est = PhysicsResidualEstimator()
+        est.fit(X, y, meta=None)
+
+        assert est._throughput_col == "cycle_index"
+        p = est.predict(X, meta=None)
+        assert p.shape == (len(X),)
+
     def test_predictions_are_float_array(self):
         X, y = _sqrt_decay_table()
         est = PhysicsResidualEstimator().fit(X, y, meta=None)
@@ -125,3 +137,24 @@ class TestPhysicsResidualEstimator:
         p = est.predict(X, meta=None)
         mae = float(np.mean(np.abs(p - y)))
         assert mae < 0.05, f"MAE {mae:.4f} too large for noiseless sqrt-decay"
+
+    def test_residual_model_subsample_cap(self, monkeypatch):
+        fit_shapes = []
+
+        class SpyHGBR:
+            def __init__(self, **kwargs):
+                pass
+
+            def fit(self, X, y):
+                fit_shapes.append(X.shape)
+                return self
+
+            def predict(self, X):
+                return np.zeros(len(X))
+
+        monkeypatch.setattr("sohbench.estimators.physics.HistGradientBoostingRegressor", SpyHGBR)
+        X, y = _sqrt_decay_table(n=100)
+
+        PhysicsResidualEstimator(n_max=15).fit(X, y, meta=None)
+
+        assert fit_shapes == [(15, 2)]

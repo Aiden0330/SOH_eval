@@ -1,0 +1,24 @@
+{
+  "datasets": [
+    "smoke_eval_demo"
+  ],
+  "estimators": [
+    "smoke_linear_decay"
+  ],
+  "featuresets": [
+    "smoke_cycle_shape"
+  ],
+  "protocols": [
+    "loco"
+  ],
+  "seeds": [
+    0
+  ],
+  "trusted_local_plugins": true,
+  "saved_models": [
+    "smoke_linear_decay_smoke_cycle_shape_loco_smoke_eval_demo_smoke_cell_01_seed0",
+    "smoke_linear_decay_smoke_cycle_shape_loco_smoke_eval_demo_smoke_cell_02_seed0",
+    "smoke_linear_decay_smoke_cycle_shape_loco_smoke_eval_demo_smoke_cell_03_seed0"
+  ],
+  "model_warnings": []
+}

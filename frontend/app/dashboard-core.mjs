@@ -28,6 +28,39 @@ export function datasetOptions(config = {}, qc = {}, datasetRows = []) {
   }).sort((a, b) => (b.rows - a.rows) || a.name.localeCompare(b.name));
 }
 
+export function inferenceDatasetOptions({ baseOptions = [], catalog = {}, inference = {} } = {}) {
+  const byName = new Map();
+  const inferenceNames = new Set(
+    (inference.records || [])
+      .map((row) => String(row?.dataset || ""))
+      .filter(Boolean),
+  );
+
+  const add = (item = {}, source = "") => {
+    const name = String(item.name || item.dataset || "");
+    if (!name) return;
+    const current = byName.get(name) || { name, rows: 0, share: 0, hasMetrics: false };
+    byName.set(name, {
+      ...current,
+      ...item,
+      name,
+      rows: Math.max(Number(current.rows || 0), Number(item.rows || item.n_samples || 0)),
+      hasMetrics: Boolean(current.hasMetrics || item.hasMetrics),
+      hasInference: Boolean(current.hasInference || inferenceNames.has(name) || source === "inference"),
+    });
+  };
+
+  (baseOptions || []).forEach((item) => add(item, "base"));
+  (catalog.datasets || []).forEach((item) => add(item, "catalog"));
+  (inference.records || []).forEach((row) => add({ name: row.dataset, n_samples: row.n_samples }, "inference"));
+
+  return [...byName.values()].sort((a, b) => {
+    const ai = a.hasInference ? 0 : 1;
+    const bi = b.hasInference ? 0 : 1;
+    return ai - bi || (b.rows - a.rows) || a.name.localeCompare(b.name);
+  });
+}
+
 export function summarizeBySelection(aggregateRows = [], datasetRows = [], selectedDatasets = [], allDatasets = []) {
   const all = new Set(allDatasets);
   const selected = normalizeSelection(selectedDatasets, allDatasets);
@@ -107,10 +140,22 @@ export function modelOptions(source = {}) {
       featureset: item.featureset || "",
       featureColumns: item.feature_columns || item.featureColumns || [],
       trainedOn: item.trained_on || item.trainedOn || [],
-      badge: item.source === "upload" ? "涓婁紶妯″瀷" : "璁粌浜х墿",
+      badge: item.source === "upload" ? "上传模型" : "训练产物",
     }))
     .filter((item) => item.name)
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function preferredInferenceModels(models = [], inference = {}) {
+  const recordedModels = new Set(
+    (inference.records || [])
+      .map((row) => String(row?.model || ""))
+      .filter(Boolean),
+  );
+  const preferred = (models || []).find((item) => recordedModels.has(item?.name));
+  if (preferred?.name) return [preferred.name];
+  const first = (models || []).find((item) => item?.name);
+  return first?.name ? [first.name] : [];
 }
 
 export function inferenceRows(payload = {}, selectedModels = [], selectedDatasets = []) {
@@ -161,10 +206,411 @@ export function inferenceInsightSummary(records = []) {
   };
 }
 
+export function profileOptions(index = {}, activeProfile = "root") {
+  const rows = [
+    {
+      name: "root",
+      label: "当前根目录",
+      kind: "root",
+      datasets: [],
+      active: activeProfile === "root",
+    },
+  ];
+  const seen = new Set(["root"]);
+  (index.profiles || []).forEach((item = {}) => {
+    const name = String(item.name || "").trim();
+    if (!/^[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(name) || seen.has(name)) return;
+    seen.add(name);
+    rows.push({
+      name,
+      label: String(item.label || name),
+      kind: String(item.kind || "evaluation_profile"),
+      datasets: nonEmptyStrings(item.datasets || []),
+      trainingJobId: String(item.training_job_id || ""),
+      inferenceJobId: String(item.inference_job_id || ""),
+      active: name === activeProfile,
+    });
+  });
+  if (!rows.some((row) => row.active)) rows[0].active = true;
+  return rows;
+}
+
 export function buildInferencePayload({ models = [], datasets = [] } = {}) {
   return {
     models: nonEmptyStrings(models),
     datasets: nonEmptyStrings(datasets),
+  };
+}
+
+export function inferenceCompatibilitySummary({ models = [], datasets = [] } = {}) {
+  const rows = [];
+  (models || []).forEach((model) => {
+    const required = nonEmptyStrings(model?.featureColumns || model?.feature_columns || []);
+    (datasets || []).forEach((dataset) => {
+      const available = nonEmptyStrings(dataset?.columns || []);
+      if (!required.length || !available.length) {
+        rows.push({
+          model: model?.name || "",
+          dataset: dataset?.name || "",
+          status: "unknown",
+          missingColumns: [],
+          requiredCount: required.length,
+          availableCount: available.length,
+        });
+        return;
+      }
+      const availableSet = new Set(available);
+      const missingColumns = required.filter((column) => !availableSet.has(column));
+      rows.push({
+        model: model?.name || "",
+        dataset: dataset?.name || "",
+        status: missingColumns.length ? "warn" : "ok",
+        missingColumns,
+        requiredCount: required.length,
+        availableCount: available.length,
+      });
+    });
+  });
+
+  const okCount = rows.filter((row) => row.status === "ok").length;
+  const warnRows = rows.filter((row) => row.status === "warn");
+  const unknownCount = rows.filter((row) => row.status === "unknown").length;
+  const firstMissing = warnRows[0]?.missingColumns?.slice(0, 3).join(", ") || "";
+  const status = warnRows.length ? "warn" : (unknownCount ? "unknown" : (rows.length ? "ok" : "idle"));
+  const message = warnRows.length
+    ? `${warnRows.length} 个模型-数据集组合缺少特征列：${firstMissing}`
+    : (unknownCount
+      ? `${unknownCount} 个组合缺少 manifest 或数据集列清单，需由后端运行时确认。`
+      : (rows.length ? "已选模型和数据集的特征列兼容。" : "请选择模型和数据集后进行 schema 预检。"));
+
+  return {
+    rows,
+    status,
+    okCount,
+    warnCount: warnRows.length,
+    unknownCount,
+    message,
+  };
+}
+
+export function inferenceLaunchPlan({
+  modelNames = [],
+  datasetNames = [],
+  models = [],
+  datasets = [],
+  strategy = "compatible_only",
+} = {}) {
+  const selectedModelNames = nonEmptyStrings(modelNames);
+  const selectedDatasetNames = nonEmptyStrings(datasetNames);
+  if (strategy === "include_risk") {
+    return {
+      strategy,
+      payload: {
+        ...buildInferencePayload({ models: selectedModelNames, datasets: selectedDatasetNames }),
+        launch_strategy: "include_risk",
+        selected_datasets: selectedDatasetNames,
+        submitted_datasets: selectedDatasetNames,
+        skipped_datasets: [],
+      },
+      skippedDatasets: [],
+      skippedCount: 0,
+      message: "已选择包含风险组合，后端会执行运行时 schema 校验。",
+    };
+  }
+
+  const modelByName = new Map((models || []).map((item) => [item?.name, item]).filter(([name]) => name));
+  const datasetByName = new Map((datasets || []).map((item) => [item?.name, item]).filter(([name]) => name));
+  const selectedModels = selectedModelNames.map((name) => modelByName.get(name) || { name });
+  const selectedDatasets = selectedDatasetNames.map((name) => datasetByName.get(name) || { name });
+  const compatibility = inferenceCompatibilitySummary({ models: selectedModels, datasets: selectedDatasets });
+  const riskyDatasets = new Set(
+    compatibility.rows
+      .filter((row) => row.status !== "ok")
+      .map((row) => row.dataset)
+      .filter(Boolean),
+  );
+  const allowedDatasets = selectedDatasetNames.filter((name) => !riskyDatasets.has(name));
+  const skippedDatasets = selectedDatasetNames.filter((name) => riskyDatasets.has(name));
+
+  return {
+    strategy: "compatible_only",
+    payload: {
+      ...buildInferencePayload({ models: selectedModelNames, datasets: allowedDatasets }),
+      launch_strategy: "compatible_only",
+      selected_datasets: selectedDatasetNames,
+      submitted_datasets: allowedDatasets,
+      skipped_datasets: skippedDatasets,
+    },
+    skippedDatasets,
+    skippedCount: skippedDatasets.length,
+    compatibility,
+    message: skippedDatasets.length
+      ? `已跳过 ${skippedDatasets.length} 个存在 schema 风险的数据集：${skippedDatasets.slice(0, 3).join(", ")}`
+      : "所有已选数据集通过 schema 预检。",
+  };
+}
+
+export function inferenceAuditSummary({
+  inferenceConfig = {},
+  catalog = {},
+  currentJob = null,
+} = {}) {
+  const liveJob = currentJob?.kind === "inference" && currentJob?.request ? currentJob : null;
+  const historyJobs = catalog?.inference_jobs || [];
+  const historyJob = historyJobs.find((job) => hasInferenceAuditFields(job?.request))
+    || historyJobs.find((job) => job?.request)
+    || null;
+  const job = liveJob || historyJob;
+  const request = job?.request || inferenceConfig || {};
+  const strategy = String(request.launch_strategy || request.launchStrategy || "unspecified");
+  const selectedDatasets = nonEmptyStrings(request.selected_datasets || request.selectedDatasets || request.datasets || []);
+  const submittedDatasets = nonEmptyStrings(request.submitted_datasets || request.submittedDatasets || request.datasets || []);
+  const skippedDatasets = nonEmptyStrings(request.skipped_datasets || request.skippedDatasets || []);
+  const jobId = String(job?.id || request.job_id || request.jobId || "");
+  const status = String(job?.status || request.status || "");
+  const runDir = String(job?.run_dir || job?.raw_run_dir || request.run_dir || request.raw_run_dir || request.runDir || "");
+  const strategyLabel = strategy === "compatible_only"
+    ? "仅运行兼容组合"
+    : (strategy === "include_risk" ? "包含风险组合" : "未记录");
+  const skippedLabel = skippedDatasets.length ? skippedDatasets.slice(0, 4).join(" / ") : "无跳过数据集";
+  const hasAudit = Boolean(
+    strategy !== "unspecified"
+    || selectedDatasets.length
+    || submittedDatasets.length
+    || skippedDatasets.length
+    || jobId
+    || runDir,
+  );
+
+  return {
+    hasAudit,
+    sourceLabel: job ? (liveJob ? "当前任务" : "后端任务记录") : (hasAudit ? "前端运行配置" : "暂无记录"),
+    strategy,
+    strategyLabel,
+    selectedDatasets,
+    submittedDatasets,
+    skippedDatasets,
+    selectedCount: selectedDatasets.length,
+    submittedCount: submittedDatasets.length,
+    skippedCount: skippedDatasets.length,
+    skippedLabel,
+    jobId,
+    status,
+    runDir,
+    summary: hasAudit
+      ? `${strategyLabel}；提交 ${submittedDatasets.length} / 选择 ${selectedDatasets.length} 个数据集；跳过 ${skippedDatasets.length} 个。`
+      : "暂无推理策略审计记录。",
+  };
+}
+
+function hasInferenceAuditFields(request = {}) {
+  return Boolean(
+    request?.launch_strategy
+    || request?.launchStrategy
+    || request?.selected_datasets
+    || request?.submitted_datasets
+    || request?.skipped_datasets,
+  );
+}
+
+export function taskHistoryRows(catalog = {}, filters = {}) {
+  const kindFilter = filters.kind || "all";
+  const statusFilter = filters.status || "all";
+  const strategyFilter = filters.strategy || "all";
+  const datasetFilter = String(filters.dataset || "").trim().toLowerCase();
+  const trainingRows = (catalog.jobs || []).map((job) => taskHistoryRow(job, "training"));
+  const inferenceRows = (catalog.inference_jobs || []).map((job) => taskHistoryRow(job, "inference"));
+  const allRows = [...trainingRows, ...inferenceRows]
+    .sort((a, b) => b.sortKey.localeCompare(a.sortKey) || b.id.localeCompare(a.id));
+  const statusOptions = [...new Set(allRows.map((row) => row.status).filter(Boolean))].sort();
+  const rows = allRows.filter((row) => {
+    if (kindFilter !== "all" && row.kind !== kindFilter) return false;
+    if (statusFilter !== "all" && row.status !== statusFilter) return false;
+    if (strategyFilter !== "all" && row.strategy !== strategyFilter) return false;
+    if (datasetFilter && !row.datasetLabel.toLowerCase().includes(datasetFilter)) return false;
+    return true;
+  });
+  return {
+    rows,
+    totalCount: allRows.length,
+    filteredCount: rows.length,
+    statusOptions,
+  };
+}
+
+function taskHistoryRow(job = {}, kind = "training") {
+  const request = job.request || {};
+  const audit = kind === "inference" ? inferenceAuditSummary({ currentJob: { kind: "inference", ...job } }) : null;
+  const datasets = kind === "inference"
+    ? uniqueStrings([
+        ...(request.selected_datasets || []),
+        ...(request.submitted_datasets || []),
+        ...(request.skipped_datasets || []),
+        ...(request.datasets || []),
+      ])
+    : nonEmptyStrings(request.datasets || []);
+  const detailParts = kind === "inference"
+    ? nonEmptyStrings(request.models || [])
+    : [
+        ...nonEmptyStrings(request.estimators || []),
+        ...nonEmptyStrings(request.featuresets || []),
+      ];
+  const strategy = kind === "inference" ? (audit?.strategy || "unspecified") : "training";
+  const strategyLabel = kind === "inference" ? (audit?.strategyLabel || "未记录") : "训练任务";
+  const createdAt = String(job.created_at || "");
+  const finishedAt = String(job.finished_at || "");
+  const runDir = String(job.run_dir || job.raw_run_dir || "");
+  const requestCopy = cloneJson(request);
+  const rerunEndpoint = kind === "inference" ? "/api/inference-jobs" : "/api/jobs";
+  const rerunPayload = rerunPayloadForTask(kind, requestCopy);
+  const auditJson = {
+    audit_version: 1,
+    id: String(job.id || ""),
+    kind,
+    status: String(job.status || "unknown"),
+    created_at: createdAt,
+    started_at: job.started_at || "",
+    finished_at: finishedAt,
+    run_dir: runDir,
+    raw_run_dir: String(job.raw_run_dir || ""),
+    request: requestCopy,
+    error: job.error || "",
+    traceback: job.traceback || "",
+    saved_models: cloneJson(job.saved_models || []),
+    model_warnings: cloneJson(job.model_warnings || []),
+    rerun_endpoint: rerunEndpoint,
+    rerun_payload: rerunPayload,
+  };
+  return {
+    id: String(job.id || ""),
+    kind,
+    kindLabel: kind === "inference" ? "推理" : "训练",
+    status: String(job.status || "unknown"),
+    statusLabel: taskStatusLabel(job.status),
+    strategy,
+    strategyLabel,
+    createdAt,
+    finishedAt,
+    runDir,
+    rawRunDir: String(job.raw_run_dir || ""),
+    error: String(job.error || ""),
+    datasets,
+    datasetLabel: datasets.length ? datasets.join(" / ") : "未记录",
+    detail: detailParts.length ? detailParts.join(" / ") : (kind === "inference" ? "未记录模型" : "未记录资源"),
+    skippedLabel: audit?.skippedLabel || "",
+    skippedCount: audit?.skippedCount || 0,
+    request: requestCopy,
+    rerunEndpoint,
+    rerunPayload,
+    auditJson,
+    detailJson: JSON.stringify(auditJson, null, 2),
+    sortKey: finishedAt || createdAt || String(job.id || ""),
+  };
+}
+
+function rerunPayloadForTask(kind, request = {}) {
+  if (kind === "inference") {
+    return {
+      ...request,
+      models: nonEmptyStrings(request.models || []),
+      datasets: nonEmptyStrings(request.datasets || request.submitted_datasets || []),
+      launch_strategy: String(request.launch_strategy || "unspecified"),
+      selected_datasets: nonEmptyStrings(request.selected_datasets || request.datasets || []),
+      submitted_datasets: nonEmptyStrings(request.submitted_datasets || request.datasets || []),
+      skipped_datasets: nonEmptyStrings(request.skipped_datasets || []),
+    };
+  }
+  return {
+    ...request,
+    datasets: nonEmptyStrings(request.datasets || []),
+    estimators: nonEmptyStrings(request.estimators || []),
+    featuresets: nonEmptyStrings(request.featuresets || []),
+    protocols: nonEmptyStrings(request.protocols || ["loco"]),
+    seeds: Array.isArray(request.seeds) ? request.seeds.map((seed) => Number(seed)) : [0],
+  };
+}
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value || {}));
+}
+
+function taskStatusLabel(status) {
+  const value = String(status || "unknown");
+  if (value === "succeeded") return "成功";
+  if (value === "failed") return "失败";
+  if (value === "running") return "运行中";
+  if (value === "queued") return "排队中";
+  return "未知";
+}
+
+function uniqueStrings(values = []) {
+  return [...new Set(nonEmptyStrings(values))];
+}
+
+export function inferenceActionState({
+  backendConnected = false,
+  selectedModelCount = 0,
+  selectedDatasetCount = 0,
+  currentJob = null,
+} = {}) {
+  if (!backendConnected) {
+    return {
+      disabled: true,
+      tone: "fail",
+      message: "后端未连接，无法启动推理测评。",
+    };
+  }
+
+  if (currentJob?.kind === "inference") {
+    if (currentJob.status === "queued" || currentJob.status === "running") {
+      return {
+        disabled: true,
+        tone: "active",
+        message: `推理任务 ${currentJob.id} 正在执行，完成后会刷新推理结果。`,
+      };
+    }
+    if (currentJob.status === "succeeded") {
+      return {
+        disabled: false,
+        tone: "ok",
+        message: `推理任务 ${currentJob.id} 已完成，结果已发布到推理结果表。`,
+      };
+    }
+    if (currentJob.status === "failed") {
+      return {
+        disabled: false,
+        tone: "fail",
+        message: `推理任务 ${currentJob.id} 失败：${currentJob.error || "请检查模型和特征兼容性"}`,
+      };
+    }
+  }
+
+  if (!selectedModelCount && !selectedDatasetCount) {
+    return {
+      disabled: true,
+      tone: "warn",
+      message: "请选择至少一个 Pickle 模型和一个目标数据集。",
+    };
+  }
+  if (!selectedModelCount) {
+    return {
+      disabled: true,
+      tone: "warn",
+      message: "请选择至少一个 Pickle 模型，或先上传模型。",
+    };
+  }
+  if (!selectedDatasetCount) {
+    return {
+      disabled: true,
+      tone: "warn",
+      message: "请选择至少一个目标数据集。",
+    };
+  }
+
+  return {
+    disabled: false,
+    tone: "ready",
+    message: `已选择 ${selectedModelCount} 个模型 / ${selectedDatasetCount} 个数据集，可启动 inference-only 推理测评。`,
   };
 }
 

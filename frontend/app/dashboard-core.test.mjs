@@ -9,13 +9,21 @@ import {
   catalogOptions,
   evaluationPlanSummary,
   inferenceRows,
+  inferenceAuditSummary,
+  inferenceActionState,
+  inferenceCompatibilitySummary,
+  inferenceDatasetOptions,
+  inferenceLaunchPlan,
   inferenceInsightSummary,
   inferenceSummary,
+  preferredInferenceModels,
+  profileOptions,
   leaderboardCoverage,
   modelAssetRows,
   modelOptions,
   scopeSummary,
   stabilityRows,
+  taskHistoryRows,
   trainingArtifactSummary,
   nextDatasetSelection,
 } from "./dashboard-core.mjs";
@@ -33,6 +41,23 @@ const byDataset = [
   entry("ridge", "full", 0.20, { held: "hust", picp: 0.90, mono: 0.10 }),
   entry("gbdt", "full", 0.30, { held: "hust", picp: 0.40, mono: 0.25 }),
 ];
+
+{
+  const options = profileOptions(
+    {
+      profiles: [
+        { name: "smoke", label: "Smoke 闭环", kind: "smoke_acceptance" },
+        { name: "full-7-datasets", label: "7 数据集全量", kind: "full_benchmark" },
+        { name: "smoke", label: "Duplicate", kind: "ignored" },
+      ],
+    },
+    "smoke",
+  );
+  assert.deepEqual(options.map((item) => item.name), ["root", "smoke", "full-7-datasets"]);
+  assert.equal(options[0].label, "当前根目录");
+  assert.equal(options[1].active, true);
+  assert.equal(options[1].kind, "smoke_acceptance");
+}
 
 function entry(estimator, featureset, mae, opts = {}) {
   return {
@@ -259,7 +284,49 @@ function entry(estimator, featureset, mae, opts = {}) {
     ],
   });
   assert.deepEqual(rows.map((row) => row.name), ["external_mlp", "ridge_full"]);
-  assert.equal(rows[0].badge, "涓婁紶妯″瀷");
+  assert.equal(rows[0].badge, "上传模型");
+  assert.equal(rows[1].badge, "训练产物");
+}
+
+{
+  const options = inferenceDatasetOptions({
+    baseOptions: datasetOptions(
+      { datasets: ["nasa"] },
+      { per_dataset: { nasa: { rows: 2705 } } },
+      [],
+    ),
+    catalog: {
+      datasets: [
+        { name: "calce_cs2", rows: 15411 },
+        { name: "nasa", rows: 2705 },
+      ],
+    },
+    inference: {
+      records: [
+        { model: "ridge_voltage", dataset: "calce_cs2", status: "succeeded" },
+        { model: "ridge_voltage", dataset: "nasa", status: "succeeded" },
+      ],
+    },
+  });
+  assert.deepEqual(options.map((item) => [item.name, item.rows, item.hasInference]), [
+    ["calce_cs2", 15411, true],
+    ["nasa", 2705, true],
+  ]);
+}
+
+{
+  const preferred = preferredInferenceModels(
+    [
+      { name: "byo_old" },
+      { name: "ridge_voltage_loco_nasa_B0005_seed0" },
+    ],
+    {
+      records: [
+        { model: "ridge_voltage_loco_nasa_B0005_seed0", dataset: "nasa", status: "succeeded" },
+      ],
+    },
+  );
+  assert.deepEqual(preferred, ["ridge_voltage_loco_nasa_B0005_seed0"]);
 }
 
 {
@@ -293,6 +360,266 @@ function entry(estimator, featureset, mae, opts = {}) {
   });
   assert.deepEqual(payload.models, ["m1", "m2"]);
   assert.deepEqual(payload.datasets, ["nasa"]);
+}
+
+{
+  const compatibility = inferenceCompatibilitySummary({
+    models: [
+      {
+        name: "ridge_full",
+        featureColumns: ["voltage_mean", "ambient_temp_c"],
+      },
+      {
+        name: "ridge_voltage",
+        featureColumns: ["voltage_mean"],
+      },
+    ],
+    datasets: [
+      {
+        name: "nasa",
+        columns: ["dataset", "cell_id", "soh", "voltage_mean"],
+      },
+      {
+        name: "uconn",
+      },
+    ],
+  });
+  assert.equal(compatibility.status, "warn");
+  assert.equal(compatibility.okCount, 1);
+  assert.equal(compatibility.warnCount, 1);
+  assert.equal(compatibility.unknownCount, 2);
+  assert.deepEqual(compatibility.rows.map((row) => [row.model, row.dataset, row.status, row.missingColumns]), [
+    ["ridge_full", "nasa", "warn", ["ambient_temp_c"]],
+    ["ridge_full", "uconn", "unknown", []],
+    ["ridge_voltage", "nasa", "ok", []],
+    ["ridge_voltage", "uconn", "unknown", []],
+  ]);
+  assert.match(compatibility.message, /ambient_temp_c/);
+}
+
+{
+  const models = [
+    { name: "ridge_voltage", featureColumns: ["voltage_mean"] },
+    { name: "ridge_full", featureColumns: ["voltage_mean", "ambient_temp_c"] },
+  ];
+  const datasets = [
+    { name: "nasa", columns: ["dataset", "soh", "voltage_mean", "ambient_temp_c"] },
+    { name: "calce_cs2", columns: ["dataset", "soh", "voltage_mean"] },
+    { name: "uconn" },
+  ];
+  const compatibleOnly = inferenceLaunchPlan({
+    modelNames: ["ridge_voltage", "ridge_full"],
+    datasetNames: ["nasa", "calce_cs2", "uconn"],
+    models,
+    datasets,
+    strategy: "compatible_only",
+  });
+  assert.deepEqual(compatibleOnly.payload, {
+    models: ["ridge_voltage", "ridge_full"],
+    datasets: ["nasa"],
+    launch_strategy: "compatible_only",
+    selected_datasets: ["nasa", "calce_cs2", "uconn"],
+    submitted_datasets: ["nasa"],
+    skipped_datasets: ["calce_cs2", "uconn"],
+  });
+  assert.deepEqual(compatibleOnly.skippedDatasets, ["calce_cs2", "uconn"]);
+  assert.equal(compatibleOnly.skippedCount, 2);
+  assert.match(compatibleOnly.message, /2/);
+
+  const includeRisk = inferenceLaunchPlan({
+    modelNames: ["ridge_voltage", "ridge_full"],
+    datasetNames: ["nasa", "calce_cs2", "uconn"],
+    models,
+    datasets,
+    strategy: "include_risk",
+  });
+  assert.deepEqual(includeRisk.payload.datasets, ["nasa", "calce_cs2", "uconn"]);
+  assert.equal(includeRisk.payload.launch_strategy, "include_risk");
+  assert.deepEqual(includeRisk.payload.selected_datasets, ["nasa", "calce_cs2", "uconn"]);
+  assert.deepEqual(includeRisk.payload.submitted_datasets, ["nasa", "calce_cs2", "uconn"]);
+  assert.deepEqual(includeRisk.payload.skipped_datasets, []);
+  assert.deepEqual(includeRisk.skippedDatasets, []);
+}
+
+{
+  const staticSummary = inferenceAuditSummary({
+    inferenceConfig: {
+      job_id: "job-static",
+      launch_strategy: "compatible_only",
+      selected_datasets: ["nasa", "rwth_isea_public"],
+      submitted_datasets: ["nasa"],
+      skipped_datasets: ["rwth_isea_public"],
+      run_dir: "runs/20260630T120000",
+    },
+  });
+  assert.equal(staticSummary.hasAudit, true);
+  assert.equal(staticSummary.strategyLabel, "仅运行兼容组合");
+  assert.equal(staticSummary.selectedCount, 2);
+  assert.equal(staticSummary.submittedCount, 1);
+  assert.equal(staticSummary.skippedLabel, "rwth_isea_public");
+  assert.equal(staticSummary.runDir, "runs/20260630T120000");
+
+  const liveSummary = inferenceAuditSummary({
+    inferenceConfig: {
+      job_id: "job-static",
+      launch_strategy: "compatible_only",
+      skipped_datasets: ["rwth_isea_public"],
+    },
+    catalog: {
+      inference_jobs: [{
+        id: "job-legacy",
+        status: "succeeded",
+        request: {
+          datasets: ["legacy"],
+          models: ["old-model"],
+        },
+      }, {
+        id: "job-live",
+        status: "succeeded",
+        run_dir: "runs/live",
+        request: {
+          launch_strategy: "include_risk",
+          datasets: ["nasa", "rwth_isea_public"],
+          selected_datasets: ["nasa", "rwth_isea_public"],
+          submitted_datasets: ["nasa", "rwth_isea_public"],
+          skipped_datasets: [],
+        },
+      }],
+    },
+  });
+  assert.equal(liveSummary.jobId, "job-live");
+  assert.equal(liveSummary.strategyLabel, "包含风险组合");
+  assert.equal(liveSummary.skippedLabel, "无跳过数据集");
+  assert.equal(liveSummary.sourceLabel, "后端任务记录");
+}
+
+{
+  const history = taskHistoryRows(
+    {
+      jobs: [{
+        id: "train-1",
+        status: "succeeded",
+        created_at: "2026-06-30 08:00:00",
+        run_dir: "runs/train-1",
+        request: {
+          datasets: ["nasa", "hust"],
+          estimators: ["ridge"],
+          featuresets: ["voltage"],
+        },
+      }],
+      inference_jobs: [{
+        id: "infer-1",
+        status: "succeeded",
+        created_at: "2026-06-30 09:00:00",
+        run_dir: "runs/infer-1",
+        request: {
+          models: ["ridge_voltage"],
+          datasets: ["nasa", "hust"],
+          launch_strategy: "compatible_only",
+          selected_datasets: ["nasa", "hust", "rwth_isea_public"],
+          submitted_datasets: ["nasa", "hust"],
+          skipped_datasets: ["rwth_isea_public"],
+        },
+      }, {
+        id: "infer-2",
+        status: "failed",
+        created_at: "2026-06-30 07:00:00",
+        request: {
+          models: ["ridge_full"],
+          datasets: ["nasa"],
+          launch_strategy: "include_risk",
+        },
+      }],
+    },
+    { kind: "inference", status: "all", strategy: "compatible_only", dataset: "rwth" },
+  );
+
+  assert.equal(history.totalCount, 3);
+  assert.equal(history.filteredCount, 1);
+  assert.deepEqual(history.rows.map((row) => row.id), ["infer-1"]);
+  assert.equal(history.rows[0].kindLabel, "推理");
+  assert.equal(history.rows[0].strategyLabel, "仅运行兼容组合");
+  assert.equal(history.rows[0].datasetLabel, "nasa / hust / rwth_isea_public");
+  assert.match(history.rows[0].detail, /ridge_voltage/);
+  assert.equal(history.rows[0].rerunEndpoint, "/api/inference-jobs");
+  assert.deepEqual(history.rows[0].rerunPayload, {
+    models: ["ridge_voltage"],
+    datasets: ["nasa", "hust"],
+    launch_strategy: "compatible_only",
+    selected_datasets: ["nasa", "hust", "rwth_isea_public"],
+    submitted_datasets: ["nasa", "hust"],
+    skipped_datasets: ["rwth_isea_public"],
+  });
+  assert.equal(history.rows[0].auditJson.kind, "inference");
+  assert.equal(history.rows[0].auditJson.audit_version, 1);
+  assert.equal(history.rows[0].auditJson.request.launch_strategy, "compatible_only");
+  assert.equal(history.rows[0].auditJson.run_dir, "runs/infer-1");
+  assert.equal(history.rows[0].auditJson.rerun_endpoint, "/api/inference-jobs");
+  assert.deepEqual(history.rows[0].auditJson.rerun_payload, history.rows[0].rerunPayload);
+  assert.match(history.rows[0].detailJson, /rwth_isea_public/);
+  assert.deepEqual(history.statusOptions, ["failed", "succeeded"]);
+}
+
+{
+  const history = taskHistoryRows(
+    {
+      jobs: [{
+        id: "train-1",
+        status: "failed",
+        created_at: "2026-06-30 08:00:00",
+        started_at: "2026-06-30 08:01:00",
+        finished_at: "2026-06-30 08:02:00",
+        raw_run_dir: "runs/raw-train-1",
+        request: {
+          datasets: ["nasa"],
+          estimators: ["ridge"],
+          featuresets: ["full"],
+          protocols: ["loco", "lodo"],
+          seeds: ["0", "1"],
+        },
+        error: "bad fold",
+        traceback: "Traceback...",
+        saved_models: ["ridge_full_loco"],
+        model_warnings: ["warning"],
+      }],
+    },
+    { kind: "training" },
+  );
+  const row = history.rows[0];
+  assert.equal(row.rerunEndpoint, "/api/jobs");
+  assert.deepEqual(row.rerunPayload, {
+    datasets: ["nasa"],
+    estimators: ["ridge"],
+    featuresets: ["full"],
+    protocols: ["loco", "lodo"],
+    seeds: [0, 1],
+  });
+  assert.equal(row.auditJson.kind, "training");
+  assert.equal(row.auditJson.raw_run_dir, "runs/raw-train-1");
+  assert.equal(row.auditJson.traceback, "Traceback...");
+  assert.deepEqual(row.auditJson.saved_models, ["ridge_full_loco"]);
+  assert.deepEqual(row.auditJson.model_warnings, ["warning"]);
+  assert.deepEqual(row.auditJson.rerun_payload, row.rerunPayload);
+}
+
+{
+  const ready = inferenceActionState({
+    backendConnected: true,
+    selectedModelCount: 2,
+    selectedDatasetCount: 3,
+  });
+  assert.equal(ready.disabled, false);
+  assert.match(ready.message, /2 个模型 \/ 3 个数据集/);
+
+  const running = inferenceActionState({
+    backendConnected: true,
+    selectedModelCount: 1,
+    selectedDatasetCount: 1,
+    currentJob: { kind: "inference", id: "job-1", status: "running" },
+  });
+  assert.equal(running.disabled, true);
+  assert.match(running.message, /job-1/);
+  assert.match(running.message, /正在执行/);
 }
 
 {

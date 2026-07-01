@@ -1,0 +1,61 @@
+[
+  {
+    "estimator": "smoke_linear_decay",
+    "featureset": "smoke_cycle_shape",
+    "track": "unified",
+    "protocol": "loco",
+    "metrics": {
+      "alpha_accuracy": {
+        "mean": 1.0,
+        "std": 0.0
+      },
+      "eol_region_error": {
+        "mean": null,
+        "std": 0.0
+      },
+      "mae": {
+        "mean": 0.009732614052614016,
+        "std": 0.00037499541648795365
+      },
+      "mape": {
+        "mean": 0.010224544992230154,
+        "std": 0.00045370468102916885
+      },
+      "max_error": {
+        "mean": 0.020628811188810842,
+        "std": 0.0021629731603887755
+      },
+      "mean_bias_error": {
+        "mean": 0.0031888111888108903,
+        "std": 0.002162973160388752
+      },
+      "monotonicity_violation_rate": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "overestimation_rate": {
+        "mean": 0.5714285714285715,
+        "std": 0.07142857142857147
+      },
+      "picp": {
+        "mean": 0.9761904761904763,
+        "std": 0.04123930494211609
+      },
+      "rmse": {
+        "mean": 0.011403250119226382,
+        "std": 0.0005943811371218828
+      },
+      "value_range_violation": {
+        "mean": 0.0,
+        "std": 0.0
+      }
+    },
+    "verdicts": {
+      "generalization": true,
+      "calibration": true,
+      "physical_consistency": true
+    },
+    "ci_source": "conformal",
+    "backend": "trusted-local"
+  }
+]

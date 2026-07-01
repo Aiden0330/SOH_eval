@@ -5,6 +5,7 @@ from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from ..contracts import feature_columns
+from ..preprocessing import FeatureMedianImputer
 from ..registry import register_estimator
 from .baselines import SOH_LOW, SOH_HIGH
 
@@ -25,6 +26,7 @@ class ByoSelectKBestRidge:
         self._alpha = alpha
         self._pipeline: Pipeline | None = None
         self._cols: list[str] | None = None
+        self._imputer = FeatureMedianImputer()
 
     def fit(self, X, y, meta=None):
         self._cols = feature_columns(X)
@@ -35,10 +37,11 @@ class ByoSelectKBestRidge:
             ("scaler", StandardScaler()),
             ("ridge", Ridge(alpha=self._alpha)),
         ])
-        self._pipeline.fit(X[self._cols].to_numpy(), np.asarray(y))
+        X_arr = self._imputer.fit(X, self._cols).transform_array(X)
+        self._pipeline.fit(X_arr, np.asarray(y))
         return self
 
     def predict(self, X, meta=None):
-        Xarr = X[self._cols].to_numpy()
+        Xarr = self._imputer.transform_array(X)
         preds = self._pipeline.predict(Xarr)
         return np.clip(preds, SOH_LOW, SOH_HIGH)
