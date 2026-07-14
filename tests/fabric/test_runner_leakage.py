@@ -8,6 +8,7 @@ from sohbench.protocols import LeaveOneCellOut
 from sohbench.tasks import SOHEstimationTask
 from sohbench.contracts import Fold
 from sohbench.fabric.views import FoldViews
+from sohbench.fabric import FeatureState
 
 
 @pytest.fixture
@@ -191,6 +192,68 @@ def test_runner_builds_one_safe_view_per_fold_across_seeds(
     )
 
     assert len(calls) == 3
+
+
+def test_runner_fits_feature_pipeline_only_on_fold_training_rows(simple_table, simple_meta):
+    seen = []
+
+    class MeanPipeline:
+        def fit(self, train_x, train_y, meta):
+            seen.append(train_x["cell_id"].tolist())
+            return FeatureState.create({"mean": float(np.mean(train_y))})
+
+        def transform(self, frame, state, meta):
+            out = frame.copy()
+            out["train_mean_feature"] = state.payload["mean"]
+            return out
+
+    BenchmarkRunner(seeds=[0, 1]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        featuresets=["full"], feature_pipelines={"full": MeanPipeline()},
+    )
+
+    assert len(seen) == 3
+    assert all(len(set(cells)) == 2 for cells in seen)
+    assert {frozenset(cells) for cells in seen} == {
+        frozenset({"c1", "c2"}),
+        frozenset({"c1", "c3"}),
+        frozenset({"c2", "c3"}),
+    }
+
+
+def test_byo_estimator_receives_fold_scoped_transformed_unprojected_features(simple_table, simple_meta):
+    class ByoEstimator(SpyEstimator):
+        name = "byo_with_pipeline"
+        feature_mode = "byo"
+        seen_columns = []
+
+        def fit(self, X, y, meta=None):
+            self.seen_columns.append(tuple(X.columns))
+            assert "derived" in X.columns
+            assert "feature" in X.columns
+            return super().fit(X, y, meta)
+
+    class ByoPipeline:
+        def fit(self, train_x, train_y, meta):
+            return FeatureState.create({"kind": "byo"})
+
+        def transform(self, frame, state, meta):
+            out = frame.copy()
+            out["derived"] = out["feature"] + 1
+            return out
+
+    ByoEstimator.seen_columns.clear()
+    results = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [ByoEstimator],
+        featuresets=["full"], feature_pipelines={"full": ByoPipeline()},
+    )
+
+    assert ByoEstimator.seen_columns
+    assert all("derived" in columns and "feature" in columns for columns in ByoEstimator.seen_columns)
+    assert "error" not in results.columns
+    assert set(results["featureset"]) == {"(byo)"}
 
 
 def test_invalid_fold_isolated_for_each_seed_without_control_frame_slice(

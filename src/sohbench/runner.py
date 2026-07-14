@@ -8,6 +8,7 @@ from .features import unified_features
 from .featuresets import project
 from .registry import get_featureset
 from .fabric.views import make_fold_views
+from .fabric import FeatureState, IdentityFeaturePipeline
 import sohbench.featuresets  # noqa: F401 — ensure the 5 named sets are registered
 
 
@@ -46,12 +47,33 @@ def _copy_callback_meta(meta):
     return copy.deepcopy(meta)
 
 
+def _transform_fold(pipeline, frame, state, meta, target):
+    transformed = pipeline.transform(_copy_fold_frame(frame), state, _copy_callback_meta(meta))
+    if not isinstance(transformed, pd.DataFrame):
+        raise ValueError("feature pipeline did not return a DataFrame")
+    if len(transformed) != len(frame):
+        raise ValueError("feature pipeline changed row count")
+    if not transformed.index.equals(frame.index):
+        raise ValueError("feature pipeline changed row index")
+    for column in ("dataset", "cell_id", "cycle_index"):
+        if column in frame.columns and (column not in transformed.columns or not transformed[column].equals(frame[column])):
+            raise ValueError(f"feature pipeline changed identity column {column!r}")
+    return transformed.drop(columns=[target], errors="ignore").copy(deep=True)
+
+
+def _control_table(features, target, values):
+    control = features.copy(deep=True)
+    control[target] = pd.Series(values, index=control.index, copy=True)
+    return control
+
+
 class BenchmarkRunner:
     def __init__(self, seeds=(0, 1, 2, 3, 4)):
         self.seeds = list(seeds)
 
     def run(self, task, table, meta, protocols, estimators,
-            featuresets=None, on_model_fitted=None, on_predictions=None) -> pd.DataFrame:
+            featuresets=None, feature_pipelines=None, on_model_fitted=None,
+            on_predictions=None) -> pd.DataFrame:
         """Run the benchmark matrix over estimators × protocols × featuresets × seeds.
 
         Parameters
@@ -64,6 +86,7 @@ class BenchmarkRunner:
         """
         if featuresets is None:
             featuresets = ["full"]
+        feature_pipelines = feature_pipelines or {}
 
         records = []
 
@@ -73,32 +96,47 @@ class BenchmarkRunner:
             est_backend = getattr(est_factory, "backend", "sklearn")
             is_byo = est_feature_mode == "byo"
 
-            if is_byo:
-                # BYO estimators: single pseudo-featureset, no projection
-                fs_iterations = [("(byo)", table, "byo")]
-            else:
-                # Unified estimators: project table to each requested featureset
-                fs_iterations = [
-                    (fs_name, project(table, fs_name), "unified")
-                    for fs_name in featuresets
-                ]
+            for pname, proto in protocols.items():
+                cross = getattr(proto, "cross_domain", False)
+                for fi, fold in enumerate(proto.generate(table, meta)):
+                    try:
+                        views = make_fold_views(table, fold, task.target)
+                        sample_frame = table.iloc[fold.test_idx].copy() if on_predictions is not None else None
+                        view_error = None
+                    except Exception as error:
+                        views = None
+                        sample_frame = None
+                        view_error = error
 
-            for fs_name, data_table, track in fs_iterations:
-                for pname, proto in protocols.items():
-                    cross = getattr(proto, "cross_domain", False)
-                    for fi, fold in enumerate(proto.generate(data_table, meta)):
-                        train_control = test_control = sample_frame = None
+                    byo_pipeline_name = next((name for name in featuresets if name in feature_pipelines), None)
+                    fs_iterations = [("(byo)", "byo", feature_pipelines.get(byo_pipeline_name) or IdentityFeaturePipeline(), byo_pipeline_name)] if is_byo else [
+                        (fs_name, "unified", feature_pipelines.get(fs_name) or IdentityFeaturePipeline(), fs_name if fs_name in feature_pipelines else None)
+                        for fs_name in featuresets
+                    ]
+                    for fs_name, track, pipeline, pipeline_name in fs_iterations:
+                        feature_state = FeatureState.create({"kind": "unavailable"})
                         try:
-                            views = make_fold_views(data_table, fold, task.target)
-                            if on_model_fitted is not None:
-                                train_control = data_table.iloc[fold.train_idx].copy()
-                                test_control = data_table.iloc[fold.test_idx].copy()
-                            if on_predictions is not None:
-                                sample_frame = table.iloc[fold.test_idx].copy()
-                            view_error = None
+                            if view_error is not None:
+                                raise view_error
+                            feature_state = pipeline.fit(
+                                _copy_fold_frame(views.train_x),
+                                views.train_y.copy(),
+                                _copy_callback_meta(meta),
+                            )
+                            transformed_train = _transform_fold(pipeline, views.train_x, feature_state, meta, task.target)
+                            transformed_test = _transform_fold(pipeline, views.test_x, feature_state, meta, task.target)
+                            if is_byo:
+                                fit_train_x, fit_test_x = transformed_train, transformed_test
+                            else:
+                                fit_train_x = project(transformed_train, fs_name)
+                                fit_test_x = project(transformed_test, fs_name)
+                            train_control = _control_table(fit_train_x, task.target, views.train_y)
+                            test_control = _control_table(fit_test_x, task.target, views.test_y)
+                            feature_error = None
                         except Exception as error:
-                            views = None
-                            view_error = error
+                            fit_train_x = fit_test_x = train_control = test_control = None
+                            feature_error = error
+
                         for seed in self.seeds:
                             np.random.seed(seed)
                             rec_base = dict(
@@ -108,12 +146,13 @@ class BenchmarkRunner:
                                 featureset=fs_name, track=track,
                                 feature_mode=est_feature_mode,
                                 backend=est_backend,
+                                feature_state_digest=feature_state.digest,
                             )
                             try:
-                                if view_error is not None:
-                                    raise view_error
-                                train_x = _copy_fold_frame(views.train_x)
-                                test_x = _copy_fold_frame(views.test_x)
+                                if feature_error is not None:
+                                    raise feature_error
+                                train_x = _copy_fold_frame(fit_train_x)
+                                test_x = _copy_fold_frame(fit_test_x)
                                 train_y = views.train_y.copy()
                                 test_y = views.test_y.copy()
                                 algorithm_meta = _copy_algorithm_meta(meta, task.target)
@@ -135,9 +174,12 @@ class BenchmarkRunner:
                                     on_model_fitted(
                                         estimator=est,
                                         record=dict(rec_base),
-                                        train_table=train_control.copy(),
-                                        test_table=test_control.copy(),
+                                        train_table=train_control.copy(deep=True),
+                                        test_table=test_control.copy(deep=True),
                                         meta=_copy_callback_meta(meta),
+                                        feature_state=feature_state,
+                                        feature_pipeline=pipeline,
+                                        feature_pipeline_name=pipeline_name,
                                     )
                                 yp = est.predict(test_x, algorithm_meta)
                                 row = self._point_metrics(task, test_y, yp)
@@ -147,7 +189,7 @@ class BenchmarkRunner:
                                 if on_predictions is not None:
                                     on_predictions(
                                         record=dict(rec_base),
-                                        sample_frame=sample_frame.copy(),
+                                        sample_frame=sample_frame.copy(deep=True),
                                         y_pred=yp,
                                         interval_low=lo,
                                         interval_high=hi,

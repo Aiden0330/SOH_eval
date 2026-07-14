@@ -97,12 +97,9 @@ def test_register_battery_soh_plugins_adds_catalog_resources_and_runs(tmp_path):
 
     table = _sample_frame()
     transformed = store.apply_feature_transforms(table, pd.DataFrame(), ["battery_soh_operational"])
-    for column in [
-        "battery_soh_cycle_norm",
-        "battery_soh_voltage_sag",
-        "battery_soh_resistance_growth",
-    ]:
-        assert column in transformed.columns
+    assert "battery_soh_voltage_sag" in transformed.columns
+    assert "battery_soh_cycle_norm" not in transformed.columns
+    assert "battery_soh_resistance_growth" not in transformed.columns
 
     estimator_cls = R.get_estimator("battery_soh_tabular_ensemble")
     estimator = estimator_cls().fit(transformed, transformed["soh"].to_numpy(), pd.DataFrame())
@@ -241,9 +238,7 @@ frame = pd.DataFrame({{
     'cell_id': ['c1', 'c1'],
     'cycle_index': [0, 1],
     'soh': [1.0, 0.99],
-    'battery_soh_cycle_norm': [0.0, 0.2],
     'battery_soh_voltage_sag': [0.0, 0.02],
-    'battery_soh_resistance_growth': [0.0, 0.001],
 }})
 pred = loaded.predict(frame, pd.DataFrame())
 print(json.dumps({{'n': len(pred)}}))

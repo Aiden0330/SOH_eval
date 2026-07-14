@@ -21,6 +21,7 @@ from .report import write_artifacts, write_inference_artifacts
 from .runner import BenchmarkRunner
 from .tasks import SOHEstimationTask
 from .trusted_plugins import TrustedPluginStore
+from .fabric import FeatureState, IdentityFeaturePipeline
 
 
 PROTOCOLS = {
@@ -168,9 +169,13 @@ class EvaluationService:
             loader = DatasetLoader(self.data_dir)
             datasets = loader.resolve_datasets(request["datasets"])
             table, meta, qc = loader.load(datasets)
-            table = self.store.apply_feature_transforms(table, meta, request["featuresets"])
             estimators = [R.get_estimator(name) for name in request["estimators"]]
             protocols = {name: PROTOCOLS[name]() for name in request["protocols"]}
+            feature_pipelines = {
+                name: pipeline
+                for name in request["featuresets"]
+                if (pipeline := self.store.feature_pipeline(name)) is not None
+            }
             saved_models = []
             model_warnings = []
 
@@ -178,6 +183,8 @@ class EvaluationService:
                 record = kwargs["record"]
                 fitted = kwargs["estimator"]
                 train_table = kwargs["train_table"]
+                feature_state = kwargs["feature_state"]
+                feature_pipeline_name = kwargs["feature_pipeline_name"]
                 fs_name = str(record.get("featureset", "full"))
                 model_name = "_".join(
                     [
@@ -194,7 +201,7 @@ class EvaluationService:
                     "estimator": str(record["estimator"]),
                     "featureset": fs_name,
                     "feature_columns": feature_columns(train_table),
-                    "input_columns": list(map(str, train_table.columns)),
+                    "input_columns": [str(column) for column in train_table.columns if column != "soh"],
                     "target": "soh",
                     "trained_on": sorted(map(str, train_table["dataset"].dropna().unique())),
                     "held_out_key": str(record["held_out_key"]),
@@ -202,6 +209,8 @@ class EvaluationService:
                     "seed": int(record["seed"]),
                     "created_by_run": job_id,
                     "predict_contract": "predict(X, meta=None)",
+                    "feature_state": feature_state.to_dict(),
+                    "feature_pipeline": feature_pipeline_name,
                 }
                 try:
                     saved_models.append(
@@ -222,6 +231,7 @@ class EvaluationService:
                 protocols=protocols,
                 estimators=estimators,
                 featuresets=request["featuresets"],
+                feature_pipelines=feature_pipelines,
                 on_model_fitted=save_fitted_model,
             )
             results["dataset"] = ",".join(datasets)
@@ -281,13 +291,10 @@ class EvaluationService:
             datasets = loader.resolve_datasets(request["datasets"])
             table, meta, _qc = loader.load(datasets)
             inferred_featuresets = self._featuresets_for_models(request["models"])
-            table = self.store.apply_feature_transforms(table, meta, inferred_featuresets)
-            records = run_inference_benchmark(
-                self.model_store,
-                table,
-                meta,
-                request["models"],
-            )
+            records = []
+            for model_name in request["models"]:
+                prepared = self._prepare_inference_table(model_name, table, meta)
+                records.extend(run_inference_benchmark(self.model_store, prepared, meta, [model_name]))
             raw_run_dir = Path(
                 write_inference_artifacts(
                     records,
@@ -415,6 +422,27 @@ class EvaluationService:
             if name and name not in featuresets:
                 featuresets.append(name)
         return featuresets
+
+    def _prepare_inference_table(self, model_name: str, table, meta):
+        loaded = self.model_store.load_model(model_name)
+        featureset = str(loaded.manifest.get("featureset") or "full")
+        pipeline_name = str(loaded.manifest.get("feature_pipeline") or featureset)
+        pipeline = self.store.feature_pipeline(pipeline_name) or IdentityFeaturePipeline()
+        state_document = loaded.manifest.get("feature_state")
+        if state_document is None:
+            state = pipeline.fit(table.drop(columns=["soh"], errors="ignore"), [], meta)
+        else:
+            state = FeatureState.from_dict(state_document)
+        source = table.drop(columns=["soh"], errors="ignore")
+        transformed = pipeline.transform(source, state, meta)
+        if not isinstance(transformed, type(table)) and not hasattr(transformed, "columns"):
+            raise ValueError(f"feature pipeline for model {model_name!r} did not return a DataFrame")
+        if len(transformed) != len(table) or not transformed.index.equals(table.index):
+            raise ValueError(f"feature pipeline for model {model_name!r} changed inference rows")
+        if "soh" in table.columns:
+            transformed = transformed.copy(deep=True)
+            transformed["soh"] = table["soh"].copy(deep=True)
+        return transformed
 
     def _publish_frontend_artifacts(self, raw_run_dir: Path) -> Path:
         sync_frontend_artifacts(raw_run_dir, self.frontend_data_dir)

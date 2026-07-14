@@ -105,34 +105,21 @@ import pandas as pd
 
 FEATURESET_NAME = "{FEATURESET_NAME}"
 FEATURE_COLUMNS = [
-    "battery_soh_cycle_norm",
     "battery_soh_voltage_sag",
-    "battery_soh_resistance_growth",
 ]
 
 
 def transform(table, meta=None):
     out = pd.DataFrame(table).copy()
-    out["battery_soh_cycle_norm"] = 0.0
     out["battery_soh_voltage_sag"] = 0.0
-    out["battery_soh_resistance_growth"] = 0.0
 
     group_cols = [col for col in ("dataset", "cell_id") if col in out.columns]
     groups = out.groupby(group_cols, sort=False) if group_cols else [(None, out)]
     for _, group in groups:
         idx = group.index
-        cycle = _numeric(group, "cycle_index", default=np.arange(len(group), dtype=float))
-        denom = float(cycle.max() - cycle.min()) if len(cycle) else 0.0
-        if denom <= 0:
-            out.loc[idx, "battery_soh_cycle_norm"] = 0.0
-        else:
-            out.loc[idx, "battery_soh_cycle_norm"] = (cycle - cycle.min()) / denom
-
         voltage = _numeric(group, "voltage_mean", default=np.zeros(len(group), dtype=float))
-        out.loc[idx, "battery_soh_voltage_sag"] = float(voltage.iloc[0]) - voltage
-
-        resistance = _numeric(group, "resistance_proxy", default=np.zeros(len(group), dtype=float))
-        out.loc[idx, "battery_soh_resistance_growth"] = resistance - float(resistance.iloc[0])
+        first_position = group["cycle_index"].astype(float).to_numpy().argmin() if "cycle_index" in group else 0
+        out.loc[idx, "battery_soh_voltage_sag"] = float(voltage.iloc[first_position]) - voltage
 
     return out
 

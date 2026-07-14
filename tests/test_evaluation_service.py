@@ -49,13 +49,11 @@ class Estimator:
 
 FEATURE_PLUGIN = b'''
 FEATURESET_NAME = "trusted_cycle_shape"
-FEATURE_COLUMNS = ["cycle_norm", "fade_from_full"]
+FEATURE_COLUMNS = ["cycle_feature"]
 
 def transform(table, meta=None):
     out = table.copy()
-    max_cycle = out.groupby(["dataset", "cell_id"])["cycle_index"].transform("max").replace(0, 1)
-    out["cycle_norm"] = out["cycle_index"] / max_cycle
-    out["fade_from_full"] = 1.0 - out["soh"]
+    out["cycle_feature"] = out["cycle_index"].astype(float)
     return out
 '''
 
@@ -192,6 +190,32 @@ def test_training_job_publishes_model_catalog(tmp_path):
     assert frontend_catalog.exists()
     models = json.loads(frontend_catalog.read_text(encoding="utf-8"))["models"]
     assert any(item["estimator"] == "ridge" for item in models)
+
+
+def test_saved_model_manifest_excludes_control_target_from_model_inputs(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset("plugin_eval_demo", "demo.csv", _dataset_csv())
+    job = service.create_job(
+        {
+            "datasets": ["plugin_eval_demo"],
+            "estimators": ["ridge"],
+            "featuresets": ["full"],
+            "protocols": ["loco"],
+            "seeds": [0],
+        },
+        start=False,
+    )
+
+    completed = service.run_job_inline(job["id"])
+    manifest = service.model_store.load_model(completed["saved_models"][0]).manifest
+
+    assert "soh" not in manifest["input_columns"]
+    assert manifest["feature_columns"] == ["voltage_mean", "resistance_proxy"]
 
 
 def test_inference_job_runs_uploaded_pickle_model(tmp_path):

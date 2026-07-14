@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from sohbench import registry as R
 from sohbench.data import DatasetLoader
@@ -83,13 +84,11 @@ def test_upload_featureset_plugin_registers_transforming_feature_set(tmp_path):
     store = TrustedPluginStore(base_dir=tmp_path / "plugins", data_dir=tmp_path / "data")
     code = b'''
 FEATURESET_NAME = "trusted_trend_features"
-FEATURE_COLUMNS = ["cycle_norm", "fade_from_full"]
+FEATURE_COLUMNS = ["cycle_feature"]
 
 def transform(table, meta=None):
     out = table.copy()
-    max_cycle = out.groupby(["dataset", "cell_id"])["cycle_index"].transform("max").replace(0, 1)
-    out["cycle_norm"] = out["cycle_index"] / max_cycle
-    out["fade_from_full"] = 1.0 - out["soh"]
+    out["cycle_feature"] = out["cycle_index"].astype(float)
     return out
 '''
 
@@ -106,10 +105,35 @@ def transform(table, meta=None):
 
     fs = get_featureset("trusted_trend_features")
     assert registered["name"] == "trusted_trend_features"
-    assert fs.columns(transformed) == ["cycle_norm", "fade_from_full"]
-    assert transformed["cycle_norm"].between(0, 1).all()
-    assert transformed["fade_from_full"].iloc[0] == 0
+    assert fs.columns(transformed) == ["cycle_feature"]
+    assert transformed["cycle_feature"].equals(transformed["cycle_index"].astype(float))
     assert any(item["name"] == "trusted_trend_features" for item in store.catalog()["featuresets"])
+
+
+def test_legacy_pipeline_rejects_a_state_from_changed_plugin_source(tmp_path):
+    store = TrustedPluginStore(base_dir=tmp_path / "plugins", data_dir=tmp_path / "data")
+    store.upload_featureset_plugin(
+        name="stable_source",
+        filename="stable_source.py",
+        payload=b'''
+FEATURESET_NAME = "stable_source"
+FEATURE_COLUMNS = ["stable_feature"]
+
+def transform(table, meta=None):
+    out = table.copy()
+    assert "soh" not in out.columns
+    out["stable_feature"] = out["cycle_index"]
+    return out
+''',
+    )
+    pipeline = store.feature_pipeline("stable_source")
+    frame = _dataset_frame().drop(columns=["soh"])
+    state = pipeline.fit(frame, np.empty(len(frame)), pd.DataFrame())
+    path = tmp_path / "plugins" / "featuresets" / "stable_source.py"
+    path.write_text(path.read_text(encoding="utf-8") + "\n# changed\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="plugin digest"):
+        pipeline.transform(frame, state, pd.DataFrame())
 
 
 def test_catalog_is_persisted_for_uploaded_resources(tmp_path):

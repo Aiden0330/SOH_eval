@@ -18,6 +18,7 @@ from . import registry as R
 from .contracts import feature_columns
 from .data import DatasetLoader, REQUIRED_COLUMNS
 from .featuresets import FeatureSet
+from .fabric import LegacyStatelessPipeline, assert_prefix_invariant
 
 
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*$")
@@ -137,23 +138,26 @@ class TrustedPluginStore:
         meta: pd.DataFrame | None,
         featuresets: list[str] | tuple[str, ...],
     ) -> pd.DataFrame:
-        out = table
+        out = table.copy(deep=True)
         for name in featuresets or []:
-            plugin = self._feature_plugins.get(str(name))
-            if plugin is None or plugin.transform is None:
+            pipeline = self.feature_pipeline(str(name))
+            if pipeline is None:
                 continue
-            before_rows = len(out)
-            transformed = plugin.transform(out.copy(), meta)
-            if not isinstance(transformed, pd.DataFrame):
-                raise TrustedPluginError(f"feature transform {name!r} did not return a DataFrame")
-            if len(transformed) != before_rows:
-                raise TrustedPluginError(f"feature transform {name!r} changed row count")
+            target = out["soh"].copy(deep=True) if "soh" in out.columns else None
+            state = pipeline.fit(out.drop(columns=["soh"], errors="ignore"), np.empty(len(out)), meta)
+            transformed = pipeline.transform(out.drop(columns=["soh"], errors="ignore"), state, meta)
+            if target is not None:
+                transformed = transformed.copy(deep=True)
+                transformed["soh"] = target
             _validate_dataset_table(transformed)
-            missing = [col for col in plugin.candidates if col not in transformed.columns]
-            if missing:
-                raise TrustedPluginError(f"feature transform {name!r} did not create columns: {missing}")
             out = transformed
         return out
+
+    def feature_pipeline(self, name: str):
+        plugin = self._feature_plugins.get(str(name))
+        if plugin is None or plugin.transform is None:
+            return None
+        return LegacyStatelessPipeline(plugin.name, plugin.candidates, plugin.transform, plugin.path)
 
     def catalog(self) -> dict:
         datasets = []
@@ -239,6 +243,12 @@ class TrustedPluginStore:
         if plugin.name in R._FEATURESETS and not replace:
             raise TrustedPluginError(f"featureset already registered: {plugin.name}")
         _smoke_featureset_plugin(plugin)
+        pipeline = LegacyStatelessPipeline(plugin.name, plugin.candidates, plugin.transform, plugin.path) if plugin.transform else None
+        if pipeline is not None:
+            try:
+                assert_prefix_invariant(pipeline, _smoke_table(), pd.DataFrame())
+            except ValueError as exc:
+                raise TrustedPluginError(str(exc)) from exc
         R._FEATURESETS[plugin.name] = FeatureSet(plugin.name, plugin.candidates)
         self._feature_plugins[plugin.name] = plugin
         return plugin
@@ -388,13 +398,21 @@ def _smoke_estimator(cls: type) -> None:
 
 def _smoke_featureset_plugin(plugin: FeaturePlugin) -> None:
     table = _smoke_table()
-    transformed = plugin.transform(table.copy(), pd.DataFrame()) if plugin.transform else table
+    if plugin.transform:
+        pipeline = LegacyStatelessPipeline(plugin.name, plugin.candidates, plugin.transform, plugin.path)
+        try:
+            state = pipeline.fit(table.drop(columns=["soh"]), table["soh"].to_numpy(), pd.DataFrame())
+            transformed = pipeline.transform(table.drop(columns=["soh"]), state, pd.DataFrame())
+        except ValueError as exc:
+            raise TrustedPluginError(str(exc)) from exc
+    else:
+        transformed = table
     if not isinstance(transformed, pd.DataFrame):
         raise TrustedPluginError("feature transform did not return a DataFrame")
     if len(transformed) != len(table):
         raise TrustedPluginError("feature transform changed row count")
     if plugin.transform and not plugin.candidates:
-        plugin.candidates = [col for col in feature_columns(transformed) if col not in feature_columns(table)]
+        plugin.candidates = [col for col in feature_columns(transformed) if col not in feature_columns(table.drop(columns=["soh"]))]
     missing = [col for col in plugin.candidates if col not in feature_columns(transformed)]
     if missing:
         raise TrustedPluginError(f"featureset columns are missing after transform: {missing}")
