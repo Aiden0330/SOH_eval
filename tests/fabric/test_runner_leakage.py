@@ -50,6 +50,45 @@ class SpyEstimator:
         return center, center
 
 
+class MutatingEstimator:
+    name = "mutating"
+    feature_mode = "unified"
+    backend = "external"
+    seen_train_values = []
+    seen_test_values = []
+
+    def fit(self, X, y, meta=None):
+        assert "soh" not in X.columns
+        assert "soh" not in meta.columns
+        self.seen_train_values.append(float(X.iloc[0]["feature"]))
+        X.iloc[0, X.columns.get_loc("feature")] = -999.0
+        y[0] = -999.0
+        return self
+
+    def predict(self, X, meta=None):
+        assert "soh" not in X.columns
+        assert "soh" not in meta.columns
+        self.seen_test_values.append(float(X.iloc[0]["feature"]))
+        X.iloc[0, X.columns.get_loc("feature")] = -888.0
+        return np.zeros(len(X))
+
+    def predict_interval(self, X, meta=None):
+        center = self.predict(X, meta)
+        return center, center
+
+
+class SetSeedOnlyEstimator:
+    name = "set_seed_only"
+    feature_mode = "unified"
+    backend = "external"
+
+    def __init__(self):
+        self.seed = None
+
+    def set_seed(self, seed):
+        self.seed = seed
+
+
 def test_runner_strips_target_and_propagates_seed(simple_table, simple_meta):
     SpyEstimator.seen_random_states.clear()
     BenchmarkRunner(seeds=[3, 9]).run(
@@ -69,6 +108,56 @@ def test_runner_deepcopies_instance_and_sets_seed_without_pollution(simple_table
     )
     assert original.random_state == 17
     assert set(SpyEstimator.seen_fit_random_states) == {3, 9}
+
+
+def test_class_with_only_set_seed_receives_evaluation_seed():
+    estimator = runner_module._instantiate_estimator(SetSeedOnlyEstimator, 23)
+    assert estimator.seed == 23
+
+
+def test_each_seed_gets_unpolluted_algorithm_views(simple_table, simple_meta):
+    MutatingEstimator.seen_train_values.clear()
+    MutatingEstimator.seen_test_values.clear()
+    BenchmarkRunner(seeds=[0, 1]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [MutatingEstimator],
+    )
+    assert set(MutatingEstimator.seen_train_values) == {0.0}
+    assert set(MutatingEstimator.seen_test_values[::2]) == {0.0}
+
+
+def test_model_callback_meta_isolated_from_algorithm_and_caller(simple_table):
+    class MetaEstimator(SpyEstimator):
+        seen_meta_columns = []
+
+        def fit(self, X, y, meta=None):
+            assert "soh" not in meta.columns
+            return super().fit(X, y, meta)
+
+        def predict(self, X, meta=None):
+            assert "soh" not in meta.columns
+            self.seen_meta_columns.append(tuple(meta.columns))
+            return super().predict(X, meta)
+
+    caller_meta = pd.DataFrame({"soh": [1.0], "meta_feature": [2.0]})
+    seen = []
+
+    def on_model_fitted(**kwargs):
+        seen.append(kwargs["meta"])
+        kwargs["meta"]["soh"] = -1.0
+        kwargs["meta"]["callback_only"] = 7.0
+
+    BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, caller_meta,
+        {"loco": LeaveOneCellOut()}, [MetaEstimator],
+        on_model_fitted=on_model_fitted,
+    )
+
+    assert seen
+    assert all("soh" not in columns for columns in MetaEstimator.seen_meta_columns)
+    assert list(caller_meta.columns) == ["soh", "meta_feature"]
+    assert caller_meta["soh"].tolist() == [1.0]
+    assert caller_meta["meta_feature"].tolist() == [2.0]
 
 
 def test_prediction_callback_has_stable_sample_ids_but_algorithm_never_sees_truth(simple_table, simple_meta):

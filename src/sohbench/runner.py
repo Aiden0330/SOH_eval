@@ -14,14 +14,36 @@ import sohbench.featuresets  # noqa: F401 — ensure the 5 named sets are regist
 def _instantiate_estimator(factory, seed):
     if isinstance(factory, type):
         params = inspect.signature(factory).parameters
-        return factory(random_state=seed) if "random_state" in params else factory()
-    estimator = copy.deepcopy(factory)
+        estimator = factory(random_state=seed) if "random_state" in params else factory()
+    else:
+        estimator = copy.deepcopy(factory)
     setter = getattr(estimator, "set_seed", None)
     if callable(setter):
         setter(seed)
     elif hasattr(estimator, "random_state"):
         estimator.random_state = seed
     return estimator
+
+
+def _copy_fold_frame(frame):
+    """Copy a fold frame safely without redoing fold construction."""
+    if int(pd.__version__.split(".", 1)[0]) >= 3:
+        return frame.copy(deep=False)
+    if pd.get_option("mode.copy_on_write") is True:
+        return frame.copy(deep=False)
+    return frame.copy(deep=True)
+
+
+def _copy_algorithm_meta(meta, target):
+    if isinstance(meta, pd.DataFrame):
+        return meta.drop(columns=[target], errors="ignore").copy(deep=True)
+    return copy.deepcopy(meta)
+
+
+def _copy_callback_meta(meta):
+    if isinstance(meta, pd.DataFrame):
+        return meta.copy(deep=True)
+    return copy.deepcopy(meta)
 
 
 class BenchmarkRunner:
@@ -90,6 +112,11 @@ class BenchmarkRunner:
                             try:
                                 if view_error is not None:
                                     raise view_error
+                                train_x = _copy_fold_frame(views.train_x)
+                                test_x = _copy_fold_frame(views.test_x)
+                                train_y = views.train_y.copy()
+                                test_y = views.test_y.copy()
+                                algorithm_meta = _copy_algorithm_meta(meta, task.target)
                                 est = _instantiate_estimator(est_factory, seed)
                                 native_ci = hasattr(est, "predict_interval")
                                 if not native_ci:
@@ -103,20 +130,20 @@ class BenchmarkRunner:
                                         rec_base["ci_source"] = "conformal"
                                 else:
                                     rec_base["ci_source"] = "native"
-                                est.fit(views.train_x, views.train_y, meta)
+                                est.fit(train_x, train_y, algorithm_meta)
                                 if on_model_fitted is not None:
                                     on_model_fitted(
                                         estimator=est,
                                         record=dict(rec_base),
                                         train_table=train_control.copy(),
                                         test_table=test_control.copy(),
-                                        meta=meta,
+                                        meta=_copy_callback_meta(meta),
                                     )
-                                yp = est.predict(views.test_x, meta)
-                                row = self._point_metrics(task, views.test_y, yp)
-                                lo, hi = est.predict_interval(views.test_x, meta)
-                                row["picp"] = M.picp(views.test_y, lo, hi)
-                                row.update(self._trajectory_metrics(task, views.test_x, yp))
+                                yp = est.predict(test_x, algorithm_meta)
+                                row = self._point_metrics(task, test_y, yp)
+                                lo, hi = est.predict_interval(test_x, algorithm_meta)
+                                row["picp"] = M.picp(test_y, lo, hi)
+                                row.update(self._trajectory_metrics(task, test_x, yp))
                                 if on_predictions is not None:
                                     on_predictions(
                                         record=dict(rec_base),
