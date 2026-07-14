@@ -1,15 +1,17 @@
 from __future__ import annotations
+
 import copy
 import inspect
-import numpy as np, pandas as pd
+
+import numpy as np
+import pandas as pd
+
 from . import metrics as M
 from .conformal import ConformalWrapper, WeightedConformalWrapper
-from .features import unified_features
-from .featuresets import project
-from .registry import get_featureset
+from .fabric import FeatureState, IdentityFeaturePipeline, clone_for_fold, scoped_meta_for_frame
 from .fabric.views import make_fold_views
-from .fabric import FeatureState, IdentityFeaturePipeline
-import sohbench.featuresets  # noqa: F401 — ensure the 5 named sets are registered
+from .featuresets import project
+import sohbench.featuresets  # noqa: F401
 
 
 def _instantiate_estimator(factory, seed):
@@ -27,190 +29,131 @@ def _instantiate_estimator(factory, seed):
 
 
 def _copy_fold_frame(frame):
-    """Copy a fold frame safely without redoing fold construction."""
-    if int(pd.__version__.split(".", 1)[0]) >= 3:
-        return frame.copy(deep=False)
-    if pd.get_option("mode.copy_on_write") is True:
+    if int(pd.__version__.split(".", 1)[0]) >= 3 or pd.get_option("mode.copy_on_write") is True:
         return frame.copy(deep=False)
     return frame.copy(deep=True)
 
 
-def _copy_algorithm_meta(meta, target):
-    if isinstance(meta, pd.DataFrame):
-        return meta.drop(columns=[target], errors="ignore").copy(deep=True)
-    return copy.deepcopy(meta)
-
-
-def _copy_callback_meta(meta):
-    if isinstance(meta, pd.DataFrame):
-        return meta.copy(deep=True)
-    return copy.deepcopy(meta)
-
-
 def _transform_fold(pipeline, frame, state, meta, target):
-    transformed = pipeline.transform(_copy_fold_frame(frame), state, _copy_callback_meta(meta))
+    transformed = pipeline.transform(_copy_fold_frame(frame), state, scoped_meta_for_frame(meta, frame, target))
     if not isinstance(transformed, pd.DataFrame):
         raise ValueError("feature pipeline did not return a DataFrame")
-    if len(transformed) != len(frame):
-        raise ValueError("feature pipeline changed row count")
-    if not transformed.index.equals(frame.index):
-        raise ValueError("feature pipeline changed row index")
+    if len(transformed) != len(frame) or not transformed.index.equals(frame.index):
+        raise ValueError("feature pipeline changed rows or index")
     for column in ("dataset", "cell_id", "cycle_index"):
         if column in frame.columns and (column not in transformed.columns or not transformed[column].equals(frame[column])):
             raise ValueError(f"feature pipeline changed identity column {column!r}")
     return transformed.drop(columns=[target], errors="ignore").copy(deep=True)
 
 
-def _control_table(features, target, values):
-    control = features.copy(deep=True)
-    control[target] = pd.Series(values, index=control.index, copy=True)
-    return control
-
-
 class BenchmarkRunner:
     def __init__(self, seeds=(0, 1, 2, 3, 4)):
         self.seeds = list(seeds)
 
-    def run(self, task, table, meta, protocols, estimators,
-            featuresets=None, feature_pipelines=None, on_model_fitted=None,
-            on_predictions=None) -> pd.DataFrame:
-        """Run the benchmark matrix over estimators × protocols × featuresets × seeds.
-
-        Parameters
-        ----------
-        featuresets:
-            List of featureset names to iterate over for *unified* estimators,
-            e.g. ``["full", "voltage"]``.  Defaults to ``["full"]`` when *None*
-            (backward-compatible).  BYO estimators ignore this parameter and
-            always receive the full (unprojected) table.
-        """
-        if featuresets is None:
-            featuresets = ["full"]
+    def run(self, task, table, meta, protocols, estimators, featuresets=None, feature_pipelines=None, on_model_fitted=None, on_predictions=None) -> pd.DataFrame:
+        featuresets = ["full"] if featuresets is None else list(featuresets)
         feature_pipelines = feature_pipelines or {}
-
         records = []
+        folds = [
+            (pname, getattr(proto, "cross_domain", False), fi, fold)
+            for pname, proto in protocols.items()
+            for fi, fold in enumerate(proto.generate(table, meta))
+        ]
+        views_cache, prepared_cache = {}, {}
+
+        def views_for(pname, fi, fold):
+            key = (pname, fi)
+            if key not in views_cache:
+                try:
+                    views_cache[key] = (make_fold_views(table, fold, task.target), None)
+                except Exception as exc:
+                    views_cache[key] = (None, exc)
+            return views_cache[key]
+
+        def prepared_for(pname, fi, fold, fs_name, track, pipeline_name):
+            key = (pname, fi, fs_name, track, pipeline_name)
+            if key in prepared_cache:
+                return prepared_cache[key]
+            views, view_error = views_for(pname, fi, fold)
+            state = FeatureState.create({"kind": "unavailable"})
+            try:
+                if view_error is not None:
+                    raise view_error
+                template = feature_pipelines.get(pipeline_name) if pipeline_name else IdentityFeaturePipeline()
+                fitting_pipeline = clone_for_fold(template)
+                train_meta = scoped_meta_for_frame(meta, views.train_x, task.target)
+                state = fitting_pipeline.fit(_copy_fold_frame(views.train_x), views.train_y.copy(), train_meta)
+                transformed_train = _transform_fold(clone_for_fold(template), views.train_x, state, meta, task.target)
+                transformed_test = _transform_fold(clone_for_fold(template), views.test_x, state, meta, task.target)
+                train_x, test_x = (transformed_train, transformed_test) if track == "byo" else (project(transformed_train, fs_name), project(transformed_test, fs_name))
+                value = (train_x, test_x, state, None)
+            except Exception as exc:
+                value = (None, None, state, exc)
+            prepared_cache[key] = value
+            return value
 
         for est_factory in estimators:
             est_name = getattr(est_factory, "name", est_factory.__class__.__name__)
-            est_feature_mode = getattr(est_factory, "feature_mode", "unified")
-            est_backend = getattr(est_factory, "backend", "sklearn")
-            is_byo = est_feature_mode == "byo"
-
-            for pname, proto in protocols.items():
-                cross = getattr(proto, "cross_domain", False)
-                for fi, fold in enumerate(proto.generate(table, meta)):
-                    try:
-                        views = make_fold_views(table, fold, task.target)
-                        sample_frame = table.iloc[fold.test_idx].copy() if on_predictions is not None else None
-                        view_error = None
-                    except Exception as error:
-                        views = None
-                        sample_frame = None
-                        view_error = error
-
-                    byo_pipeline_name = next((name for name in featuresets if name in feature_pipelines), None)
-                    fs_iterations = [("(byo)", "byo", feature_pipelines.get(byo_pipeline_name) or IdentityFeaturePipeline(), byo_pipeline_name)] if is_byo else [
-                        (fs_name, "unified", feature_pipelines.get(fs_name) or IdentityFeaturePipeline(), fs_name if fs_name in feature_pipelines else None)
-                        for fs_name in featuresets
-                    ]
-                    for fs_name, track, pipeline, pipeline_name in fs_iterations:
-                        feature_state = FeatureState.create({"kind": "unavailable"})
+            feature_mode = getattr(est_factory, "feature_mode", "unified")
+            backend = getattr(est_factory, "backend", "sklearn")
+            is_byo = feature_mode == "byo"
+            byo_name = next((name for name in featuresets if name in feature_pipelines), None)
+            fs_iterations = [("(byo)", "byo", byo_name)] if is_byo else [
+                (name, "unified", name if name in feature_pipelines else None) for name in featuresets
+            ]
+            for pname, cross, fi, fold in folds:
+                views, view_error = views_for(pname, fi, fold)
+                for fs_name, track, pipeline_name in fs_iterations:
+                    fit_train_x, fit_test_x, feature_state, feature_error = prepared_for(pname, fi, fold, fs_name, track, pipeline_name)
+                    for seed in self.seeds:
+                        np.random.seed(seed)
+                        rec_base = {
+                            "estimator": est_name, "protocol": pname, "held_out_key": fold.held_out_key,
+                            "fold": fi, "seed": seed, "ci_source": "conformal", "featureset": fs_name,
+                            "track": track, "feature_mode": feature_mode, "backend": backend,
+                            "feature_state_digest": feature_state.digest,
+                        }
                         try:
-                            if view_error is not None:
-                                raise view_error
-                            feature_state = pipeline.fit(
-                                _copy_fold_frame(views.train_x),
-                                views.train_y.copy(),
-                                _copy_callback_meta(meta),
-                            )
-                            transformed_train = _transform_fold(pipeline, views.train_x, feature_state, meta, task.target)
-                            transformed_test = _transform_fold(pipeline, views.test_x, feature_state, meta, task.target)
-                            if is_byo:
-                                fit_train_x, fit_test_x = transformed_train, transformed_test
+                            if feature_error is not None:
+                                raise feature_error
+                            train_x, test_x = _copy_fold_frame(fit_train_x), _copy_fold_frame(fit_test_x)
+                            train_y, test_y = views.train_y.copy(), views.test_y.copy()
+                            train_meta = scoped_meta_for_frame(meta, train_x, task.target)
+                            test_meta = scoped_meta_for_frame(meta, test_x, task.target)
+                            est = _instantiate_estimator(est_factory, seed)
+                            if not hasattr(est, "predict_interval"):
+                                alpha = 1 - task.acceptance["calibration"]["nominal"]
+                                est = WeightedConformalWrapper(est, alpha=alpha, random_state=seed) if cross else ConformalWrapper(est, alpha=alpha)
+                                rec_base["ci_source"] = "weighted_conformal" if cross else "conformal"
                             else:
-                                fit_train_x = project(transformed_train, fs_name)
-                                fit_test_x = project(transformed_test, fs_name)
-                            train_control = _control_table(fit_train_x, task.target, views.train_y)
-                            test_control = _control_table(fit_test_x, task.target, views.test_y)
-                            feature_error = None
-                        except Exception as error:
-                            fit_train_x = fit_test_x = train_control = test_control = None
-                            feature_error = error
-
-                        for seed in self.seeds:
-                            np.random.seed(seed)
-                            rec_base = dict(
-                                estimator=est_name, protocol=pname,
-                                held_out_key=fold.held_out_key, fold=fi,
-                                seed=seed, ci_source="conformal",
-                                featureset=fs_name, track=track,
-                                feature_mode=est_feature_mode,
-                                backend=est_backend,
-                                feature_state_digest=feature_state.digest,
-                            )
-                            try:
-                                if feature_error is not None:
-                                    raise feature_error
-                                train_x = _copy_fold_frame(fit_train_x)
-                                test_x = _copy_fold_frame(fit_test_x)
-                                train_y = views.train_y.copy()
-                                test_y = views.test_y.copy()
-                                algorithm_meta = _copy_algorithm_meta(meta, task.target)
-                                est = _instantiate_estimator(est_factory, seed)
-                                native_ci = hasattr(est, "predict_interval")
-                                if not native_ci:
-                                    alpha = 1 - task.acceptance["calibration"]["nominal"]
-                                    if cross:
-                                        est = WeightedConformalWrapper(est, alpha=alpha,
-                                                                        random_state=seed)
-                                        rec_base["ci_source"] = "weighted_conformal"
-                                    else:
-                                        est = ConformalWrapper(est, alpha=alpha)
-                                        rec_base["ci_source"] = "conformal"
-                                else:
-                                    rec_base["ci_source"] = "native"
-                                est.fit(train_x, train_y, algorithm_meta)
-                                if on_model_fitted is not None:
-                                    on_model_fitted(
-                                        estimator=est,
-                                        record=dict(rec_base),
-                                        train_table=train_control.copy(deep=True),
-                                        test_table=test_control.copy(deep=True),
-                                        meta=_copy_callback_meta(meta),
-                                        feature_state=feature_state,
-                                        feature_pipeline=pipeline,
-                                        feature_pipeline_name=pipeline_name,
-                                    )
-                                yp = est.predict(test_x, algorithm_meta)
-                                row = self._point_metrics(task, test_y, yp)
-                                lo, hi = est.predict_interval(test_x, algorithm_meta)
-                                row["picp"] = M.picp(test_y, lo, hi)
-                                row.update(self._trajectory_metrics(task, test_x, yp))
-                                if on_predictions is not None:
-                                    on_predictions(
-                                        record=dict(rec_base),
-                                        sample_frame=sample_frame.copy(deep=True),
-                                        y_pred=yp,
-                                        interval_low=lo,
-                                        interval_high=hi,
-                                    )
-                            except Exception as e:  # isolate failed fold
-                                row = {m: float("nan") for m in
-                                       (*task.point_metrics, *task.interval_metrics,
-                                        *task.trajectory_metrics)}
-                                rec_base["error"] = str(e)
-                            for metric, value in row.items():
-                                records.append({**rec_base, "metric": metric, "value": value})
-
+                                rec_base["ci_source"] = "native"
+                            est.fit(train_x, train_y, train_meta)
+                            yp = est.predict(test_x, test_meta)
+                            row = self._point_metrics(task, test_y, yp)
+                            lo, hi = est.predict_interval(test_x, test_meta)
+                            row["picp"] = M.picp(test_y, lo, hi)
+                            row.update(self._trajectory_metrics(task, test_x, yp))
+                            if on_model_fitted is not None:
+                                on_model_fitted(
+                                    estimator=est, record=dict(rec_base), train_table=train_x.copy(deep=True),
+                                    test_table=test_x.copy(deep=True), meta=scoped_meta_for_frame(meta, train_x, task.target),
+                                    feature_state=feature_state, pipeline_name=pipeline_name,
+                                )
+                            if on_predictions is not None:
+                                on_predictions(
+                                    record=dict(rec_base), sample_frame=table.iloc[fold.test_idx].copy(deep=True),
+                                    y_pred=yp, interval_low=lo, interval_high=hi,
+                                )
+                        except Exception as exc:
+                            row = {metric: float("nan") for metric in (*task.point_metrics, *task.interval_metrics, *task.trajectory_metrics)}
+                            rec_base["error"] = str(exc)
+                        for metric, value in row.items():
+                            records.append({**rec_base, "metric": metric, "value": value})
         return pd.DataFrame.from_records(records)
 
     def _point_metrics(self, task, yt, yp):
-        out = {}
-        for m in task.point_metrics:
-            out[m] = getattr(M, m)(yt, yp)
-        return out
+        return {metric: getattr(M, metric)(yt, yp) for metric in task.point_metrics}
 
-    def _trajectory_metrics(self, task, te, yp):
-        order = np.argsort(te["cycle_index"].to_numpy())
-        return {"monotonicity_violation_rate": M.monotonicity_violation_rate(yp[order]),
-                "value_range_violation": M.value_range_violation(yp)}
+    def _trajectory_metrics(self, task, test_x, yp):
+        order = np.argsort(test_x["cycle_index"].to_numpy())
+        return {"monotonicity_violation_rate": M.monotonicity_violation_rate(yp[order]), "value_range_violation": M.value_range_violation(yp)}

@@ -256,6 +256,118 @@ def test_byo_estimator_receives_fold_scoped_transformed_unprojected_features(sim
     assert set(results["featureset"]) == {"(byo)"}
 
 
+def test_callback_runs_after_metrics_and_receives_no_target_or_pipeline(simple_table, simple_meta):
+    callbacks = []
+
+    class CallbackEstimator(SpyEstimator):
+        name = "callback_order"
+
+        def fit(self, X, y, meta=None):
+            self.value = 0.0
+            return self
+
+        def predict(self, X, meta=None):
+            return np.full(len(X), self.value)
+
+    def malicious_callback(**payload):
+        assert "soh" not in payload["train_table"].columns
+        assert "soh" not in payload["test_table"].columns
+        assert "feature_pipeline" not in payload
+        payload["estimator"].value = 0.97
+        callbacks.append(payload)
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [CallbackEstimator],
+        on_model_fitted=malicious_callback,
+    )
+
+    assert callbacks
+    assert result.loc[result["metric"] == "mae", "value"].gt(0).all()
+
+
+def test_runner_scopes_meta_to_each_partition_and_strips_target(simple_table):
+    meta = pd.DataFrame(
+        {
+            "dataset": ["ds", "ds", "ds", "outside"],
+            "cell_id": ["c1", "c2", "c3", "z"],
+            "soh": [1.0, 0.9, 0.8, 0.0],
+            "meta_value": [1, 2, 3, 4],
+        }
+    )
+
+    class MetaPipeline:
+        def fit(self, train_x, train_y, seen_meta):
+            assert "soh" not in seen_meta.columns
+            assert set(seen_meta["cell_id"]) == set(train_x["cell_id"])
+            return FeatureState.create({})
+
+        def transform(self, frame, state, seen_meta):
+            assert "soh" not in seen_meta.columns
+            assert set(seen_meta["cell_id"]) == set(frame["cell_id"])
+            return frame.copy()
+
+    class MetaEstimator(SpyEstimator):
+        name = "meta_scoped"
+
+        def fit(self, X, y, seen_meta=None):
+            assert set(seen_meta["cell_id"]) == set(X["cell_id"])
+            return super().fit(X, y, seen_meta)
+
+        def predict(self, X, seen_meta=None):
+            assert set(seen_meta["cell_id"]) == set(X["cell_id"])
+            return super().predict(X, seen_meta)
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, meta,
+        {"loco": LeaveOneCellOut()}, [MetaEstimator],
+        feature_pipelines={"full": MetaPipeline()},
+    )
+
+    assert "error" not in result.columns
+
+
+def test_runner_fits_pipeline_once_per_fold_across_estimators(simple_table, simple_meta):
+    class CountingPipeline:
+        fits = 0
+
+        def fit(self, train_x, train_y, meta):
+            type(self).fits += 1
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    CountingPipeline.fits = 0
+    result = BenchmarkRunner(seeds=[0, 1]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator, SpyEstimator],
+        feature_pipelines={"full": CountingPipeline()},
+    )
+
+    assert "error" not in result.columns
+    assert CountingPipeline.fits == 3
+
+
+def test_pipeline_transform_cannot_reuse_instance_fields_set_during_fit(simple_table, simple_meta):
+    class FieldLeakingPipeline:
+        def fit(self, train_x, train_y, meta):
+            self.labels = train_y.copy()
+            return FeatureState.create({"kind": "field_leak"})
+
+        def transform(self, frame, state, meta):
+            assert not hasattr(self, "labels")
+            return frame.copy()
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": FieldLeakingPipeline()},
+    )
+
+    assert "error" not in result.columns
+
+
 def test_invalid_fold_isolated_for_each_seed_without_control_frame_slice(
     simple_table, simple_meta
 ):

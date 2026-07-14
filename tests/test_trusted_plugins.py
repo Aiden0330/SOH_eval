@@ -136,6 +136,35 @@ def transform(table, meta=None):
         pipeline.transform(frame, state, pd.DataFrame())
 
 
+def test_legacy_pipeline_reloads_module_globals_for_each_transform(tmp_path):
+    store = TrustedPluginStore(base_dir=tmp_path / "plugins", data_dir=tmp_path / "data")
+    store.upload_featureset_plugin(
+        name="fresh_globals",
+        filename="fresh_globals.py",
+        payload=b'''
+FEATURESET_NAME = "fresh_globals"
+FEATURE_COLUMNS = ["fresh_counter"]
+COUNTER = 0
+
+def transform(table, meta=None):
+    global COUNTER
+    COUNTER += 1
+    out = table.copy()
+    out["fresh_counter"] = COUNTER
+    return out
+''',
+    )
+    pipeline = store.feature_pipeline("fresh_globals")
+    frame = _dataset_frame().drop(columns=["soh"])
+    state = pipeline.fit(frame, np.empty(len(frame)), pd.DataFrame())
+
+    first = pipeline.transform(frame, state, pd.DataFrame())
+    second = pipeline.transform(frame, state, pd.DataFrame())
+
+    assert first["fresh_counter"].eq(1).all()
+    assert second["fresh_counter"].eq(1).all()
+
+
 def test_catalog_is_persisted_for_uploaded_resources(tmp_path):
     store = TrustedPluginStore(base_dir=tmp_path / "plugins", data_dir=tmp_path / "data")
     store.upload_dataset("persisted_demo", "demo.csv", _dataset_frame().to_csv(index=False).encode("utf-8"))

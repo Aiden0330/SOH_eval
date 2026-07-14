@@ -245,6 +245,67 @@ def test_inference_job_runs_uploaded_pickle_model(tmp_path):
     assert (tmp_path / "frontend_data" / "inference_benchmark.json").exists()
 
 
+def test_inference_fails_when_manifest_pipeline_or_state_is_missing(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset("plugin_eval_demo", "demo.csv", _dataset_csv())
+    manifest = _model_manifest("explicit_pipeline")
+    manifest["feature_pipeline"] = "missing_pipeline"
+    service.model_store.upload_model(
+        "explicit_pipeline",
+        "explicit_pipeline.pkl",
+        pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json",
+        json.dumps(manifest).encode("utf-8"),
+    )
+
+    job = service.create_inference_job(
+        {"datasets": ["plugin_eval_demo"], "models": ["explicit_pipeline"]}, start=False
+    )
+    finished = service.run_inference_job_inline(job["id"])
+
+    assert finished["status"] == "failed"
+    assert "missing_pipeline" in finished["error"]
+
+
+def test_inference_fails_when_explicit_pipeline_state_is_missing(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset("plugin_eval_demo", "demo.csv", _dataset_csv())
+    service.store.upload_featureset_plugin(
+        "explicit_features",
+        "explicit_features.py",
+        b'''
+FEATURESET_NAME = "explicit_features"
+FEATURE_COLUMNS = ["extra"]
+def transform(table, meta=None):
+    out = table.copy()
+    out["extra"] = out["cycle_index"]
+    return out
+''',
+    )
+    manifest = _model_manifest("missing_state")
+    manifest["feature_pipeline"] = "explicit_features"
+    service.model_store.upload_model(
+        "missing_state", "missing_state.pkl", pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json", json.dumps(manifest).encode("utf-8"),
+    )
+
+    job = service.create_inference_job({"datasets": ["plugin_eval_demo"], "models": ["missing_state"]}, start=False)
+    finished = service.run_inference_job_inline(job["id"])
+
+    assert finished["status"] == "failed"
+    assert "feature state" in finished["error"]
+
+
 def test_inference_job_persists_launch_strategy_audit_fields(tmp_path):
     service = EvaluationService(
         data_dir=tmp_path / "data",

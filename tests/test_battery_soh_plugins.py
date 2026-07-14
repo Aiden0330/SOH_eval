@@ -108,6 +108,22 @@ def test_register_battery_soh_plugins_adds_catalog_resources_and_runs(tmp_path):
     assert np.isfinite(pred).all()
 
 
+def test_battery_voltage_sag_uses_fixed_reference_without_asset_baseline(tmp_path):
+    battery_root = tmp_path / "battery_SOH"
+    _write_fake_battery_soh_root(battery_root)
+    store = TrustedPluginStore(tmp_path / "plugins", tmp_path / "data")
+    register_battery_soh_plugins(store, battery_root=battery_root, replace=True)
+    frame = _sample_frame().iloc[[5, 0]].copy()
+    frame.loc[frame.index[0], "cycle_index"] = np.nan
+
+    transformed = store.apply_feature_transforms(frame, pd.DataFrame(), ["battery_soh_operational"])
+
+    np.testing.assert_allclose(
+        transformed["battery_soh_voltage_sag"],
+        3.7 - transformed["voltage_mean"],
+    )
+
+
 def test_register_battery_soh_plugins_normalizes_relative_root(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     battery_root = Path("battery_SOH")

@@ -8,6 +8,8 @@ import traceback
 import uuid
 from pathlib import Path
 
+import pandas as pd
+
 from . import registry as R
 from .battery_soh_plugins import register_battery_soh_plugins
 from .contracts import feature_columns
@@ -21,7 +23,7 @@ from .report import write_artifacts, write_inference_artifacts
 from .runner import BenchmarkRunner
 from .tasks import SOHEstimationTask
 from .trusted_plugins import TrustedPluginStore
-from .fabric import FeatureState, IdentityFeaturePipeline
+from .fabric import FeatureState, IdentityFeaturePipeline, scoped_meta_for_frame
 
 
 PROTOCOLS = {
@@ -184,7 +186,7 @@ class EvaluationService:
                 fitted = kwargs["estimator"]
                 train_table = kwargs["train_table"]
                 feature_state = kwargs["feature_state"]
-                feature_pipeline_name = kwargs["feature_pipeline_name"]
+                feature_pipeline_name = kwargs["pipeline_name"]
                 fs_name = str(record.get("featureset", "full"))
                 model_name = "_".join(
                     [
@@ -425,16 +427,20 @@ class EvaluationService:
 
     def _prepare_inference_table(self, model_name: str, table, meta):
         loaded = self.model_store.load_model(model_name)
-        featureset = str(loaded.manifest.get("featureset") or "full")
-        pipeline_name = str(loaded.manifest.get("feature_pipeline") or featureset)
-        pipeline = self.store.feature_pipeline(pipeline_name) or IdentityFeaturePipeline()
+        pipeline_name = loaded.manifest.get("feature_pipeline")
         state_document = loaded.manifest.get("feature_state")
-        if state_document is None:
-            state = pipeline.fit(table.drop(columns=["soh"], errors="ignore"), [], meta)
-        else:
+        if pipeline_name:
+            pipeline = self.store.feature_pipeline(str(pipeline_name))
+            if pipeline is None:
+                raise ValueError(f"feature pipeline {pipeline_name!r} required by model {model_name!r} is unavailable")
+            if state_document is None:
+                raise ValueError(f"feature state required by model {model_name!r} is missing")
             state = FeatureState.from_dict(state_document)
+        else:
+            pipeline = IdentityFeaturePipeline()
+            state = FeatureState.from_dict(state_document) if state_document is not None else pipeline.fit(table.drop(columns=["soh"], errors="ignore"), [], pd.DataFrame())
         source = table.drop(columns=["soh"], errors="ignore")
-        transformed = pipeline.transform(source, state, meta)
+        transformed = pipeline.transform(source, state, scoped_meta_for_frame(meta, source))
         if not isinstance(transformed, type(table)) and not hasattr(transformed, "columns"):
             raise ValueError(f"feature pipeline for model {model_name!r} did not return a DataFrame")
         if len(transformed) != len(table) or not transformed.index.equals(table.index):

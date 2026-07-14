@@ -113,13 +113,8 @@ def transform(table, meta=None):
     out = pd.DataFrame(table).copy()
     out["battery_soh_voltage_sag"] = 0.0
 
-    group_cols = [col for col in ("dataset", "cell_id") if col in out.columns]
-    groups = out.groupby(group_cols, sort=False) if group_cols else [(None, out)]
-    for _, group in groups:
-        idx = group.index
-        voltage = _numeric(group, "voltage_mean", default=np.zeros(len(group), dtype=float))
-        first_position = group["cycle_index"].astype(float).to_numpy().argmin() if "cycle_index" in group else 0
-        out.loc[idx, "battery_soh_voltage_sag"] = float(voltage.iloc[first_position]) - voltage
+    voltage = _numeric(out, "voltage_mean", default=np.zeros(len(out), dtype=float))
+    out["battery_soh_voltage_sag"] = 3.7 - voltage
 
     return out
 

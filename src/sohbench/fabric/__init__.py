@@ -8,6 +8,8 @@ from .feature_pipeline import (
     IdentityFeaturePipeline,
     LegacyStatelessPipeline,
     assert_prefix_invariant,
+    clone_for_fold,
+    scoped_meta_for_frame,
 )
 
 __all__ = [
@@ -29,4 +31,6 @@ __all__ = [
     "IdentityFeaturePipeline",
     "LegacyStatelessPipeline",
     "assert_prefix_invariant",
+    "clone_for_fold",
+    "scoped_meta_for_frame",
 ]
