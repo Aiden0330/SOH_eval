@@ -131,6 +131,40 @@ def test_service_catalog_lists_uploaded_and_builtin_resources(tmp_path):
     assert any(item["name"] == "full" for item in catalog["featuresets"])
 
 
+def test_service_catalog_can_return_limited_preview_with_total_counts(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.model_store._catalog["models"] = [
+        {"name": f"model_{idx}", "feature_columns": ["voltage_mean"]}
+        for idx in range(5)
+    ]
+    for idx in range(3):
+        service._save_job(
+            {
+                "id": f"job_{idx}",
+                "status": "succeeded",
+                "created_at": f"2026-07-01 00:0{idx}:00",
+                "request": {"datasets": ["demo"], "estimators": ["ridge"], "featuresets": ["full"]},
+                "saved_models": [f"model_{idx}_{item}" for item in range(20)],
+            }
+        )
+
+    catalog = service.catalog(model_limit=2, job_limit=1, compact_jobs=True)
+
+    assert len(catalog["models"]) == 2
+    assert catalog["model_count"] == 5
+    assert catalog["models_limited"] is True
+    assert len(catalog["jobs"]) == 1
+    assert catalog["job_count"] == 3
+    assert catalog["jobs_limited"] is True
+    assert "saved_models" not in catalog["jobs"][0]
+    assert len(service.catalog()["models"]) == 5
+
+
 def test_training_job_publishes_model_catalog(tmp_path):
     service = EvaluationService(
         data_dir=tmp_path / "data",

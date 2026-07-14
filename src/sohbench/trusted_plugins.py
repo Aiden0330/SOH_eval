@@ -4,6 +4,7 @@ import importlib.util
 import json
 import re
 import sys
+import hashlib
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -43,8 +44,8 @@ class TrustedPluginStore:
     """
 
     def __init__(self, base_dir: str | Path, data_dir: str | Path):
-        self.base_dir = Path(base_dir)
-        self.data_dir = Path(data_dir)
+        self.base_dir = Path(base_dir).expanduser().resolve()
+        self.data_dir = Path(data_dir).expanduser().resolve()
         self.estimator_dir = self.base_dir / "estimators"
         self.featureset_dir = self.base_dir / "featuresets"
         self.catalog_path = self.base_dir / "catalog.json"
@@ -295,7 +296,7 @@ def _validate_dataset_table(table: pd.DataFrame) -> None:
 
 
 def _load_module(path: Path, kind: str) -> ModuleType:
-    module_name = f"sohbench_trusted_{kind}_{path.stem}_{abs(hash(path.resolve()))}"
+    module_name = f"sohbench_trusted_{kind}_{path.stem}_{_stable_module_token(path)}"
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
         raise TrustedPluginError(f"cannot load plugin file: {path}")
@@ -306,6 +307,11 @@ def _load_module(path: Path, kind: str) -> ModuleType:
     except Exception as exc:
         raise TrustedPluginError(f"plugin import failed: {exc}") from exc
     return module
+
+
+def _stable_module_token(path: Path) -> str:
+    resolved = str(path.resolve()).replace("\\", "/").lower()
+    return hashlib.sha256(resolved.encode("utf-8")).hexdigest()[:16]
 
 
 def _extract_estimator_class(module: ModuleType) -> type:

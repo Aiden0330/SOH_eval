@@ -6,7 +6,7 @@ import json
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from .evaluation_service import EvaluationService
 from .model_store import ModelStoreError
@@ -22,13 +22,40 @@ def create_handler(service: EvaluationService):
 
         def do_GET(self):  # noqa: N802
             try:
-                path = urlparse(self.path).path
+                parsed = urlparse(self.path)
+                path = parsed.path
+                query = parse_qs(parsed.query)
                 if path == "/api/health":
                     self._send_json({"ok": True, "mode": "trusted_local"})
                 elif path == "/api/catalog":
-                    self._send_json(service.catalog())
+                    self._send_json(
+                        service.catalog(
+                            model_limit=_positive_int(query.get("model_limit", [None])[0]),
+                            job_limit=_positive_int(query.get("job_limit", [None])[0]),
+                            compact_jobs=_truthy(query.get("compact_jobs", ["0"])[0]),
+                        )
+                    )
                 elif path == "/api/models":
                     self._send_json({"models": service.model_store.catalog()})
+                elif path == "/api/battery-curves":
+                    self._send_json(
+                        service.battery_curve_dataset(
+                            profile_name=query.get("profile", ["battery-soh-diagnostics"])[0],
+                            dataset=query.get("dataset", [""])[0],
+                            limit=_positive_int(query.get("limit", [None])[0]),
+                        )
+                    )
+                elif path == "/api/package/status":
+                    self._send_json(
+                        {
+                            "ok": True,
+                            "report": service.package_status(
+                                native_dashboard=_query_value(query, "native_dashboard"),
+                                portable_output=_query_value(query, "portable_output"),
+                                standalone_output=_query_value(query, "standalone_output"),
+                            ),
+                        }
+                    )
                 elif path == "/api/jobs":
                     self._send_json({"jobs": service.list_jobs()})
                 elif path == "/api/inference-jobs":
@@ -88,6 +115,39 @@ def create_handler(service: EvaluationService):
                     self._send_json(service.create_job(payload, start=True), status=HTTPStatus.ACCEPTED)
                 elif path == "/api/inference-jobs":
                     self._send_json(service.create_inference_job(payload, start=True), status=HTTPStatus.ACCEPTED)
+                elif path == "/api/import/battery-dashboard":
+                    profile = service.import_battery_dashboard_profile(
+                        source_dir=payload.get("source_dir", r"D:\battery_SOH\dashboard\data"),
+                        profile_name=payload.get("profile_name", "battery-soh-diagnostics"),
+                        include_curves=bool(payload.get("include_curves", False)),
+                    )
+                    self._send_json({"ok": True, "profile": profile})
+                elif path == "/api/import/battery-soh-plugins":
+                    plugins = service.import_battery_soh_plugins(
+                        battery_soh_root=payload.get("battery_soh_root", r"D:\battery_SOH"),
+                        replace=bool(payload.get("replace", False)),
+                    )
+                    self._send_json({"ok": True, "plugins": plugins})
+                elif path == "/api/sync/native-dashboard":
+                    manifest = service.sync_native_dashboard(
+                        source=payload.get("source"),
+                        target=payload.get("target"),
+                        include_curves=bool(payload.get("include_curves", True)),
+                        include_detection=bool(payload.get("include_detection", False)),
+                    )
+                    self._send_json({"ok": True, "action": "sync_native_dashboard", "manifest": manifest})
+                elif path == "/api/package/portable":
+                    manifest = service.package_portable_frontend(
+                        app_dir=payload.get("app_dir"),
+                        output=payload.get("output"),
+                    )
+                    self._send_json({"ok": True, "action": "package_portable", "manifest": manifest})
+                elif path == "/api/package/standalone":
+                    manifest = service.package_standalone_frontend(
+                        app_dir=payload.get("app_dir"),
+                        output=payload.get("output"),
+                    )
+                    self._send_json({"ok": True, "action": "package_standalone", "manifest": manifest})
                 else:
                     self._send_json({"error": "not found"}, status=HTTPStatus.NOT_FOUND)
             except (TrustedPluginError, ModelStoreError, ValueError, KeyError) as exc:
@@ -129,6 +189,26 @@ def _decode_named_content(payload: dict, key: str) -> bytes:
     if not encoded:
         raise ValueError(f"{key} is required")
     return base64.b64decode(encoded)
+
+
+def _positive_int(value) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return max(0, parsed)
+
+
+def _truthy(value) -> bool:
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _query_value(query: dict, key: str) -> str | None:
+    values = query.get(key) or []
+    value = values[0] if values else None
+    return value if value not in (None, "") else None
 
 
 def serve(

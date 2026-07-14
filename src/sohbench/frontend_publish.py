@@ -16,6 +16,7 @@ FRONTEND_ARTIFACTS = (
     "model_catalog.json",
     "inference_benchmark.json",
     "inference_run_config.json",
+    "recommendation_summary.json",
 )
 
 PROFILE_NAME_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*$")
@@ -59,6 +60,14 @@ def publish_frontend_profile(
         copied.append(filename)
         source_artifacts[filename] = str(source)
 
+    manifest_source_artifacts = manifest.get("source_artifacts") or {}
+    if not isinstance(manifest_source_artifacts, dict):
+        manifest_source_artifacts = {}
+    reported_source_artifacts = {
+        **source_artifacts,
+        **{str(key): str(value) for key, value in manifest_source_artifacts.items()},
+    }
+
     payload = {
         "schema_version": 1,
         "profile": name,
@@ -66,13 +75,13 @@ def publish_frontend_profile(
         "kind": manifest.get("kind") or "evaluation_profile",
         "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "artifact_files": copied,
-        "source_artifacts": source_artifacts,
+        "source_artifacts": reported_source_artifacts,
         **manifest,
     }
     payload["schema_version"] = 1
     payload["profile"] = name
     payload["artifact_files"] = copied
-    payload["source_artifacts"] = source_artifacts
+    payload["source_artifacts"] = reported_source_artifacts
     manifest_path = profile_dir / "manifest.json"
     manifest_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     _upsert_profile_index(profile_root, payload)

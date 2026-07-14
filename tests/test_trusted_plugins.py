@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from sohbench import registry as R
 from sohbench.data import DatasetLoader
 from sohbench.registry import get_estimator, get_featureset
 from sohbench.trusted_plugins import TrustedPluginStore
@@ -119,3 +120,34 @@ def test_catalog_is_persisted_for_uploaded_resources(tmp_path):
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
 
     assert catalog["datasets"][0]["name"] == "persisted_demo"
+
+
+def test_plugin_catalog_paths_reload_from_different_working_directory(tmp_path, monkeypatch):
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.chdir(project)
+    store = TrustedPluginStore(base_dir="plugins", data_dir="data")
+    store.upload_featureset_plugin(
+        name="reload_features",
+        filename="reload_features.py",
+        payload=b'''
+FEATURESET_NAME = "reload_features"
+FEATURE_COLUMNS = ["reload_cycle"]
+
+def transform(table, meta=None):
+    out = table.copy()
+    out["reload_cycle"] = out["cycle_index"]
+    return out
+''',
+    )
+    catalog = json.loads((project / "plugins" / "catalog.json").read_text(encoding="utf-8"))
+    assert Path(catalog["featuresets"][0]["path"]).is_absolute()
+
+    R._FEATURESETS.pop("reload_features", None)
+    other_cwd = tmp_path / "other"
+    other_cwd.mkdir()
+    monkeypatch.chdir(other_cwd)
+
+    TrustedPluginStore(base_dir=project / "plugins", data_dir=project / "data")
+
+    assert get_featureset("reload_features").candidates == ["reload_cycle"]
