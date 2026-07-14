@@ -1,5 +1,8 @@
 import numpy as np
 import pandas as pd
+import json
+import pickle
+import pytest
 
 from sohbench.fabric.snapshots import DatasetSnapshot, frame_digest
 
@@ -38,6 +41,25 @@ def test_frame_digest_changes_for_values_dtypes_and_column_order():
     assert frame_digest(changed_order) != digest
 
 
+def test_frame_digest_preserves_real_helper_named_column():
+    data = table()
+    data["__fabric_row_hash__"] = ["left", "left", "right", "right"]
+    original = data.copy(deep=True)
+    changed = data.copy()
+    changed.loc[0, "__fabric_row_hash__"] = "changed"
+    assert frame_digest(changed) != frame_digest(data)
+    pd.testing.assert_frame_equal(data, original)
+
+
+@pytest.mark.parametrize("value", [["a", "b"], {"a": 1}])
+def test_frame_digest_rejects_unhashable_cell_values(value):
+    data = table()
+    data["voltage_mean"] = data["voltage_mean"].astype(object)
+    data.at[0, "voltage_mean"] = value
+    with pytest.raises(ValueError, match="hashable"):
+        frame_digest(data)
+
+
 def test_dataset_snapshot_copies_inputs_and_nested_qc():
     data = table()
     qc = {"checks": {"pass": True}}
@@ -48,3 +70,17 @@ def test_dataset_snapshot_copies_inputs_and_nested_qc():
     assert snapshot.datasets == ("d",)
     assert snapshot.assets == 2
     assert snapshot.rows == 4
+
+
+def test_dataset_snapshot_qc_is_json_pickle_compatible_and_deeply_immutable():
+    snapshot = DatasetSnapshot.from_frame(
+        table(), ["d"], "labels", {"checks": ({"pass": True}, ["ok"])}
+    )
+    json.dumps(snapshot.qc)
+    restored = pickle.loads(pickle.dumps(snapshot))
+    assert restored == snapshot
+    assert dict(snapshot.qc) == {"checks": ({"pass": True}, ("ok",))}
+    with pytest.raises(TypeError):
+        snapshot.qc["checks"][0]["pass"] = False
+    with pytest.raises(TypeError):
+        snapshot.qc["checks"][1] += ("bad",)

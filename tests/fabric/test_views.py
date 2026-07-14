@@ -67,3 +67,10 @@ def test_fold_integrity_rejects_missing_asset_columns(missing):
     fold = Fold(np.array([0, 1]), np.array([2, 3]), "bad")
     with pytest.raises(ValueError, match=missing):
         assert_fold_integrity(data, fold)
+
+
+@pytest.mark.parametrize("bad_index", [1.9, "1", True, np.float64(1.0)])
+def test_fold_integrity_rejects_non_integer_indices(bad_index):
+    fold = Fold(np.array([bad_index], dtype=object), np.array([2], dtype=object), "bad")
+    with pytest.raises(ValueError, match="integer indices"):
+        assert_fold_integrity(table(), fold)

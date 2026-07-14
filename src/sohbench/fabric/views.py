@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+from numbers import Integral
 
 from sohbench.contracts import Fold
 
@@ -17,11 +18,11 @@ class FoldViews:
 
 
 def _validate_indices(table: pd.DataFrame, fold: Fold) -> tuple[list[int], list[int]]:
-    try:
-        train = [int(index) for index in fold.train_idx]
-        test = [int(index) for index in fold.test_idx]
-    except (TypeError, ValueError, OverflowError) as exc:
-        raise ValueError("fold indices must be integer-like") from exc
+    raw_indices = [*fold.train_idx, *fold.test_idx]
+    if any(isinstance(index, (bool, np.bool_)) or not isinstance(index, Integral) for index in raw_indices):
+        raise ValueError("fold indices must be integer indices")
+    train = [int(index) for index in fold.train_idx]
+    test = [int(index) for index in fold.test_idx]
     if not train or not test:
         raise ValueError("fold contains an empty train or test partition")
     if len(set(train)) != len(train) or len(set(test)) != len(test):
