@@ -192,7 +192,7 @@ def test_runner_calls_on_model_fitted_after_successful_fit():
     table = pd.DataFrame(
         {
             "dataset": ["demo"] * 5,
-            "cell_id": ["c1"] * 5,
+            "cell_id": ["c1", "c1", "c1", "c2", "c2"],
             "cycle_index": [0, 1, 2, 3, 4],
             "soh": [1.0, 0.99, 0.98, 0.97, 0.96],
             "voltage_mean": [3.5, 3.49, 3.48, 3.47, 3.46],

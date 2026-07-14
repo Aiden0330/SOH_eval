@@ -1,11 +1,27 @@
 from __future__ import annotations
+import copy
+import inspect
 import numpy as np, pandas as pd
 from . import metrics as M
 from .conformal import ConformalWrapper, WeightedConformalWrapper
 from .features import unified_features
 from .featuresets import project
 from .registry import get_featureset
+from .fabric.views import make_fold_views
 import sohbench.featuresets  # noqa: F401 — ensure the 5 named sets are registered
+
+
+def _instantiate_estimator(factory, seed):
+    if isinstance(factory, type):
+        params = inspect.signature(factory).parameters
+        return factory(random_state=seed) if "random_state" in params else factory()
+    estimator = copy.deepcopy(factory)
+    setter = getattr(estimator, "set_seed", None)
+    if callable(setter):
+        setter(seed)
+    elif hasattr(estimator, "random_state"):
+        estimator.random_state = seed
+    return estimator
 
 
 class BenchmarkRunner:
@@ -13,7 +29,7 @@ class BenchmarkRunner:
         self.seeds = list(seeds)
 
     def run(self, task, table, meta, protocols, estimators,
-            featuresets=None, on_model_fitted=None) -> pd.DataFrame:
+            featuresets=None, on_model_fitted=None, on_predictions=None) -> pd.DataFrame:
         """Run the benchmark matrix over estimators × protocols × featuresets × seeds.
 
         Parameters
@@ -62,20 +78,21 @@ class BenchmarkRunner:
                                 backend=est_backend,
                             )
                             try:
-                                est = est_factory() if isinstance(est_factory, type) else est_factory
+                                views = make_fold_views(data_table, fold, task.target)
+                                est = _instantiate_estimator(est_factory, seed)
                                 native_ci = hasattr(est, "predict_interval")
                                 if not native_ci:
                                     alpha = 1 - task.acceptance["calibration"]["nominal"]
                                     if cross:
-                                        est = WeightedConformalWrapper(est, alpha=alpha)
+                                        est = WeightedConformalWrapper(est, alpha=alpha,
+                                                                        random_state=seed)
                                         rec_base["ci_source"] = "weighted_conformal"
                                     else:
                                         est = ConformalWrapper(est, alpha=alpha)
                                         rec_base["ci_source"] = "conformal"
                                 else:
                                     rec_base["ci_source"] = "native"
-                                ytr = tr[task.target].to_numpy()
-                                est.fit(tr, ytr, meta)
+                                est.fit(views.train_x, views.train_y, meta)
                                 if on_model_fitted is not None:
                                     on_model_fitted(
                                         estimator=est,
@@ -84,12 +101,19 @@ class BenchmarkRunner:
                                         test_table=te.copy(),
                                         meta=meta,
                                     )
-                                yte = te[task.target].to_numpy()
-                                yp = est.predict(te, meta)
-                                row = self._point_metrics(task, yte, yp)
-                                lo, hi = est.predict_interval(te, meta)
-                                row["picp"] = M.picp(yte, lo, hi)
+                                yp = est.predict(views.test_x, meta)
+                                row = self._point_metrics(task, views.test_y, yp)
+                                lo, hi = est.predict_interval(views.test_x, meta)
+                                row["picp"] = M.picp(views.test_y, lo, hi)
                                 row.update(self._trajectory_metrics(task, te, yp))
+                                if on_predictions is not None:
+                                    on_predictions(
+                                        record=dict(rec_base),
+                                        sample_frame=table.iloc[fold.test_idx].copy(),
+                                        y_pred=yp,
+                                        interval_low=lo,
+                                        interval_high=hi,
+                                    )
                             except Exception as e:  # isolate failed fold
                                 row = {m: float("nan") for m in
                                        (*task.point_metrics, *task.interval_metrics,
