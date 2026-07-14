@@ -2,9 +2,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import sohbench.runner as runner_module
 from sohbench.runner import BenchmarkRunner
 from sohbench.protocols import LeaveOneCellOut
 from sohbench.tasks import SOHEstimationTask
+from sohbench.contracts import Fold
+from sohbench.fabric.views import FoldViews
 
 
 @pytest.fixture
@@ -80,3 +83,66 @@ def test_prediction_callback_has_stable_sample_ids_but_algorithm_never_sees_trut
     assert {"dataset", "cell_id", "cycle_index", "soh"} <= set(value["sample_frame"].columns)
     assert len(value["y_pred"]) == len(value["sample_frame"])
     assert {"record", "sample_frame", "y_pred", "interval_low", "interval_high"} == set(value)
+
+
+def test_runner_builds_one_safe_view_per_fold_across_seeds(
+    simple_table, simple_meta, monkeypatch
+):
+    calls = []
+    original = runner_module.make_fold_views
+
+    def spy_make_fold_views(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(runner_module, "make_fold_views", spy_make_fold_views)
+    BenchmarkRunner(seeds=[0, 1, 2]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+    )
+
+    assert len(calls) == 3
+
+
+def test_invalid_fold_isolated_for_each_seed_without_control_frame_slice(
+    simple_table, simple_meta
+):
+    class InvalidProtocol:
+        def generate(self, table, meta):
+            yield Fold(np.array([0]), np.array([len(table) + 1]), "invalid")
+
+    result = BenchmarkRunner(seeds=[0, 1]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"invalid": InvalidProtocol()}, [SpyEstimator],
+    )
+
+    assert len(result) > 0
+    assert result["value"].isna().all()
+    assert result["seed"].nunique() == 2
+
+
+def test_without_callbacks_runner_does_not_slice_control_frames(simple_table, simple_meta, monkeypatch):
+    class NoIlocDataFrame(pd.DataFrame):
+        @property
+        def _constructor(self):
+            return NoIlocDataFrame
+
+        @property
+        def iloc(self):
+            raise AssertionError("control frame slicing should be callback-driven")
+
+    def fake_views(data_table, fold, target):
+        plain_table = pd.DataFrame(data_table)
+        return FoldViews(
+            train_x=plain_table.drop(columns=[target]).iloc[:10].copy(),
+            train_y=np.ones(10),
+            test_x=plain_table.drop(columns=[target]).iloc[:5].copy(),
+            test_y=np.ones(5),
+        )
+
+    monkeypatch.setattr(runner_module, "make_fold_views", fake_views)
+    table = NoIlocDataFrame(simple_table)
+    BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+    )

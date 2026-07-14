@@ -65,8 +65,18 @@ class BenchmarkRunner:
                 for pname, proto in protocols.items():
                     cross = getattr(proto, "cross_domain", False)
                     for fi, fold in enumerate(proto.generate(data_table, meta)):
-                        tr = data_table.iloc[fold.train_idx]
-                        te = data_table.iloc[fold.test_idx]
+                        train_control = test_control = sample_frame = None
+                        try:
+                            views = make_fold_views(data_table, fold, task.target)
+                            if on_model_fitted is not None:
+                                train_control = data_table.iloc[fold.train_idx].copy()
+                                test_control = data_table.iloc[fold.test_idx].copy()
+                            if on_predictions is not None:
+                                sample_frame = table.iloc[fold.test_idx].copy()
+                            view_error = None
+                        except Exception as error:
+                            views = None
+                            view_error = error
                         for seed in self.seeds:
                             np.random.seed(seed)
                             rec_base = dict(
@@ -78,7 +88,8 @@ class BenchmarkRunner:
                                 backend=est_backend,
                             )
                             try:
-                                views = make_fold_views(data_table, fold, task.target)
+                                if view_error is not None:
+                                    raise view_error
                                 est = _instantiate_estimator(est_factory, seed)
                                 native_ci = hasattr(est, "predict_interval")
                                 if not native_ci:
@@ -97,19 +108,19 @@ class BenchmarkRunner:
                                     on_model_fitted(
                                         estimator=est,
                                         record=dict(rec_base),
-                                        train_table=tr.copy(),
-                                        test_table=te.copy(),
+                                        train_table=train_control.copy(),
+                                        test_table=test_control.copy(),
                                         meta=meta,
                                     )
                                 yp = est.predict(views.test_x, meta)
                                 row = self._point_metrics(task, views.test_y, yp)
                                 lo, hi = est.predict_interval(views.test_x, meta)
                                 row["picp"] = M.picp(views.test_y, lo, hi)
-                                row.update(self._trajectory_metrics(task, te, yp))
+                                row.update(self._trajectory_metrics(task, views.test_x, yp))
                                 if on_predictions is not None:
                                     on_predictions(
                                         record=dict(rec_base),
-                                        sample_frame=table.iloc[fold.test_idx].copy(),
+                                        sample_frame=sample_frame.copy(),
                                         y_pred=yp,
                                         interval_low=lo,
                                         interval_high=hi,
