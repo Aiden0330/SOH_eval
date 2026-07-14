@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Evaluation Run Spec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_type",
+    "task",
+    "dataset",
+    "protocol",
+    "metric",
+    "policy",
+    "candidates",
+    "seeds",
+    "idempotency_key"
+  ],
+  "properties": {
+    "run_type": {
+      "type": "string",
+      "enum": ["training", "adaptation", "inference"]
+    },
+    "task": { "$ref": "#/$defs/specRef" },
+    "dataset": { "$ref": "#/$defs/specRef" },
+    "protocol": { "$ref": "#/$defs/specRef" },
+    "metric": { "$ref": "#/$defs/specRef" },
+    "policy": { "$ref": "#/$defs/specRef" },
+    "candidates": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/specRef" }
+    },
+    "seeds": {
+      "type": "array",
+      "items": { "type": "integer" }
+    },
+    "idempotency_key": { "type": "string" }
+  },
+  "$defs": {
+    "specRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "spec_id", "version", "digest"],
+      "properties": {
+        "kind": { "type": "string" },
+        "spec_id": { "type": "string" },
+        "version": { "type": "string" },
+        "digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}
