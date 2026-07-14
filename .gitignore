@@ -10,3 +10,4 @@ build/
 dist/
 desktop.ini
 route_log/*.log
+.worktrees/
