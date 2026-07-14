@@ -1,9 +1,47 @@
+import ast
 import json
+from io import BytesIO
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
 import pytest
 
-from scripts.run_smoke_acceptance import SmokeAcceptanceConfig, run_smoke_acceptance
+from scripts.run_smoke_acceptance import (
+    FEATURESET_TEMPLATE,
+    SmokeAcceptanceConfig,
+    _smoke_dataset_csv,
+    run_smoke_acceptance,
+)
+
+
+def test_smoke_featureset_template_is_target_free_and_prefix_invariant():
+    source = FEATURESET_TEMPLATE.format(name="smoke_cycle_shape")
+    tree = ast.parse(source)
+    forbidden_subscripts = []
+    forbidden_methods = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant) and node.slice.value == "soh":
+            forbidden_subscripts.append(node)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in {"groupby", "max", "min"}:
+            forbidden_methods.append(node.func.attr)
+
+    assert "smoke_log_cycle" in source
+    assert "smoke_voltage_margin" in source
+    assert 'out["voltage_mean"]' in source
+    assert not forbidden_subscripts
+    assert not forbidden_methods
+
+
+def test_smoke_dataset_matches_the_causal_generated_feature_contract():
+    config = SmokeAcceptanceConfig(dataset_name="smoke_eval_demo", cells=1, cycles=3)
+    frame = pd.read_csv(BytesIO(_smoke_dataset_csv(config)))
+
+    assert {"smoke_log_cycle", "smoke_voltage_margin"} <= set(frame.columns)
+    assert {"smoke_cycle_norm", "smoke_fade_from_full"}.isdisjoint(frame.columns)
+    np.testing.assert_allclose(frame["smoke_log_cycle"], np.log1p(frame["cycle_index"]))
+    np.testing.assert_allclose(frame["smoke_voltage_margin"], 4.25 - frame["voltage_mean"])
 
 
 def test_smoke_acceptance_runs_training_inference_and_syncs_frontend(tmp_path):

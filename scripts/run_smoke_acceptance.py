@@ -43,14 +43,15 @@ FEATURESET_TEMPLATE = '''
 import numpy as np
 
 FEATURESET_NAME = {name!r}
-FEATURE_COLUMNS = ["smoke_cycle_norm", "smoke_fade_from_full"]
+FEATURE_COLUMNS = ["smoke_log_cycle", "smoke_voltage_margin"]
 
 
 def transform(table, meta=None):
     out = table.copy()
-    max_cycle = out.groupby(["dataset", "cell_id"])["cycle_index"].transform("max").replace(0, 1)
-    out["smoke_cycle_norm"] = out["cycle_index"] / max_cycle
-    out["smoke_fade_from_full"] = 1.0 - out["soh"]
+    cycle = out["cycle_index"].to_numpy(dtype=float)
+    voltage_mean = out["voltage_mean"].to_numpy(dtype=float)
+    out["smoke_log_cycle"] = np.log1p(np.maximum(cycle, 0.0))
+    out["smoke_voltage_margin"] = 4.25 - voltage_mean
     return out
 '''
 
@@ -218,27 +219,27 @@ def _upload_smoke_resources(service: EvaluationService, config: SmokeAcceptanceC
 
 def _smoke_dataset_csv(config: SmokeAcceptanceConfig) -> bytes:
     rows = []
-    cycle_max = max(int(config.cycles) - 1, 1)
     for cell_index in range(int(config.cells)):
         cell_id = f"smoke_cell_{cell_index + 1:02d}"
         cell_offset = cell_index * 0.0015
         for cycle in range(int(config.cycles)):
-            cycle_norm = cycle / cycle_max
             fade = 0.006 * cycle + cell_offset
             soh = max(0.72, 1.0 - fade)
+            voltage_mean = 3.62 - 0.008 * cycle - cell_offset
+            voltage_max = 4.10 - 0.004 * cycle
             rows.append(
                 {
                     "dataset": config.dataset_name,
                     "cell_id": cell_id,
                     "cycle_index": cycle,
                     "soh": soh,
-                    "voltage_mean": 3.62 - 0.08 * cycle_norm - cell_offset,
-                    "voltage_std": 0.012 + 0.003 * cycle_norm,
-                    "voltage_min": 3.30 - 0.05 * cycle_norm,
-                    "voltage_max": 4.10 - 0.04 * cycle_norm,
-                    "resistance_proxy": 0.012 + 0.004 * cycle_norm + cell_offset,
-                    "smoke_cycle_norm": cycle_norm,
-                    "smoke_fade_from_full": 1.0 - soh,
+                    "voltage_mean": voltage_mean,
+                    "voltage_std": 0.012 + 0.0003 * cycle,
+                    "voltage_min": 3.30 - 0.005 * cycle,
+                    "voltage_max": voltage_max,
+                    "resistance_proxy": 0.012 + 0.0004 * cycle + cell_offset,
+                    "smoke_log_cycle": float(np.log1p(cycle)),
+                    "smoke_voltage_margin": 4.25 - voltage_mean,
                 }
             )
     return pd.DataFrame(rows).to_csv(index=False).encode("utf-8")
