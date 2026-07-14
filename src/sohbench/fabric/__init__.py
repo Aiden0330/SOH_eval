@@ -1,5 +1,7 @@
 from .ids import canonical_json, new_id, sha256_file, sha256_json
 from .specs import RunSpec, RunType, SpecRef, validate_run_spec_document
+from .snapshots import DatasetSnapshot, frame_digest
+from .views import FoldViews, assert_fold_integrity, make_fold_views
 
 __all__ = [
     "RunSpec",
@@ -10,4 +12,9 @@ __all__ = [
     "sha256_file",
     "sha256_json",
     "validate_run_spec_document",
+    "DatasetSnapshot",
+    "frame_digest",
+    "FoldViews",
+    "assert_fold_integrity",
+    "make_fold_views",
 ]
