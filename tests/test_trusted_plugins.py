@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -8,7 +9,7 @@ import pytest
 from sohbench import registry as R
 from sohbench.data import DatasetLoader
 from sohbench.registry import get_estimator, get_featureset
-from sohbench.trusted_plugins import TrustedPluginStore
+from sohbench.trusted_plugins import TrustedPluginStore, _load_module
 
 
 def _dataset_frame(name="public_demo", cells=("c1", "c2", "c3"), n=8):
@@ -163,6 +164,21 @@ def transform(table, meta=None):
 
     assert first["fresh_counter"].eq(1).all()
     assert second["fresh_counter"].eq(1).all()
+
+
+def test_plugin_registration_executes_replacement_source_with_same_size_and_mtime(tmp_path):
+    path = tmp_path / "registration.py"
+    old_source = "REGISTRATION_MARKER = 1\n"
+    new_source = "REGISTRATION_MARKER = 2\n"
+    assert len(old_source.encode("utf-8")) == len(new_source.encode("utf-8"))
+    path.write_text(old_source, encoding="utf-8")
+    original_mtime = path.stat().st_mtime_ns
+
+    assert _load_module(path, "featureset").REGISTRATION_MARKER == 1
+    path.write_text(new_source, encoding="utf-8")
+    os.utime(path, ns=(original_mtime, original_mtime))
+
+    assert _load_module(path, "featureset").REGISTRATION_MARKER == 2
 
 
 def test_catalog_is_persisted_for_uploaded_resources(tmp_path):

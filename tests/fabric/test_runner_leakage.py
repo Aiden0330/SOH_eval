@@ -1,3 +1,5 @@
+from collections import deque
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -12,6 +14,15 @@ from sohbench.fabric import FeatureState
 
 
 MODULE_PIPELINE_CACHE = []
+MODULE_PIPELINE_DEQUE = deque()
+
+
+class _MutablePipelineBox:
+    def __init__(self):
+        self.values = []
+
+
+MODULE_PIPELINE_BOX = _MutablePipelineBox()
 
 
 @pytest.fixture
@@ -197,12 +208,13 @@ def test_runner_builds_one_safe_view_per_fold_across_seeds(
     assert len(calls) == 3
 
 
-def test_runner_fits_feature_pipeline_only_on_fold_training_rows(simple_table, simple_meta):
-    seen = []
+def test_runner_fits_feature_pipeline_only_on_fold_training_rows(simple_table, simple_meta, tmp_path):
+    event_path = str(tmp_path / "fit-assets.txt")
 
     class MeanPipeline:
         def fit(self, train_x, train_y, meta):
-            seen.append(train_x["cell_id"].tolist())
+            with open(event_path, "a", encoding="utf-8") as handle:
+                handle.write(",".join(train_x["cell_id"].tolist()) + "\n")
             return FeatureState.create({"mean": float(np.mean(train_y))})
 
         def transform(self, frame, state, meta):
@@ -216,6 +228,7 @@ def test_runner_fits_feature_pipeline_only_on_fold_training_rows(simple_table, s
         featuresets=["full"], feature_pipelines={"full": MeanPipeline()},
     )
 
+    seen = [line.split(",") for line in (tmp_path / "fit-assets.txt").read_text(encoding="utf-8").splitlines()]
     assert len(seen) == 3
     assert all(len(set(cells)) == 2 for cells in seen)
     assert {frozenset(cells) for cells in seen} == {
@@ -345,6 +358,65 @@ def test_model_callback_receives_pre_prediction_snapshot(simple_table, simple_me
     assert observed_predict_calls == [0, 0, 0]
 
 
+def test_model_snapshot_does_not_trust_estimator_deepcopy(simple_table, simple_meta):
+    observed_predict_calls = []
+
+    class AliasingDeepcopyEstimator(SpyEstimator):
+        name = "aliasing_snapshot"
+
+        def __deepcopy__(self, memo):
+            return self
+
+        def fit(self, X, y, meta=None):
+            self.predict_calls = 0
+            return self
+
+        def predict(self, X, meta=None):
+            self.predict_calls += 1
+            return np.zeros(len(X))
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [AliasingDeepcopyEstimator],
+        on_model_fitted=lambda **payload: observed_predict_calls.append(payload["estimator"].predict_calls),
+    )
+
+    assert result.loc[result["metric"] == "mae", "value"].notna().all()
+    assert observed_predict_calls == [0, 0, 0]
+
+
+def test_deferred_model_snapshots_are_disk_spooled_before_callbacks(
+    simple_table, simple_meta, monkeypatch
+):
+    events = []
+    base_spool = runner_module._DeferredCallbackSpool
+
+    class TrackingSpool(base_spool):
+        def dump(self, kind, value):
+            events.append(("dump", kind))
+            return super().dump(kind, value)
+
+        def load(self, path):
+            events.append(("load", path.name.split("-", 1)[0]))
+            return super().load(path)
+
+    monkeypatch.setattr(runner_module, "_DeferredCallbackSpool", TrackingSpool)
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        on_model_fitted=lambda **payload: None,
+    )
+
+    dump_positions = [index for index, event in enumerate(events) if event == ("dump", "model")]
+    prepared_dump_positions = [index for index, event in enumerate(events) if event == ("dump", "prepared")]
+    load_positions = [index for index, event in enumerate(events) if event == ("load", "model")]
+    assert result.loc[result["metric"] == "mae", "value"].notna().all()
+    assert len(dump_positions) == len(load_positions) == 3
+    assert len(prepared_dump_positions) == 3
+    assert max(dump_positions + prepared_dump_positions) < min(load_positions)
+
+
 def test_callback_failures_are_diagnostic_and_do_not_erase_metrics(simple_table, simple_meta):
     def broken_model_callback(**payload):
         raise RuntimeError("model evidence unavailable")
@@ -405,12 +477,13 @@ def test_runner_scopes_meta_to_each_partition_and_strips_target(simple_table):
     assert "error" not in result.columns
 
 
-def test_runner_fits_pipeline_once_per_fold_across_estimators(simple_table, simple_meta):
-    fit_events = []
+def test_runner_fits_pipeline_once_per_fold_across_estimators(simple_table, simple_meta, tmp_path):
+    event_path = str(tmp_path / "fit-events.txt")
 
     class CountingPipeline:
         def fit(self, train_x, train_y, meta):
-            fit_events.append(tuple(sorted(train_x["cell_id"].unique())))
+            with open(event_path, "a", encoding="utf-8") as handle:
+                handle.write("fit\n")
             return FeatureState.create({})
 
         def transform(self, frame, state, meta):
@@ -423,15 +496,16 @@ def test_runner_fits_pipeline_once_per_fold_across_estimators(simple_table, simp
     )
 
     assert "error" not in result.columns
-    assert len(fit_events) == 3
+    assert len((tmp_path / "fit-events.txt").read_text(encoding="utf-8").splitlines()) == 3
 
 
-def test_pipeline_fit_cache_is_shared_between_unified_and_byo_tracks(simple_table, simple_meta):
-    fit_events = []
+def test_pipeline_fit_cache_is_shared_between_unified_and_byo_tracks(simple_table, simple_meta, tmp_path):
+    event_path = str(tmp_path / "mixed-fit-events.txt")
 
     class CountingPipeline:
         def fit(self, train_x, train_y, meta):
-            fit_events.append(tuple(sorted(train_x["cell_id"].unique())))
+            with open(event_path, "a", encoding="utf-8") as handle:
+                handle.write("fit\n")
             return FeatureState.create({})
 
         def transform(self, frame, state, meta):
@@ -448,7 +522,7 @@ def test_pipeline_fit_cache_is_shared_between_unified_and_byo_tracks(simple_tabl
     )
 
     assert "error" not in result.columns
-    assert len(fit_events) == 3
+    assert len((tmp_path / "mixed-fit-events.txt").read_text(encoding="utf-8").splitlines()) == 3
 
 
 def test_pipeline_class_cache_is_isolated_per_fold(simple_table, simple_meta):
@@ -493,6 +567,64 @@ def test_pipeline_with_mutable_module_global_is_rejected(simple_table, simple_me
     assert result["error"].str.contains("mutable module global").all()
 
 
+def test_pipeline_with_deque_module_global_is_rejected(simple_table, simple_meta):
+    class GlobalDequePipeline:
+        def fit(self, train_x, train_y, meta):
+            MODULE_PIPELINE_DEQUE.append(train_y.copy())
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    MODULE_PIPELINE_DEQUE.clear()
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": GlobalDequePipeline()},
+    )
+
+    assert result["error"].str.contains("mutable module global").all()
+
+
+def test_pipeline_with_custom_mutable_module_global_is_rejected(simple_table, simple_meta):
+    class GlobalObjectPipeline:
+        def fit(self, train_x, train_y, meta):
+            MODULE_PIPELINE_BOX.values.append(train_y.copy())
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    MODULE_PIPELINE_BOX.values.clear()
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": GlobalObjectPipeline()},
+    )
+
+    assert result["error"].str.contains("mutable module global").all()
+
+
+def test_pipeline_with_mutable_closure_is_rejected(simple_table, simple_meta):
+    closure_cache = deque()
+
+    class ClosureCachePipeline:
+        def fit(self, train_x, train_y, meta):
+            closure_cache.append(train_y.copy())
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": ClosureCachePipeline()},
+    )
+
+    assert result["error"].str.contains("mutable closure state").all()
+
+
 def test_pipeline_with_direct_original_class_cache_is_rejected(simple_table, simple_meta):
     class OriginalClassCachePipeline:
         cache = []
@@ -509,6 +641,26 @@ def test_pipeline_with_direct_original_class_cache_is_rejected(simple_table, sim
         SOHEstimationTask(), simple_table, simple_meta,
         {"loco": LeaveOneCellOut()}, [SpyEstimator],
         feature_pipelines={"full": OriginalClassCachePipeline()},
+    )
+
+    assert result["error"].str.contains("mutable original class state").all()
+
+
+def test_pipeline_with_direct_original_class_deque_is_rejected(simple_table, simple_meta):
+    class OriginalClassDequePipeline:
+        cache = deque()
+
+        def fit(self, train_x, train_y, meta):
+            OriginalClassDequePipeline.cache.append(train_y.copy())
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": OriginalClassDequePipeline()},
     )
 
     assert result["error"].str.contains("mutable original class state").all()

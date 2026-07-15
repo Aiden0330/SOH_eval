@@ -119,6 +119,7 @@ def clone_for_fold(pipeline: FeaturePipeline) -> FeaturePipeline:
             raise ValueError("feature pipeline must support deepcopy or clone_for_fold()") from exc
     if cloned is pipeline:
         raise ValueError("feature pipeline clone_for_fold() must return a distinct instance")
+    _reject_shared_pipeline_state(cloned)
     return _isolate_pipeline_class_state(cloned)
 
 
@@ -128,14 +129,22 @@ def _reject_shared_pipeline_state(pipeline: FeaturePipeline) -> None:
     for method in _pipeline_methods(original_class):
         globals_ = method.__globals__
         for name in method.__code__.co_names:
-            value = globals_.get(name)
-            if _is_mutable(value):
-                raise ValueError(f"feature pipeline references mutable module global {name!r}")
+            if name not in globals_:
+                continue
+            value = globals_[name]
             if value is original_class and _class_has_mutable_state(original_class):
                 raise ValueError("feature pipeline references mutable original class state")
+            if not _is_safe_shared_reference(value):
+                raise ValueError(f"feature pipeline references mutable module global {name!r}")
         for cell in method.__closure__ or ():
-            if cell.cell_contents is original_class and _class_has_mutable_state(original_class):
+            try:
+                value = cell.cell_contents
+            except ValueError:
+                continue
+            if value is original_class and _class_has_mutable_state(original_class):
                 raise ValueError("feature pipeline references mutable original class state")
+            if not _is_safe_shared_reference(value):
+                raise ValueError("feature pipeline references mutable closure state")
 
 
 def _pipeline_methods(pipeline_class: type) -> Iterator[Callable]:
@@ -145,17 +154,36 @@ def _pipeline_methods(pipeline_class: type) -> Iterator[Callable]:
         for value in base.__dict__.values():
             if isinstance(value, (staticmethod, classmethod)):
                 value = value.__func__
+            if isinstance(value, property):
+                for accessor in (value.fget, value.fset, value.fdel):
+                    if inspect.isfunction(accessor):
+                        yield accessor
+                continue
             if inspect.isfunction(value):
                 yield value
 
 
-def _is_mutable(value: Any) -> bool:
-    return isinstance(value, (dict, list, set, bytearray, pd.DataFrame, pd.Series, np.ndarray))
+def _is_deeply_immutable(value: Any, seen: frozenset[int] = frozenset()) -> bool:
+    if value is None or isinstance(value, (bool, int, float, complex, str, bytes)):
+        return True
+    if isinstance(value, (tuple, frozenset)):
+        marker = id(value)
+        if marker in seen:
+            return True
+        nested_seen = seen | {marker}
+        return all(_is_deeply_immutable(item, nested_seen) for item in value)
+    return False
+
+
+def _is_safe_shared_reference(value: Any) -> bool:
+    if _is_deeply_immutable(value):
+        return True
+    return inspect.ismodule(value) or inspect.isroutine(value) or isinstance(value, type)
 
 
 def _class_has_mutable_state(pipeline_class: type) -> bool:
     return any(
-        _is_mutable(value)
+        not _is_deeply_immutable(value)
         for name, value in pipeline_class.__dict__.items()
         if not name.startswith("__") and not isinstance(value, (staticmethod, classmethod, property)) and not inspect.isroutine(value)
     )

@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import copy
 import inspect
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
 import pandas as pd
+from joblib.externals import cloudpickle
 
 from . import metrics as M
 from .conformal import ConformalWrapper, WeightedConformalWrapper
@@ -12,6 +15,37 @@ from .fabric import FeatureState, IdentityFeaturePipeline, clone_for_fold, scope
 from .fabric.views import make_fold_views
 from .featuresets import project
 import sohbench.featuresets  # noqa: F401
+
+
+class _DeferredCallbackSpool:
+    """Bound callback payload memory by staging snapshots on local disk."""
+
+    def __init__(self):
+        self._directory = TemporaryDirectory(prefix="sohbench-callback-")
+        self._counter = 0
+
+    def dump(self, kind, value) -> Path:
+        self._counter += 1
+        path = Path(self._directory.name) / f"{kind}-{self._counter:08d}.pkl"
+        try:
+            with path.open("wb") as handle:
+                cloudpickle.dump(value, handle, protocol=cloudpickle.DEFAULT_PROTOCOL)
+        except Exception:
+            path.unlink(missing_ok=True)
+            raise
+        return path
+
+    def load(self, path: Path):
+        with path.open("rb") as handle:
+            return cloudpickle.load(handle)
+
+    @staticmethod
+    def discard(path: Path | None) -> None:
+        if path is not None:
+            path.unlink(missing_ok=True)
+
+    def close(self) -> None:
+        self._directory.cleanup()
 
 
 def _instantiate_estimator(factory, seed):
@@ -51,6 +85,21 @@ class BenchmarkRunner:
         self.seeds = list(seeds)
 
     def run(self, task, table, meta, protocols, estimators, featuresets=None, feature_pipelines=None, on_model_fitted=None, on_predictions=None) -> pd.DataFrame:
+        callback_spool = _DeferredCallbackSpool() if on_model_fitted is not None or on_predictions is not None else None
+        try:
+            return self._run(
+                task, table, meta, protocols, estimators,
+                featuresets=featuresets,
+                feature_pipelines=feature_pipelines,
+                on_model_fitted=on_model_fitted,
+                on_predictions=on_predictions,
+                callback_spool=callback_spool,
+            )
+        finally:
+            if callback_spool is not None:
+                callback_spool.close()
+
+    def _run(self, task, table, meta, protocols, estimators, featuresets=None, feature_pipelines=None, on_model_fitted=None, on_predictions=None, callback_spool=None) -> pd.DataFrame:
         featuresets = ["full"] if featuresets is None else list(featuresets)
         feature_pipelines = feature_pipelines or {}
         records = []
@@ -61,6 +110,7 @@ class BenchmarkRunner:
         ]
         views_cache, raw_prepared_cache, prepared_cache = {}, {}, {}
         model_events, prediction_events = [], []
+        prepared_callback_snapshots = {}
 
         def views_for(pname, fi, fold):
             key = (pname, fi)
@@ -111,18 +161,19 @@ class BenchmarkRunner:
             prepared_cache[key] = value
             return value
 
-        for est_factory in estimators:
-            est_name = getattr(est_factory, "name", est_factory.__class__.__name__)
-            feature_mode = getattr(est_factory, "feature_mode", "unified")
-            backend = getattr(est_factory, "backend", "sklearn")
-            is_byo = feature_mode == "byo"
-            byo_name = next((name for name in featuresets if name in feature_pipelines), None)
-            fs_iterations = [("(byo)", "byo", byo_name)] if is_byo else [
-                (name, "unified", name if name in feature_pipelines else None) for name in featuresets
-            ]
-            for pname, cross, fi, fold in folds:
-                views, view_error = views_for(pname, fi, fold)
+        for pname, cross, fi, fold in folds:
+            views, view_error = views_for(pname, fi, fold)
+            for est_factory in estimators:
+                est_name = getattr(est_factory, "name", est_factory.__class__.__name__)
+                feature_mode = getattr(est_factory, "feature_mode", "unified")
+                backend = getattr(est_factory, "backend", "sklearn")
+                is_byo = feature_mode == "byo"
+                byo_name = next((name for name in featuresets if name in feature_pipelines), None)
+                fs_iterations = [("(byo)", "byo", byo_name)] if is_byo else [
+                    (name, "unified", name if name in feature_pipelines else None) for name in featuresets
+                ]
                 for fs_name, track, pipeline_name in fs_iterations:
+                    prepared_key = (pname, fi, fs_name, track, pipeline_name)
                     fit_train_x, fit_test_x, feature_state, feature_error = prepared_for(pname, fi, fold, fs_name, track, pipeline_name)
                     for seed in self.seeds:
                         np.random.seed(seed)
@@ -132,6 +183,7 @@ class BenchmarkRunner:
                             "track": track, "feature_mode": feature_mode, "backend": backend,
                             "feature_state_digest": feature_state.digest,
                         }
+                        snapshot_path, snapshot_error = None, None
                         try:
                             if feature_error is not None:
                                 raise feature_error
@@ -147,10 +199,9 @@ class BenchmarkRunner:
                             else:
                                 rec_base["ci_source"] = "native"
                             est.fit(train_x, train_y, train_meta)
-                            snapshot, snapshot_error = None, None
                             if on_model_fitted is not None:
                                 try:
-                                    snapshot = copy.deepcopy(est)
+                                    snapshot_path = callback_spool.dump("model", est)
                                 except Exception as exc:
                                     snapshot_error = str(exc)
                                     rec_base["model_snapshot_error"] = snapshot_error
@@ -160,41 +211,82 @@ class BenchmarkRunner:
                             row["picp"] = M.picp(test_y, lo, hi)
                             row.update(self._trajectory_metrics(task, test_x, yp))
                         except Exception as exc:
+                            if callback_spool is not None:
+                                callback_spool.discard(snapshot_path)
+                            snapshot_path = None
                             row = {metric: float("nan") for metric in (*task.point_metrics, *task.interval_metrics, *task.trajectory_metrics)}
                             rec_base["error"] = str(exc)
-                            snapshot, snapshot_error = None, None
                         event_records = []
                         for metric, value in row.items():
                             metric_record = {**rec_base, "metric": metric, "value": value}
                             records.append(metric_record)
                             event_records.append(metric_record)
                         if "error" not in rec_base and on_model_fitted is not None:
+                            prepared_snapshot_path, prepared_snapshot_error = None, None
+                            if snapshot_error is None:
+                                if prepared_key not in prepared_callback_snapshots:
+                                    try:
+                                        prepared_callback_snapshots[prepared_key] = (
+                                            callback_spool.dump(
+                                                "prepared",
+                                                {
+                                                    "train_table": fit_train_x,
+                                                    "test_table": fit_test_x,
+                                                    "feature_state": feature_state,
+                                                },
+                                            ),
+                                            None,
+                                        )
+                                    except Exception as exc:
+                                        prepared_callback_snapshots[prepared_key] = (None, str(exc))
+                                prepared_snapshot_path, prepared_snapshot_error = prepared_callback_snapshots[prepared_key]
                             model_events.append(
                                 {
-                                    "estimator": snapshot,
+                                    "snapshot_path": snapshot_path,
+                                    "prepared_snapshot_path": prepared_snapshot_path,
+                                    "prepared_snapshot_error": prepared_snapshot_error,
                                     "record": dict(rec_base),
-                                    "train_table": train_x.copy(deep=True),
-                                    "test_table": test_x.copy(deep=True),
-                                    "meta": scoped_meta_for_frame(meta, train_x, task.target),
-                                    "feature_state": feature_state,
                                     "pipeline_name": pipeline_name,
                                     "snapshot_error": snapshot_error,
                                     "records": event_records,
                                 }
                             )
                         if "error" not in rec_base and on_predictions is not None:
+                            prediction_path, prediction_snapshot_error = None, None
+                            try:
+                                prediction_path = callback_spool.dump(
+                                    "prediction",
+                                    {
+                                        "y_pred": np.array(yp, copy=True),
+                                        "interval_low": np.array(lo, copy=True),
+                                        "interval_high": np.array(hi, copy=True),
+                                    },
+                                )
+                            except Exception as exc:
+                                prediction_snapshot_error = str(exc)
                             prediction_events.append(
                                 {
                                     "record": dict(rec_base),
-                                    "sample_frame": table.iloc[fold.test_idx].copy(deep=True),
-                                    "y_pred": np.array(yp, copy=True),
-                                    "interval_low": np.array(lo, copy=True),
-                                    "interval_high": np.array(hi, copy=True),
+                                    "snapshot_path": prediction_path,
+                                    "snapshot_error": prediction_snapshot_error,
+                                    "fold_key": (pname, fi),
                                     "records": event_records,
                                 }
                             )
 
+            # The complete fold has run across every estimator. Evidence has
+            # been staged, so large transformed views can now be released.
+            views_cache.pop((pname, fi), None)
+            for cache in (raw_prepared_cache, prepared_cache):
+                for cache_key in tuple(cache):
+                    if cache_key[:2] == (pname, fi):
+                        cache.pop(cache_key, None)
+            views = fit_train_x = fit_test_x = train_x = test_x = None
+            train_y = test_y = train_meta = test_meta = est = yp = lo = hi = None
+
         # Evidence callbacks run only after no remaining fold can be influenced.
+        fold_lookup = {(pname, fi): fold for pname, _, fi, fold in folds}
+        prepared_event_groups = {}
         for event in model_events:
             if event["snapshot_error"] is not None:
                 message = event["snapshot_error"]
@@ -202,24 +294,62 @@ class BenchmarkRunner:
                     metric_record["model_snapshot_error"] = message
                     metric_record["model_callback_error"] = "callback skipped because model snapshot failed"
                 continue
-            try:
-                on_model_fitted(
-                    estimator=event["estimator"], record=event["record"],
-                    train_table=event["train_table"], test_table=event["test_table"], meta=event["meta"],
-                    feature_state=event["feature_state"], pipeline_name=event["pipeline_name"],
-                )
-            except Exception as exc:
+            if event["prepared_snapshot_error"] is not None:
+                callback_spool.discard(event["snapshot_path"])
                 for metric_record in event["records"]:
-                    metric_record["model_callback_error"] = str(exc)
-        for event in prediction_events:
+                    metric_record["prepared_snapshot_error"] = event["prepared_snapshot_error"]
+                    metric_record["model_callback_error"] = "callback skipped because prepared evidence snapshot failed"
+                continue
+            prepared_event_groups.setdefault(event["prepared_snapshot_path"], []).append(event)
+
+        for prepared_snapshot_path, events in prepared_event_groups.items():
             try:
+                prepared = callback_spool.load(prepared_snapshot_path)
+            except Exception as exc:
+                for event in events:
+                    callback_spool.discard(event["snapshot_path"])
+                    for metric_record in event["records"]:
+                        metric_record["model_callback_error"] = str(exc)
+                continue
+            try:
+                for event in events:
+                    try:
+                        estimator = callback_spool.load(event["snapshot_path"])
+                        on_model_fitted(
+                            estimator=estimator, record=event["record"],
+                            train_table=prepared["train_table"].copy(deep=True),
+                            test_table=prepared["test_table"].copy(deep=True),
+                            meta=scoped_meta_for_frame(meta, prepared["train_table"], task.target),
+                            feature_state=prepared["feature_state"], pipeline_name=event["pipeline_name"],
+                        )
+                    except Exception as exc:
+                        for metric_record in event["records"]:
+                            metric_record["model_callback_error"] = str(exc)
+                    finally:
+                        callback_spool.discard(event["snapshot_path"])
+                        estimator = None
+            finally:
+                callback_spool.discard(prepared_snapshot_path)
+                prepared = None
+        for event in prediction_events:
+            if event["snapshot_error"] is not None:
+                for metric_record in event["records"]:
+                    metric_record["prediction_snapshot_error"] = event["snapshot_error"]
+                    metric_record["callback_error"] = "callback skipped because prediction snapshot failed"
+                continue
+            try:
+                prediction = callback_spool.load(event["snapshot_path"])
+                fold = fold_lookup[event["fold_key"]]
                 on_predictions(
-                    record=event["record"], sample_frame=event["sample_frame"], y_pred=event["y_pred"],
-                    interval_low=event["interval_low"], interval_high=event["interval_high"],
+                    record=event["record"], sample_frame=table.iloc[fold.test_idx].copy(deep=True),
+                    y_pred=prediction["y_pred"], interval_low=prediction["interval_low"],
+                    interval_high=prediction["interval_high"],
                 )
             except Exception as exc:
                 for metric_record in event["records"]:
                     metric_record["callback_error"] = str(exc)
+            finally:
+                callback_spool.discard(event["snapshot_path"])
         return pd.DataFrame.from_records(records)
 
     def _point_metrics(self, task, yt, yp):

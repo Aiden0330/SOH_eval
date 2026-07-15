@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import re
 import sys
@@ -307,14 +306,22 @@ def _validate_dataset_table(table: pd.DataFrame) -> None:
 
 def _load_module(path: Path, kind: str) -> ModuleType:
     module_name = f"sohbench_trusted_{kind}_{path.stem}_{_stable_module_token(path)}"
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    if spec is None or spec.loader is None:
-        raise TrustedPluginError(f"cannot load plugin file: {path}")
-    module = importlib.util.module_from_spec(spec)
+    try:
+        source_bytes = path.read_bytes()
+    except OSError as exc:
+        raise TrustedPluginError(f"cannot load plugin file: {path}") from exc
+    module = ModuleType(module_name)
+    module.__file__ = str(path)
+    previous_module = sys.modules.get(module_name)
     sys.modules[module_name] = module
     try:
-        spec.loader.exec_module(module)
+        code = compile(source_bytes, str(path), "exec")
+        exec(code, module.__dict__)
     except Exception as exc:
+        if previous_module is None:
+            sys.modules.pop(module_name, None)
+        else:
+            sys.modules[module_name] = previous_module
         raise TrustedPluginError(f"plugin import failed: {exc}") from exc
     return module
 
