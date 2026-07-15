@@ -809,6 +809,146 @@ def test_record_schemas_reject_half_defined_interval_pairs(
         jsonschema.validate(record, schema)
 
 
+@pytest.mark.parametrize(
+    "schema_name, numeric_fields",
+    [
+        (
+            "prediction-record.schema.json",
+            (
+                "fold", "seed", "cycle_index", "y_pred", "y_true",
+                "interval_low", "interval_high", "predict_ms",
+            ),
+        ),
+        (
+            "metric-record.schema.json",
+            (
+                "fold", "seed", "value", "interval_low", "interval_high",
+                "standard_error", "confidence", "n_samples", "n_assets",
+            ),
+        ),
+    ],
+)
+def test_record_schema_numeric_fields_have_finite_python_bounds(
+    schema_name, numeric_fields,
+):
+    schema = json.loads(
+        files("sohbench.fabric.schemas")
+        .joinpath(schema_name)
+        .read_text(encoding="utf-8")
+    )
+
+    for field in numeric_fields:
+        definition = schema["properties"][field]
+        assert np.isfinite(definition["minimum"]), field
+        assert np.isfinite(definition["maximum"]), field
+
+
+@pytest.mark.parametrize(
+    "schema_name, frame_factory, numeric_field",
+    [
+        ("prediction-record.schema.json", prediction_frame, "y_pred"),
+        ("metric-record.schema.json", metric_frame, "value"),
+    ],
+)
+def test_jsonschema_bounds_reject_infinity_but_nan_needs_runtime_layer(
+    schema_name, frame_factory, numeric_field,
+):
+    schema = json.loads(
+        files("sohbench.fabric.schemas")
+        .joinpath(schema_name)
+        .read_text(encoding="utf-8")
+    )
+    record = {
+        key: value.item() if isinstance(value, np.generic) else value
+        for key, value in frame_factory().iloc[0].items()
+    }
+    for infinity in (float("inf"), float("-inf")):
+        record[numeric_field] = infinity
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(record, schema)
+
+    # JSON Schema models JSON numbers. Python jsonschema accepts an already
+    # materialized NaN because ordered minimum/maximum comparisons are false.
+    record[numeric_field] = float("nan")
+    jsonschema.validate(record, schema)
+
+
+@pytest.mark.parametrize(
+    "validator, frame",
+    [
+        (
+            validate_prediction_records,
+            prediction_frame(future_context={"score": float("nan")}),
+        ),
+        (
+            validate_metric_records,
+            metric_frame(extra_context={"score": float("inf")}),
+        ),
+        (
+            validate_prediction_records,
+            prediction_frame(future_score=float("nan")),
+        ),
+    ],
+)
+def test_public_record_validators_reject_nonfinite_extensible_context(
+    validator, frame,
+):
+    with pytest.raises(ValueError, match="finite|nonfinite"):
+        validator(frame)
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_verifier_strict_json_rejects_nonstandard_numeric_constants(
+    tmp_path, monkeypatch, constant,
+):
+    run_dir = tmp_path / "RUN-strict-json"
+    run_dir.mkdir()
+    pack = run_dir / "evidence-pack.json"
+    pack.write_text(
+        "{"
+        '"schema_version":"1.0.0",'
+        '"run_id":"RUN-strict-json",'
+        '"artifacts":[{"path":"result.txt","size":'
+        + constant
+        + ',"sha256":"'
+        + "a" * 64
+        + '"}]}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        evidence_module,
+        "sha256_file",
+        lambda path: pytest.fail("artifact bytes read after invalid JSON constant"),
+    )
+
+    with pytest.raises(ValueError, match="cannot read|nonfinite|constant"):
+        verify_evidence_pack(pack)
+
+
+def test_evidence_public_validation_and_writer_reject_nonfinite_context(tmp_path):
+    document = {
+        "schema_version": "1.0.0",
+        "run_id": "RUN-nonfinite",
+        "artifacts": [],
+        "future_score": float("nan"),
+    }
+    with pytest.raises(ValueError, match="finite|nonfinite"):
+        evidence_module.validate_evidence_pack_document(document)
+
+    run_dir = tmp_path / "RUN-nonfinite"
+    run_dir.mkdir()
+    artifact = run_dir / "result.txt"
+    artifact.write_text("result", encoding="utf-8")
+    with pytest.raises(ValueError, match="finite|nonfinite|JSON"):
+        write_evidence_pack(
+            run_dir,
+            {"run_id": "RUN-nonfinite", "future_score": float("inf")},
+            [artifact],
+        )
+    assert not (run_dir / "evidence-pack.json").exists()
+    assert not (run_dir / "evidence-pack.json.tmp").exists()
+
+
 def test_metric_records_require_exact_semantic_and_reference_columns():
     assert list(metric_frame().columns) == METRIC_COLUMNS
     for missing in ("metric_version", "aggregation_scope", "sample_ids", "cell_ids"):
@@ -818,7 +958,7 @@ def test_metric_records_require_exact_semantic_and_reference_columns():
 
 def test_metric_records_validate_identity_duplicates_and_extensible_context():
     first = metric_frame(extra_context={"bootstrap": "asset"})
-    other_metric = metric_frame(metric="rmse")
+    other_metric = metric_frame(metric="rmse", extra_context=None)
     validate_metric_records(pd.concat([first, other_metric], ignore_index=True))
 
     with pytest.raises(ValueError, match="duplicate metric execution key"):

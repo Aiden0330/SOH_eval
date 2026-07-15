@@ -1,4 +1,4 @@
-import json, os, subprocess, threading, pandas as pd, numpy as np, pytest
+import hashlib, json, os, subprocess, threading, unicodedata, pandas as pd, numpy as np, pytest
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
@@ -485,26 +485,30 @@ def test_write_artifacts_uses_distinct_generated_run_ids(tmp_path):
     assert second.name.startswith("RUN-")
 
 
-def test_write_artifacts_accepts_empty_target_and_rejects_nonempty_target(tmp_path):
-    empty = tmp_path / "RUN-empty"
-    empty.mkdir()
-    out = Path(
-        write_artifacts(
-            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-empty"
-        )
-    )
-    assert out == empty
+@pytest.mark.parametrize("occupied", [False, True])
+def test_write_artifacts_rejects_every_preexisting_target(tmp_path, occupied):
+    run_id = f"RUN-existing-{occupied}"
+    target = tmp_path / run_id
+    target.mkdir()
+    marker = target / "marker.txt"
+    if occupied:
+        marker.write_text("do not overwrite", encoding="utf-8")
 
-    occupied = tmp_path / "RUN-occupied"
-    occupied.mkdir()
-    marker = occupied / "marker.txt"
-    marker.write_text("do not overwrite", encoding="utf-8")
-    with pytest.raises(FileExistsError, match="not empty"):
+    with pytest.raises(FileExistsError, match="exists|target"):
         write_artifacts(
-            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-occupied"
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
         )
-    assert marker.read_text(encoding="utf-8") == "do not overwrite"
-    assert list(occupied.iterdir()) == [marker]
+
+    assert target.is_dir()
+    assert list(target.iterdir()) == ([marker] if occupied else [])
+    if occupied:
+        assert marker.read_text(encoding="utf-8") == "do not overwrite"
+    reservation = (
+        tmp_path
+        / ".sohbench-run-reservations"
+        / report_module._reservation_key(run_id)
+    )
+    assert reservation.is_dir()
 
 
 @pytest.mark.parametrize(
@@ -550,65 +554,48 @@ def test_write_artifacts_rejects_nonportable_run_ids_before_creating_target(
     assert list(tmp_path.iterdir()) == []
 
 
-@pytest.mark.skipif(os.name != "nt", reason="Windows case-alias regression")
-def test_write_artifacts_rejects_case_equivalent_existing_run_directory(tmp_path):
-    root = tmp_path / "runs"
+def test_write_artifacts_rejects_reservation_registry_name_as_run_id(tmp_path):
+    with pytest.raises(ValueError, match="run_id|reserved"):
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path,
+            run_id=".SOHBENCH-RUN-RESERVATIONS",
+        )
+
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("requested", ["RUN-Case", "run-case"])
+def test_write_artifacts_rejects_case_equivalent_existing_run_directory(
+    tmp_path, requested,
+):
+    root = tmp_path / requested
     root.mkdir()
     physical = root / "RUN-Case"
     physical.mkdir()
-    requested_alias = root / "run-case"
-    if not requested_alias.exists():
-        pytest.skip("filesystem proved case-sensitive")
 
-    with pytest.raises(FileExistsError, match="case"):
+    with pytest.raises(FileExistsError, match="exists|case|target"):
         write_artifacts(
-            _results(), None, SOHEstimationTask(), {}, root, run_id="run-case"
+            _results(), None, SOHEstimationTask(), {}, root, run_id=requested
         )
 
     assert list(physical.iterdir()) == []
-    out = Path(
-        write_artifacts(
-            _results(), None, SOHEstimationTask(), {}, root, run_id="RUN-Case"
-        )
-    )
-    assert out == physical
 
 
-def _run_concurrent_writers_after_shared_selection(
-    tmp_path, monkeypatch, run_ids, existing_empty=None,
-):
+def _run_concurrent_writers_at_reservation(tmp_path, monkeypatch, run_ids):
     root = tmp_path / "runs"
     root.mkdir()
-    if existing_empty is not None:
-        (root / existing_empty).mkdir()
-    selection_barrier = threading.Barrier(2)
-    first_ready_to_write = threading.Event()
-    second_finished_attempt = threading.Event()
-    state = threading.local()
-    original_select = report_module._select_run_target
-    original_to_parquet = pd.DataFrame.to_parquet
+    reservation_barrier = threading.Barrier(2)
+    original_acquire = report_module._acquire_run_reservation
 
-    def synchronized_select(root_path, run_id):
-        selected = original_select(root_path, run_id)
-        if not getattr(state, "initial_selection_complete", False):
-            state.initial_selection_complete = True
-            selection_barrier.wait(timeout=10)
-            if state.role == "second":
-                assert first_ready_to_write.wait(timeout=10)
-        return selected
+    def synchronized_acquire(root_path, run_id):
+        reservation_barrier.wait(timeout=10)
+        return original_acquire(root_path, run_id)
 
-    def synchronized_to_parquet(frame, *args, **kwargs):
-        if state.role == "first" and not getattr(state, "write_paused", False):
-            state.write_paused = True
-            first_ready_to_write.set()
-            assert second_finished_attempt.wait(timeout=10)
-        return original_to_parquet(frame, *args, **kwargs)
-
-    monkeypatch.setattr(report_module, "_select_run_target", synchronized_select)
-    monkeypatch.setattr(pd.DataFrame, "to_parquet", synchronized_to_parquet)
+    monkeypatch.setattr(
+        report_module, "_acquire_run_reservation", synchronized_acquire
+    )
 
     def run_writer(role, run_id):
-        state.role = role
         try:
             return Path(
                 write_artifacts(
@@ -622,9 +609,6 @@ def _run_concurrent_writers_after_shared_selection(
             )
         except BaseException as exc:
             return exc
-        finally:
-            if role == "second":
-                second_finished_attempt.set()
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [
@@ -636,7 +620,7 @@ def _run_concurrent_writers_after_shared_selection(
     return root, list(zip(("first", "second"), run_ids, outcomes))
 
 
-def _assert_single_claimed_writer(root, outcomes):
+def _assert_single_reserved_writer(root, outcomes):
     successes = [item for item in outcomes if isinstance(item[2], Path)]
     failures = [item for item in outcomes if isinstance(item[2], BaseException)]
     if len(successes) == 2:
@@ -648,7 +632,7 @@ def _assert_single_claimed_writer(root, outcomes):
     assert isinstance(failures[0][2], (FileExistsError, ValueError))
     assert any(
         word in str(failures[0][2]).lower()
-        for word in ("claim", "collision", "case", "not empty")
+        for word in ("reservation", "exists", "collision", "case")
     )
 
     role, run_id, run_dir = successes[0]
@@ -657,75 +641,72 @@ def _assert_single_claimed_writer(root, outcomes):
     }
     pack = verify_evidence_pack(run_dir / "evidence-pack.json")
     assert pack["run_id"] == run_id
-    assert ".sohbench-run.claim" not in {item["path"] for item in pack["artifacts"]}
-    assert not (run_dir / ".sohbench-run.claim").exists()
-    assert len([entry for entry in root.iterdir() if entry.is_dir()]) == 1
+    artifact_paths = {item["path"] for item in pack["artifacts"]}
+    assert not any("reservation" in path for path in artifact_paths)
+    assert list(run_dir.glob(".*")) == []
+    registry = root / ".sohbench-run-reservations"
+    assert registry.is_dir()
+    assert len(list(registry.iterdir())) == 1
+    assert sorted(entry.name for entry in root.iterdir()) == sorted(
+        [run_dir.name, registry.name]
+    )
 
 
 def test_concurrent_exact_run_ids_allow_only_one_artifact_transaction(
     tmp_path, monkeypatch,
 ):
-    root, outcomes = _run_concurrent_writers_after_shared_selection(
-        tmp_path,
-        monkeypatch,
-        ("RUN-Race", "RUN-Race"),
-        existing_empty="RUN-Race",
+    root, outcomes = _run_concurrent_writers_at_reservation(
+        tmp_path, monkeypatch, ("RUN-Race", "RUN-Race")
     )
 
-    _assert_single_claimed_writer(root, outcomes)
+    _assert_single_reserved_writer(root, outcomes)
 
 
-@pytest.mark.skipif(os.name != "nt", reason="Windows case-alias regression")
 def test_concurrent_case_equivalent_run_ids_allow_only_one_artifact_transaction(
     tmp_path, monkeypatch,
 ):
-    probe_root = tmp_path / "probe"
-    probe_root.mkdir()
-    physical_probe = probe_root / "Case-Probe"
-    physical_probe.mkdir()
-    if not (probe_root / "case-probe").exists():
-        pytest.skip("filesystem proved case-sensitive")
-
-    root, outcomes = _run_concurrent_writers_after_shared_selection(
+    root, outcomes = _run_concurrent_writers_at_reservation(
         tmp_path, monkeypatch, ("RUN-Race", "run-race")
     )
 
-    _assert_single_claimed_writer(root, outcomes)
+    _assert_single_reserved_writer(root, outcomes)
 
 
-@pytest.mark.parametrize("claim_kind", ["file", "directory"])
-def test_stale_run_claim_fails_closed(tmp_path, claim_kind):
-    run_dir = tmp_path / "RUN-stale"
-    run_dir.mkdir()
-    claim = run_dir / ".sohbench-run.claim"
-    if claim_kind == "file":
-        claim.write_bytes(b"stale")
+@pytest.mark.parametrize("reservation_kind", ["file", "directory"])
+def test_stale_durable_reservation_fails_closed(tmp_path, reservation_kind):
+    run_id = "RUN-stale"
+    registry = tmp_path / ".sohbench-run-reservations"
+    registry.mkdir()
+    reservation = registry / report_module._reservation_key(run_id)
+    if reservation_kind == "file":
+        reservation.write_bytes(b"stale reservation")
     else:
-        claim.mkdir()
+        reservation.mkdir()
 
-    with pytest.raises(FileExistsError, match="already claimed"):
+    with pytest.raises(FileExistsError, match="reserved|reservation"):
         write_artifacts(
-            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-stale"
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
         )
 
-    if claim_kind == "file":
-        assert claim.read_bytes() == b"stale"
+    if reservation_kind == "file":
+        assert reservation.read_bytes() == b"stale reservation"
     else:
-        assert claim.is_dir()
-    assert list(run_dir.iterdir()) == [claim]
+        assert reservation.is_dir()
+    assert not (tmp_path / run_id).exists()
 
 
-def test_inference_holds_claim_through_evidence_pack_and_removes_it(
+def test_inference_keeps_reservation_outside_pack_and_final_run(
     tmp_path, monkeypatch,
 ):
     from sohbench.report import write_inference_artifacts
 
     original_write_pack = report_module.write_evidence_pack
-    observed_claims = []
+    observed_reservations = []
 
     def observe_claim(run_dir, manifest, artifact_paths):
-        claim = Path(run_dir) / ".sohbench-run.claim"
-        observed_claims.append(claim.is_dir())
+        registry = Path(run_dir).parent / ".sohbench-run-reservations"
+        reservation = registry / report_module._reservation_key(manifest["run_id"])
+        observed_reservations.append(reservation.is_dir())
         return original_write_pack(run_dir, manifest, artifact_paths)
 
     monkeypatch.setattr(report_module, "write_evidence_pack", observe_claim)
@@ -738,459 +719,242 @@ def test_inference_holds_claim_through_evidence_pack_and_removes_it(
         )
     )
 
-    assert observed_claims == [True]
-    assert not (out / ".sohbench-run.claim").exists()
+    assert observed_reservations == [True]
+    assert not (out / ".sohbench-run-reservations").exists()
+    pack = verify_evidence_pack(out / "evidence-pack.json")
+    assert not any("reservation" in item["path"] for item in pack["artifacts"])
 
 
-def test_claim_transaction_does_not_use_descriptor_lifecycle_apis(
+def test_reservation_transaction_uses_no_ephemeral_claim_metadata(
     tmp_path, monkeypatch,
 ):
-    def fail_descriptor_api(*args, **kwargs):
-        pytest.fail("run claim used a descriptor lifecycle API")
+    real_lstat = Path.lstat
 
-    monkeypatch.setattr(report_module.os, "open", fail_descriptor_api)
-    monkeypatch.setattr(report_module.os, "fstat", fail_descriptor_api)
-    monkeypatch.setattr(report_module.os, "close", fail_descriptor_api)
+    def reject_ephemeral_claim_lstat(path):
+        if path.name == ".sohbench-run.claim":
+            pytest.fail("ephemeral claim metadata was consulted")
+        return real_lstat(path)
+
+    monkeypatch.setattr(Path, "lstat", reject_ephemeral_claim_lstat)
 
     with report_module._run_directory_transaction(
-        tmp_path, "RUN-no-descriptor"
+        tmp_path, "RUN-no-ephemeral-claim"
     ) as out:
-        assert (out / ".sohbench-run.claim").is_dir()
+        assert out.is_dir()
 
-    assert not (tmp_path / "RUN-no-descriptor" / ".sohbench-run.claim").exists()
-
-
-def test_claim_acquisition_retries_one_transient_lstat_failure(
-    tmp_path, monkeypatch,
-):
-    real_lstat = Path.lstat
-    claim_lstat_calls = 0
-
-    def fail_first_claim_lstat(path):
-        nonlocal claim_lstat_calls
-        if path.name == ".sohbench-run.claim":
-            claim_lstat_calls += 1
-            if claim_lstat_calls == 1:
-                raise OSError("injected claim lstat failure")
-        return real_lstat(path)
-
-    monkeypatch.setattr(Path, "lstat", fail_first_claim_lstat)
-    out = Path(
-        write_artifacts(
-            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-lstat"
-        )
+    assert not any(
+        path.name == ".sohbench-run.claim" for path in tmp_path.rglob("*")
     )
 
-    assert claim_lstat_calls >= 2
-    assert out.is_dir()
-    assert not (out / ".sohbench-run.claim").exists()
 
-
-def test_persistent_acquisition_metadata_failure_leaves_replacement_fail_closed(
-    tmp_path, monkeypatch,
-):
-    real_lstat = Path.lstat
-    first_error = OSError("injected persistent acquisition metadata failure")
-    replacement_identity = None
-    claim_lstat_calls = 0
-
-    def replace_then_fail_claim_lstat(path):
-        nonlocal claim_lstat_calls, replacement_identity
-        if path.name == ".sohbench-run.claim":
-            claim_lstat_calls += 1
-            if claim_lstat_calls == 1:
-                path.rmdir()
-                path.mkdir()
-                replacement = real_lstat(path)
-                replacement_identity = (replacement.st_dev, replacement.st_ino)
-                raise first_error
-            raise OSError("injected repeated acquisition metadata failure")
-        return real_lstat(path)
-
-    monkeypatch.setattr(Path, "lstat", replace_then_fail_claim_lstat)
-    with pytest.raises(OSError) as exc_info:
-        write_artifacts(
-            _results(), None, SOHEstimationTask(), {}, tmp_path,
-            run_id="RUN-unknown-acquisition",
-        )
-
-    monkeypatch.setattr(Path, "lstat", real_lstat)
-    claim = tmp_path / "RUN-unknown-acquisition" / ".sohbench-run.claim"
-    current = real_lstat(claim)
-    assert exc_info.value is first_error
-    assert claim_lstat_calls == 2
-    assert claim.is_dir()
-    assert (current.st_dev, current.st_ino) == replacement_identity
-    claim.rmdir()
-
-
-def test_claim_release_retries_one_transient_lstat_failure(
-    tmp_path, monkeypatch,
-):
-    real_lstat = Path.lstat
-    claim_lstat_calls = 0
-
-    def fail_second_claim_lstat(path):
-        nonlocal claim_lstat_calls
-        if path.name == ".sohbench-run.claim":
-            claim_lstat_calls += 1
-            if claim_lstat_calls == 2:
-                raise OSError("injected transient release lstat failure")
-        return real_lstat(path)
-
-    monkeypatch.setattr(Path, "lstat", fail_second_claim_lstat)
-    out = Path(
-        write_artifacts(
-            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-retry"
-        )
+def _expected_reservation_key(run_id):
+    canonical = unicodedata.normalize(
+        "NFC", unicodedata.normalize("NFC", run_id).casefold()
     )
-
-    assert claim_lstat_calls >= 3
-    assert not (out / ".sohbench-run.claim").exists()
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def _install_persistent_release_lstat_failure(monkeypatch):
-    real_lstat = Path.lstat
-    claim_lstat_calls = 0
+@pytest.mark.parametrize(
+    "first, second",
+    [
+        ("RUN-Race", "run-race"),
+        ("RUN-Straße", "run-strasse"),
+        ("RUN-é", "run-e\u0301"),
+    ],
+)
+def test_reservation_key_uses_unicode_casefold_canonical_form(first, second):
+    expected = _expected_reservation_key(first)
 
-    def fail_release_lstat(path):
-        nonlocal claim_lstat_calls
-        if path.name == ".sohbench-run.claim":
-            claim_lstat_calls += 1
-            if claim_lstat_calls >= 2:
-                raise OSError("injected persistent release lstat failure")
-        return real_lstat(path)
-
-    monkeypatch.setattr(Path, "lstat", fail_release_lstat)
+    assert report_module._reservation_key(first) == expected
+    assert report_module._reservation_key(second) == expected
 
 
-def test_successful_body_surfaces_persistent_claim_metadata_failure(
+def test_final_target_creation_race_preserves_replacement_and_reservation(
     tmp_path, monkeypatch,
 ):
-    _install_persistent_release_lstat_failure(monkeypatch)
+    run_id = "RUN-target-race"
+    target = tmp_path / run_id
+    marker = target / "replacement.txt"
+    real_mkdir = Path.mkdir
+    injected = False
 
-    with pytest.raises(OSError, match="persistent release lstat failure"):
+    def inject_replacement(path, *args, **kwargs):
+        nonlocal injected
+        if path == target and not injected:
+            injected = True
+            real_mkdir(path)
+            marker.write_text("replacement survives", encoding="utf-8")
+        return real_mkdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", inject_replacement)
+    with pytest.raises(FileExistsError, match="exists|target|collision"):
         write_artifacts(
-            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-metadata"
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
         )
 
-    assert (tmp_path / "RUN-metadata" / ".sohbench-run.claim").exists()
+    assert marker.read_text(encoding="utf-8") == "replacement survives"
+    reservation = (
+        tmp_path
+        / ".sohbench-run-reservations"
+        / report_module._reservation_key(run_id)
+    )
+    assert reservation.is_dir()
 
 
-def test_artifact_error_remains_primary_when_claim_metadata_cleanup_fails(
+def test_partial_artifact_failure_leaves_durable_fail_closed_history(
     tmp_path, monkeypatch,
 ):
-    _install_persistent_release_lstat_failure(monkeypatch)
+    run_id = "RUN-partial"
 
     def fail_pack(*args, **kwargs):
         raise RuntimeError("injected artifact failure")
 
     monkeypatch.setattr(report_module, "write_evidence_pack", fail_pack)
-    with pytest.raises(RuntimeError, match="injected artifact failure") as exc_info:
+    with pytest.raises(RuntimeError, match="injected artifact failure"):
         write_artifacts(
-            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-primary"
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
         )
 
-    assert any(
-        "persistent release lstat failure" in note
-        for note in getattr(exc_info.value, "__notes__", [])
+    run_dir = tmp_path / run_id
+    reservation = (
+        tmp_path
+        / ".sohbench-run-reservations"
+        / report_module._reservation_key(run_id)
     )
-    assert (tmp_path / "RUN-primary" / ".sohbench-run.claim").exists()
+    assert reservation.is_dir()
+    assert run_dir.is_dir()
+    assert (run_dir / "results.parquet").is_file()
+    assert not (run_dir / "evidence-pack.json").exists()
+    partial_entries = sorted(path.name for path in run_dir.iterdir())
+
+    with pytest.raises(FileExistsError, match="reserved|reservation"):
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+        )
+
+    assert sorted(path.name for path in run_dir.iterdir()) == partial_entries
+    assert reservation.is_dir()
 
 
-def test_claim_identity_mismatch_is_reported_and_left_fail_closed(
-    tmp_path, monkeypatch,
-):
-    real_lstat = Path.lstat
-    claim = None
-    owned_identity = None
+def test_success_keeps_reservation_outside_final_run_and_pack(tmp_path):
+    run_id = "RUN-durable"
+    out = Path(
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+        )
+    )
+    registry = tmp_path / ".sohbench-run-reservations"
+    reservation = registry / report_module._reservation_key(run_id)
 
-    class DifferentIdentity:
-        def __init__(self, original):
-            self._original = original
-            self.st_ino = original.st_ino + 1
-
-        def __getattr__(self, name):
-            return getattr(self._original, name)
-
-    def mismatched_claim_lstat(path):
-        result = real_lstat(path)
-        if path.name == ".sohbench-run.claim":
-            return DifferentIdentity(result)
-        return result
-
-    try:
-        with pytest.raises(RuntimeError, match="identity"):
-            with report_module._run_directory_transaction(
-                tmp_path, "RUN-identity"
-            ) as out:
-                claim = out / ".sohbench-run.claim"
-                owned = real_lstat(claim)
-                owned_identity = (owned.st_dev, owned.st_ino)
-                monkeypatch.setattr(Path, "lstat", mismatched_claim_lstat)
-        monkeypatch.setattr(Path, "lstat", real_lstat)
-        current = real_lstat(claim)
-        assert claim.is_dir()
-        assert (current.st_dev, current.st_ino) == owned_identity
-    finally:
-        monkeypatch.setattr(Path, "lstat", real_lstat)
-        if claim is not None and claim.exists():
-            if claim.is_dir():
-                claim.rmdir()
-            else:
-                claim.unlink()
+    assert reservation.is_dir()
+    assert registry.parent == tmp_path
+    assert not (out / registry.name).exists()
+    assert not (out / ".sohbench-run.claim").exists()
+    pack = verify_evidence_pack(out / "evidence-pack.json")
+    assert not any(
+        "reservation" in entry["path"] or "claim" in entry["path"]
+        for entry in pack["artifacts"]
+    )
 
 
-def test_nonempty_claim_directory_is_reported_and_not_removed(tmp_path):
-    claim = None
-    marker = None
-    try:
-        with pytest.raises(RuntimeError, match="empty"):
-            with report_module._run_directory_transaction(
-                tmp_path, "RUN-nonempty-claim"
-            ) as out:
-                claim = out / ".sohbench-run.claim"
-                marker = claim / "marker.txt"
-                marker.write_text("owned content", encoding="utf-8")
-        assert claim.is_dir()
-        assert marker.read_text(encoding="utf-8") == "owned content"
-    finally:
-        if marker is not None and marker.exists():
-            marker.unlink()
-        if claim is not None and claim.exists():
-            if claim.is_dir():
-                claim.rmdir()
-            else:
-                claim.unlink()
+def test_writer_performs_no_destructive_run_cleanup(tmp_path, monkeypatch):
+    def reject_rmdir(path):
+        pytest.fail(f"destructive run cleanup attempted for {path}")
+
+    monkeypatch.setattr(Path, "rmdir", reject_rmdir)
+    out = Path(
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path,
+            run_id="RUN-no-cleanup",
+        )
+    )
+
+    assert (out / "evidence-pack.json").is_file()
 
 
-def test_replaced_claim_symlink_is_not_followed_or_removed(tmp_path):
-    target = tmp_path / "external-target"
+def test_reservation_registry_must_be_an_ordinary_directory(tmp_path):
+    registry = tmp_path / ".sohbench-run-reservations"
+    registry.write_bytes(b"not a directory")
+
+    with pytest.raises(ValueError, match="reservation registry|ordinary"):
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path,
+            run_id="RUN-registry-file",
+        )
+
+    assert registry.read_bytes() == b"not a directory"
+    assert not (tmp_path / "RUN-registry-file").exists()
+
+
+def test_replaced_reservation_registry_symlink_is_not_followed(tmp_path):
+    target = tmp_path / "external-registry-target"
     target.mkdir()
     sentinel = target / "sentinel.txt"
     sentinel.write_bytes(b"external sentinel")
-    probe = tmp_path / "symlink-probe"
+    registry = tmp_path / ".sohbench-run-reservations"
     try:
-        probe.symlink_to(target, target_is_directory=True)
+        registry.symlink_to(target, target_is_directory=True)
     except OSError as exc:
         pytest.skip(f"directory symlink creation unavailable: {exc}")
-    else:
-        probe.unlink()
 
-    claim = None
     try:
-        with pytest.raises(RuntimeError, match="ordinary|identity|reparse"):
-            with report_module._run_directory_transaction(
-                tmp_path, "RUN-replaced-symlink"
-            ) as out:
-                claim = out / ".sohbench-run.claim"
-                claim.rmdir()
-                claim.symlink_to(target, target_is_directory=True)
-        assert claim.is_symlink()
+        with pytest.raises(ValueError, match="reservation registry|link|reparse"):
+            write_artifacts(
+                _results(), None, SOHEstimationTask(), {}, tmp_path,
+                run_id="RUN-registry-link",
+            )
+        assert registry.is_symlink()
         assert sentinel.read_bytes() == b"external sentinel"
+        assert list(target.iterdir()) == [sentinel]
     finally:
-        if claim is not None and claim.is_symlink():
-            claim.unlink()
-
-    assert sentinel.read_bytes() == b"external sentinel"
+        if registry.is_symlink():
+            registry.unlink()
 
 
 @pytest.mark.skipif(os.name != "nt", reason="directory junctions require Windows")
-def test_replaced_claim_junction_is_not_followed_or_removed(tmp_path):
-    target = tmp_path / "junction-claim-target"
+def test_replaced_reservation_registry_junction_is_not_followed(tmp_path):
+    target = tmp_path / "external-registry-target"
     target.mkdir()
     sentinel = target / "sentinel.txt"
     sentinel.write_bytes(b"external sentinel")
-    claim = None
+    registry = tmp_path / ".sohbench-run-reservations"
+    created = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(registry), str(target)],
+        capture_output=True,
+        text=True,
+    )
+    if created.returncode:
+        pytest.skip(
+            "directory junction creation unavailable: "
+            f"{created.stdout}{created.stderr}"
+        )
+
     try:
-        with pytest.raises(RuntimeError, match="ordinary|identity|reparse"):
-            with report_module._run_directory_transaction(
-                tmp_path, "RUN-replaced-junction"
-            ) as out:
-                claim = out / ".sohbench-run.claim"
-                claim.rmdir()
-                created = subprocess.run(
-                    ["cmd", "/c", "mklink", "/J", str(claim), str(target)],
-                    capture_output=True,
-                    text=True,
-                )
-                if created.returncode:
-                    pytest.skip(
-                        "directory junction creation unavailable: "
-                        f"{created.stdout}{created.stderr}"
-                    )
-        assert claim.exists()
-        assert claim.is_junction()
+        with pytest.raises(ValueError, match="reservation registry|link|reparse"):
+            write_artifacts(
+                _results(), None, SOHEstimationTask(), {}, tmp_path,
+                run_id="RUN-registry-junction",
+            )
+        assert registry.is_junction()
         assert sentinel.read_bytes() == b"external sentinel"
+        assert list(target.iterdir()) == [sentinel]
     finally:
-        if claim is not None and claim.exists():
-            os.rmdir(claim)
-
-    assert sentinel.read_bytes() == b"external sentinel"
+        if registry.exists():
+            os.rmdir(registry)
 
 
-@pytest.mark.skipif(os.name != "nt", reason="native claim deletion requires Windows")
-def test_windows_replacement_before_claim_handle_open_survives(
-    tmp_path, monkeypatch,
-):
-    real_open = report_module._windows_open_claim_for_delete
-    replacement_identity = None
-    marker = None
-
-    def replace_before_open(claim_path):
-        nonlocal replacement_identity, marker
-        claim_path.rmdir()
-        claim_path.mkdir()
-        marker = claim_path / "replacement.txt"
-        marker.write_text("replacement survives", encoding="utf-8")
-        current = claim_path.lstat()
-        replacement_identity = (current.st_dev, current.st_ino)
-        return real_open(claim_path)
-
-    monkeypatch.setattr(
-        report_module, "_windows_open_claim_for_delete", replace_before_open
+def test_ephemeral_claim_cleanup_implementation_is_removed():
+    obsolete_names = (
+        "_acquire_run_claim",
+        "_cleanup_run_claim",
+        "_portable_delete_claim_directory",
+        "_windows_open_claim_for_delete",
+        "_windows_mark_claim_for_deletion",
+        "_windows_close_claim_handle",
+        "_windows_delete_claim_directory",
     )
-    claim = None
-    try:
-        with pytest.raises(RuntimeError, match="identity"):
-            with report_module._run_directory_transaction(
-                tmp_path, "RUN-replaced-before-open"
-            ) as out:
-                claim = out / ".sohbench-run.claim"
 
-        current = claim.lstat()
-        assert (current.st_dev, current.st_ino) == replacement_identity
-        assert marker.read_text(encoding="utf-8") == "replacement survives"
-    finally:
-        if marker is not None and marker.exists():
-            marker.unlink()
-        if claim is not None and claim.exists():
-            claim.rmdir()
-
-
-@pytest.mark.skipif(os.name != "nt", reason="native claim deletion requires Windows")
-def test_windows_replacement_in_final_claim_deletion_window_survives(
-    tmp_path, monkeypatch,
-):
-    real_mark = report_module._windows_mark_claim_for_deletion
-    detached = tmp_path / "detached-owned-claim"
-    replacement_identity = None
-    marker = None
-    claim = None
-
-    def replace_after_handle_verification(handle):
-        nonlocal replacement_identity, marker
-        claim.rename(detached)
-        claim.mkdir()
-        marker = claim / "replacement.txt"
-        marker.write_text("replacement survives", encoding="utf-8")
-        current = claim.lstat()
-        replacement_identity = (current.st_dev, current.st_ino)
-        return real_mark(handle)
-
-    monkeypatch.setattr(
-        report_module, "_windows_mark_claim_for_deletion",
-        replace_after_handle_verification,
-    )
-    try:
-        with pytest.raises(RuntimeError, match="replacement|claim"):
-            with report_module._run_directory_transaction(
-                tmp_path, "RUN-final-window"
-            ) as out:
-                claim = out / ".sohbench-run.claim"
-
-        current = claim.lstat()
-        assert (current.st_dev, current.st_ino) == replacement_identity
-        assert marker.read_text(encoding="utf-8") == "replacement survives"
-        assert not detached.exists()
-    finally:
-        if marker is not None and marker.exists():
-            marker.unlink()
-        if claim is not None and claim.exists():
-            claim.rmdir()
-        if detached.exists():
-            detached.rmdir()
-
-
-@pytest.mark.skipif(os.name != "nt", reason="native claim deletion requires Windows")
-def test_windows_native_claim_deletion_removes_ordinary_claim(
-    tmp_path, monkeypatch,
-):
-    real_mark = report_module._windows_mark_claim_for_deletion
-    marked_handles = []
-
-    def observe_mark(handle):
-        marked_handles.append(handle)
-        return real_mark(handle)
-
-    monkeypatch.setattr(
-        report_module, "_windows_mark_claim_for_deletion", observe_mark
-    )
-    with report_module._run_directory_transaction(
-        tmp_path, "RUN-native-delete"
-    ) as out:
-        claim = out / ".sohbench-run.claim"
-        assert claim.is_dir()
-
-    assert len(marked_handles) == 1
-    assert not claim.exists()
-
-
-@pytest.mark.skipif(os.name != "nt", reason="native claim deletion requires Windows")
-def test_windows_claim_handle_close_failure_is_not_retried(
-    tmp_path, monkeypatch,
-):
-    real_close = report_module._CLOSE_HANDLE
-    observed_handles = []
-
-    def close_then_report_failure(handle):
-        observed_handles.append(handle)
-        assert real_close(handle)
-        report_module.ctypes.set_last_error(5)
-        return 0
-
-    monkeypatch.setattr(
-        report_module, "_CLOSE_HANDLE", close_then_report_failure
-    )
-    claim = tmp_path / "RUN-close-handle" / ".sohbench-run.claim"
-    with pytest.raises(OSError):
-        with report_module._run_directory_transaction(
-            tmp_path, "RUN-close-handle"
-        ):
-            pass
-
-    assert len(observed_handles) == 1
-    assert not claim.exists()
-
-
-def test_portable_claim_cleanup_revalidation_leaves_replacement(
-    tmp_path, monkeypatch,
-):
-    claim = tmp_path / ".sohbench-run.claim"
-    claim.mkdir()
-    owned = claim.lstat()
-    identity = (owned.st_dev, owned.st_ino)
-    real_lstat = Path.lstat
-    marker = None
-
-    def replace_before_revalidation(path):
-        nonlocal marker
-        if path == claim and marker is None:
-            path.rmdir()
-            path.mkdir()
-            marker = path / "replacement.txt"
-            marker.write_text("replacement survives", encoding="utf-8")
-        return real_lstat(path)
-
-    monkeypatch.setattr(Path, "lstat", replace_before_revalidation)
-    with pytest.raises(RuntimeError, match="identity"):
-        report_module._portable_delete_claim_directory(claim, identity)
-
-    monkeypatch.setattr(Path, "lstat", real_lstat)
-    assert marker.read_text(encoding="utf-8") == "replacement survives"
-    marker.unlink()
-    claim.rmdir()
-
+    assert not any(hasattr(report_module, name) for name in obsolete_names)
 
 @pytest.mark.parametrize("writer_kind", ["training", "inference"])
 def test_writers_share_run_directory_transaction_helper(
@@ -1237,11 +1001,12 @@ def test_write_artifacts_rejects_existing_directory_symlink(tmp_path):
         pytest.skip(f"directory symlink creation unavailable: {exc}")
 
     try:
-        with pytest.raises(ValueError, match="link|reparse|outside"):
+        with pytest.raises(FileExistsError, match="exists|target"):
             write_artifacts(
                 _results(), None, SOHEstimationTask(), {}, root, run_id="RUN-link"
             )
         assert list(target.iterdir()) == []
+        assert link.is_symlink()
     finally:
         if link.is_symlink():
             link.unlink()
@@ -1266,11 +1031,12 @@ def test_write_artifacts_rejects_existing_directory_junction(tmp_path):
         )
 
     try:
-        with pytest.raises(ValueError, match="link|reparse|outside"):
+        with pytest.raises(FileExistsError, match="exists|target"):
             write_artifacts(
                 _results(), None, SOHEstimationTask(), {}, root, run_id="RUN-link"
             )
         assert list(target.iterdir()) == []
+        assert link.is_junction()
     finally:
         if link.exists():
             os.rmdir(link)

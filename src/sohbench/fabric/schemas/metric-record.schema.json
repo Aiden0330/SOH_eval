@@ -25,12 +25,12 @@
     "candidate_id": {"type": "string", "minLength": 1},
     "featureset": {"type": "string", "minLength": 1},
     "protocol": {"type": "string", "minLength": 1},
-    "fold": {"type": "integer", "minimum": 0},
-    "seed": {"type": "integer"},
+    "fold": {"type": "integer", "minimum": 0, "maximum": 1.7976931348623157e308},
+    "seed": {"type": "integer", "minimum": -1.7976931348623157e308, "maximum": 1.7976931348623157e308},
     "dataset": {"type": "string", "minLength": 1},
     "metric": {"type": "string", "minLength": 1},
     "metric_version": {"type": "string", "minLength": 1},
-    "value": {"type": "number"},
+    "value": {"type": "number", "minimum": -1.7976931348623157e308, "maximum": 1.7976931348623157e308},
     "unit": {"type": "string", "minLength": 1},
     "direction": {"type": "string", "minLength": 1},
     "aggregation_scope": {"type": "string", "minLength": 1},
@@ -46,12 +46,12 @@
       "uniqueItems": true,
       "items": {"type": "string", "minLength": 1}
     },
-    "interval_low": {"type": ["number", "null"]},
-    "interval_high": {"type": ["number", "null"]},
-    "standard_error": {"type": ["number", "null"], "minimum": 0},
+    "interval_low": {"type": ["number", "null"], "minimum": -1.7976931348623157e308, "maximum": 1.7976931348623157e308},
+    "interval_high": {"type": ["number", "null"], "minimum": -1.7976931348623157e308, "maximum": 1.7976931348623157e308},
+    "standard_error": {"type": ["number", "null"], "minimum": 0, "maximum": 1.7976931348623157e308},
     "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
-    "n_samples": {"type": ["integer", "null"], "minimum": 0},
-    "n_assets": {"type": ["integer", "null"], "minimum": 0}
+    "n_samples": {"type": ["integer", "null"], "minimum": 0, "maximum": 1.7976931348623157e308},
+    "n_assets": {"type": ["integer", "null"], "minimum": 0, "maximum": 1.7976931348623157e308}
   },
   "dependentRequired": {
     "interval_low": ["interval_high"],

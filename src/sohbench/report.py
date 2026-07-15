@@ -1,6 +1,5 @@
 from __future__ import annotations
-import ctypes, json, math, os, stat
-from ctypes import wintypes
+import hashlib, json, math, stat, unicodedata
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -21,66 +20,17 @@ from .fabric.outcomes import (
 from .tasks import SOHEstimationTask
 
 
-_RUN_CLAIM_NAME = ".sohbench-run.claim"
+_RUN_RESERVATION_REGISTRY = ".sohbench-run-reservations"
 
-if os.name == "nt":
-    _FILE_ATTRIBUTE_DIRECTORY = 0x10
-    _FILE_ATTRIBUTE_REPARSE_POINT = 0x400
-    _FILE_READ_ATTRIBUTES = 0x80
-    _DELETE = 0x00010000
-    _FILE_SHARE_ALL = 0x00000001 | 0x00000002 | 0x00000004
-    _OPEN_EXISTING = 3
-    _FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
-    _FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
-    _FILE_DISPOSITION_INFO_CLASS = 4
 
-    class _ByHandleFileInformation(ctypes.Structure):
-        _fields_ = [
-            ("dwFileAttributes", wintypes.DWORD),
-            ("ftCreationTime", wintypes.FILETIME),
-            ("ftLastAccessTime", wintypes.FILETIME),
-            ("ftLastWriteTime", wintypes.FILETIME),
-            ("dwVolumeSerialNumber", wintypes.DWORD),
-            ("nFileSizeHigh", wintypes.DWORD),
-            ("nFileSizeLow", wintypes.DWORD),
-            ("nNumberOfLinks", wintypes.DWORD),
-            ("nFileIndexHigh", wintypes.DWORD),
-            ("nFileIndexLow", wintypes.DWORD),
-        ]
+def _canonical_run_name(run_id: str) -> str:
+    normalized = unicodedata.normalize("NFC", run_id)
+    return unicodedata.normalize("NFC", normalized.casefold())
 
-    class _FileDispositionInfo(ctypes.Structure):
-        _fields_ = [("DeleteFile", wintypes.BOOL)]
 
-    _KERNEL32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    _CREATE_FILE_W = _KERNEL32.CreateFileW
-    _CREATE_FILE_W.argtypes = [
-        wintypes.LPCWSTR,
-        wintypes.DWORD,
-        wintypes.DWORD,
-        wintypes.LPVOID,
-        wintypes.DWORD,
-        wintypes.DWORD,
-        wintypes.HANDLE,
-    ]
-    _CREATE_FILE_W.restype = wintypes.HANDLE
-    _GET_FILE_INFORMATION_BY_HANDLE = _KERNEL32.GetFileInformationByHandle
-    _GET_FILE_INFORMATION_BY_HANDLE.argtypes = [
-        wintypes.HANDLE,
-        ctypes.POINTER(_ByHandleFileInformation),
-    ]
-    _GET_FILE_INFORMATION_BY_HANDLE.restype = wintypes.BOOL
-    _SET_FILE_INFORMATION_BY_HANDLE = _KERNEL32.SetFileInformationByHandle
-    _SET_FILE_INFORMATION_BY_HANDLE.argtypes = [
-        wintypes.HANDLE,
-        ctypes.c_int,
-        wintypes.LPVOID,
-        wintypes.DWORD,
-    ]
-    _SET_FILE_INFORMATION_BY_HANDLE.restype = wintypes.BOOL
-    _CLOSE_HANDLE = _KERNEL32.CloseHandle
-    _CLOSE_HANDLE.argtypes = [wintypes.HANDLE]
-    _CLOSE_HANDLE.restype = wintypes.BOOL
-    _INVALID_HANDLE_VALUE = wintypes.HANDLE(-1).value
+def _reservation_key(run_id: str) -> str:
+    canonical = _canonical_run_name(run_id)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _json_safe(o):
@@ -198,6 +148,10 @@ def _run_identity(run_id):
         _validate_portable_path_segment(selected, "run_id")
     except ValueError as exc:
         raise ValueError(f"invalid run_id: {selected}") from exc
+    if _canonical_run_name(selected) == _canonical_run_name(
+        _RUN_RESERVATION_REGISTRY
+    ):
+        raise ValueError(f"run_id is reserved: {selected}")
     return selected
 
 
@@ -234,217 +188,107 @@ def _require_within_root(target: Path, root: Path) -> None:
     try:
         target.relative_to(root)
     except ValueError as exc:
-        raise ValueError(f"target run directory resolves outside out_dir: {target}") from exc
+        raise ValueError(f"path resolves outside out_dir: {target}") from exc
 
 
-def _select_run_target(root: Path, run_id: str) -> Path:
-    requested = root / run_id
-    normalized = os.path.normcase(run_id)
-    matches = [
-        entry for entry in root.iterdir()
-        if os.path.normcase(entry.name) == normalized
-    ]
-    exact = next((entry for entry in matches if entry.name == run_id), None)
-    if exact is not None:
-        return exact
-    if matches and os.path.lexists(requested):
-        raise FileExistsError(
-            f"target run directory has case-equivalent existing name: {matches[0]}"
-        )
-    return requested
-
-
-def _validate_run_target(out: Path, root: Path) -> Path:
-    if _is_directory_link(out):
-        raise ValueError(f"target run directory cannot be a link or reparse point: {out}")
-    resolved = out.resolve(strict=True)
-    _require_within_root(resolved, root)
-    if not out.is_dir():
-        raise FileExistsError(f"target run directory is not empty: {out}")
-    unexpected = [entry for entry in out.iterdir() if entry.name != _RUN_CLAIM_NAME]
-    if unexpected:
-        raise FileExistsError(f"target run directory is not empty: {out}")
-    return out
-
-
-def _create_run_dir(out_dir, run_id):
+def _prepare_run_root(out_dir) -> Path:
     root_path = Path(out_dir)
     root_path.mkdir(parents=True, exist_ok=True)
+    if _is_directory_link(root_path):
+        raise ValueError(f"out_dir cannot be a link or reparse point: {root_path}")
     root = root_path.resolve(strict=True)
-    out = _select_run_target(root, run_id)
-
-    if os.path.lexists(out):
-        out = _select_run_target(root, run_id)
-    else:
-        try:
-            out.mkdir()
-        except FileExistsError:
-            out = _select_run_target(root, run_id)
-            if not os.path.lexists(out):
-                raise FileExistsError(f"target run directory creation collided: {out}")
-        else:
-            out = _select_run_target(root, run_id)
-    if not os.path.lexists(out):
-        raise FileExistsError(f"target run directory creation collided: {out}")
-    return _validate_run_target(out, root)
+    if not root.is_dir():
+        raise ValueError(f"out_dir is not an ordinary directory: {root_path}")
+    return root
 
 
-def _ordinary_claim_directory(claim_stat) -> bool:
-    attributes = getattr(claim_stat, "st_file_attributes", 0)
-    return (
-        stat.S_ISDIR(claim_stat.st_mode)
-        and not stat.S_ISLNK(claim_stat.st_mode)
-        and not (
-            attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+def _select_reservation_registry(root: Path) -> Path:
+    canonical_name = _canonical_run_name(_RUN_RESERVATION_REGISTRY)
+    matches = [
+        entry
+        for entry in root.iterdir()
+        if _canonical_run_name(entry.name) == canonical_name
+    ]
+    exact = next(
+        (entry for entry in matches if entry.name == _RUN_RESERVATION_REGISTRY),
+        None,
+    )
+    if exact is not None:
+        return exact
+    if matches:
+        raise ValueError(
+            f"reservation registry has a noncanonical alias: {matches[0]}"
         )
-    )
+    return root / _RUN_RESERVATION_REGISTRY
 
 
-def _acquire_run_claim(out: Path) -> tuple[Path, tuple[int, int]]:
-    claim_path = out / _RUN_CLAIM_NAME
+def _validate_reservation_registry(registry: Path, root: Path) -> Path:
+    if registry.parent != root:
+        raise ValueError("reservation registry must be directly under out_dir")
+    if _is_directory_link(registry):
+        raise ValueError(
+            f"reservation registry cannot be a link or reparse point: {registry}"
+        )
+    if not registry.is_dir():
+        raise ValueError(
+            f"reservation registry is not an ordinary directory: {registry}"
+        )
+    resolved = registry.resolve(strict=True)
+    _require_within_root(resolved, root)
+    if resolved.parent != root:
+        raise ValueError("reservation registry must resolve directly under out_dir")
+    return registry
+
+
+def _ensure_reservation_registry(root: Path) -> Path:
+    registry = _select_reservation_registry(root)
     try:
-        claim_path.mkdir(exist_ok=False)
+        registry.mkdir(exist_ok=False)
+    except FileExistsError:
+        registry = _select_reservation_registry(root)
+    return _validate_reservation_registry(registry, root)
+
+
+def _acquire_run_reservation(root: Path, run_id: str) -> Path:
+    registry = _ensure_reservation_registry(root)
+    reservation = registry / _reservation_key(run_id)
+    try:
+        reservation.mkdir(exist_ok=False)
     except FileExistsError as exc:
-        raise FileExistsError(f"target run directory is already claimed: {out}") from exc
-    claim_stat = _bounded_claim_lstat(claim_path)
-    if not _ordinary_claim_directory(claim_stat):
-        raise RuntimeError("run claim is not an ordinary directory")
-    return claim_path, (claim_stat.st_dev, claim_stat.st_ino)
+        raise FileExistsError(
+            f"run reservation already exists for run_id: {run_id}"
+        ) from exc
+    _validate_reservation_registry(registry, root)
+    return reservation
 
 
-def _bounded_claim_lstat(claim_path: Path):
-    first_error = None
-    for _ in range(2):
-        try:
-            return claim_path.lstat()
-        except OSError as exc:
-            if first_error is None:
-                first_error = exc
-            else:
-                first_error.add_note(f"bounded claim lstat retry failed: {exc!r}")
-    raise first_error
+def _create_reserved_run_directory(root: Path, run_id: str) -> Path:
+    canonical_name = _canonical_run_name(run_id)
+    collisions = [
+        entry
+        for entry in root.iterdir()
+        if entry.name != _RUN_RESERVATION_REGISTRY
+        and _canonical_run_name(entry.name) == canonical_name
+    ]
+    if collisions:
+        raise FileExistsError(
+            f"target run directory already exists: {collisions[0]}"
+        )
 
-
-def _windows_open_claim_for_delete(claim_path: Path):
-    handle = _CREATE_FILE_W(
-        str(claim_path),
-        _DELETE | _FILE_READ_ATTRIBUTES,
-        _FILE_SHARE_ALL,
-        None,
-        _OPEN_EXISTING,
-        _FILE_FLAG_BACKUP_SEMANTICS | _FILE_FLAG_OPEN_REPARSE_POINT,
-        None,
-    )
-    if handle == _INVALID_HANDLE_VALUE:
-        raise ctypes.WinError(ctypes.get_last_error())
-    return handle
-
-
-def _windows_claim_handle_information(handle):
-    information = _ByHandleFileInformation()
-    if not _GET_FILE_INFORMATION_BY_HANDLE(handle, ctypes.byref(information)):
-        raise ctypes.WinError(ctypes.get_last_error())
-    file_index = (
-        (information.nFileIndexHigh << 32) | information.nFileIndexLow
-    )
-    return information.dwFileAttributes, file_index
-
-
-def _windows_mark_claim_for_deletion(handle) -> None:
-    disposition = _FileDispositionInfo(True)
-    if not _SET_FILE_INFORMATION_BY_HANDLE(
-        handle,
-        _FILE_DISPOSITION_INFO_CLASS,
-        ctypes.byref(disposition),
-        ctypes.sizeof(disposition),
-    ):
-        raise ctypes.WinError(ctypes.get_last_error())
-
-
-def _windows_close_claim_handle(handle) -> None:
-    if not _CLOSE_HANDLE(handle):
-        raise ctypes.WinError(ctypes.get_last_error())
-
-
-def _windows_delete_claim_directory(
-    claim_path: Path, identity: tuple[int, int],
-) -> None:
-    handle = _windows_open_claim_for_delete(claim_path)
+    out = root / run_id
     try:
-        attributes, file_index = _windows_claim_handle_information(handle)
-        if not (attributes & _FILE_ATTRIBUTE_DIRECTORY) or (
-            attributes & _FILE_ATTRIBUTE_REPARSE_POINT
-        ):
-            raise RuntimeError(
-                "run claim is not an ordinary directory or is a reparse point"
-            )
-        if file_index != identity[1]:
-            raise RuntimeError("run claim identity mismatch")
-        try:
-            _windows_mark_claim_for_deletion(handle)
-        except OSError as exc:
-            raise RuntimeError(
-                "run claim directory is not empty or could not be removed"
-            ) from exc
-    except BaseException as deletion_error:
-        try:
-            _windows_close_claim_handle(handle)
-        except BaseException as close_error:
-            deletion_error.add_note(
-                f"run claim handle close also failed: {close_error!r}"
-            )
-        raise
-    else:
-        _windows_close_claim_handle(handle)
-
-    if os.path.lexists(claim_path):
-        raise RuntimeError("replacement run claim remains after owned claim deletion")
-
-
-def _portable_delete_claim_directory(
-    claim_path: Path, identity: tuple[int, int],
-) -> None:
-    # There is no portable handle-bound rmdir. Revalidate immediately before
-    # the conservative pathname operation and fail closed on any discrepancy.
-    current = _bounded_claim_lstat(claim_path)
-    if not _ordinary_claim_directory(current):
-        raise RuntimeError("run claim is not an ordinary directory or is a reparse point")
-    if (current.st_dev, current.st_ino) != identity:
-        raise RuntimeError("run claim identity mismatch")
-    try:
-        claim_path.rmdir()
-    except OSError as exc:
-        raise RuntimeError("run claim directory is not empty or could not be removed") from exc
-
-
-def _cleanup_run_claim(claim_path: Path, identity: tuple[int, int]) -> None:
-    current = _bounded_claim_lstat(claim_path)
-    if not _ordinary_claim_directory(current):
-        raise RuntimeError("run claim is not an ordinary directory or is a reparse point")
-    if (current.st_dev, current.st_ino) != identity:
-        raise RuntimeError("run claim identity mismatch")
-    if os.name == "nt":
-        _windows_delete_claim_directory(claim_path, identity)
-        return
-    _portable_delete_claim_directory(claim_path, identity)
+        out.mkdir(exist_ok=False)
+    except FileExistsError as exc:
+        raise FileExistsError(f"target run directory already exists: {out}") from exc
+    return out
 
 
 @contextmanager
 def _run_directory_transaction(out_dir, run_id):
-    out = _create_run_dir(out_dir, run_id)
-    claim = _acquire_run_claim(out)
-    try:
-        yield out
-    except BaseException as artifact_error:
-        try:
-            _cleanup_run_claim(*claim)
-        except BaseException as cleanup_error:
-            artifact_error.add_note(
-                f"run claim cleanup also failed: {cleanup_error!r}"
-            )
-        raise
-    else:
-        _cleanup_run_claim(*claim)
+    root = _prepare_run_root(out_dir)
+    _acquire_run_reservation(root, run_id)
+    out = _create_reserved_run_directory(root, run_id)
+    yield out
 
 
 def write_artifacts(

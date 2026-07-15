@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 from importlib.resources import files
@@ -99,10 +100,30 @@ _DOS_DEVICE_NAME = re.compile(
 
 def _load_schema(name: str) -> dict:
     schema_path = files("sohbench.fabric.schemas").joinpath(name)
-    return json.loads(schema_path.read_text(encoding="utf-8"))
+    return _strict_json_loads(schema_path.read_text(encoding="utf-8"))
+
+
+def _reject_json_constant(constant: str):
+    raise ValueError(f"nonfinite JSON constant is not permitted: {constant}")
+
+
+def _strict_json_loads(serialized: str):
+    return json.loads(serialized, parse_constant=_reject_json_constant)
+
+
+def _reject_nonfinite_json_numbers(value: Any, path: str = "document") -> None:
+    if isinstance(value, (float, np.floating)) and not math.isfinite(value):
+        raise ValueError(f"{path} contains a nonfinite JSON number")
+    if isinstance(value, dict):
+        for key, item in value.items():
+            _reject_nonfinite_json_numbers(item, f"{path}.{key}")
+    elif isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            _reject_nonfinite_json_numbers(item, f"{path}.{index}")
 
 
 def _validate_document(document: dict, schema_name: str, root: str) -> None:
+    _reject_nonfinite_json_numbers(document, root)
     try:
         jsonschema.validate(document, _load_schema(schema_name))
     except jsonschema.ValidationError as exc:
@@ -244,6 +265,7 @@ def write_evidence_pack(
                 ensure_ascii=False,
                 sort_keys=True,
                 separators=(",", ":"),
+                allow_nan=False,
             )
             stream.flush()
             os.fsync(stream.fileno())
@@ -276,8 +298,8 @@ def _verified_relative_path(run_root: Path, relative: str) -> Path:
 def verify_evidence_pack(path: str | Path) -> dict:
     pack_path = Path(path)
     try:
-        document = json.loads(pack_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        document = _strict_json_loads(pack_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
         raise ValueError(f"cannot read evidence pack: {pack_path}") from exc
 
     validate_evidence_pack_document(document)
@@ -379,6 +401,10 @@ def _validate_rows(frame: pd.DataFrame, schema_name: str, root: str) -> None:
             column: _json_value(value)
             for column, value in zip(columns, values)
         }
+        try:
+            _reject_nonfinite_json_numbers(row, root)
+        except ValueError as exc:
+            raise ValueError(f"row {row_number} {exc}") from exc
         try:
             validator.validate(row)
         except jsonschema.ValidationError as exc:
