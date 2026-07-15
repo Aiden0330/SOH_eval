@@ -693,18 +693,25 @@ def test_concurrent_case_equivalent_run_ids_allow_only_one_artifact_transaction(
     _assert_single_claimed_writer(root, outcomes)
 
 
-def test_stale_run_claim_fails_closed(tmp_path):
+@pytest.mark.parametrize("claim_kind", ["file", "directory"])
+def test_stale_run_claim_fails_closed(tmp_path, claim_kind):
     run_dir = tmp_path / "RUN-stale"
     run_dir.mkdir()
     claim = run_dir / ".sohbench-run.claim"
-    claim.write_bytes(b"stale")
+    if claim_kind == "file":
+        claim.write_bytes(b"stale")
+    else:
+        claim.mkdir()
 
     with pytest.raises(FileExistsError, match="already claimed"):
         write_artifacts(
             _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-stale"
         )
 
-    assert claim.read_bytes() == b"stale"
+    if claim_kind == "file":
+        assert claim.read_bytes() == b"stale"
+    else:
+        assert claim.is_dir()
     assert list(run_dir.iterdir()) == [claim]
 
 
@@ -718,7 +725,7 @@ def test_inference_holds_claim_through_evidence_pack_and_removes_it(
 
     def observe_claim(run_dir, manifest, artifact_paths):
         claim = Path(run_dir) / ".sohbench-run.claim"
-        observed_claims.append(claim.exists())
+        observed_claims.append(claim.is_dir())
         return original_write_pack(run_dir, manifest, artifact_paths)
 
     monkeypatch.setattr(report_module, "write_evidence_pack", observe_claim)
@@ -735,164 +742,242 @@ def test_inference_holds_claim_through_evidence_pack_and_removes_it(
     assert not (out / ".sohbench-run.claim").exists()
 
 
-def test_claim_acquisition_fstat_failure_closes_removes_and_allows_retry(
+def test_claim_transaction_does_not_use_descriptor_lifecycle_apis(
     tmp_path, monkeypatch,
 ):
-    real_open = report_module.os.open
-    real_close = report_module.os.close
-    real_fstat = report_module.os.fstat
-    claim_descriptors = []
+    def fail_descriptor_api(*args, **kwargs):
+        pytest.fail("run claim used a descriptor lifecycle API")
 
-    def capture_claim_open(path, *args, **kwargs):
-        descriptor = real_open(path, *args, **kwargs)
-        if Path(path).name == ".sohbench-run.claim":
-            claim_descriptors.append(descriptor)
-        return descriptor
+    monkeypatch.setattr(report_module.os, "open", fail_descriptor_api)
+    monkeypatch.setattr(report_module.os, "fstat", fail_descriptor_api)
+    monkeypatch.setattr(report_module.os, "close", fail_descriptor_api)
 
-    def fail_claim_fstat(descriptor):
-        if descriptor in claim_descriptors:
-            raise OSError("injected claim fstat failure")
-        return real_fstat(descriptor)
+    with report_module._run_directory_transaction(
+        tmp_path, "RUN-no-descriptor"
+    ) as out:
+        assert (out / ".sohbench-run.claim").is_dir()
 
-    monkeypatch.setattr(report_module.os, "open", capture_claim_open)
-    monkeypatch.setattr(report_module.os, "fstat", fail_claim_fstat)
-    with pytest.raises(OSError, match="injected claim fstat failure"):
-        write_artifacts(
-            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-fstat"
-        )
-    monkeypatch.setattr(report_module.os, "open", real_open)
-    monkeypatch.setattr(report_module.os, "fstat", real_fstat)
-
-    assert len(claim_descriptors) == 1
-    descriptor = claim_descriptors[0]
-    try:
-        real_fstat(descriptor)
-    except OSError:
-        descriptor_closed = True
-    else:
-        descriptor_closed = False
-        real_close(descriptor)
-    claim = tmp_path / "RUN-fstat" / ".sohbench-run.claim"
-    claim_removed = not claim.exists()
-    if not claim_removed:
-        claim.unlink()
-
-    retry_succeeded = False
-    if claim_removed:
-        retry_succeeded = Path(
-            write_artifacts(
-                _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-fstat"
-            )
-        ).is_dir()
-
-    assert descriptor_closed
-    assert claim_removed
-    assert retry_succeeded
+    assert not (tmp_path / "RUN-no-descriptor" / ".sohbench-run.claim").exists()
 
 
-def _run_with_one_shot_claim_close_failure(
-    tmp_path, monkeypatch, run_id, operation,
-):
-    real_open = report_module.os.open
-    real_close = report_module.os.close
-    real_fstat = report_module.os.fstat
-    claim_descriptors = []
-    close_attempts = []
-
-    def capture_claim_open(path, *args, **kwargs):
-        descriptor = real_open(path, *args, **kwargs)
-        if Path(path).name == ".sohbench-run.claim":
-            claim_descriptors.append(descriptor)
-        return descriptor
-
-    def fail_first_claim_close(descriptor):
-        if descriptor in claim_descriptors:
-            close_attempts.append(descriptor)
-            if len(close_attempts) == 1:
-                raise OSError("injected claim close failure")
-        return real_close(descriptor)
-
-    monkeypatch.setattr(report_module.os, "open", capture_claim_open)
-    monkeypatch.setattr(report_module.os, "close", fail_first_claim_close)
-    observed = None
-    try:
-        operation()
-    except BaseException as exc:
-        observed = exc
-    finally:
-        monkeypatch.setattr(report_module.os, "open", real_open)
-        monkeypatch.setattr(report_module.os, "close", real_close)
-
-    assert len(claim_descriptors) == 1
-    descriptor = claim_descriptors[0]
-    try:
-        real_fstat(descriptor)
-    except OSError:
-        descriptor_closed = True
-    else:
-        descriptor_closed = False
-        real_close(descriptor)
-    claim = tmp_path / run_id / ".sohbench-run.claim"
-    claim_removed = not claim.exists()
-    if not claim_removed:
-        claim.unlink()
-    return observed, close_attempts, descriptor_closed, claim_removed
-
-
-def test_claim_release_close_failure_cleans_then_surfaces_cleanup_error(
+def test_claim_acquisition_lstat_failure_removes_claim_and_allows_retry(
     tmp_path, monkeypatch,
 ):
-    run_id = "RUN-close-success"
+    real_lstat = Path.lstat
+    claim_lstat_calls = 0
 
-    def operation():
+    def fail_first_claim_lstat(path):
+        nonlocal claim_lstat_calls
+        if path.name == ".sohbench-run.claim":
+            claim_lstat_calls += 1
+            if claim_lstat_calls == 1:
+                raise OSError("injected claim lstat failure")
+        return real_lstat(path)
+
+    monkeypatch.setattr(Path, "lstat", fail_first_claim_lstat)
+    with pytest.raises(OSError, match="injected claim lstat failure"):
         write_artifacts(
-            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-lstat"
         )
 
-    observed, attempts, descriptor_closed, claim_removed = (
-        _run_with_one_shot_claim_close_failure(
-            tmp_path, monkeypatch, run_id, operation
+    claim = tmp_path / "RUN-lstat" / ".sohbench-run.claim"
+    assert not claim.exists()
+    assert Path(
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-lstat"
+        )
+    ).is_dir()
+
+
+def test_claim_release_retries_one_transient_lstat_failure(
+    tmp_path, monkeypatch,
+):
+    real_lstat = Path.lstat
+    claim_lstat_calls = 0
+
+    def fail_second_claim_lstat(path):
+        nonlocal claim_lstat_calls
+        if path.name == ".sohbench-run.claim":
+            claim_lstat_calls += 1
+            if claim_lstat_calls == 2:
+                raise OSError("injected transient release lstat failure")
+        return real_lstat(path)
+
+    monkeypatch.setattr(Path, "lstat", fail_second_claim_lstat)
+    out = Path(
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-retry"
         )
     )
 
-    assert isinstance(observed, OSError)
-    assert "injected claim close failure" in str(observed)
-    assert len(attempts) == 2
-    assert descriptor_closed
-    assert claim_removed
-    assert (tmp_path / run_id / "evidence-pack.json").is_file()
+    assert claim_lstat_calls >= 3
+    assert not (out / ".sohbench-run.claim").exists()
 
 
-def test_artifact_error_remains_primary_when_claim_cleanup_close_fails(
+def _install_persistent_release_lstat_failure(monkeypatch):
+    real_lstat = Path.lstat
+    claim_lstat_calls = 0
+
+    def fail_release_lstat(path):
+        nonlocal claim_lstat_calls
+        if path.name == ".sohbench-run.claim":
+            claim_lstat_calls += 1
+            if claim_lstat_calls >= 2:
+                raise OSError("injected persistent release lstat failure")
+        return real_lstat(path)
+
+    monkeypatch.setattr(Path, "lstat", fail_release_lstat)
+
+
+def test_successful_body_surfaces_persistent_claim_metadata_failure(
     tmp_path, monkeypatch,
 ):
-    run_id = "RUN-close-artifact-error"
+    _install_persistent_release_lstat_failure(monkeypatch)
+
+    with pytest.raises(OSError, match="persistent release lstat failure"):
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-metadata"
+        )
+
+    assert (tmp_path / "RUN-metadata" / ".sohbench-run.claim").exists()
+
+
+def test_artifact_error_remains_primary_when_claim_metadata_cleanup_fails(
+    tmp_path, monkeypatch,
+):
+    _install_persistent_release_lstat_failure(monkeypatch)
 
     def fail_pack(*args, **kwargs):
         raise RuntimeError("injected artifact failure")
 
     monkeypatch.setattr(report_module, "write_evidence_pack", fail_pack)
-
-    def operation():
+    with pytest.raises(RuntimeError, match="injected artifact failure") as exc_info:
         write_artifacts(
-            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-primary"
         )
 
-    observed, attempts, descriptor_closed, claim_removed = (
-        _run_with_one_shot_claim_close_failure(
-            tmp_path, monkeypatch, run_id, operation
-        )
-    )
-
-    assert isinstance(observed, RuntimeError)
-    assert str(observed) == "injected artifact failure"
     assert any(
-        "injected claim close failure" in note
-        for note in getattr(observed, "__notes__", [])
+        "persistent release lstat failure" in note
+        for note in getattr(exc_info.value, "__notes__", [])
     )
-    assert len(attempts) == 2
-    assert descriptor_closed
-    assert claim_removed
+    assert (tmp_path / "RUN-primary" / ".sohbench-run.claim").exists()
+
+
+def test_claim_identity_mismatch_is_reported_and_left_fail_closed(
+    tmp_path, monkeypatch,
+):
+    real_lstat = Path.lstat
+    claim = None
+
+    class DifferentIdentity:
+        def __init__(self, original):
+            self._original = original
+            self.st_ino = original.st_ino + 1
+
+        def __getattr__(self, name):
+            return getattr(self._original, name)
+
+    def mismatched_claim_lstat(path):
+        result = real_lstat(path)
+        if path.name == ".sohbench-run.claim":
+            return DifferentIdentity(result)
+        return result
+
+    try:
+        with pytest.raises(RuntimeError, match="identity"):
+            with report_module._run_directory_transaction(
+                tmp_path, "RUN-identity"
+            ) as out:
+                claim = out / ".sohbench-run.claim"
+                monkeypatch.setattr(Path, "lstat", mismatched_claim_lstat)
+    finally:
+        monkeypatch.setattr(Path, "lstat", real_lstat)
+        if claim is not None and claim.exists():
+            if claim.is_dir():
+                claim.rmdir()
+            else:
+                claim.unlink()
+
+
+def test_nonempty_claim_directory_is_reported_and_not_removed(tmp_path):
+    claim = None
+    marker = None
+    try:
+        with pytest.raises(RuntimeError, match="empty"):
+            with report_module._run_directory_transaction(
+                tmp_path, "RUN-nonempty-claim"
+            ) as out:
+                claim = out / ".sohbench-run.claim"
+                marker = claim / "marker.txt"
+                marker.write_text("owned content", encoding="utf-8")
+    finally:
+        if marker is not None and marker.exists():
+            marker.unlink()
+        if claim is not None and claim.exists():
+            if claim.is_dir():
+                claim.rmdir()
+            else:
+                claim.unlink()
+
+
+def test_replaced_claim_symlink_is_not_followed_or_removed(tmp_path):
+    target = tmp_path / "external-target"
+    target.mkdir()
+    sentinel = target / "sentinel.txt"
+    sentinel.write_bytes(b"external sentinel")
+    probe = tmp_path / "symlink-probe"
+    try:
+        probe.symlink_to(target, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlink creation unavailable: {exc}")
+    else:
+        probe.unlink()
+
+    claim = None
+    try:
+        with pytest.raises(RuntimeError, match="ordinary|identity|reparse"):
+            with report_module._run_directory_transaction(
+                tmp_path, "RUN-replaced-symlink"
+            ) as out:
+                claim = out / ".sohbench-run.claim"
+                claim.rmdir()
+                claim.symlink_to(target, target_is_directory=True)
+    finally:
+        if claim is not None and claim.is_symlink():
+            claim.unlink()
+
+    assert sentinel.read_bytes() == b"external sentinel"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="directory junctions require Windows")
+def test_replaced_claim_junction_is_not_followed_or_removed(tmp_path):
+    target = tmp_path / "junction-claim-target"
+    target.mkdir()
+    sentinel = target / "sentinel.txt"
+    sentinel.write_bytes(b"external sentinel")
+    claim = None
+    try:
+        with pytest.raises(RuntimeError, match="ordinary|identity|reparse"):
+            with report_module._run_directory_transaction(
+                tmp_path, "RUN-replaced-junction"
+            ) as out:
+                claim = out / ".sohbench-run.claim"
+                claim.rmdir()
+                created = subprocess.run(
+                    ["cmd", "/c", "mklink", "/J", str(claim), str(target)],
+                    capture_output=True,
+                    text=True,
+                )
+                if created.returncode:
+                    pytest.skip(
+                        "directory junction creation unavailable: "
+                        f"{created.stdout}{created.stderr}"
+                    )
+    finally:
+        if claim is not None and claim.exists():
+            os.rmdir(claim)
+
+    assert sentinel.read_bytes() == b"external sentinel"
 
 
 @pytest.mark.parametrize("writer_kind", ["training", "inference"])

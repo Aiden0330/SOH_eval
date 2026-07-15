@@ -229,104 +229,61 @@ def _create_run_dir(out_dir, run_id):
     return _validate_run_target(out, root)
 
 
-def _acquire_run_claim(out: Path) -> tuple[Path, int, tuple[int, int]]:
+def _ordinary_claim_directory(claim_stat) -> bool:
+    attributes = getattr(claim_stat, "st_file_attributes", 0)
+    return (
+        stat.S_ISDIR(claim_stat.st_mode)
+        and not stat.S_ISLNK(claim_stat.st_mode)
+        and not (
+            attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+        )
+    )
+
+
+def _acquire_run_claim(out: Path) -> tuple[Path, tuple[int, int]]:
     claim_path = out / _RUN_CLAIM_NAME
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    if hasattr(os, "O_BINARY"):
-        flags |= os.O_BINARY
     try:
-        descriptor = os.open(claim_path, flags, 0o600)
+        claim_path.mkdir(exist_ok=False)
     except FileExistsError as exc:
         raise FileExistsError(f"target run directory is already claimed: {out}") from exc
-    path_identity = None
-    descriptor_identity = None
     try:
-        path_stat = claim_path.lstat()
-        path_identity = (path_stat.st_dev, path_stat.st_ino)
-        claim_stat = os.fstat(descriptor)
-        descriptor_identity = (claim_stat.st_dev, claim_stat.st_ino)
-        if path_identity != descriptor_identity:
-            raise RuntimeError("run claim path changed during acquisition")
+        claim_stat = claim_path.lstat()
     except BaseException as acquisition_error:
         try:
-            _cleanup_run_claim(
-                claim_path,
-                descriptor,
-                descriptor_identity or path_identity,
-            )
+            claim_path.rmdir()
         except BaseException as cleanup_error:
             acquisition_error.add_note(
                 f"run claim cleanup also failed: {cleanup_error!r}"
             )
         raise
-    return claim_path, descriptor, descriptor_identity
+    if not _ordinary_claim_directory(claim_stat):
+        raise RuntimeError("run claim is not an ordinary directory")
+    return claim_path, (claim_stat.st_dev, claim_stat.st_ino)
 
 
-def _remove_owned_run_claim(
-    claim_path: Path, identity: tuple[int, int] | None,
-) -> None:
-    if identity is None:
-        return
+def _release_claim_lstat(claim_path: Path):
+    first_error = None
+    for _ in range(2):
+        try:
+            return claim_path.lstat()
+        except OSError as exc:
+            if first_error is None:
+                first_error = exc
+            else:
+                first_error.add_note(f"bounded claim lstat retry failed: {exc!r}")
+    raise first_error
+
+
+def _cleanup_run_claim(claim_path: Path, identity: tuple[int, int]) -> None:
+    current = _release_claim_lstat(claim_path)
+    if not _ordinary_claim_directory(current):
+        raise RuntimeError("run claim is not an ordinary directory or is a reparse point")
+    if (current.st_dev, current.st_ino) != identity:
+        raise RuntimeError("run claim identity mismatch")
     try:
-        current = claim_path.lstat()
-    except FileNotFoundError:
-        return
-    if (current.st_dev, current.st_ino) == identity:
-        claim_path.unlink()
-
-
-def _close_run_claim_descriptor(
-    descriptor: int, identity: tuple[int, int] | None,
-) -> None:
-    try:
-        os.close(descriptor)
-        return
+        claim_path.rmdir()
     except OSError as exc:
-        close_error = exc
-
-    try:
-        current = os.fstat(descriptor)
-    except OSError as state_error:
-        close_error.add_note(
-            f"claim descriptor state after close failure: {state_error!r}"
-        )
-        raise close_error
-    current_identity = (current.st_dev, current.st_ino)
-    if identity is None or current_identity != identity:
-        close_error.add_note(
-            "claim descriptor was not retried because its identity changed"
-        )
-        raise close_error
-
-    try:
-        os.close(descriptor)
-    except OSError as retry_error:
-        close_error.add_note(f"bounded claim close retry failed: {retry_error!r}")
-    raise close_error
-
-
-def _cleanup_run_claim(
-    claim_path: Path,
-    descriptor: int,
-    identity: tuple[int, int] | None,
-) -> None:
-    close_error = None
-    remove_error = None
-    try:
-        _close_run_claim_descriptor(descriptor, identity)
-    except BaseException as exc:
-        close_error = exc
-    try:
-        _remove_owned_run_claim(claim_path, identity)
-    except BaseException as exc:
-        remove_error = exc
-
-    if close_error is not None:
-        if remove_error is not None:
-            close_error.add_note(f"claim unlink also failed: {remove_error!r}")
-        raise close_error
-    if remove_error is not None:
-        raise remove_error
+        raise RuntimeError("run claim directory is not empty or could not be removed") from exc
 
 
 @contextmanager
