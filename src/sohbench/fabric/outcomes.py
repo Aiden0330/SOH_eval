@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from numbers import Real
 from typing import Iterator
 
 import numpy as np
@@ -15,6 +16,17 @@ EXECUTION_UNIT_COLUMNS = (
     "fold",
     "seed",
 )
+
+
+def is_finite_real_scalar(value: object) -> bool:
+    if isinstance(value, (bool, np.bool_, np.datetime64, np.timedelta64)):
+        return False
+    if not isinstance(value, (Real, np.integer, np.floating)):
+        return False
+    try:
+        return bool(np.isfinite(value))
+    except (TypeError, ValueError):
+        return False
 
 
 def iter_execution_units(results: pd.DataFrame) -> Iterator[pd.DataFrame]:
@@ -37,8 +49,7 @@ def execution_unit_succeeded(unit: pd.DataFrame) -> bool:
         return bool(statuses.notna().all() and statuses.eq("succeeded").all())
     if "value" not in unit.columns:
         return False
-    numeric_values = pd.to_numeric(unit["value"], errors="coerce")
-    return bool(np.isfinite(numeric_values.to_numpy(dtype=float, na_value=np.nan)).any())
+    return bool(unit["value"].map(is_finite_real_scalar).any())
 
 
 def successful_result_rows(results: pd.DataFrame) -> pd.DataFrame:

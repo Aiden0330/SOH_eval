@@ -1,6 +1,6 @@
-import json, pandas as pd, numpy as np
+import json, pandas as pd, numpy as np, pytest
 from pathlib import Path
-from sohbench.report import write_artifacts
+from sohbench.report import _leaderboard_entries, write_artifacts
 from sohbench.tasks import SOHEstimationTask
 
 def _results():
@@ -198,11 +198,7 @@ def test_leaderboard_uses_only_finite_evidence_from_successful_units(tmp_path):
 
     assert entry["metrics"]["mae"] == {"mean": 0.01, "std": 0.0}
     assert entry["metrics"]["picp"] == {"mean": 0.92, "std": 0.0}
-    assert entry["verdicts"] == {
-        "generalization": True,
-        "calibration": True,
-        "physical_consistency": True,
-    }
+    assert entry["verdicts"] == {}
     assert entry["coverage"] == 0.5
     assert entry["execution"] == {
         "outcome": "partial", "attempted": 4, "succeeded": 2, "failed": 2,
@@ -246,6 +242,129 @@ def test_partial_finite_metrics_do_not_produce_acceptance_verdicts(tmp_path):
 
     assert entry["metrics"]["mae"] == {"mean": 0.01, "std": 0.0}
     assert entry["verdicts"] == {}
+
+
+def test_disjoint_successful_units_cannot_pool_acceptance_completeness(tmp_path):
+    rows = []
+    unit_metrics = {
+        0: [("mae", 0.01), ("picp", 0.92)],
+        1: [("monotonicity_violation_rate", 0.0), ("value_range_violation", 0.0)],
+    }
+    for seed, metrics in unit_metrics.items():
+        for metric, value in metrics:
+            rows.append(
+                dict(
+                    estimator="ridge", feature_mode="unified", backend="sklearn",
+                    protocol="loco", held_out_key="c1", fold=0, seed=seed,
+                    metric=metric, value=value, featureset="full", unit_status="succeeded",
+                )
+            )
+
+    out = write_artifacts(pd.DataFrame(rows), qc_report=None, task=SOHEstimationTask(),
+                          config={}, out_dir=tmp_path)
+    entry = json.loads((Path(out) / "leaderboard.json").read_text())[0]
+
+    assert entry["verdicts"] == {}
+    assert entry["coverage"] == 1.0
+    assert entry["execution"] == {
+        "outcome": "complete", "attempted": 2, "succeeded": 2, "failed": 0,
+    }
+
+
+def test_successful_unit_without_finite_evidence_blocks_verdicts():
+    required_values = {
+        "mae": 0.01,
+        "picp": 0.92,
+        "monotonicity_violation_rate": 0.0,
+        "value_range_violation": 0.0,
+    }
+    invalid_values = {
+        "mae": np.nan,
+        "picp": "0.92",
+        "monotonicity_violation_rate": False,
+        "value_range_violation": np.complex64(0 + 0j),
+    }
+    rows = []
+    for seed, values in ((0, required_values), (1, invalid_values)):
+        rows.extend(
+            dict(
+                estimator="ridge", feature_mode="unified", backend="sklearn",
+                protocol="loco", held_out_key="c1", fold=0, seed=seed,
+                metric=metric, value=value, featureset="full", unit_status="succeeded",
+            )
+            for metric, value in values.items()
+        )
+
+    entry = _leaderboard_entries(
+        pd.DataFrame(rows), SOHEstimationTask(), ["estimator", "featureset", "protocol"]
+    )[0]
+
+    assert entry["verdicts"] == {}
+    assert entry["coverage"] == 1.0
+    assert entry["execution"] == {
+        "outcome": "complete", "attempted": 2, "succeeded": 2, "failed": 0,
+    }
+
+
+@pytest.mark.parametrize(
+    ("invalid_metric", "invalid_value"),
+    [
+        ("mae", False),
+        ("picp", np.complex64(0.92 + 0j)),
+    ],
+)
+def test_non_real_acceptance_values_cannot_produce_verdicts(
+    invalid_metric, invalid_value,
+):
+    values = {
+        "mae": 0.01,
+        "picp": 0.92,
+        "monotonicity_violation_rate": 0.0,
+        "value_range_violation": 0.0,
+    }
+    values[invalid_metric] = invalid_value
+    rows = [
+        dict(
+            estimator="ridge", feature_mode="unified", backend="sklearn",
+            protocol="loco", held_out_key="c1", fold=0, seed=0,
+            metric=metric, value=value, featureset="full", unit_status="succeeded",
+        )
+        for metric, value in values.items()
+    ]
+
+    entry = _leaderboard_entries(
+        pd.DataFrame(rows), SOHEstimationTask(), ["estimator", "featureset", "protocol"]
+    )[0]
+
+    assert np.isnan(entry["metrics"][invalid_metric]["mean"])
+    assert entry["verdicts"] == {}
+
+
+def test_complete_unit_with_python_and_numpy_real_values_produces_verdicts(tmp_path):
+    values = {
+        "mae": np.float32(0.01),
+        "picp": np.float64(0.92),
+        "monotonicity_violation_rate": 0,
+        "value_range_violation": np.int64(0),
+    }
+    rows = [
+        dict(
+            estimator="ridge", feature_mode="unified", backend="sklearn",
+            protocol="loco", held_out_key="c1", fold=0, seed=0,
+            metric=metric, value=value, featureset="full", unit_status="succeeded",
+        )
+        for metric, value in values.items()
+    ]
+
+    out = write_artifacts(pd.DataFrame(rows), qc_report=None, task=SOHEstimationTask(),
+                          config={}, out_dir=tmp_path)
+    entry = json.loads((Path(out) / "leaderboard.json").read_text())[0]
+
+    assert entry["verdicts"] == {
+        "generalization": True,
+        "calibration": True,
+        "physical_consistency": True,
+    }
 
 
 def test_write_artifacts_emits_dataset_leaderboard(tmp_path):

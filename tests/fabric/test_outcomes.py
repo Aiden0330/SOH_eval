@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
+import pytest
 
-from sohbench.fabric import failures
+from sohbench.fabric import failures, outcomes
 from sohbench.fabric.failures import FailureCategory, classify_exception
 from sohbench.fabric.outcomes import RunOutcome
 
@@ -146,4 +147,61 @@ def test_legacy_success_requires_finite_numeric_metric_evidence():
 
     assert RunOutcome.from_results(results) == RunOutcome(
         outcome="partial", attempted=3, succeeded=1, failed=2
+    )
+
+
+def test_finite_real_scalar_predicate_is_strict():
+    assert hasattr(outcomes, "is_finite_real_scalar")
+    predicate = outcomes.is_finite_real_scalar
+
+    assert all(predicate(value) for value in (0, 0.1, np.int64(1), np.float32(0.1)))
+    assert not any(
+        predicate(value)
+        for value in (
+            True,
+            np.bool_(False),
+            1 + 0j,
+            np.complex64(1 + 0j),
+            "0.1",
+            np.datetime64("2025-01-01"),
+            np.timedelta64(1, "D"),
+            pd.NA,
+            np.nan,
+            np.inf,
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        pd.Series(["2025-01-01", "2025-01-02"], dtype="datetime64[ns]"),
+        pd.Series([1, 2], dtype="timedelta64[ns]"),
+    ],
+    ids=["datetime", "timedelta"],
+)
+def test_datetime_and_timedelta_only_legacy_units_fail(values):
+    results = pd.DataFrame(
+        [
+            {"estimator": "demo", "fold": 0, "seed": 0, "metric": "mae"},
+            {"estimator": "demo", "fold": 0, "seed": 0, "metric": "picp"},
+        ]
+    )
+    results["value"] = values
+
+    assert RunOutcome.from_results(results) == RunOutcome(
+        outcome="failed", attempted=1, succeeded=0, failed=1
+    )
+
+
+def test_numeric_looking_strings_are_not_legacy_finite_evidence():
+    results = pd.DataFrame(
+        [
+            {"estimator": "demo", "fold": 0, "seed": 0, "metric": "mae", "value": "0.1"},
+            {"estimator": "demo", "fold": 0, "seed": 0, "metric": "picp", "value": "0.92"},
+        ]
+    )
+
+    assert RunOutcome.from_results(results) == RunOutcome(
+        outcome="failed", attempted=1, succeeded=0, failed=1
     )

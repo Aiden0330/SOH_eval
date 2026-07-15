@@ -2,10 +2,14 @@ from __future__ import annotations
 import json, math, time
 from dataclasses import asdict
 from pathlib import Path
-import numpy as np
 import pandas as pd
 from .acceptance import evaluate_verdicts
-from .fabric.outcomes import RunOutcome, successful_result_rows
+from .fabric.outcomes import (
+    RunOutcome,
+    is_finite_real_scalar,
+    iter_execution_units,
+    successful_result_rows,
+)
 from .tasks import SOHEstimationTask
 
 
@@ -24,6 +28,17 @@ def _json_safe(o):
 
 def _dump(obj, path):
     path.write_text(json.dumps(_json_safe(obj), indent=2, allow_nan=False, default=str))
+
+
+def _successful_units_have_complete_metrics(
+    evidence: pd.DataFrame, required_metrics: set[str],
+) -> bool:
+    for unit in iter_execution_units(evidence):
+        finite_mask = unit["value"].map(is_finite_real_scalar).to_numpy(dtype=bool)
+        finite_unit = unit.loc[finite_mask]
+        if not required_metrics.issubset(set(finite_unit["metric"].dropna())):
+            return False
+    return True
 
 
 def _leaderboard_entries(results: pd.DataFrame, task, group_cols: list[str]) -> list[dict]:
@@ -47,11 +62,9 @@ def _leaderboard_entries(results: pd.DataFrame, task, group_cols: list[str]) -> 
 
         execution = RunOutcome.from_results(g)
         evidence = successful_result_rows(g)
-        numeric_values = pd.to_numeric(evidence["value"], errors="coerce").to_numpy(
-            dtype=float, na_value=np.nan,
-        )
-        finite_evidence = evidence.loc[np.isfinite(numeric_values)].copy()
-        finite_evidence["value"] = numeric_values[np.isfinite(numeric_values)]
+        finite_mask = evidence["value"].map(is_finite_real_scalar).to_numpy(dtype=bool)
+        finite_evidence = evidence.loc[finite_mask].copy()
+        finite_evidence["value"] = [float(value) for value in finite_evidence["value"]]
         agg = finite_evidence.groupby("metric")["value"].agg(["mean", "std"])
         metric_names = g["metric"].dropna().drop_duplicates()
         metrics = {}
@@ -75,7 +88,13 @@ def _leaderboard_entries(results: pd.DataFrame, task, group_cols: list[str]) -> 
         }
         verdicts = (
             {v.name: v.passed for v in evaluate_verdicts(flat, task)}
-            if required_acceptance_metrics.issubset(flat) else {}
+            if (
+                required_acceptance_metrics.issubset(flat)
+                and _successful_units_have_complete_metrics(
+                    evidence, required_acceptance_metrics,
+                )
+            )
+            else {}
         )
         ci_source = g["ci_source"].iloc[0] if "ci_source" in g.columns else "conformal"
 
