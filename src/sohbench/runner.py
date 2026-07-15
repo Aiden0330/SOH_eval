@@ -398,6 +398,8 @@ class BenchmarkRunner:
         try:
             frame = test_x[["dataset", "cell_id", "cycle_index"]].copy()
             frame["prediction"] = np.asarray(yp, dtype=float)
+            if frame.duplicated(["dataset", "cell_id", "cycle_index"]).any():
+                raise ValueError("duplicate cycle identity")
             per_asset = []
             for _, asset in frame.groupby(["dataset", "cell_id"], sort=True, dropna=False):
                 asset = asset.sort_values("cycle_index", kind="stable")
