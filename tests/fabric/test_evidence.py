@@ -69,6 +69,21 @@ PORTABLE_INVALID_ARTIFACT_PATHS = [
     "NUL.bin",
     "COM1.txt",
     "nested/lpt9.log",
+    "COM\u00b9",
+    "com\u00b2.txt",
+    "CoM\u00b3.log",
+    "LPT\u00b9",
+    "lpt\u00b2.txt",
+    "LpT\u00b3.log",
+]
+
+SUPERSCRIPT_DOS_DEVICE_NAMES = [
+    "COM\u00b9",
+    "com\u00b2.txt",
+    "CoM\u00b3.log",
+    "LPT\u00b9",
+    "lpt\u00b2.txt",
+    "LpT\u00b3.log",
 ]
 
 
@@ -170,6 +185,24 @@ def test_writer_canonicalizes_raw_redundant_separators(tmp_path):
 
     document = json.loads(pack.read_text(encoding="utf-8"))
     assert document["artifacts"][0]["path"] == "nested/result.txt"
+
+
+@pytest.mark.parametrize("segment", SUPERSCRIPT_DOS_DEVICE_NAMES)
+def test_portable_segment_validation_rejects_superscript_dos_devices(segment):
+    with pytest.raises(ValueError, match="invalid artifact path"):
+        evidence_module._validate_portable_path_segment(segment, "artifact path")
+
+
+def test_ordinary_unicode_artifact_name_remains_valid(tmp_path):
+    run_dir = tmp_path / "RUN-one"
+    artifact = run_dir / "nested" / "cell\u00b2.txt"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("result", encoding="utf-8")
+
+    pack = write_evidence_pack(run_dir, {"run_id": "RUN-one"}, [artifact])
+
+    document = verify_evidence_pack(pack)
+    assert document["artifacts"][0]["path"] == "nested/cell\u00b2.txt"
 
 
 @pytest.mark.parametrize("invalid_path", PORTABLE_INVALID_ARTIFACT_PATHS)
@@ -322,6 +355,54 @@ def test_write_evidence_pack_removes_only_its_temp_after_write_failure(
 
     assert not temporary.exists()
     assert not (run_dir / "evidence-pack.json").exists()
+
+
+def test_write_evidence_pack_closes_descriptor_and_removes_temp_on_fstat_failure(
+    tmp_path, monkeypatch,
+):
+    run_dir = tmp_path / "RUN-one"
+    run_dir.mkdir()
+    artifact = run_dir / "result.txt"
+    artifact.write_text("result", encoding="utf-8")
+    temporary = run_dir / "evidence-pack.json.tmp"
+    real_open = evidence_module.os.open
+    real_close = evidence_module.os.close
+    real_fstat = evidence_module.os.fstat
+    opened_descriptors = []
+
+    def capture_open(*args, **kwargs):
+        descriptor = real_open(*args, **kwargs)
+        opened_descriptors.append(descriptor)
+        return descriptor
+
+    def fail_fstat(descriptor):
+        raise OSError("injected fstat failure")
+
+    monkeypatch.setattr(evidence_module.os, "open", capture_open)
+    monkeypatch.setattr(evidence_module.os, "fstat", fail_fstat)
+    with pytest.raises(OSError, match="injected fstat failure"):
+        write_evidence_pack(run_dir, {"run_id": "RUN-one"}, [artifact])
+    monkeypatch.setattr(evidence_module.os, "open", real_open)
+    monkeypatch.setattr(evidence_module.os, "fstat", real_fstat)
+
+    assert len(opened_descriptors) == 1
+    descriptor = opened_descriptors[0]
+    try:
+        real_fstat(descriptor)
+    except OSError:
+        descriptor_closed = True
+    else:
+        descriptor_closed = False
+        real_close(descriptor)
+    temp_removed = not temporary.exists()
+    if not temp_removed:
+        temporary.unlink()
+
+    assert descriptor_closed
+    assert temp_removed
+    assert write_evidence_pack(
+        run_dir, {"run_id": "RUN-one"}, [artifact]
+    ).is_file()
 
 
 @pytest.mark.parametrize("reserved", ["schema_version", "artifacts"])

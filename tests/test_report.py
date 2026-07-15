@@ -528,6 +528,12 @@ def test_write_artifacts_accepts_empty_target_and_rejects_nonempty_target(tmp_pa
         "NUL",
         "COM1.log",
         "lpt9.txt",
+        "COM\u00b9",
+        "com\u00b2.txt",
+        "CoM\u00b3.log",
+        "LPT\u00b9",
+        "lpt\u00b2.txt",
+        "LpT\u00b3.log",
     ],
 )
 def test_write_artifacts_rejects_nonportable_run_ids_before_creating_target(
@@ -539,6 +545,30 @@ def test_write_artifacts_rejects_nonportable_run_ids_before_creating_target(
         )
 
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows case-alias regression")
+def test_write_artifacts_rejects_case_equivalent_existing_run_directory(tmp_path):
+    root = tmp_path / "runs"
+    root.mkdir()
+    physical = root / "RUN-Case"
+    physical.mkdir()
+    requested_alias = root / "run-case"
+    if not requested_alias.exists():
+        pytest.skip("filesystem proved case-sensitive")
+
+    with pytest.raises(FileExistsError, match="case"):
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, root, run_id="run-case"
+        )
+
+    assert list(physical.iterdir()) == []
+    out = Path(
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, root, run_id="RUN-Case"
+        )
+    )
+    assert out == physical
 
 
 def test_write_artifacts_rejects_existing_directory_symlink(tmp_path):

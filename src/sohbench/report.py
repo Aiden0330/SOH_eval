@@ -173,11 +173,28 @@ def _require_within_root(target: Path, root: Path) -> None:
         raise ValueError(f"target run directory resolves outside out_dir: {target}") from exc
 
 
+def _select_run_target(root: Path, run_id: str) -> Path:
+    requested = root / run_id
+    normalized = os.path.normcase(run_id)
+    matches = [
+        entry for entry in root.iterdir()
+        if os.path.normcase(entry.name) == normalized
+    ]
+    exact = next((entry for entry in matches if entry.name == run_id), None)
+    if exact is not None:
+        return exact
+    if matches and os.path.lexists(requested):
+        raise FileExistsError(
+            f"target run directory has case-equivalent existing name: {matches[0]}"
+        )
+    return requested
+
+
 def _create_run_dir(out_dir, run_id):
     root_path = Path(out_dir)
     root_path.mkdir(parents=True, exist_ok=True)
     root = root_path.resolve(strict=True)
-    out = root / run_id
+    out = _select_run_target(root, run_id)
 
     if os.path.lexists(out):
         if _is_directory_link(out):

@@ -91,7 +91,8 @@ _RESERVED_ARTIFACT_KEYS = frozenset(
 _RESERVED_MANIFEST_FIELDS = frozenset(("schema_version", "artifacts"))
 _WINDOWS_INVALID_PATH_CHARS = frozenset('<>:"|?*')
 _DOS_DEVICE_NAME = re.compile(
-    r"^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?$",
+    r"^(?:CON|PRN|AUX|NUL|COM[1-9\u00b9\u00b2\u00b3]|LPT[1-9\u00b9\u00b2\u00b3])"
+    r"(?:\..*)?$",
     re.IGNORECASE,
 )
 
@@ -189,6 +190,16 @@ def _artifact_entries(run_dir: Path, artifact_paths: list[Path]) -> list[dict]:
     ]
 
 
+def _remove_temporary_if_owned(temporary: Path, identity: tuple | None) -> None:
+    try:
+        current = temporary.lstat()
+    except FileNotFoundError:
+        return
+    current_identity = (current.st_dev, current.st_ino)
+    if identity is None or current_identity == identity:
+        temporary.unlink()
+
+
 def write_evidence_pack(
     run_dir: Path, manifest: dict, artifact_paths: list[Path],
 ) -> Path:
@@ -214,19 +225,18 @@ def write_evidence_pack(
     if hasattr(os, "O_BINARY"):
         flags |= os.O_BINARY
     descriptor = os.open(temporary, flags, 0o600)
-    stat = os.fstat(descriptor)
-    identity = (stat.st_dev, stat.st_ino)
+    descriptor_owned = True
+    identity = None
     try:
-        try:
-            stream = os.fdopen(
-                descriptor,
-                "w",
-                encoding="utf-8",
-                newline="\n",
-            )
-        except BaseException:
-            os.close(descriptor)
-            raise
+        descriptor_stat = os.fstat(descriptor)
+        identity = (descriptor_stat.st_dev, descriptor_stat.st_ino)
+        stream = os.fdopen(
+            descriptor,
+            "w",
+            encoding="utf-8",
+            newline="\n",
+        )
+        descriptor_owned = False
         with stream:
             json.dump(
                 document,
@@ -242,13 +252,12 @@ def write_evidence_pack(
             raise RuntimeError("evidence pack temporary path changed during write")
         temporary.replace(target)
     except BaseException:
-        try:
-            current = temporary.lstat()
-        except FileNotFoundError:
-            pass
-        else:
-            if (current.st_dev, current.st_ino) == identity:
-                temporary.unlink()
+        if descriptor_owned:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        _remove_temporary_if_owned(temporary, identity)
         raise
     return target
 
