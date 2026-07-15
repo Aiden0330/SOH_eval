@@ -33,7 +33,8 @@ def execution_unit_succeeded(unit: pd.DataFrame) -> bool:
     if unit.empty:
         return False
     if "unit_status" in unit.columns:
-        return bool(unit["unit_status"].eq("succeeded").all())
+        statuses = unit["unit_status"]
+        return bool(statuses.notna().all() and statuses.eq("succeeded").all())
     if "value" not in unit.columns:
         return False
     numeric_values = pd.to_numeric(unit["value"], errors="coerce")

@@ -121,6 +121,17 @@ def test_unit_status_requires_every_row_to_explicitly_succeed():
     )
 
 
+def test_nullable_unit_status_missing_row_fails_the_unit():
+    results = _result_rows(["succeeded"])
+    results["unit_status"] = pd.Series(
+        ["succeeded", pd.NA], index=results.index, dtype="string"
+    )
+
+    assert RunOutcome.from_results(results) == RunOutcome(
+        outcome="failed", attempted=1, succeeded=0, failed=1
+    )
+
+
 def test_legacy_success_requires_finite_numeric_metric_evidence():
     results = pd.DataFrame(
         [
