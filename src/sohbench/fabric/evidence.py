@@ -173,7 +173,14 @@ def _json_compatible_value(
         state["active"].add(identity)
         try:
             if isinstance(value, np.ndarray):
-                items = [value.item()] if value.ndim == 0 else value.tolist()
+                if value.ndim == 0:
+                    return _json_compatible_value(
+                        value.item(),
+                        path,
+                        _state=state,
+                        _depth=_depth + 1,
+                    )
+                items = value.tolist()
             elif isinstance(value, (pd.Series, pd.Index)):
                 items = value.tolist()
             else:

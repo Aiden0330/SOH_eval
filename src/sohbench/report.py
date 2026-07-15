@@ -1,5 +1,5 @@
 from __future__ import annotations
-import hashlib, json, math, stat, unicodedata
+import hashlib, json, math, os, stat, unicodedata
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -215,17 +215,77 @@ def _canonical_entries(root: Path, name: str) -> list[Path]:
     ]
 
 
-def _validate_direct_directory(path: Path, root: Path, label: str) -> Path:
+def _directory_identity(snapshot) -> tuple[int, int]:
+    return snapshot.st_dev, snapshot.st_ino
+
+
+def _require_ordinary_directory_snapshot(snapshot, path: Path, label: str) -> None:
+    attributes = getattr(snapshot, "st_file_attributes", 0)
+    is_reparse = bool(
+        attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    )
+    if (
+        not stat.S_ISDIR(snapshot.st_mode)
+        or stat.S_ISLNK(snapshot.st_mode)
+        or is_reparse
+    ):
+        raise ValueError(
+            f"{label} is not an ordinary non-reparse directory: {path}"
+        )
+
+
+def _validate_direct_directory_snapshot(
+    path: Path, root: Path, label: str, snapshot,
+) -> None:
     if path.parent != root:
         raise ValueError(f"{label} must be directly under out_dir")
-    if _is_directory_link(path):
-        raise ValueError(f"{label} cannot be a link or reparse point: {path}")
-    if not path.is_dir():
-        raise ValueError(f"{label} is not an ordinary directory: {path}")
+    _require_ordinary_directory_snapshot(snapshot, path, label)
     resolved = path.resolve(strict=True)
     _require_within_root(resolved, root)
     if resolved.parent != root:
         raise ValueError(f"{label} must resolve directly under out_dir")
+
+
+def _capture_created_directory_identity(
+    path: Path, root: Path, label: str,
+) -> tuple[int, int]:
+    try:
+        snapshot = path.lstat()
+    except OSError as exc:
+        raise ValueError(f"cannot inspect newly created {label}: {path}") from exc
+    _validate_direct_directory_snapshot(path, root, label, snapshot)
+    return _directory_identity(snapshot)
+
+
+def _validate_directory_handoff(
+    path: Path,
+    root: Path,
+    label: str,
+    captured_identity: tuple[int, int],
+) -> Path:
+    try:
+        snapshot = path.lstat()
+        _validate_direct_directory_snapshot(path, root, label, snapshot)
+    except OSError as exc:
+        raise ValueError(f"cannot validate {label} handoff: {path}") from exc
+    if _directory_identity(snapshot) != captured_identity:
+        raise ValueError(f"{label} identity changed before handoff: {path}")
+
+    try:
+        with os.scandir(path) as entries:
+            if next(entries, None) is not None:
+                raise ValueError(f"{label} must be empty at handoff: {path}")
+    except OSError as exc:
+        raise ValueError(f"cannot inspect {label} contents at handoff: {path}") from exc
+
+    # This final snapshot catches replacement during resolution or emptiness checks.
+    try:
+        final_snapshot = path.lstat()
+    except OSError as exc:
+        raise ValueError(f"cannot finalize {label} handoff: {path}") from exc
+    _require_ordinary_directory_snapshot(final_snapshot, path, label)
+    if _directory_identity(final_snapshot) != captured_identity:
+        raise ValueError(f"{label} identity changed before handoff: {path}")
     return path
 
 
@@ -253,9 +313,13 @@ def _acquire_run_reservation(root: Path, run_id: str) -> Path:
         raise FileExistsError(
             f"run reservation already exists for run_id: {run_id}"
         ) from exc
-    _validate_direct_directory(reservation, root, "run reservation")
+    identity = _capture_created_directory_identity(
+        reservation, root, "run reservation"
+    )
     _require_sole_canonical_entry(root, reservation, "run reservation")
-    return reservation
+    return _validate_directory_handoff(
+        reservation, root, "run reservation", identity
+    )
 
 
 def _create_reserved_run_directory(root: Path, run_id: str) -> Path:
@@ -269,9 +333,13 @@ def _create_reserved_run_directory(root: Path, run_id: str) -> Path:
         out.mkdir(exist_ok=False)
     except FileExistsError as exc:
         raise FileExistsError(f"target run directory already exists: {out}") from exc
-    _validate_direct_directory(out, root, "target run directory")
+    identity = _capture_created_directory_identity(
+        out, root, "target run directory"
+    )
     _require_sole_canonical_entry(root, out, "target run directory")
-    return out
+    return _validate_directory_handoff(
+        out, root, "target run directory", identity
+    )
 
 
 @contextmanager

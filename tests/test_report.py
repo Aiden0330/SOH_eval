@@ -851,6 +851,135 @@ def test_canonical_alias_in_final_mkdir_window_fails_closed(
     assert not (alias / "evidence-pack.json").exists()
 
 
+def _replace_with_distinct_empty_directory(path):
+    original_identity = (path.lstat().st_dev, path.lstat().st_ino)
+    path.rmdir()
+    for index in range(16):
+        holder = path.with_name(f"{path.name}.identity-holder-{index}")
+        holder.mkdir()
+        path.mkdir()
+        replacement_identity = (path.lstat().st_dev, path.lstat().st_ino)
+        if replacement_identity != original_identity:
+            return original_identity, replacement_identity
+        path.rmdir()
+    pytest.fail("filesystem repeatedly reused the original directory identity")
+
+
+@pytest.mark.parametrize("occupied", [False, True], ids=["empty", "occupied"])
+def test_final_handoff_rejects_replaced_ordinary_directory(
+    tmp_path, monkeypatch, occupied,
+):
+    run_id = f"RUN-handoff-{'occupied' if occupied else 'empty'}"
+    target = tmp_path / run_id
+    marker = target / "replacement.txt"
+    original_scan = report_module._require_sole_canonical_entry
+    replaced = False
+    identities = []
+
+    def replace_after_scan(root, expected, label):
+        nonlocal replaced
+        original_scan(root, expected, label)
+        if label == "target run directory" and not replaced:
+            replaced = True
+            identities.extend(_replace_with_distinct_empty_directory(expected))
+            if occupied:
+                marker.write_bytes(b"replacement survives")
+
+    monkeypatch.setattr(
+        report_module, "_require_sole_canonical_entry", replace_after_scan
+    )
+    with pytest.raises(ValueError, match="identity|handoff|empty|replaced"):
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+        )
+
+    assert replaced
+    assert identities[0] != identities[1]
+    assert target.is_dir()
+    if occupied:
+        assert marker.read_bytes() == b"replacement survives"
+    else:
+        assert list(target.iterdir()) == []
+    assert not (target / "results.parquet").exists()
+    assert not (target / "evidence-pack.json").exists()
+
+
+def test_reservation_handoff_rejects_replaced_directory(tmp_path, monkeypatch):
+    run_id = "RUN-reservation-handoff"
+    reservation = tmp_path / _expected_reservation_name(run_id)
+    original_scan = report_module._require_sole_canonical_entry
+    replaced = False
+    identities = []
+
+    def replace_after_scan(root, expected, label):
+        nonlocal replaced
+        original_scan(root, expected, label)
+        if label == "run reservation" and not replaced:
+            replaced = True
+            identities.extend(_replace_with_distinct_empty_directory(expected))
+
+    monkeypatch.setattr(
+        report_module, "_require_sole_canonical_entry", replace_after_scan
+    )
+    with pytest.raises(ValueError, match="identity|handoff|replaced"):
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+        )
+
+    assert replaced
+    assert identities[0] != identities[1]
+    assert reservation.is_dir()
+    assert list(reservation.iterdir()) == []
+    assert not (tmp_path / run_id).exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="directory junctions require Windows")
+def test_final_handoff_rejects_replacement_junction(tmp_path, monkeypatch):
+    run_id = "RUN-handoff-junction"
+    target = tmp_path / run_id
+    external = tmp_path / "external-handoff-target"
+    external.mkdir()
+    sentinel = external / "sentinel.txt"
+    sentinel.write_bytes(b"external sentinel")
+    original_scan = report_module._require_sole_canonical_entry
+    replaced = False
+
+    def replace_after_scan(root, expected, label):
+        nonlocal replaced
+        original_scan(root, expected, label)
+        if label == "target run directory" and not replaced:
+            replaced = True
+            expected.rmdir()
+            created = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(expected), str(external)],
+                capture_output=True,
+                text=True,
+            )
+            if created.returncode:
+                pytest.skip(
+                    "directory junction creation unavailable: "
+                    f"{created.stdout}{created.stderr}"
+                )
+
+    monkeypatch.setattr(
+        report_module, "_require_sole_canonical_entry", replace_after_scan
+    )
+    try:
+        with pytest.raises(ValueError, match="handoff|ordinary|reparse|link|identity"):
+            write_artifacts(
+                _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+            )
+        assert replaced
+        assert target.is_junction()
+        assert sentinel.read_bytes() == b"external sentinel"
+        assert list(external.iterdir()) == [sentinel]
+        assert not (external / "results.parquet").exists()
+        assert not (external / "evidence-pack.json").exists()
+    finally:
+        if target.exists():
+            os.rmdir(target)
+
+
 def test_partial_artifact_failure_leaves_durable_fail_closed_history(
     tmp_path, monkeypatch,
 ):

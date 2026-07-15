@@ -927,6 +927,60 @@ def test_evidence_document_rejects_nested_ndarray_infinity():
         evidence_module.validate_evidence_pack_document(document)
 
 
+def test_evidence_document_normalizes_zero_dimensional_array_as_scalar():
+    document = {
+        "schema_version": "1.0.0",
+        "run_id": "RUN-zero-dimensional",
+        "artifacts": [
+            {
+                "path": "result.txt",
+                "size": np.array(6, dtype=np.int64),
+                "sha256": "a" * 64,
+            }
+        ],
+    }
+
+    evidence_module.validate_evidence_pack_document(document)
+
+
+@pytest.mark.parametrize("value", [np.nan, np.inf, -np.inf])
+def test_evidence_document_rejects_nonfinite_zero_dimensional_array(value):
+    document = {
+        "schema_version": "1.0.0",
+        "run_id": "RUN-zero-dimensional-nonfinite",
+        "artifacts": [],
+        "future_context": {"value": np.array(value)},
+    }
+
+    with pytest.raises(ValueError, match="finite|nonfinite"):
+        evidence_module.validate_evidence_pack_document(document)
+
+
+def test_persisted_evidence_pack_keeps_zero_dimensional_arrays_scalar(tmp_path):
+    run_dir = tmp_path / "RUN-zero-dimensional-persisted"
+    run_dir.mkdir()
+    artifact = run_dir / "result.txt"
+    artifact.write_text("result", encoding="utf-8")
+
+    pack = write_evidence_pack(
+        run_dir,
+        {
+            "run_id": "RUN-zero-dimensional-persisted",
+            "future_context": {
+                "scalar": np.array(1.25),
+                "nested": [np.array(2), {"value": np.array(3.5)}],
+            },
+        },
+        [artifact],
+    )
+    persisted = json.loads(pack.read_text(encoding="utf-8"))
+
+    assert persisted["future_context"] == {
+        "scalar": 1.25,
+        "nested": [2, {"value": 3.5}],
+    }
+
+
 def test_nested_index_and_object_array_nonfinite_values_are_rejected():
     nested = np.empty(2, dtype=object)
     nested[0] = pd.Index([1.0, 2.0])
