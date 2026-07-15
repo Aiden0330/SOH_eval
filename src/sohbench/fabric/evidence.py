@@ -111,24 +111,99 @@ def _strict_json_loads(serialized: str):
     return json.loads(serialized, parse_constant=_reject_json_constant)
 
 
-def _reject_nonfinite_json_numbers(value: Any, path: str = "document") -> None:
-    if isinstance(value, (float, np.floating)) and not math.isfinite(value):
-        raise ValueError(f"{path} contains a nonfinite JSON number")
+_JSON_MAX_DEPTH = 100
+_JSON_MAX_NODES = 100_000
+
+
+def _json_compatible_value(
+    value: Any,
+    path: str = "document",
+    *,
+    _state: dict | None = None,
+    _depth: int = 0,
+) -> Any:
+    state = {"nodes": 0, "active": set()} if _state is None else _state
+    state["nodes"] += 1
+    if state["nodes"] > _JSON_MAX_NODES:
+        raise ValueError(f"{path} exceeds the JSON container size limit")
+    if _depth > _JSON_MAX_DEPTH:
+        raise ValueError(f"{path} exceeds the JSON container depth limit")
+
+    if _is_null(value):
+        return None
+    if isinstance(value, np.generic):
+        return _json_compatible_value(
+            value.item(), path, _state=state, _depth=_depth + 1
+        )
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f"{path} contains a nonfinite JSON number")
+        return value
+    if isinstance(value, str):
+        return value
+
     if isinstance(value, dict):
-        for key, item in value.items():
-            _reject_nonfinite_json_numbers(item, f"{path}.{key}")
-    elif isinstance(value, (list, tuple)):
-        for index, item in enumerate(value):
-            _reject_nonfinite_json_numbers(item, f"{path}.{index}")
+        identity = id(value)
+        if identity in state["active"]:
+            raise ValueError(f"{path} contains a JSON container cycle")
+        state["active"].add(identity)
+        try:
+            normalized = {}
+            for key, item in value.items():
+                if not isinstance(key, str):
+                    raise ValueError(f"{path} contains a non-string JSON object key")
+                normalized[key] = _json_compatible_value(
+                    item,
+                    f"{path}.{key}",
+                    _state=state,
+                    _depth=_depth + 1,
+                )
+            return normalized
+        finally:
+            state["active"].remove(identity)
+
+    if isinstance(value, (list, tuple, np.ndarray, pd.Series, pd.Index)):
+        identity = id(value)
+        if identity in state["active"]:
+            raise ValueError(f"{path} contains a JSON container cycle")
+        state["active"].add(identity)
+        try:
+            if isinstance(value, np.ndarray):
+                items = [value.item()] if value.ndim == 0 else value.tolist()
+            elif isinstance(value, (pd.Series, pd.Index)):
+                items = value.tolist()
+            else:
+                items = value
+            return [
+                _json_compatible_value(
+                    item,
+                    f"{path}.{index}",
+                    _state=state,
+                    _depth=_depth + 1,
+                )
+                for index, item in enumerate(items)
+            ]
+        finally:
+            state["active"].remove(identity)
+
+    raise ValueError(
+        f"{path} contains unsupported non-JSON value type "
+        f"{type(value).__name__}"
+    )
 
 
-def _validate_document(document: dict, schema_name: str, root: str) -> None:
-    _reject_nonfinite_json_numbers(document, root)
+def _validate_document(document: dict, schema_name: str, root: str) -> dict:
+    normalized = _json_compatible_value(document, root)
     try:
-        jsonschema.validate(document, _load_schema(schema_name))
+        jsonschema.validate(normalized, _load_schema(schema_name))
     except jsonschema.ValidationError as exc:
         location = ".".join(map(str, exc.absolute_path)) or root
         raise ValueError(f"{location}: {exc.message}") from exc
+    return normalized
 
 
 def validate_evidence_pack_document(document: dict) -> None:
@@ -238,7 +313,9 @@ def write_evidence_pack(
         **manifest,
         "artifacts": _artifact_entries(run_root, artifact_paths),
     }
-    validate_evidence_pack_document(document)
+    document = _validate_document(
+        document, "evidence-pack.schema.json", "evidence_pack"
+    )
 
     target = run_root / EVIDENCE_PACK_NAME
     temporary = run_root / EVIDENCE_TEMP_NAME
@@ -342,18 +419,6 @@ def _is_null(value: object) -> bool:
     return value is None or value is pd.NA
 
 
-def _json_value(value: Any) -> Any:
-    if _is_null(value):
-        return None
-    if isinstance(value, np.generic):
-        return value.item()
-    if isinstance(value, dict):
-        return {str(key): _json_value(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_json_value(item) for item in value]
-    return value
-
-
 def _validate_numeric_columns(
     frame: pd.DataFrame,
     required: tuple[str, ...],
@@ -397,12 +462,10 @@ def _validate_rows(frame: pd.DataFrame, schema_name: str, root: str) -> None:
     validator = validator_class(schema)
     columns = tuple(frame.columns)
     for row_number, values in enumerate(frame.itertuples(index=False, name=None)):
-        row = {
-            column: _json_value(value)
-            for column, value in zip(columns, values)
-        }
         try:
-            _reject_nonfinite_json_numbers(row, root)
+            row = _json_compatible_value(
+                dict(zip(columns, values)), root
+            )
         except ValueError as exc:
             raise ValueError(f"row {row_number} {exc}") from exc
         try:

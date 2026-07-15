@@ -897,6 +897,94 @@ def test_public_record_validators_reject_nonfinite_extensible_context(
         validator(frame)
 
 
+def test_prediction_validator_rejects_nested_ndarray_nan():
+    frame = prediction_frame(
+        future_context={"values": np.array([0.1, np.nan])}
+    )
+
+    with pytest.raises(ValueError, match="finite|nonfinite"):
+        validate_prediction_records(frame)
+
+
+def test_metric_validator_rejects_nested_series_infinity():
+    frame = metric_frame(
+        extra_context={"values": pd.Series([0.1, np.inf])}
+    )
+
+    with pytest.raises(ValueError, match="finite|nonfinite"):
+        validate_metric_records(frame)
+
+
+def test_evidence_document_rejects_nested_ndarray_infinity():
+    document = {
+        "schema_version": "1.0.0",
+        "run_id": "RUN-array-infinity",
+        "artifacts": [],
+        "future_context": {"values": np.array([1.0, np.inf])},
+    }
+
+    with pytest.raises(ValueError, match="finite|nonfinite"):
+        evidence_module.validate_evidence_pack_document(document)
+
+
+def test_nested_index_and_object_array_nonfinite_values_are_rejected():
+    nested = np.empty(2, dtype=object)
+    nested[0] = pd.Index([1.0, 2.0])
+    nested[1] = {"series": pd.Series([3.0, -np.inf])}
+    frame = prediction_frame(future_context={"nested": nested})
+
+    with pytest.raises(ValueError, match="finite|nonfinite"):
+        validate_prediction_records(frame)
+
+
+def test_finite_numpy_pandas_extension_containers_are_json_compatible(tmp_path):
+    nested = np.empty(2, dtype=object)
+    nested[0] = pd.Index([1.0, 2.0])
+    nested[1] = {"series": pd.Series([3.0, 4.0])}
+    context = {
+        "array": np.array([0.1, 0.2]),
+        "series": pd.Series([0.3, 0.4]),
+        "index": pd.Index([5, 6]),
+        "nested": nested,
+    }
+    validate_prediction_records(prediction_frame(future_context=context))
+    validate_metric_records(metric_frame(extra_context=context))
+
+    run_dir = tmp_path / "RUN-finite-containers"
+    run_dir.mkdir()
+    artifact = run_dir / "result.txt"
+    artifact.write_text("result", encoding="utf-8")
+    pack = write_evidence_pack(
+        run_dir,
+        {"run_id": "RUN-finite-containers", "future_context": context},
+        [artifact],
+    )
+    persisted = json.loads(pack.read_text(encoding="utf-8"))
+
+    assert persisted["future_context"] == {
+        "array": [0.1, 0.2],
+        "series": [0.3, 0.4],
+        "index": [5, 6],
+        "nested": [[1.0, 2.0], {"series": [3.0, 4.0]}],
+    }
+
+
+@pytest.mark.parametrize("unsupported", [{1, 2}, pd.DataFrame({"x": [1]})])
+def test_public_validation_rejects_unsupported_non_json_containers(unsupported):
+    with pytest.raises(ValueError, match="JSON|unsupported"):
+        validate_prediction_records(
+            prediction_frame(future_context={"unsupported": unsupported})
+        )
+
+
+def test_public_validation_rejects_cyclic_extension_containers():
+    cyclic = []
+    cyclic.append(cyclic)
+
+    with pytest.raises(ValueError, match="cycle|depth|JSON"):
+        validate_metric_records(metric_frame(extra_context={"cyclic": cyclic}))
+
+
 @pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
 def test_verifier_strict_json_rejects_nonstandard_numeric_constants(
     tmp_path, monkeypatch, constant,

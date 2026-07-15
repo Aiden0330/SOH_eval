@@ -20,7 +20,7 @@ from .fabric.outcomes import (
 from .tasks import SOHEstimationTask
 
 
-_RUN_RESERVATION_REGISTRY = ".sohbench-run-reservations"
+_RUN_RESERVATION_PREFIX = ".sohbench-run-reservation-"
 
 
 def _canonical_run_name(run_id: str) -> str:
@@ -31,6 +31,10 @@ def _canonical_run_name(run_id: str) -> str:
 def _reservation_key(run_id: str) -> str:
     canonical = _canonical_run_name(run_id)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _reservation_name(run_id: str) -> str:
+    return _RUN_RESERVATION_PREFIX + _reservation_key(run_id)
 
 
 def _json_safe(o):
@@ -148,8 +152,8 @@ def _run_identity(run_id):
         _validate_portable_path_segment(selected, "run_id")
     except ValueError as exc:
         raise ValueError(f"invalid run_id: {selected}") from exc
-    if _canonical_run_name(selected) == _canonical_run_name(
-        _RUN_RESERVATION_REGISTRY
+    if _canonical_run_name(selected).startswith(
+        _canonical_run_name(_RUN_RESERVATION_PREFIX)
     ):
         raise ValueError(f"run_id is reserved: {selected}")
     return selected
@@ -202,84 +206,71 @@ def _prepare_run_root(out_dir) -> Path:
     return root
 
 
-def _select_reservation_registry(root: Path) -> Path:
-    canonical_name = _canonical_run_name(_RUN_RESERVATION_REGISTRY)
-    matches = [
+def _canonical_entries(root: Path, name: str) -> list[Path]:
+    canonical_name = _canonical_run_name(name)
+    return [
         entry
         for entry in root.iterdir()
         if _canonical_run_name(entry.name) == canonical_name
     ]
-    exact = next(
-        (entry for entry in matches if entry.name == _RUN_RESERVATION_REGISTRY),
-        None,
-    )
-    if exact is not None:
-        return exact
-    if matches:
-        raise ValueError(
-            f"reservation registry has a noncanonical alias: {matches[0]}"
-        )
-    return root / _RUN_RESERVATION_REGISTRY
 
 
-def _validate_reservation_registry(registry: Path, root: Path) -> Path:
-    if registry.parent != root:
-        raise ValueError("reservation registry must be directly under out_dir")
-    if _is_directory_link(registry):
-        raise ValueError(
-            f"reservation registry cannot be a link or reparse point: {registry}"
-        )
-    if not registry.is_dir():
-        raise ValueError(
-            f"reservation registry is not an ordinary directory: {registry}"
-        )
-    resolved = registry.resolve(strict=True)
+def _validate_direct_directory(path: Path, root: Path, label: str) -> Path:
+    if path.parent != root:
+        raise ValueError(f"{label} must be directly under out_dir")
+    if _is_directory_link(path):
+        raise ValueError(f"{label} cannot be a link or reparse point: {path}")
+    if not path.is_dir():
+        raise ValueError(f"{label} is not an ordinary directory: {path}")
+    resolved = path.resolve(strict=True)
     _require_within_root(resolved, root)
     if resolved.parent != root:
-        raise ValueError("reservation registry must resolve directly under out_dir")
-    return registry
+        raise ValueError(f"{label} must resolve directly under out_dir")
+    return path
 
 
-def _ensure_reservation_registry(root: Path) -> Path:
-    registry = _select_reservation_registry(root)
-    try:
-        registry.mkdir(exist_ok=False)
-    except FileExistsError:
-        registry = _select_reservation_registry(root)
-    return _validate_reservation_registry(registry, root)
+def _require_sole_canonical_entry(
+    root: Path, expected: Path, label: str,
+) -> None:
+    matches = _canonical_entries(root, expected.name)
+    if len(matches) != 1 or matches[0].name != expected.name:
+        rendered = ", ".join(entry.name for entry in matches) or "none"
+        raise FileExistsError(
+            f"{label} canonical collision for {expected.name}: {rendered}"
+        )
 
 
 def _acquire_run_reservation(root: Path, run_id: str) -> Path:
-    registry = _ensure_reservation_registry(root)
-    reservation = registry / _reservation_key(run_id)
+    reservation = root / _reservation_name(run_id)
+    existing = _canonical_entries(root, reservation.name)
+    if existing:
+        raise FileExistsError(
+            f"run reservation already exists for run_id {run_id}: {existing[0]}"
+        )
     try:
         reservation.mkdir(exist_ok=False)
     except FileExistsError as exc:
         raise FileExistsError(
             f"run reservation already exists for run_id: {run_id}"
         ) from exc
-    _validate_reservation_registry(registry, root)
+    _validate_direct_directory(reservation, root, "run reservation")
+    _require_sole_canonical_entry(root, reservation, "run reservation")
     return reservation
 
 
 def _create_reserved_run_directory(root: Path, run_id: str) -> Path:
-    canonical_name = _canonical_run_name(run_id)
-    collisions = [
-        entry
-        for entry in root.iterdir()
-        if entry.name != _RUN_RESERVATION_REGISTRY
-        and _canonical_run_name(entry.name) == canonical_name
-    ]
-    if collisions:
-        raise FileExistsError(
-            f"target run directory already exists: {collisions[0]}"
-        )
-
     out = root / run_id
+    existing = _canonical_entries(root, out.name)
+    if existing:
+        raise FileExistsError(
+            f"target run directory already exists: {existing[0]}"
+        )
     try:
         out.mkdir(exist_ok=False)
     except FileExistsError as exc:
         raise FileExistsError(f"target run directory already exists: {out}") from exc
+    _validate_direct_directory(out, root, "target run directory")
+    _require_sole_canonical_entry(root, out, "target run directory")
     return out
 
 

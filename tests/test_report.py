@@ -505,8 +505,7 @@ def test_write_artifacts_rejects_every_preexisting_target(tmp_path, occupied):
         assert marker.read_text(encoding="utf-8") == "do not overwrite"
     reservation = (
         tmp_path
-        / ".sohbench-run-reservations"
-        / report_module._reservation_key(run_id)
+        / report_module._reservation_name(run_id)
     )
     assert reservation.is_dir()
 
@@ -554,11 +553,18 @@ def test_write_artifacts_rejects_nonportable_run_ids_before_creating_target(
     assert list(tmp_path.iterdir()) == []
 
 
-def test_write_artifacts_rejects_reservation_registry_name_as_run_id(tmp_path):
+@pytest.mark.parametrize(
+    "run_id",
+    [
+        ".sohbench-run-reservation-user",
+        ".SOHBENCH-RUN-RESERVATION-" + "a" * 64,
+    ],
+)
+def test_write_artifacts_rejects_reservation_prefix_as_run_id(tmp_path, run_id):
     with pytest.raises(ValueError, match="run_id|reserved"):
         write_artifacts(
             _results(), None, SOHEstimationTask(), {}, tmp_path,
-            run_id=".SOHBENCH-RUN-RESERVATIONS",
+            run_id=run_id,
         )
 
     assert list(tmp_path.iterdir()) == []
@@ -644,11 +650,10 @@ def _assert_single_reserved_writer(root, outcomes):
     artifact_paths = {item["path"] for item in pack["artifacts"]}
     assert not any("reservation" in path for path in artifact_paths)
     assert list(run_dir.glob(".*")) == []
-    registry = root / ".sohbench-run-reservations"
-    assert registry.is_dir()
-    assert len(list(registry.iterdir())) == 1
+    reservation = root / report_module._reservation_name(run_id)
+    assert reservation.is_dir()
     assert sorted(entry.name for entry in root.iterdir()) == sorted(
-        [run_dir.name, registry.name]
+        [run_dir.name, reservation.name]
     )
 
 
@@ -672,12 +677,20 @@ def test_concurrent_case_equivalent_run_ids_allow_only_one_artifact_transaction(
     _assert_single_reserved_writer(root, outcomes)
 
 
+def test_concurrent_canonical_equivalent_run_ids_allow_only_one_transaction(
+    tmp_path, monkeypatch,
+):
+    root, outcomes = _run_concurrent_writers_at_reservation(
+        tmp_path, monkeypatch, ("RUN-é", "RUN-e\u0301")
+    )
+
+    _assert_single_reserved_writer(root, outcomes)
+
+
 @pytest.mark.parametrize("reservation_kind", ["file", "directory"])
 def test_stale_durable_reservation_fails_closed(tmp_path, reservation_kind):
     run_id = "RUN-stale"
-    registry = tmp_path / ".sohbench-run-reservations"
-    registry.mkdir()
-    reservation = registry / report_module._reservation_key(run_id)
+    reservation = tmp_path / report_module._reservation_name(run_id)
     if reservation_kind == "file":
         reservation.write_bytes(b"stale reservation")
     else:
@@ -704,8 +717,10 @@ def test_inference_keeps_reservation_outside_pack_and_final_run(
     observed_reservations = []
 
     def observe_claim(run_dir, manifest, artifact_paths):
-        registry = Path(run_dir).parent / ".sohbench-run-reservations"
-        reservation = registry / report_module._reservation_key(manifest["run_id"])
+        reservation = (
+            Path(run_dir).parent
+            / report_module._reservation_name(manifest["run_id"])
+        )
         observed_reservations.append(reservation.is_dir())
         return original_write_pack(run_dir, manifest, artifact_paths)
 
@@ -720,7 +735,10 @@ def test_inference_keeps_reservation_outside_pack_and_final_run(
     )
 
     assert observed_reservations == [True]
-    assert not (out / ".sohbench-run-reservations").exists()
+    assert not any(
+        path.name.startswith(".sohbench-run-reservation-")
+        for path in out.iterdir()
+    )
     pack = verify_evidence_pack(out / "evidence-pack.json")
     assert not any("reservation" in item["path"] for item in pack["artifacts"])
 
@@ -754,6 +772,10 @@ def _expected_reservation_key(run_id):
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _expected_reservation_name(run_id):
+    return ".sohbench-run-reservation-" + _expected_reservation_key(run_id)
+
+
 @pytest.mark.parametrize(
     "first, second",
     [
@@ -767,6 +789,8 @@ def test_reservation_key_uses_unicode_casefold_canonical_form(first, second):
 
     assert report_module._reservation_key(first) == expected
     assert report_module._reservation_key(second) == expected
+    assert report_module._reservation_name(first) == _expected_reservation_name(first)
+    assert report_module._reservation_name(second) == _expected_reservation_name(first)
 
 
 def test_final_target_creation_race_preserves_replacement_and_reservation(
@@ -793,12 +817,38 @@ def test_final_target_creation_race_preserves_replacement_and_reservation(
         )
 
     assert marker.read_text(encoding="utf-8") == "replacement survives"
-    reservation = (
-        tmp_path
-        / ".sohbench-run-reservations"
-        / report_module._reservation_key(run_id)
-    )
+    reservation = tmp_path / report_module._reservation_name(run_id)
     assert reservation.is_dir()
+
+
+def test_canonical_alias_in_final_mkdir_window_fails_closed(
+    tmp_path, monkeypatch,
+):
+    run_id = "RUN-é"
+    target = tmp_path / run_id
+    alias = tmp_path / "RUN-e\u0301"
+    real_mkdir = Path.mkdir
+    injected = False
+
+    def inject_canonical_alias(path, *args, **kwargs):
+        nonlocal injected
+        if path == target and not injected:
+            injected = True
+            real_mkdir(alias)
+        return real_mkdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", inject_canonical_alias)
+    with pytest.raises(FileExistsError, match="canonical|collision|exists"):
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+        )
+
+    reservation = tmp_path / report_module._reservation_name(run_id)
+    assert reservation.is_dir()
+    assert target.exists()
+    assert alias.exists()
+    assert not (target / "evidence-pack.json").exists()
+    assert not (alias / "evidence-pack.json").exists()
 
 
 def test_partial_artifact_failure_leaves_durable_fail_closed_history(
@@ -816,11 +866,7 @@ def test_partial_artifact_failure_leaves_durable_fail_closed_history(
         )
 
     run_dir = tmp_path / run_id
-    reservation = (
-        tmp_path
-        / ".sohbench-run-reservations"
-        / report_module._reservation_key(run_id)
-    )
+    reservation = tmp_path / report_module._reservation_name(run_id)
     assert reservation.is_dir()
     assert run_dir.is_dir()
     assert (run_dir / "results.parquet").is_file()
@@ -843,12 +889,11 @@ def test_success_keeps_reservation_outside_final_run_and_pack(tmp_path):
             _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
         )
     )
-    registry = tmp_path / ".sohbench-run-reservations"
-    reservation = registry / report_module._reservation_key(run_id)
+    reservation = tmp_path / report_module._reservation_name(run_id)
 
     assert reservation.is_dir()
-    assert registry.parent == tmp_path
-    assert not (out / registry.name).exists()
+    assert reservation.parent == tmp_path
+    assert not (out / reservation.name).exists()
     assert not (out / ".sohbench-run.claim").exists()
     pack = verify_evidence_pack(out / "evidence-pack.json")
     assert not any(
@@ -872,54 +917,128 @@ def test_writer_performs_no_destructive_run_cleanup(tmp_path, monkeypatch):
     assert (out / "evidence-pack.json").is_file()
 
 
-def test_reservation_registry_must_be_an_ordinary_directory(tmp_path):
-    registry = tmp_path / ".sohbench-run-reservations"
-    registry.write_bytes(b"not a directory")
+def test_canonical_reservation_alias_fails_closed(tmp_path):
+    run_id = "RUN-reservation-alias"
+    exact_name = _expected_reservation_name(run_id)
+    alias = tmp_path / exact_name.upper()
+    alias.mkdir()
 
-    with pytest.raises(ValueError, match="reservation registry|ordinary"):
+    with pytest.raises(FileExistsError, match="reservation|alias|canonical"):
         write_artifacts(
-            _results(), None, SOHEstimationTask(), {}, tmp_path,
-            run_id="RUN-registry-file",
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
         )
 
-    assert registry.read_bytes() == b"not a directory"
-    assert not (tmp_path / "RUN-registry-file").exists()
+    assert alias.is_dir()
+    assert not (tmp_path / run_id).exists()
 
 
-def test_replaced_reservation_registry_symlink_is_not_followed(tmp_path):
-    target = tmp_path / "external-registry-target"
-    target.mkdir()
-    sentinel = target / "sentinel.txt"
-    sentinel.write_bytes(b"external sentinel")
-    registry = tmp_path / ".sohbench-run-reservations"
+def test_canonical_reservation_alias_in_mkdir_window_fails_closed(
+    tmp_path, monkeypatch,
+):
+    run_id = "RUN-reservation-window"
+    reservation = tmp_path / _expected_reservation_name(run_id)
+    alias = tmp_path / reservation.name.upper()
+    real_mkdir = Path.mkdir
+    injected = False
+
+    def inject_reservation_alias(path, *args, **kwargs):
+        nonlocal injected
+        if path == reservation and not injected:
+            injected = True
+            real_mkdir(alias)
+        return real_mkdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", inject_reservation_alias)
+    with pytest.raises(FileExistsError, match="reservation|alias|canonical"):
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+        )
+
+    assert alias.is_dir()
+    assert not (tmp_path / run_id).exists()
+
+
+def test_exact_and_canonical_reservation_alias_coexistence_is_rejected(tmp_path):
+    run_id = "RUN-reservation-alias-pair"
+    exact = tmp_path / _expected_reservation_name(run_id)
+    alias = tmp_path / exact.name.upper()
+    exact.mkdir()
     try:
-        registry.symlink_to(target, target_is_directory=True)
-    except OSError as exc:
-        pytest.skip(f"directory symlink creation unavailable: {exc}")
+        alias.mkdir()
+    except FileExistsError:
+        pytest.skip("filesystem cannot represent case-equivalent sibling names")
 
-    try:
-        with pytest.raises(ValueError, match="reservation registry|link|reparse"):
-            write_artifacts(
-                _results(), None, SOHEstimationTask(), {}, tmp_path,
-                run_id="RUN-registry-link",
-            )
-        assert registry.is_symlink()
-        assert sentinel.read_bytes() == b"external sentinel"
-        assert list(target.iterdir()) == [sentinel]
-    finally:
-        if registry.is_symlink():
-            registry.unlink()
+    with pytest.raises(FileExistsError, match="reservation|alias|canonical"):
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+        )
+
+    assert exact.is_dir()
+    assert alias.is_dir()
+    assert not (tmp_path / run_id).exists()
 
 
 @pytest.mark.skipif(os.name != "nt", reason="directory junctions require Windows")
-def test_replaced_reservation_registry_junction_is_not_followed(tmp_path):
+def test_direct_reservation_replaced_by_junction_after_mkdir_fails_closed(
+    tmp_path, monkeypatch,
+):
+    run_id = "RUN-reservation-junction"
+    reservation = tmp_path / _expected_reservation_name(run_id)
+    target = tmp_path / "external-reservation-target"
+    target.mkdir()
+    sentinel = target / "sentinel.txt"
+    sentinel.write_bytes(b"external sentinel")
+    real_mkdir = Path.mkdir
+    injected = False
+
+    def replace_with_junction(path, *args, **kwargs):
+        nonlocal injected
+        result = real_mkdir(path, *args, **kwargs)
+        if path == reservation and not injected:
+            injected = True
+            path.rmdir()
+            created = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(path), str(target)],
+                capture_output=True,
+                text=True,
+            )
+            if created.returncode:
+                pytest.skip(
+                    "directory junction creation unavailable: "
+                    f"{created.stdout}{created.stderr}"
+                )
+        return result
+
+    monkeypatch.setattr(Path, "mkdir", replace_with_junction)
+    try:
+        with pytest.raises(ValueError, match="reservation|ordinary|reparse|link"):
+            write_artifacts(
+                _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+            )
+        assert reservation.is_junction()
+        assert sentinel.read_bytes() == b"external sentinel"
+        assert list(target.iterdir()) == [sentinel]
+        assert not (tmp_path / run_id).exists()
+    finally:
+        if reservation.exists():
+            os.rmdir(reservation)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="directory junctions require Windows")
+def test_former_registry_junction_window_cannot_receive_reservation(
+    tmp_path, monkeypatch,
+):
+    run_id = "RUN-no-registry-window"
+    former_registry = tmp_path / ".sohbench-run-reservations"
+    former_registry.mkdir()
     target = tmp_path / "external-registry-target"
     target.mkdir()
     sentinel = target / "sentinel.txt"
     sentinel.write_bytes(b"external sentinel")
-    registry = tmp_path / ".sohbench-run-reservations"
+
+    probe = tmp_path / "junction-probe"
     created = subprocess.run(
-        ["cmd", "/c", "mklink", "/J", str(registry), str(target)],
+        ["cmd", "/c", "mklink", "/J", str(probe), str(target)],
         capture_output=True,
         text=True,
     )
@@ -928,20 +1047,39 @@ def test_replaced_reservation_registry_junction_is_not_followed(tmp_path):
             "directory junction creation unavailable: "
             f"{created.stdout}{created.stderr}"
         )
+    os.rmdir(probe)
 
-    try:
-        with pytest.raises(ValueError, match="reservation registry|link|reparse"):
-            write_artifacts(
-                _results(), None, SOHEstimationTask(), {}, tmp_path,
-                run_id="RUN-registry-junction",
+    real_mkdir = Path.mkdir
+    injected = False
+
+    def inject_former_registry_swap(path, *args, **kwargs):
+        nonlocal injected
+        if path.parent == former_registry and not injected:
+            injected = True
+            former_registry.rmdir()
+            replaced = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(former_registry), str(target)],
+                capture_output=True,
+                text=True,
             )
-        assert registry.is_junction()
+            assert replaced.returncode == 0, replaced.stdout + replaced.stderr
+        return real_mkdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", inject_former_registry_swap)
+    try:
+        out = Path(
+            write_artifacts(
+                _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+            )
+        )
+        assert not injected
+        assert (tmp_path / _expected_reservation_name(run_id)).is_dir()
+        assert (out / "evidence-pack.json").is_file()
         assert sentinel.read_bytes() == b"external sentinel"
         assert list(target.iterdir()) == [sentinel]
     finally:
-        if registry.exists():
-            os.rmdir(registry)
-
+        if former_registry.exists() and former_registry.is_junction():
+            os.rmdir(former_registry)
 
 def test_ephemeral_claim_cleanup_implementation_is_removed():
     obsolete_names = (
@@ -952,6 +1090,9 @@ def test_ephemeral_claim_cleanup_implementation_is_removed():
         "_windows_mark_claim_for_deletion",
         "_windows_close_claim_handle",
         "_windows_delete_claim_directory",
+        "_select_reservation_registry",
+        "_validate_reservation_registry",
+        "_ensure_reservation_registry",
     )
 
     assert not any(hasattr(report_module, name) for name in obsolete_names)
