@@ -1,4 +1,5 @@
 import json
+import os
 import pickle
 
 import numpy as np
@@ -57,6 +58,15 @@ def test_feature_state_payload_cannot_be_mutated_through_dict_base_class():
         dict.__setitem__(state.payload, "bypass", 1)
 
 
+def test_feature_state_payload_storage_cannot_be_reassigned():
+    state = FeatureState.create({"nested": [1]})
+
+    with pytest.raises(AttributeError):
+        state.payload._items = ()
+
+    assert state.payload["nested"] == (1,)
+
+
 def test_prefix_invariance_rejects_overwriting_an_existing_feature():
     class OverwritingPipeline:
         def fit(self, train_x, train_y, meta):
@@ -106,6 +116,36 @@ def test_legacy_pipeline_strips_target_and_external_assets_from_meta(tmp_path):
     transformed = pipeline.transform(frame, state, meta)
 
     assert "safe" in transformed
+
+
+def test_legacy_pipeline_executes_replacement_source_with_same_size_and_mtime(tmp_path):
+    path = tmp_path / "feature.py"
+    old_source = (
+        "def transform(table, meta=None):\n"
+        "    out = table.copy()\n"
+        "    out['marker'] = 1\n"
+        "    return out\n"
+    )
+    new_source = old_source.replace("= 1", "= 2")
+    assert len(old_source.encode("utf-8")) == len(new_source.encode("utf-8"))
+    path.write_text(old_source, encoding="utf-8")
+    original_mtime = path.stat().st_mtime_ns
+    namespace = {}
+    exec(old_source, namespace)
+    frame = trajectory_table().iloc[:3].drop(columns=["soh"])
+
+    # The first load is allowed to create a stale bytecode artifact.
+    LegacyStatelessPipeline("marker", ["marker"], namespace["transform"], path).fit(
+        frame, np.zeros(len(frame)), pd.DataFrame()
+    )
+    path.write_text(new_source, encoding="utf-8")
+    os.utime(path, ns=(original_mtime, original_mtime))
+
+    pipeline = LegacyStatelessPipeline("marker", ["marker"], namespace["transform"], path)
+    state = pipeline.fit(frame, np.zeros(len(frame)), pd.DataFrame())
+    transformed = pipeline.transform(frame, state, pd.DataFrame())
+
+    assert transformed["marker"].eq(2).all()
 
 
 def test_prefix_invariance_rejects_future_cycle_normalization():

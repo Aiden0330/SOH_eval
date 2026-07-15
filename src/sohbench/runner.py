@@ -59,7 +59,8 @@ class BenchmarkRunner:
             for pname, proto in protocols.items()
             for fi, fold in enumerate(proto.generate(table, meta))
         ]
-        views_cache, prepared_cache = {}, {}
+        views_cache, raw_prepared_cache, prepared_cache = {}, {}, {}
+        model_events, prediction_events = [], []
 
         def views_for(pname, fi, fold):
             key = (pname, fi)
@@ -70,10 +71,10 @@ class BenchmarkRunner:
                     views_cache[key] = (None, exc)
             return views_cache[key]
 
-        def prepared_for(pname, fi, fold, fs_name, track, pipeline_name):
-            key = (pname, fi, fs_name, track, pipeline_name)
-            if key in prepared_cache:
-                return prepared_cache[key]
+        def raw_prepared_for(pname, fi, fold, pipeline_name):
+            key = (pname, fi, pipeline_name)
+            if key in raw_prepared_cache:
+                return raw_prepared_cache[key]
             views, view_error = views_for(pname, fi, fold)
             state = FeatureState.create({"kind": "unavailable"})
             try:
@@ -85,7 +86,25 @@ class BenchmarkRunner:
                 state = fitting_pipeline.fit(_copy_fold_frame(views.train_x), views.train_y.copy(), train_meta)
                 transformed_train = _transform_fold(clone_for_fold(template), views.train_x, state, meta, task.target)
                 transformed_test = _transform_fold(clone_for_fold(template), views.test_x, state, meta, task.target)
-                train_x, test_x = (transformed_train, transformed_test) if track == "byo" else (project(transformed_train, fs_name), project(transformed_test, fs_name))
+                value = (transformed_train, transformed_test, state, None)
+            except Exception as exc:
+                value = (None, None, state, exc)
+            raw_prepared_cache[key] = value
+            return value
+
+        def prepared_for(pname, fi, fold, fs_name, track, pipeline_name):
+            key = (pname, fi, fs_name, track, pipeline_name)
+            if key in prepared_cache:
+                return prepared_cache[key]
+            transformed_train, transformed_test, state, raw_error = raw_prepared_for(pname, fi, fold, pipeline_name)
+            try:
+                if raw_error is not None:
+                    raise raw_error
+                train_x, test_x = (
+                    (transformed_train, transformed_test)
+                    if track == "byo"
+                    else (project(transformed_train, fs_name), project(transformed_test, fs_name))
+                )
                 value = (train_x, test_x, state, None)
             except Exception as exc:
                 value = (None, None, state, exc)
@@ -128,27 +147,79 @@ class BenchmarkRunner:
                             else:
                                 rec_base["ci_source"] = "native"
                             est.fit(train_x, train_y, train_meta)
+                            snapshot, snapshot_error = None, None
+                            if on_model_fitted is not None:
+                                try:
+                                    snapshot = copy.deepcopy(est)
+                                except Exception as exc:
+                                    snapshot_error = str(exc)
+                                    rec_base["model_snapshot_error"] = snapshot_error
                             yp = est.predict(test_x, test_meta)
                             row = self._point_metrics(task, test_y, yp)
                             lo, hi = est.predict_interval(test_x, test_meta)
                             row["picp"] = M.picp(test_y, lo, hi)
                             row.update(self._trajectory_metrics(task, test_x, yp))
-                            if on_model_fitted is not None:
-                                on_model_fitted(
-                                    estimator=est, record=dict(rec_base), train_table=train_x.copy(deep=True),
-                                    test_table=test_x.copy(deep=True), meta=scoped_meta_for_frame(meta, train_x, task.target),
-                                    feature_state=feature_state, pipeline_name=pipeline_name,
-                                )
-                            if on_predictions is not None:
-                                on_predictions(
-                                    record=dict(rec_base), sample_frame=table.iloc[fold.test_idx].copy(deep=True),
-                                    y_pred=yp, interval_low=lo, interval_high=hi,
-                                )
                         except Exception as exc:
                             row = {metric: float("nan") for metric in (*task.point_metrics, *task.interval_metrics, *task.trajectory_metrics)}
                             rec_base["error"] = str(exc)
+                            snapshot, snapshot_error = None, None
+                        event_records = []
                         for metric, value in row.items():
-                            records.append({**rec_base, "metric": metric, "value": value})
+                            metric_record = {**rec_base, "metric": metric, "value": value}
+                            records.append(metric_record)
+                            event_records.append(metric_record)
+                        if "error" not in rec_base and on_model_fitted is not None:
+                            model_events.append(
+                                {
+                                    "estimator": snapshot,
+                                    "record": dict(rec_base),
+                                    "train_table": train_x.copy(deep=True),
+                                    "test_table": test_x.copy(deep=True),
+                                    "meta": scoped_meta_for_frame(meta, train_x, task.target),
+                                    "feature_state": feature_state,
+                                    "pipeline_name": pipeline_name,
+                                    "snapshot_error": snapshot_error,
+                                    "records": event_records,
+                                }
+                            )
+                        if "error" not in rec_base and on_predictions is not None:
+                            prediction_events.append(
+                                {
+                                    "record": dict(rec_base),
+                                    "sample_frame": table.iloc[fold.test_idx].copy(deep=True),
+                                    "y_pred": np.array(yp, copy=True),
+                                    "interval_low": np.array(lo, copy=True),
+                                    "interval_high": np.array(hi, copy=True),
+                                    "records": event_records,
+                                }
+                            )
+
+        # Evidence callbacks run only after no remaining fold can be influenced.
+        for event in model_events:
+            if event["snapshot_error"] is not None:
+                message = event["snapshot_error"]
+                for metric_record in event["records"]:
+                    metric_record["model_snapshot_error"] = message
+                    metric_record["model_callback_error"] = "callback skipped because model snapshot failed"
+                continue
+            try:
+                on_model_fitted(
+                    estimator=event["estimator"], record=event["record"],
+                    train_table=event["train_table"], test_table=event["test_table"], meta=event["meta"],
+                    feature_state=event["feature_state"], pipeline_name=event["pipeline_name"],
+                )
+            except Exception as exc:
+                for metric_record in event["records"]:
+                    metric_record["model_callback_error"] = str(exc)
+        for event in prediction_events:
+            try:
+                on_predictions(
+                    record=event["record"], sample_frame=event["sample_frame"], y_pred=event["y_pred"],
+                    interval_low=event["interval_low"], interval_high=event["interval_high"],
+                )
+            except Exception as exc:
+                for metric_record in event["records"]:
+                    metric_record["callback_error"] = str(exc)
         return pd.DataFrame.from_records(records)
 
     def _point_metrics(self, task, yt, yp):

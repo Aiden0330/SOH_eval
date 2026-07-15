@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import importlib.util
 import inspect
 import json
-import uuid
+import marshal
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
@@ -14,14 +13,22 @@ from typing import Any, Callable, Iterator, Mapping, Protocol
 import numpy as np
 import pandas as pd
 
-from .ids import canonical_json, sha256_file, sha256_json
+from .ids import canonical_json, sha256_json
 
 
 class _FrozenMapping(Mapping[str, Any]):
     """Pickle-friendly immutable mapping that does not inherit ``dict``."""
 
-    def __init__(self, value: Mapping[str, Any] = ()): 
-        self._items = tuple((str(key), _freeze(item)) for key, item in dict(value).items())
+    __slots__ = ("_items", "_sealed")
+
+    def __init__(self, value: Mapping[str, Any] = ()):
+        object.__setattr__(self, "_items", tuple((str(key), _freeze(item)) for key, item in dict(value).items()))
+        object.__setattr__(self, "_sealed", True)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if getattr(self, "_sealed", False):
+            raise AttributeError("FeatureState payload is immutable")
+        object.__setattr__(self, name, value)
 
     def __getitem__(self, key: str) -> Any:
         for stored_key, value in self._items:
@@ -101,6 +108,7 @@ class FeaturePipeline(Protocol):
 
 
 def clone_for_fold(pipeline: FeaturePipeline) -> FeaturePipeline:
+    _reject_shared_pipeline_state(pipeline)
     clone = getattr(pipeline, "clone_for_fold", None)
     if callable(clone):
         cloned = clone()
@@ -111,6 +119,68 @@ def clone_for_fold(pipeline: FeaturePipeline) -> FeaturePipeline:
             raise ValueError("feature pipeline must support deepcopy or clone_for_fold()") from exc
     if cloned is pipeline:
         raise ValueError("feature pipeline clone_for_fold() must return a distinct instance")
+    return _isolate_pipeline_class_state(cloned)
+
+
+def _reject_shared_pipeline_state(pipeline: FeaturePipeline) -> None:
+    """Reject the common shared-state references that cannot be made fold-local."""
+    original_class = type(pipeline)
+    for method in _pipeline_methods(original_class):
+        globals_ = method.__globals__
+        for name in method.__code__.co_names:
+            value = globals_.get(name)
+            if _is_mutable(value):
+                raise ValueError(f"feature pipeline references mutable module global {name!r}")
+            if value is original_class and _class_has_mutable_state(original_class):
+                raise ValueError("feature pipeline references mutable original class state")
+        for cell in method.__closure__ or ():
+            if cell.cell_contents is original_class and _class_has_mutable_state(original_class):
+                raise ValueError("feature pipeline references mutable original class state")
+
+
+def _pipeline_methods(pipeline_class: type) -> Iterator[Callable]:
+    for base in pipeline_class.__mro__:
+        if base is object:
+            continue
+        for value in base.__dict__.values():
+            if isinstance(value, (staticmethod, classmethod)):
+                value = value.__func__
+            if inspect.isfunction(value):
+                yield value
+
+
+def _is_mutable(value: Any) -> bool:
+    return isinstance(value, (dict, list, set, bytearray, pd.DataFrame, pd.Series, np.ndarray))
+
+
+def _class_has_mutable_state(pipeline_class: type) -> bool:
+    return any(
+        _is_mutable(value)
+        for name, value in pipeline_class.__dict__.items()
+        if not name.startswith("__") and not isinstance(value, (staticmethod, classmethod, property)) and not inspect.isroutine(value)
+    )
+
+
+def _isolate_pipeline_class_state(cloned: FeaturePipeline) -> FeaturePipeline:
+    """Give normal Python pipeline instances a fold-private class dictionary."""
+    original_class = type(cloned)
+    attributes = {}
+    for name, value in original_class.__dict__.items():
+        if name.startswith("__") or isinstance(value, (staticmethod, classmethod, property)) or inspect.isroutine(value):
+            continue
+        try:
+            attributes[name] = copy.deepcopy(value)
+        except Exception as exc:
+            raise ValueError(f"feature pipeline class state {name!r} cannot be isolated") from exc
+    isolated_class = type(
+        f"{original_class.__name__}Fold_{id(cloned):x}",
+        (original_class,),
+        attributes,
+    )
+    try:
+        cloned.__class__ = isolated_class
+    except TypeError as exc:
+        raise ValueError("feature pipeline instance class state cannot be isolated") from exc
     return cloned
 
 
@@ -154,21 +224,21 @@ class LegacyStatelessPipeline:
         return LegacyStatelessPipeline(self.name, list(self.candidates), lambda *_: None, self._path)
 
     def fit(self, train_x: pd.DataFrame, train_y: np.ndarray, meta: pd.DataFrame | None) -> FeatureState:
-        transform, callable_digest = _load_isolated_transform(self._path)
+        transform, plugin_digest, callable_digest = _load_isolated_transform(self._path)
         del transform
         return FeatureState.create(
             {
                 "kind": "legacy_stateless",
                 "plugin_name": self.name,
-                "plugin_digest": sha256_file(self._path),
+                "plugin_digest": plugin_digest,
                 "callable_digest": callable_digest,
                 "candidates": list(self.candidates),
             }
         )
 
     def transform(self, frame: pd.DataFrame, state: FeatureState, meta: pd.DataFrame | None) -> pd.DataFrame:
-        transform, callable_digest = _load_isolated_transform(self._path)
-        if state.payload.get("plugin_digest") != sha256_file(self._path):
+        transform, plugin_digest, callable_digest = _load_isolated_transform(self._path)
+        if state.payload.get("plugin_digest") != plugin_digest:
             raise ValueError(f"feature transform {self.name!r} plugin digest does not match fitted state")
         if state.payload.get("callable_digest") != callable_digest:
             raise ValueError(f"feature transform {self.name!r} callable digest does not match fitted state")
@@ -179,21 +249,29 @@ class LegacyStatelessPipeline:
         return transformed.copy(deep=True)
 
 
-def _load_isolated_transform(path: Path) -> tuple[Callable, str]:
-    module_name = f"sohbench_feature_runtime_{hashlib.sha256(path.read_bytes()).hexdigest()[:16]}_{uuid.uuid4().hex}"
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    if spec is None or spec.loader is None:
-        raise ValueError(f"cannot load feature transform from {path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+def _load_isolated_transform(path: Path) -> tuple[Callable, str, str]:
+    """Execute exactly the source bytes whose digest is recorded in state.
+
+    This deliberately bypasses import loaders and their timestamp/size keyed
+    bytecode caches: each transform invocation gets a fresh module namespace.
+    """
+    source_bytes = path.read_bytes()
+    plugin_digest = hashlib.sha256(source_bytes).hexdigest()
+    module_name = f"sohbench_feature_runtime_{plugin_digest[:16]}"
+    module = ModuleType(module_name)
+    module.__file__ = str(path)
+    try:
+        code = compile(source_bytes, str(path), "exec")
+        exec(code, module.__dict__)
+    except Exception as exc:
+        raise ValueError(f"cannot load feature transform from {path}") from exc
     transform = getattr(module, "transform", None)
     if not callable(transform):
         raise ValueError(f"feature transform {path.name!r} does not define transform()")
-    try:
-        source = inspect.getsource(transform)
-    except (OSError, TypeError):
-        source = path.read_text(encoding="utf-8")
-    return transform, hashlib.sha256(source.encode("utf-8")).hexdigest()
+    code = getattr(transform, "__code__", None)
+    if code is None:
+        raise ValueError(f"feature transform {path.name!r} must expose a Python code object")
+    return transform, plugin_digest, hashlib.sha256(marshal.dumps(code)).hexdigest()
 
 
 def _target_stripped(frame: pd.DataFrame) -> pd.DataFrame:

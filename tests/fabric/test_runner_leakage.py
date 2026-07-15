@@ -11,6 +11,9 @@ from sohbench.fabric.views import FoldViews
 from sohbench.fabric import FeatureState
 
 
+MODULE_PIPELINE_CACHE = []
+
+
 @pytest.fixture
 def simple_table():
     rows = []
@@ -286,6 +289,81 @@ def test_callback_runs_after_metrics_and_receives_no_target_or_pipeline(simple_t
     assert result.loc[result["metric"] == "mae", "value"].gt(0).all()
 
 
+def test_callbacks_are_deferred_until_every_fold_prediction_is_complete(simple_table, simple_meta):
+    callbacks = []
+
+    class CallbackContaminatingEstimator(SpyEstimator):
+        name = "callback_matrix_order"
+        use_features = False
+
+        def fit(self, X, y, meta=None):
+            return self
+
+        def predict(self, X, meta=None):
+            if type(self).use_features:
+                return 1.0 - 0.01 * X["feature"].to_numpy()
+            return np.zeros(len(X))
+
+    def callback(**payload):
+        type(payload["estimator"]).use_features = True
+        callbacks.append(payload)
+
+    try:
+        result = BenchmarkRunner(seeds=[0, 1]).run(
+            SOHEstimationTask(), simple_table, simple_meta,
+            {"loco": LeaveOneCellOut()}, [CallbackContaminatingEstimator],
+            on_model_fitted=callback,
+        )
+    finally:
+        CallbackContaminatingEstimator.use_features = False
+
+    assert len(callbacks) == 6
+    assert result.loc[result["metric"] == "mae", "value"].gt(0).all()
+
+
+def test_model_callback_receives_pre_prediction_snapshot(simple_table, simple_meta):
+    observed_predict_calls = []
+
+    class PredictMutatingEstimator(SpyEstimator):
+        name = "snapshot"
+
+        def fit(self, X, y, meta=None):
+            self.predict_calls = 0
+            return self
+
+        def predict(self, X, meta=None):
+            self.predict_calls += 1
+            return np.zeros(len(X))
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [PredictMutatingEstimator],
+        on_model_fitted=lambda **payload: observed_predict_calls.append(payload["estimator"].predict_calls),
+    )
+
+    assert result.loc[result["metric"] == "mae", "value"].notna().all()
+    assert observed_predict_calls == [0, 0, 0]
+
+
+def test_callback_failures_are_diagnostic_and_do_not_erase_metrics(simple_table, simple_meta):
+    def broken_model_callback(**payload):
+        raise RuntimeError("model evidence unavailable")
+
+    def broken_prediction_callback(**payload):
+        raise RuntimeError("prediction evidence unavailable")
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        on_model_fitted=broken_model_callback,
+        on_predictions=broken_prediction_callback,
+    )
+
+    assert result.loc[result["metric"] == "mae", "value"].notna().all()
+    assert result["model_callback_error"].eq("model evidence unavailable").all()
+    assert result["callback_error"].eq("prediction evidence unavailable").all()
+
+
 def test_runner_scopes_meta_to_each_partition_and_strips_target(simple_table):
     meta = pd.DataFrame(
         {
@@ -328,17 +406,16 @@ def test_runner_scopes_meta_to_each_partition_and_strips_target(simple_table):
 
 
 def test_runner_fits_pipeline_once_per_fold_across_estimators(simple_table, simple_meta):
-    class CountingPipeline:
-        fits = 0
+    fit_events = []
 
+    class CountingPipeline:
         def fit(self, train_x, train_y, meta):
-            type(self).fits += 1
+            fit_events.append(tuple(sorted(train_x["cell_id"].unique())))
             return FeatureState.create({})
 
         def transform(self, frame, state, meta):
             return frame.copy()
 
-    CountingPipeline.fits = 0
     result = BenchmarkRunner(seeds=[0, 1]).run(
         SOHEstimationTask(), simple_table, simple_meta,
         {"loco": LeaveOneCellOut()}, [SpyEstimator, SpyEstimator],
@@ -346,7 +423,95 @@ def test_runner_fits_pipeline_once_per_fold_across_estimators(simple_table, simp
     )
 
     assert "error" not in result.columns
-    assert CountingPipeline.fits == 3
+    assert len(fit_events) == 3
+
+
+def test_pipeline_fit_cache_is_shared_between_unified_and_byo_tracks(simple_table, simple_meta):
+    fit_events = []
+
+    class CountingPipeline:
+        def fit(self, train_x, train_y, meta):
+            fit_events.append(tuple(sorted(train_x["cell_id"].unique())))
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    class ByoEstimator(SpyEstimator):
+        name = "cache_byo"
+        feature_mode = "byo"
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator, ByoEstimator],
+        feature_pipelines={"full": CountingPipeline()},
+    )
+
+    assert "error" not in result.columns
+    assert len(fit_events) == 3
+
+
+def test_pipeline_class_cache_is_isolated_per_fold(simple_table, simple_meta):
+    class ClassCachePipeline:
+        cache = []
+
+        def fit(self, train_x, train_y, meta):
+            if type(self).cache:
+                raise AssertionError("class cache crossed fold boundary")
+            type(self).cache.append(float(np.mean(train_y)))
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    ClassCachePipeline.cache = []
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": ClassCachePipeline()},
+    )
+
+    assert "error" not in result.columns
+
+
+def test_pipeline_with_mutable_module_global_is_rejected(simple_table, simple_meta):
+    class GlobalCachePipeline:
+        def fit(self, train_x, train_y, meta):
+            MODULE_PIPELINE_CACHE.append(train_y.copy())
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    MODULE_PIPELINE_CACHE.clear()
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": GlobalCachePipeline()},
+    )
+
+    assert result["error"].str.contains("mutable module global").all()
+
+
+def test_pipeline_with_direct_original_class_cache_is_rejected(simple_table, simple_meta):
+    class OriginalClassCachePipeline:
+        cache = []
+
+        def fit(self, train_x, train_y, meta):
+            OriginalClassCachePipeline.cache.append(train_y.copy())
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    OriginalClassCachePipeline.cache = []
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": OriginalClassCachePipeline()},
+    )
+
+    assert result["error"].str.contains("mutable original class state").all()
 
 
 def test_pipeline_transform_cannot_reuse_instance_fields_set_during_fit(simple_table, simple_meta):
