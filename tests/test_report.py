@@ -1,5 +1,6 @@
 import json, os, subprocess, threading, pandas as pd, numpy as np, pytest
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 from sohbench.fabric.evidence import verify_evidence_pack
 import sohbench.report as report_module
@@ -732,6 +733,199 @@ def test_inference_holds_claim_through_evidence_pack_and_removes_it(
 
     assert observed_claims == [True]
     assert not (out / ".sohbench-run.claim").exists()
+
+
+def test_claim_acquisition_fstat_failure_closes_removes_and_allows_retry(
+    tmp_path, monkeypatch,
+):
+    real_open = report_module.os.open
+    real_close = report_module.os.close
+    real_fstat = report_module.os.fstat
+    claim_descriptors = []
+
+    def capture_claim_open(path, *args, **kwargs):
+        descriptor = real_open(path, *args, **kwargs)
+        if Path(path).name == ".sohbench-run.claim":
+            claim_descriptors.append(descriptor)
+        return descriptor
+
+    def fail_claim_fstat(descriptor):
+        if descriptor in claim_descriptors:
+            raise OSError("injected claim fstat failure")
+        return real_fstat(descriptor)
+
+    monkeypatch.setattr(report_module.os, "open", capture_claim_open)
+    monkeypatch.setattr(report_module.os, "fstat", fail_claim_fstat)
+    with pytest.raises(OSError, match="injected claim fstat failure"):
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-fstat"
+        )
+    monkeypatch.setattr(report_module.os, "open", real_open)
+    monkeypatch.setattr(report_module.os, "fstat", real_fstat)
+
+    assert len(claim_descriptors) == 1
+    descriptor = claim_descriptors[0]
+    try:
+        real_fstat(descriptor)
+    except OSError:
+        descriptor_closed = True
+    else:
+        descriptor_closed = False
+        real_close(descriptor)
+    claim = tmp_path / "RUN-fstat" / ".sohbench-run.claim"
+    claim_removed = not claim.exists()
+    if not claim_removed:
+        claim.unlink()
+
+    retry_succeeded = False
+    if claim_removed:
+        retry_succeeded = Path(
+            write_artifacts(
+                _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-fstat"
+            )
+        ).is_dir()
+
+    assert descriptor_closed
+    assert claim_removed
+    assert retry_succeeded
+
+
+def _run_with_one_shot_claim_close_failure(
+    tmp_path, monkeypatch, run_id, operation,
+):
+    real_open = report_module.os.open
+    real_close = report_module.os.close
+    real_fstat = report_module.os.fstat
+    claim_descriptors = []
+    close_attempts = []
+
+    def capture_claim_open(path, *args, **kwargs):
+        descriptor = real_open(path, *args, **kwargs)
+        if Path(path).name == ".sohbench-run.claim":
+            claim_descriptors.append(descriptor)
+        return descriptor
+
+    def fail_first_claim_close(descriptor):
+        if descriptor in claim_descriptors:
+            close_attempts.append(descriptor)
+            if len(close_attempts) == 1:
+                raise OSError("injected claim close failure")
+        return real_close(descriptor)
+
+    monkeypatch.setattr(report_module.os, "open", capture_claim_open)
+    monkeypatch.setattr(report_module.os, "close", fail_first_claim_close)
+    observed = None
+    try:
+        operation()
+    except BaseException as exc:
+        observed = exc
+    finally:
+        monkeypatch.setattr(report_module.os, "open", real_open)
+        monkeypatch.setattr(report_module.os, "close", real_close)
+
+    assert len(claim_descriptors) == 1
+    descriptor = claim_descriptors[0]
+    try:
+        real_fstat(descriptor)
+    except OSError:
+        descriptor_closed = True
+    else:
+        descriptor_closed = False
+        real_close(descriptor)
+    claim = tmp_path / run_id / ".sohbench-run.claim"
+    claim_removed = not claim.exists()
+    if not claim_removed:
+        claim.unlink()
+    return observed, close_attempts, descriptor_closed, claim_removed
+
+
+def test_claim_release_close_failure_cleans_then_surfaces_cleanup_error(
+    tmp_path, monkeypatch,
+):
+    run_id = "RUN-close-success"
+
+    def operation():
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+        )
+
+    observed, attempts, descriptor_closed, claim_removed = (
+        _run_with_one_shot_claim_close_failure(
+            tmp_path, monkeypatch, run_id, operation
+        )
+    )
+
+    assert isinstance(observed, OSError)
+    assert "injected claim close failure" in str(observed)
+    assert len(attempts) == 2
+    assert descriptor_closed
+    assert claim_removed
+    assert (tmp_path / run_id / "evidence-pack.json").is_file()
+
+
+def test_artifact_error_remains_primary_when_claim_cleanup_close_fails(
+    tmp_path, monkeypatch,
+):
+    run_id = "RUN-close-artifact-error"
+
+    def fail_pack(*args, **kwargs):
+        raise RuntimeError("injected artifact failure")
+
+    monkeypatch.setattr(report_module, "write_evidence_pack", fail_pack)
+
+    def operation():
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+        )
+
+    observed, attempts, descriptor_closed, claim_removed = (
+        _run_with_one_shot_claim_close_failure(
+            tmp_path, monkeypatch, run_id, operation
+        )
+    )
+
+    assert isinstance(observed, RuntimeError)
+    assert str(observed) == "injected artifact failure"
+    assert any(
+        "injected claim close failure" in note
+        for note in getattr(observed, "__notes__", [])
+    )
+    assert len(attempts) == 2
+    assert descriptor_closed
+    assert claim_removed
+
+
+@pytest.mark.parametrize("writer_kind", ["training", "inference"])
+def test_writers_share_run_directory_transaction_helper(
+    tmp_path, monkeypatch, writer_kind,
+):
+    original_transaction = report_module._run_directory_transaction
+    observed = []
+
+    @contextmanager
+    def observe_transaction(out_dir, run_id):
+        observed.append(("enter", run_id))
+        with original_transaction(out_dir, run_id) as run_dir:
+            yield run_dir
+        observed.append(("exit", run_id))
+
+    monkeypatch.setattr(
+        report_module, "_run_directory_transaction", observe_transaction
+    )
+    run_id = f"RUN-shared-{writer_kind}"
+    if writer_kind == "training":
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+        )
+    else:
+        report_module.write_inference_artifacts(
+            [{"model": "predict_only", "dataset": "new_a", "status": "succeeded"}],
+            {},
+            tmp_path,
+            run_id=run_id,
+        )
+
+    assert observed == [("enter", run_id), ("exit", run_id)]
 
 
 def test_write_artifacts_rejects_existing_directory_symlink(tmp_path):

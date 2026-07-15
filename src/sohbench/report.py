@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json, math, os, stat
+from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 import pandas as pd
@@ -237,24 +238,113 @@ def _acquire_run_claim(out: Path) -> tuple[Path, int, tuple[int, int]]:
         descriptor = os.open(claim_path, flags, 0o600)
     except FileExistsError as exc:
         raise FileExistsError(f"target run directory is already claimed: {out}") from exc
+    path_identity = None
+    descriptor_identity = None
     try:
+        path_stat = claim_path.lstat()
+        path_identity = (path_stat.st_dev, path_stat.st_ino)
         claim_stat = os.fstat(descriptor)
-    except BaseException:
-        os.close(descriptor)
+        descriptor_identity = (claim_stat.st_dev, claim_stat.st_ino)
+        if path_identity != descriptor_identity:
+            raise RuntimeError("run claim path changed during acquisition")
+    except BaseException as acquisition_error:
+        try:
+            _cleanup_run_claim(
+                claim_path,
+                descriptor,
+                descriptor_identity or path_identity,
+            )
+        except BaseException as cleanup_error:
+            acquisition_error.add_note(
+                f"run claim cleanup also failed: {cleanup_error!r}"
+            )
         raise
-    return claim_path, descriptor, (claim_stat.st_dev, claim_stat.st_ino)
+    return claim_path, descriptor, descriptor_identity
 
 
-def _release_run_claim(
-    claim_path: Path, descriptor: int, identity: tuple[int, int],
+def _remove_owned_run_claim(
+    claim_path: Path, identity: tuple[int, int] | None,
 ) -> None:
-    os.close(descriptor)
+    if identity is None:
+        return
     try:
         current = claim_path.lstat()
     except FileNotFoundError:
         return
     if (current.st_dev, current.st_ino) == identity:
         claim_path.unlink()
+
+
+def _close_run_claim_descriptor(
+    descriptor: int, identity: tuple[int, int] | None,
+) -> None:
+    try:
+        os.close(descriptor)
+        return
+    except OSError as exc:
+        close_error = exc
+
+    try:
+        current = os.fstat(descriptor)
+    except OSError as state_error:
+        close_error.add_note(
+            f"claim descriptor state after close failure: {state_error!r}"
+        )
+        raise close_error
+    current_identity = (current.st_dev, current.st_ino)
+    if identity is None or current_identity != identity:
+        close_error.add_note(
+            "claim descriptor was not retried because its identity changed"
+        )
+        raise close_error
+
+    try:
+        os.close(descriptor)
+    except OSError as retry_error:
+        close_error.add_note(f"bounded claim close retry failed: {retry_error!r}")
+    raise close_error
+
+
+def _cleanup_run_claim(
+    claim_path: Path,
+    descriptor: int,
+    identity: tuple[int, int] | None,
+) -> None:
+    close_error = None
+    remove_error = None
+    try:
+        _close_run_claim_descriptor(descriptor, identity)
+    except BaseException as exc:
+        close_error = exc
+    try:
+        _remove_owned_run_claim(claim_path, identity)
+    except BaseException as exc:
+        remove_error = exc
+
+    if close_error is not None:
+        if remove_error is not None:
+            close_error.add_note(f"claim unlink also failed: {remove_error!r}")
+        raise close_error
+    if remove_error is not None:
+        raise remove_error
+
+
+@contextmanager
+def _run_directory_transaction(out_dir, run_id):
+    out = _create_run_dir(out_dir, run_id)
+    claim = _acquire_run_claim(out)
+    try:
+        yield out
+    except BaseException as artifact_error:
+        try:
+            _cleanup_run_claim(*claim)
+        except BaseException as cleanup_error:
+            artifact_error.add_note(
+                f"run claim cleanup also failed: {cleanup_error!r}"
+            )
+        raise
+    else:
+        _cleanup_run_claim(*claim)
 
 
 def write_artifacts(
@@ -273,9 +363,7 @@ def write_artifacts(
         validate_prediction_records(predictions)
         if not predictions["run_id"].eq(selected_run_id).all():
             raise ValueError("prediction run_id does not match artifact run_id")
-    out = _create_run_dir(out_dir, selected_run_id)
-    claim = _acquire_run_claim(out)
-    try:
+    with _run_directory_transaction(out_dir, selected_run_id) as out:
         artifact_paths = []
         results.to_parquet(out / "results.parquet")
         artifact_paths.append(out / "results.parquet")
@@ -314,8 +402,6 @@ def write_artifacts(
             predictions.to_parquet(out / "predictions.parquet", index=False)
             artifact_paths.append(out / "predictions.parquet")
         write_evidence_pack(out, manifest, artifact_paths)
-    finally:
-        _release_run_claim(*claim)
     return str(out)
 
 
@@ -328,9 +414,7 @@ def write_inference_artifacts(
 ):
     selected_run_id = _run_identity(run_id)
     manifest = _evidence_manifest(selected_run_id, evidence_context)
-    out = _create_run_dir(out_dir, selected_run_id)
-    claim = _acquire_run_claim(out)
-    try:
+    with _run_directory_transaction(out_dir, selected_run_id) as out:
         artifact_paths = []
         frame = pd.DataFrame.from_records(records)
         frame.to_parquet(out / "inference_results.parquet")
@@ -348,8 +432,6 @@ def write_inference_artifacts(
         _dump(config, out / "inference_run_config.json")
         artifact_paths.append(out / "inference_run_config.json")
         write_evidence_pack(out, manifest, artifact_paths)
-    finally:
-        _release_run_claim(*claim)
     return str(out)
 
 
