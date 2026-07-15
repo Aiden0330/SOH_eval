@@ -35,5 +35,30 @@
     "abstained": {"type": ["boolean", "null"]},
     "status": {"type": ["string", "null"]}
   },
+  "dependentRequired": {
+    "interval_low": ["interval_high"],
+    "interval_high": ["interval_low"]
+  },
+  "allOf": [
+    {
+      "if": {"required": ["interval_low", "interval_high"]},
+      "then": {
+        "oneOf": [
+          {
+            "properties": {
+              "interval_low": {"type": "null"},
+              "interval_high": {"type": "null"}
+            }
+          },
+          {
+            "properties": {
+              "interval_low": {"type": "number"},
+              "interval_high": {"type": "number"}
+            }
+          }
+        ]
+      }
+    }
+  ],
   "additionalProperties": true
 }

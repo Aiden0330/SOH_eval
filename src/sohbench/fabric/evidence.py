@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -84,6 +85,9 @@ METRIC_IDENTITY_COLUMNS = (
 )
 
 _RESERVED_ARTIFACT_PATHS = frozenset((EVIDENCE_PACK_NAME, EVIDENCE_TEMP_NAME))
+_RESERVED_ARTIFACT_KEYS = frozenset(
+    os.path.normcase(path) for path in _RESERVED_ARTIFACT_PATHS
+)
 _RESERVED_MANIFEST_FIELDS = frozenset(("schema_version", "artifacts"))
 
 
@@ -104,6 +108,20 @@ def validate_evidence_pack_document(document: dict) -> None:
     _validate_document(document, "evidence-pack.schema.json", "evidence_pack")
 
 
+def _validate_logical_artifact_path(relative: str) -> None:
+    if os.path.normcase(relative) in _RESERVED_ARTIFACT_KEYS:
+        raise ValueError(f"reserved artifact path: {relative}")
+    path = Path(relative)
+    segments = relative.split("/")
+    if (
+        path.is_absolute()
+        or re.match(r"^[A-Za-z]:", relative)
+        or "\\" in relative
+        or any(segment in ("", ".", "..") for segment in segments)
+    ):
+        raise ValueError(f"invalid artifact path: {relative}")
+
+
 def _relative_artifact(run_root: Path, artifact_path: str | Path) -> tuple[Path, str]:
     path = Path(artifact_path)
     candidate = path if path.is_absolute() else run_root / path
@@ -112,8 +130,7 @@ def _relative_artifact(run_root: Path, artifact_path: str | Path) -> tuple[Path,
         relative = resolved.relative_to(run_root).as_posix()
     except ValueError as exc:
         raise ValueError(f"artifact path is outside run_dir: {artifact_path}") from exc
-    if relative in _RESERVED_ARTIFACT_PATHS:
-        raise ValueError(f"reserved artifact path: {relative}")
+    _validate_logical_artifact_path(relative)
     if not resolved.exists():
         raise ValueError(f"artifact is missing: {relative}")
     if not resolved.is_file():
@@ -166,28 +183,52 @@ def write_evidence_pack(
 
     target = run_root / EVIDENCE_PACK_NAME
     temporary = run_root / EVIDENCE_TEMP_NAME
-    with temporary.open("w", encoding="utf-8", newline="\n") as stream:
-        json.dump(
-            document,
-            stream,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        stream.flush()
-        os.fsync(stream.fileno())
-    temporary.replace(target)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_BINARY"):
+        flags |= os.O_BINARY
+    descriptor = os.open(temporary, flags, 0o600)
+    stat = os.fstat(descriptor)
+    identity = (stat.st_dev, stat.st_ino)
+    try:
+        try:
+            stream = os.fdopen(
+                descriptor,
+                "w",
+                encoding="utf-8",
+                newline="\n",
+            )
+        except BaseException:
+            os.close(descriptor)
+            raise
+        with stream:
+            json.dump(
+                document,
+                stream,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            stream.flush()
+            os.fsync(stream.fileno())
+        current = temporary.lstat()
+        if (current.st_dev, current.st_ino) != identity:
+            raise RuntimeError("evidence pack temporary path changed during write")
+        temporary.replace(target)
+    except BaseException:
+        try:
+            current = temporary.lstat()
+        except FileNotFoundError:
+            pass
+        else:
+            if (current.st_dev, current.st_ino) == identity:
+                temporary.unlink()
+        raise
     return target
 
 
 def _verified_relative_path(run_root: Path, relative: str) -> Path:
-    if relative in _RESERVED_ARTIFACT_PATHS:
-        raise ValueError(f"reserved artifact path: {relative}")
+    _validate_logical_artifact_path(relative)
     path = Path(relative)
-    if path.is_absolute() or "\\" in relative or any(
-        part in (".", "..") for part in path.parts
-    ):
-        raise ValueError(f"invalid artifact path: {relative}")
     resolved = (run_root / path).resolve()
     try:
         resolved.relative_to(run_root)
@@ -275,10 +316,18 @@ def _validate_numeric_columns(
 
 
 def _validate_intervals(frame: pd.DataFrame) -> None:
-    if not {"interval_low", "interval_high"}.issubset(frame.columns):
+    has_low = "interval_low" in frame.columns
+    has_high = "interval_high" in frame.columns
+    if has_low != has_high:
+        raise ValueError("interval_low and interval_high must be present together")
+    if not has_low:
         return
     for low, high in zip(frame["interval_low"], frame["interval_high"]):
-        if _is_null(low) or _is_null(high):
+        low_is_null = _is_null(low)
+        high_is_null = _is_null(high)
+        if low_is_null != high_is_null:
+            raise ValueError("interval_low and interval_high must form an interval pair")
+        if low_is_null:
             continue
         if low > high:
             raise ValueError("interval_low must be less than or equal to interval_high")
@@ -286,9 +335,16 @@ def _validate_intervals(frame: pd.DataFrame) -> None:
 
 def _validate_rows(frame: pd.DataFrame, schema_name: str, root: str) -> None:
     schema = _load_schema(schema_name)
-    for row_number, row in enumerate(frame.to_dict(orient="records")):
+    validator_class = jsonschema.validators.validator_for(schema)
+    validator = validator_class(schema)
+    columns = tuple(frame.columns)
+    for row_number, values in enumerate(frame.itertuples(index=False, name=None)):
+        row = {
+            column: _json_value(value)
+            for column, value in zip(columns, values)
+        }
         try:
-            jsonschema.validate(_json_value(row), schema)
+            validator.validate(row)
         except jsonschema.ValidationError as exc:
             location = ".".join(map(str, exc.absolute_path)) or root
             raise ValueError(f"row {row_number} {location}: {exc.message}") from exc
@@ -317,7 +373,9 @@ def validate_prediction_records(frame: pd.DataFrame) -> None:
 
 def _metric_identity(row: dict) -> tuple:
     return tuple(
-        tuple(row[column]) if column in ("sample_ids", "cell_ids") else row[column]
+        tuple(sorted(row[column]))
+        if column in ("sample_ids", "cell_ids")
+        else row[column]
         for column in METRIC_IDENTITY_COLUMNS
     )
 
