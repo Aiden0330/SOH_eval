@@ -17,10 +17,23 @@ from .fabric.outcomes import (
     iter_execution_units,
     successful_result_rows,
 )
+from .fabric.specs import RunSpec
+from .fabric.statistics import asset_metric_table, bootstrap_mean_ci
 from .tasks import SOHEstimationTask
 
 
 _RUN_RESERVATION_PREFIX = ".sohbench-run-reservation-"
+_STATISTICS_METRICS = ("mae", "rmse")
+_STATISTICS_CONFIDENCE = 0.95
+_STATISTICS_RESAMPLES = 2000
+_STATISTICS_SEED = 0
+_STATISTICS_ENTRY_FIELDS = (
+    "estimator",
+    "featureset",
+    "track",
+    "protocol",
+    "held_out_key",
+)
 
 
 def _canonical_run_name(run_id: str) -> str:
@@ -65,7 +78,66 @@ def _successful_units_have_complete_metrics(
     return True
 
 
-def _leaderboard_entries(results: pd.DataFrame, task, group_cols: list[str]) -> list[dict]:
+def _unavailable_confidence_intervals(reason: str) -> dict:
+    return {
+        metric: {"available": False, "reason": reason}
+        for metric in _STATISTICS_METRICS
+    }
+
+
+def _prediction_confidence_intervals(
+    predictions: pd.DataFrame | None, identity: dict,
+) -> dict:
+    if predictions is None:
+        return _unavailable_confidence_intervals("predictions_not_provided")
+
+    required_matches = (
+        ("candidate_id", "estimator"),
+        ("featureset", "featureset"),
+        ("protocol", "protocol"),
+    )
+    if any(column not in predictions.columns for column, _ in required_matches):
+        return _unavailable_confidence_intervals("prediction_entry_unmatched")
+
+    mask = pd.Series(True, index=predictions.index, dtype=bool)
+    for prediction_column, identity_column in required_matches:
+        mask &= predictions[prediction_column].eq(identity[identity_column])
+    for optional_column in ("track", "dataset", "held_out_key"):
+        if optional_column in identity and optional_column in predictions.columns:
+            mask &= predictions[optional_column].eq(identity[optional_column])
+    selected = predictions.loc[mask]
+    if selected.empty:
+        return _unavailable_confidence_intervals("prediction_entry_unmatched")
+    if "y_true" not in selected.columns or selected["y_true"].isna().any():
+        return _unavailable_confidence_intervals("prediction_truth_unavailable")
+
+    intervals = {}
+    for metric in _STATISTICS_METRICS:
+        try:
+            assets = asset_metric_table(selected, metric)
+            interval = bootstrap_mean_ci(
+                assets["value"].to_numpy(),
+                confidence=_STATISTICS_CONFIDENCE,
+                n_resamples=_STATISTICS_RESAMPLES,
+                seed=_STATISTICS_SEED,
+            )
+        except (TypeError, ValueError):
+            intervals[metric] = {
+                "available": False,
+                "reason": "prediction_statistics_invalid",
+            }
+        else:
+            intervals[metric] = {"available": True, **interval}
+    return intervals
+
+
+def _leaderboard_entries(
+    results: pd.DataFrame,
+    task,
+    group_cols: list[str],
+    comparison_key: str | None = None,
+    predictions: pd.DataFrame | None = None,
+) -> list[dict]:
     entries = []
     has_track = "track" in results.columns
 
@@ -132,11 +204,27 @@ def _leaderboard_entries(results: pd.DataFrame, task, group_cols: list[str]) -> 
             "coverage": coverage,
             "execution": asdict(execution),
             "ci_source": ci_source,
+            "comparison_key": comparison_key,
         }
         if "held_out_key" in keys:
             entry["held_out_key"] = str(keys["held_out_key"])
         if "backend" in g.columns:
             entry["backend"] = g["backend"].iloc[0]
+        entry["confidence_intervals"] = _prediction_confidence_intervals(
+            predictions,
+            {
+                "estimator": est,
+                "featureset": fs_name,
+                "track": track,
+                "protocol": proto,
+                **(
+                    {"held_out_key": keys["held_out_key"]}
+                    if "held_out_key" in keys
+                    else {}
+                ),
+                **({"dataset": keys["dataset"]} if "dataset" in keys else {}),
+            },
+        )
         entries.append(entry)
 
     return entries
@@ -172,7 +260,51 @@ def _evidence_manifest(run_id, evidence_context):
     if "run_id" in context and context["run_id"] != run_id:
         raise ValueError("evidence_context run_id does not match explicit run_id")
     context.pop("run_id", None)
+    run_spec = context.get("run_spec")
+    if isinstance(run_spec, RunSpec):
+        derived_key = run_spec.comparison_key
+        explicit_key = context.get("comparison_key")
+        if explicit_key is not None and explicit_key != derived_key:
+            raise ValueError("evidence_context comparison_key conflicts with RunSpec")
+        context["run_spec"] = run_spec.to_dict()
+        context["comparison_key"] = derived_key
+    comparison_key = context.get("comparison_key")
+    if comparison_key is not None and (
+        not isinstance(comparison_key, str) or not comparison_key.strip()
+    ):
+        raise ValueError("evidence_context comparison_key must be a non-empty string")
     return {"run_id": run_id, **context}
+
+
+def _statistics_entries(entries: list[dict]) -> list[dict]:
+    return [
+        {
+            **{
+                field: entry[field]
+                for field in _STATISTICS_ENTRY_FIELDS
+                if field in entry
+            },
+            "confidence_intervals": entry["confidence_intervals"],
+        }
+        for entry in entries
+    ]
+
+
+def _statistics_document(
+    leaderboard: list[dict],
+    dataset_leaderboard: list[dict],
+    comparison_key: str | None,
+) -> dict:
+    return {
+        "schema_version": "1.0.0",
+        "comparison_key": comparison_key,
+        "bootstrap_unit": "asset",
+        "confidence": _STATISTICS_CONFIDENCE,
+        "n_resamples": _STATISTICS_RESAMPLES,
+        "seed": _STATISTICS_SEED,
+        "leaderboard": _statistics_entries(leaderboard),
+        "dataset_leaderboard": _statistics_entries(dataset_leaderboard),
+    }
 
 
 def _is_directory_link(path: Path) -> bool:
@@ -395,11 +527,24 @@ def write_artifacts(
         if has_track:
             group_cols.append("track")
 
-        leaderboard = _leaderboard_entries(results, task, group_cols)
+        comparison_key = manifest.get("comparison_key")
+        leaderboard = _leaderboard_entries(
+            results,
+            task,
+            group_cols,
+            comparison_key=comparison_key,
+            predictions=predictions,
+        )
 
         dataset_group_cols = group_cols + ["held_out_key"] if "held_out_key" in results.columns else []
         dataset_leaderboard = (
-            _leaderboard_entries(results, task, dataset_group_cols)
+            _leaderboard_entries(
+                results,
+                task,
+                dataset_group_cols,
+                comparison_key=comparison_key,
+                predictions=predictions,
+            )
             if dataset_group_cols else []
         )
 
@@ -407,6 +552,14 @@ def write_artifacts(
         artifact_paths.append(out / "leaderboard.json")
         _dump(dataset_leaderboard, out / "dataset_leaderboard.json")
         artifact_paths.append(out / "dataset_leaderboard.json")
+        if predictions is not None:
+            _dump(
+                _statistics_document(
+                    leaderboard, dataset_leaderboard, comparison_key,
+                ),
+                out / "statistics.json",
+            )
+            artifact_paths.append(out / "statistics.json")
         if qc_report is not None:
             _dump(qc_report.__dict__, out / "qc_report.json")
             artifact_paths.append(out / "qc_report.json")

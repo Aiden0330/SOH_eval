@@ -29,7 +29,13 @@ def test_write_artifacts(tmp_path):
     assert entry["execution"] == {
         "outcome": "complete", "attempted": 5, "succeeded": 5, "failed": 0,
     }
+    assert entry["comparison_key"] is None
+    assert entry["confidence_intervals"] == {
+        "mae": {"available": False, "reason": "predictions_not_provided"},
+        "rmse": {"available": False, "reason": "predictions_not_provided"},
+    }
     assert (Path(out)/"results.parquet").exists()
+    assert not (Path(out)/"statistics.json").exists()
 
 def test_leaderboard_matches_schema(tmp_path):
     import jsonschema, json
@@ -38,6 +44,117 @@ def test_leaderboard_matches_schema(tmp_path):
     lb = json.loads((Path(out)/"leaderboard.json").read_text())
     schema = json.loads((Path(__file__).parents[1]/"src/sohbench/schemas/leaderboard.schema.json").read_text())
     jsonschema.validate(lb, schema)
+
+
+def test_leaderboard_schema_accepts_legacy_entries_without_task9_fields():
+    import jsonschema
+
+    schema = json.loads(
+        (Path(__file__).parents[1] / "src/sohbench/schemas/leaderboard.schema.json").read_text()
+    )
+    legacy = {
+        "estimator": "ridge",
+        "track": "unified",
+        "protocol": "loco",
+        "metrics": {"mae": {"mean": 0.1, "std": 0.01}},
+        "verdicts": {},
+    }
+
+    jsonschema.validate([legacy], schema)
+
+
+@pytest.mark.parametrize(
+    ("path", "invalid"),
+    [
+        (("comparison_key",), ""),
+        (("coverage",), -0.01),
+        (("coverage",), 1.01),
+        (("coverage",), "1.0"),
+        (("execution", "outcome"), "success"),
+        (("execution", "attempted"), -1),
+        (("execution", "succeeded"), 1.5),
+        (("confidence_intervals", "mae", "low"), "0.01"),
+        (("confidence_intervals", "mae", "confidence"), 1.0),
+        (("confidence_intervals", "mae", "n_assets"), 0),
+        (("confidence_intervals", "mae", "unexpected"), 1),
+        (("confidence_intervals", "mae"), {"available": False}),
+        (
+            ("confidence_intervals", "mae"),
+            {"available": False, "reason": "unknown_reason"},
+        ),
+        (("confidence_intervals", "mape"), {}),
+    ],
+)
+def test_leaderboard_schema_rejects_malformed_task9_fields(path, invalid):
+    import jsonschema
+
+    schema = json.loads(
+        (Path(__file__).parents[1] / "src/sohbench/schemas/leaderboard.schema.json").read_text()
+    )
+    entry = {
+        "estimator": "ridge",
+        "featureset": "full",
+        "track": "unified",
+        "protocol": "loco",
+        "metrics": {"mae": {"mean": 0.1, "std": 0.01}},
+        "verdicts": {},
+        "comparison_key": "comparison-one",
+        "coverage": 1.0,
+        "execution": {
+            "outcome": "complete",
+            "attempted": 1,
+            "succeeded": 1,
+            "failed": 0,
+        },
+        "confidence_intervals": {
+            "mae": {
+                "available": True,
+                "mean": 0.1,
+                "low": 0.05,
+                "high": 0.15,
+                "confidence": 0.95,
+                "n_assets": 2,
+            },
+            "rmse": {"available": False, "reason": "predictions_not_provided"},
+        },
+    }
+    target = entry
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = invalid
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate([entry], schema)
+
+
+def test_leaderboard_schema_requires_complete_execution_and_ci_objects():
+    import jsonschema
+
+    schema = json.loads(
+        (Path(__file__).parents[1] / "src/sohbench/schemas/leaderboard.schema.json").read_text()
+    )
+    base = {
+        "estimator": "ridge",
+        "track": "unified",
+        "protocol": "loco",
+        "metrics": {},
+        "verdicts": {},
+        "coverage": 1.0,
+        "execution": {"outcome": "complete", "attempted": 1, "succeeded": 1},
+        "confidence_intervals": {
+            "mae": {
+                "available": True,
+                "mean": 0.1,
+                "low": 0.0,
+                "high": 0.2,
+                "confidence": 0.95,
+            },
+            "rmse": {"available": False, "reason": "predictions_not_provided"},
+        },
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate([base], schema)
 
 
 def _results_with_featureset():
@@ -446,6 +563,34 @@ def _predictions(run_id="RUN-a"):
     )
 
 
+def _asset_predictions(run_id="RUN-stats"):
+    rows = []
+    values = {
+        "c1": [(1, 1.0, 1.0)],
+        "c2": [(1, 1.0, 0.0), (2, 1.0, 0.0), (3, 1.0, 0.0)],
+    }
+    for cell_id, samples in values.items():
+        for cycle_index, y_true, y_pred in samples:
+            rows.append(
+                {
+                    "run_id": run_id,
+                    "candidate_id": "ridge",
+                    "featureset": "full",
+                    "protocol": "loco",
+                    "fold": 0,
+                    "seed": 0,
+                    "dataset": "ds",
+                    "cell_id": cell_id,
+                    "cycle_index": cycle_index,
+                    "sample_id": f"ds:{cell_id}:{cycle_index}",
+                    "y_true": y_true,
+                    "y_pred": y_pred,
+                    "held_out_key": "c1",
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def test_write_artifacts_uses_explicit_run_id_and_dual_writes_pack(tmp_path):
     out = Path(
         write_artifacts(
@@ -467,6 +612,17 @@ def test_write_artifacts_uses_explicit_run_id_and_dual_writes_pack(tmp_path):
     assert (out / "dataset_leaderboard.json").exists()
     assert (out / "run_config.json").exists()
     assert (out / "predictions.parquet").exists()
+    assert (out / "statistics.json").exists()
+    leaderboard = json.loads((out / "leaderboard.json").read_text())
+    statistics = json.loads((out / "statistics.json").read_text())
+    assert leaderboard[0]["comparison_key"] == "comparison-one"
+    unavailable = {
+        "mae": {"available": False, "reason": "prediction_truth_unavailable"},
+        "rmse": {"available": False, "reason": "prediction_truth_unavailable"},
+    }
+    assert leaderboard[0]["confidence_intervals"] == unavailable
+    assert statistics["comparison_key"] == "comparison-one"
+    assert statistics["leaderboard"][0]["confidence_intervals"] == unavailable
     pack = verify_evidence_pack(out / "evidence-pack.json")
     assert pack["run_id"] == "RUN-a"
     assert pack["comparison_key"] == "comparison-one"
@@ -474,6 +630,155 @@ def test_write_artifacts_uses_explicit_run_id_and_dual_writes_pack(tmp_path):
         item["path"] for item in pack["artifacts"]
     )
     assert "evidence-pack.json" not in {item["path"] for item in pack["artifacts"]}
+    assert "statistics.json" in {item["path"] for item in pack["artifacts"]}
+
+
+def test_write_artifacts_uses_asset_level_prediction_metrics_for_intervals(tmp_path):
+    out = Path(
+        write_artifacts(
+            _results(),
+            None,
+            SOHEstimationTask(),
+            {},
+            tmp_path,
+            run_id="RUN-stats",
+            evidence_context={"comparison_key": "comparison-one"},
+            predictions=_asset_predictions(),
+        )
+    )
+
+    leaderboard = json.loads((out / "leaderboard.json").read_text())
+    dataset_leaderboard = json.loads((out / "dataset_leaderboard.json").read_text())
+    statistics = json.loads((out / "statistics.json").read_text())
+    entry = leaderboard[0]
+
+    assert entry["comparison_key"] == "comparison-one"
+    assert entry["metrics"]["mae"] == {"mean": 0.01, "std": 0.0}
+    assert set(entry["confidence_intervals"]) == {"mae", "rmse"}
+    for interval in entry["confidence_intervals"].values():
+        assert interval["available"] is True
+        assert interval["mean"] == 0.5
+        assert interval["n_assets"] == 2
+        assert interval["confidence"] == 0.95
+        assert interval["low"] <= interval["mean"] <= interval["high"]
+
+    assert dataset_leaderboard[0]["confidence_intervals"] == entry["confidence_intervals"]
+    assert statistics == {
+        "schema_version": "1.0.0",
+        "comparison_key": "comparison-one",
+        "bootstrap_unit": "asset",
+        "confidence": 0.95,
+        "n_resamples": 2000,
+        "seed": 0,
+        "leaderboard": [
+            {
+                "estimator": "ridge",
+                "featureset": "full",
+                "track": "unified",
+                "protocol": "loco",
+                "confidence_intervals": entry["confidence_intervals"],
+            }
+        ],
+        "dataset_leaderboard": [
+            {
+                "estimator": "ridge",
+                "featureset": "full",
+                "track": "unified",
+                "protocol": "loco",
+                "held_out_key": "c1",
+                "confidence_intervals": entry["confidence_intervals"],
+            }
+        ],
+    }
+    pack = verify_evidence_pack(out / "evidence-pack.json")
+    assert "statistics.json" in {artifact["path"] for artifact in pack["artifacts"]}
+
+
+def test_write_artifacts_derives_comparison_key_from_run_spec_context(tmp_path):
+    from sohbench.fabric.specs import RunSpec, SpecRef
+
+    def ref(kind, spec_id):
+        return SpecRef(kind=kind, spec_id=spec_id, version="1.0.0", digest="a" * 64)
+
+    run_spec = RunSpec(
+        run_type="training",
+        task=ref("task", "soh"),
+        dataset=ref("dataset_snapshot", "snapshot"),
+        protocol=ref("protocol", "loco"),
+        metric=ref("metric", "core"),
+        policy=ref("policy", "fair"),
+        candidates=(ref("candidate", "ridge"),),
+    )
+
+    out = Path(
+        write_artifacts(
+            _results(),
+            None,
+            SOHEstimationTask(),
+            {},
+            tmp_path,
+            run_id="RUN-spec",
+            evidence_context={"run_spec": run_spec},
+        )
+    )
+
+    leaderboard = json.loads((out / "leaderboard.json").read_text())
+    pack = verify_evidence_pack(out / "evidence-pack.json")
+    assert leaderboard[0]["comparison_key"] == run_spec.comparison_key
+    assert pack["comparison_key"] == run_spec.comparison_key
+    assert pack["run_spec"] == run_spec.to_dict()
+
+
+def test_write_artifacts_rejects_comparison_key_conflicting_with_run_spec(tmp_path):
+    from sohbench.fabric.specs import RunSpec, SpecRef
+
+    def ref(kind, spec_id):
+        return SpecRef(kind=kind, spec_id=spec_id, version="1.0.0", digest="a" * 64)
+
+    run_spec = RunSpec(
+        run_type="training",
+        task=ref("task", "soh"),
+        dataset=ref("dataset_snapshot", "snapshot"),
+        protocol=ref("protocol", "loco"),
+        metric=ref("metric", "core"),
+        policy=ref("policy", "fair"),
+        candidates=(ref("candidate", "ridge"),),
+    )
+
+    with pytest.raises(ValueError, match="comparison_key"):
+        write_artifacts(
+            _results(),
+            None,
+            SOHEstimationTask(),
+            {},
+            tmp_path,
+            run_id="RUN-spec",
+            evidence_context={"run_spec": run_spec, "comparison_key": "conflict"},
+        )
+    assert not (tmp_path / "RUN-spec").exists()
+
+
+def test_write_artifacts_marks_unmatched_prediction_entries_unavailable(tmp_path):
+    predictions = _asset_predictions().copy()
+    predictions["candidate_id"] = "other"
+
+    out = Path(
+        write_artifacts(
+            _results(),
+            None,
+            SOHEstimationTask(),
+            {},
+            tmp_path,
+            run_id="RUN-stats",
+            predictions=predictions,
+        )
+    )
+    entry = json.loads((out / "leaderboard.json").read_text())[0]
+
+    assert entry["confidence_intervals"] == {
+        "mae": {"available": False, "reason": "prediction_entry_unmatched"},
+        "rmse": {"available": False, "reason": "prediction_entry_unmatched"},
+    }
 
 
 def test_write_artifacts_uses_distinct_generated_run_ids(tmp_path):

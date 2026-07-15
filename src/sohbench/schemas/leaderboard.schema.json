@@ -1,16 +1,119 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "finiteNonnegativeNumber": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1.7976931348623157e308
+    },
+    "availableConfidenceInterval": {
+      "type": "object",
+      "required": ["available", "mean", "low", "high", "confidence", "n_assets"],
+      "properties": {
+        "available": {"const": true},
+        "mean": {"$ref": "#/definitions/finiteNonnegativeNumber"},
+        "low": {"$ref": "#/definitions/finiteNonnegativeNumber"},
+        "high": {"$ref": "#/definitions/finiteNonnegativeNumber"},
+        "confidence": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "n_assets": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1.7976931348623157e308
+        }
+      },
+      "additionalProperties": false
+    },
+    "unavailableConfidenceInterval": {
+      "type": "object",
+      "required": ["available", "reason"],
+      "properties": {
+        "available": {"const": false},
+        "reason": {
+          "enum": [
+            "predictions_not_provided",
+            "prediction_entry_unmatched",
+            "prediction_truth_unavailable",
+            "prediction_statistics_invalid"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "confidenceInterval": {
+      "oneOf": [
+        {"$ref": "#/definitions/availableConfidenceInterval"},
+        {"$ref": "#/definitions/unavailableConfidenceInterval"}
+      ]
+    },
+    "confidenceIntervals": {
+      "type": "object",
+      "required": ["mae", "rmse"],
+      "properties": {
+        "mae": {"$ref": "#/definitions/confidenceInterval"},
+        "rmse": {"$ref": "#/definitions/confidenceInterval"}
+      },
+      "additionalProperties": false
+    },
+    "execution": {
+      "type": "object",
+      "required": ["outcome", "attempted", "succeeded", "failed"],
+      "properties": {
+        "outcome": {"enum": ["complete", "partial", "failed"]},
+        "attempted": {"type": "integer", "minimum": 0},
+        "succeeded": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"outcome": {"const": "complete"}}},
+          "then": {
+            "properties": {
+              "attempted": {"minimum": 1},
+              "succeeded": {"minimum": 1},
+              "failed": {"const": 0}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"outcome": {"const": "partial"}}},
+          "then": {
+            "properties": {
+              "succeeded": {"minimum": 1},
+              "failed": {"minimum": 1}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"outcome": {"const": "failed"}}},
+          "then": {"properties": {"succeeded": {"const": 0}}}
+        }
+      ]
+    }
+  },
   "type": "array",
   "items": {
     "type": "object",
-    "required": ["estimator","track","protocol","metrics","verdicts"],
+    "required": ["estimator", "track", "protocol", "metrics", "verdicts"],
     "properties": {
-      "estimator": {"type":"string"},
-      "featureset": {"type":"string"},
-      "track": {"enum":["unified","byo"]},
-      "protocol": {"type":"string"},
-      "metrics": {"type":"object"},
-      "verdicts": {"type":"object"}
+      "estimator": {"type": "string"},
+      "featureset": {"type": "string"},
+      "track": {"enum": ["unified", "byo"]},
+      "protocol": {"type": "string"},
+      "metrics": {"type": "object"},
+      "verdicts": {"type": "object"},
+      "comparison_key": {
+        "type": ["string", "null"],
+        "minLength": 1,
+        "pattern": ".*\\S.*"
+      },
+      "coverage": {"type": "number", "minimum": 0, "maximum": 1},
+      "execution": {"$ref": "#/definitions/execution"},
+      "confidence_intervals": {"$ref": "#/definitions/confidenceIntervals"}
     }
   }
 }
