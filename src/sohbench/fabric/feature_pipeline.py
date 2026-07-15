@@ -125,26 +125,82 @@ def clone_for_fold(pipeline: FeaturePipeline) -> FeaturePipeline:
 
 def _reject_shared_pipeline_state(pipeline: FeaturePipeline) -> None:
     """Reject the common shared-state references that cannot be made fold-local."""
+    _require_class_defined_pipeline_methods(pipeline)
     original_class = type(pipeline)
+    seen_functions: set[int] = set()
     for method in _pipeline_methods(original_class):
-        globals_ = method.__globals__
-        for name in method.__code__.co_names:
-            if name not in globals_:
-                continue
-            value = globals_[name]
-            if value is original_class and _class_has_mutable_state(original_class):
-                raise ValueError("feature pipeline references mutable original class state")
-            if not _is_safe_shared_reference(value):
-                raise ValueError(f"feature pipeline references mutable module global {name!r}")
-        for cell in method.__closure__ or ():
-            try:
-                value = cell.cell_contents
-            except ValueError:
-                continue
-            if value is original_class and _class_has_mutable_state(original_class):
-                raise ValueError("feature pipeline references mutable original class state")
-            if not _is_safe_shared_reference(value):
-                raise ValueError("feature pipeline references mutable closure state")
+        _reject_callable_references(method, original_class, seen_functions)
+    for value in getattr(pipeline, "__dict__", {}).values():
+        if not callable(value):
+            continue
+        if inspect.isfunction(value):
+            _reject_callable_references(value, original_class, seen_functions)
+        elif not inspect.isbuiltin(value):
+            raise ValueError("feature pipeline references mutable instance callable state")
+
+
+def _require_class_defined_pipeline_methods(pipeline: FeaturePipeline) -> None:
+    for name in ("fit", "transform"):
+        if not _has_resolved_class_method(pipeline, name):
+            raise ValueError("feature pipeline requires class-defined fit and transform methods")
+    if "clone_for_fold" in getattr(pipeline, "__dict__", {}):
+        raise ValueError("feature pipeline requires a class-defined clone_for_fold method")
+    if inspect.getattr_static(type(pipeline), "clone_for_fold", None) is not None and not _has_resolved_class_method(pipeline, "clone_for_fold"):
+        raise ValueError("feature pipeline requires a class-defined clone_for_fold method")
+
+
+def _has_resolved_class_method(pipeline: FeaturePipeline, name: str) -> bool:
+    raw = inspect.getattr_static(type(pipeline), name, None)
+    resolved = getattr(pipeline, name, None)
+    if isinstance(raw, staticmethod):
+        return resolved is raw.__func__
+    if isinstance(raw, classmethod):
+        return inspect.ismethod(resolved) and resolved.__func__ is raw.__func__ and resolved.__self__ is type(pipeline)
+    return inspect.isfunction(raw) and inspect.ismethod(resolved) and resolved.__func__ is raw and resolved.__self__ is pipeline
+
+
+def _reject_callable_owned_state(method: Callable) -> None:
+    defaults = tuple(method.__defaults__ or ()) + tuple((method.__kwdefaults__ or {}).values())
+    if any(not _is_safe_shared_reference(value) for value in defaults):
+        raise ValueError("feature pipeline references mutable callable default state")
+    if any(not _is_safe_shared_reference(value) for value in method.__dict__.values()):
+        raise ValueError("feature pipeline references mutable callable attribute state")
+
+
+def _reject_callable_references(method: Callable, original_class: type, seen_functions: set[int]) -> None:
+    marker = id(method)
+    if marker in seen_functions:
+        return
+    seen_functions.add(marker)
+    _reject_callable_owned_state(method)
+    owned_values = tuple(method.__defaults__ or ()) + tuple((method.__kwdefaults__ or {}).values()) + tuple(method.__dict__.values())
+    for value in owned_values:
+        if inspect.isfunction(value):
+            _reject_callable_references(value, original_class, seen_functions)
+
+    globals_ = method.__globals__
+    for name in method.__code__.co_names:
+        if name not in globals_:
+            continue
+        value = globals_[name]
+        if value is original_class and _class_has_mutable_state(original_class):
+            raise ValueError("feature pipeline references mutable original class state")
+        if inspect.isfunction(value):
+            _reject_callable_references(value, original_class, seen_functions)
+        elif not _is_safe_shared_reference(value):
+            raise ValueError(f"feature pipeline references mutable module global {name!r}")
+
+    for cell in method.__closure__ or ():
+        try:
+            value = cell.cell_contents
+        except ValueError:
+            continue
+        if value is original_class and _class_has_mutable_state(original_class):
+            raise ValueError("feature pipeline references mutable original class state")
+        if inspect.isfunction(value):
+            _reject_callable_references(value, original_class, seen_functions)
+        elif not _is_safe_shared_reference(value):
+            raise ValueError("feature pipeline references mutable closure state")
 
 
 def _pipeline_methods(pipeline_class: type) -> Iterator[Callable]:

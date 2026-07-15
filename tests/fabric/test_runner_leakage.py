@@ -625,6 +625,137 @@ def test_pipeline_with_mutable_closure_is_rejected(simple_table, simple_meta):
     assert result["error"].str.contains("mutable closure state").all()
 
 
+def test_pipeline_with_mutable_method_default_is_rejected(simple_table, simple_meta):
+    class DefaultCachePipeline:
+        def fit(self, train_x, train_y, meta, cache=[]):
+            cache.append(train_y.copy())
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": DefaultCachePipeline()},
+    )
+
+    assert result["error"].str.contains("mutable callable default state").all()
+
+
+def test_pipeline_with_mutable_method_keyword_default_is_rejected(simple_table, simple_meta):
+    class KeywordDefaultCachePipeline:
+        def fit(self, train_x, train_y, meta, *, cache=None):
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta, *, cache={}):
+            cache["last"] = frame.index.tolist()
+            return frame.copy()
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": KeywordDefaultCachePipeline()},
+    )
+
+    assert result["error"].str.contains("mutable callable default state").all()
+
+
+def test_pipeline_with_mutable_function_attribute_is_rejected(simple_table, simple_meta):
+    class FunctionAttributePipeline:
+        def fit(self, train_x, train_y, meta):
+            type(self).fit.cache.append(train_y.copy())
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    FunctionAttributePipeline.fit.cache = []
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": FunctionAttributePipeline()},
+    )
+
+    assert result["error"].str.contains("mutable callable attribute state").all()
+
+
+def test_pipeline_with_instance_attached_fit_callable_is_rejected(simple_table, simple_meta):
+    closure_cache = deque()
+
+    class InstanceCallablePipeline:
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    def fit(train_x, train_y, meta):
+        closure_cache.append(train_y.copy())
+        return FeatureState.create({})
+
+    pipeline = InstanceCallablePipeline()
+    pipeline.fit = fit
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": pipeline},
+    )
+
+    assert result["error"].str.contains("class-defined fit.*transform methods").all()
+
+
+def test_pipeline_with_instance_attached_clone_callable_is_rejected(simple_table, simple_meta):
+    retained_clones = []
+
+    class InstanceClonePipeline:
+        def fit(self, train_x, train_y, meta):
+            self.labels = train_y.copy()
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    pipeline = InstanceClonePipeline()
+
+    def clone_for_fold():
+        clone = InstanceClonePipeline()
+        retained_clones.append(clone)
+        return clone
+
+    pipeline.clone_for_fold = clone_for_fold
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": pipeline},
+    )
+
+    assert result["error"].str.contains("class-defined clone_for_fold method").all()
+
+
+def test_pipeline_with_instance_helper_closure_is_rejected(simple_table, simple_meta):
+    retained_labels = deque()
+
+    def remember(labels):
+        retained_labels.append(labels.copy())
+
+    class InstanceHelperPipeline:
+        def __init__(self):
+            self.remember = remember
+
+        def fit(self, train_x, train_y, meta):
+            self.remember(train_y)
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": InstanceHelperPipeline()},
+    )
+
+    assert result["error"].str.contains("mutable closure state").all()
+
+
 def test_pipeline_with_direct_original_class_cache_is_rejected(simple_table, simple_meta):
     class OriginalClassCachePipeline:
         cache = []
