@@ -234,9 +234,9 @@ def _pipeline_methods(pipeline_class: type) -> Iterator[Callable]:
 
 
 def _is_deeply_immutable(value: Any, seen: frozenset[int] = frozenset()) -> bool:
-    if value is None or isinstance(value, (bool, int, float, complex, str, bytes)):
+    if value is None or type(value) in (bool, int, float, complex, str, bytes):
         return True
-    if isinstance(value, (tuple, frozenset)):
+    if type(value) in (tuple, frozenset):
         marker = id(value)
         if marker in seen:
             return True

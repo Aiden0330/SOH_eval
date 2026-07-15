@@ -842,6 +842,35 @@ def test_pipeline_with_bound_method_closure_is_rejected(simple_table, simple_met
     assert result["error"].str.contains("mutable closure state").all()
 
 
+def test_pipeline_with_stateful_primitive_bound_owner_is_rejected(simple_table, simple_meta):
+    class StatefulInt(int):
+        def __new__(cls, value):
+            instance = super().__new__(cls, value)
+            instance.values = []
+            return instance
+
+        def remember(self, labels):
+            self.values.append(labels.copy())
+
+    owner = StatefulInt(1)
+
+    class StatefulPrimitivePipeline:
+        def fit(self, train_x, train_y, meta, remember=owner.remember):
+            remember(train_y)
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": StatefulPrimitivePipeline()},
+    )
+
+    assert result["error"].str.contains("mutable callable default state").all()
+
+
 def test_pipeline_with_direct_original_class_cache_is_rejected(simple_table, simple_meta):
     class OriginalClassCachePipeline:
         cache = []
