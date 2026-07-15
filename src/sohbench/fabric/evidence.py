@@ -89,6 +89,11 @@ _RESERVED_ARTIFACT_KEYS = frozenset(
     os.path.normcase(path) for path in _RESERVED_ARTIFACT_PATHS
 )
 _RESERVED_MANIFEST_FIELDS = frozenset(("schema_version", "artifacts"))
+_WINDOWS_INVALID_PATH_CHARS = frozenset('<>:"|?*')
+_DOS_DEVICE_NAME = re.compile(
+    r"^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?$",
+    re.IGNORECASE,
+)
 
 
 def _load_schema(name: str) -> dict:
@@ -108,6 +113,20 @@ def validate_evidence_pack_document(document: dict) -> None:
     _validate_document(document, "evidence-pack.schema.json", "evidence_pack")
 
 
+def _validate_portable_path_segment(segment: str, field: str) -> None:
+    if (
+        not segment
+        or segment in (".", "..")
+        or segment.endswith((".", " "))
+        or any(
+            ord(character) <= 0x1F or character in _WINDOWS_INVALID_PATH_CHARS
+            for character in segment
+        )
+        or _DOS_DEVICE_NAME.fullmatch(segment)
+    ):
+        raise ValueError(f"invalid {field}: {segment}")
+
+
 def _validate_logical_artifact_path(relative: str) -> None:
     if os.path.normcase(relative) in _RESERVED_ARTIFACT_KEYS:
         raise ValueError(f"reserved artifact path: {relative}")
@@ -117,14 +136,22 @@ def _validate_logical_artifact_path(relative: str) -> None:
         path.is_absolute()
         or re.match(r"^[A-Za-z]:", relative)
         or "\\" in relative
-        or any(segment in ("", ".", "..") for segment in segments)
+        or any(segment == "" for segment in segments)
     ):
         raise ValueError(f"invalid artifact path: {relative}")
+    for segment in segments:
+        _validate_portable_path_segment(segment, "artifact path")
 
 
 def _relative_artifact(run_root: Path, artifact_path: str | Path) -> tuple[Path, str]:
     path = Path(artifact_path)
     candidate = path if path.is_absolute() else run_root / path
+    try:
+        lexical_relative = candidate.relative_to(run_root).as_posix()
+    except ValueError:
+        lexical_relative = None
+    if lexical_relative is not None:
+        _validate_logical_artifact_path(lexical_relative)
     resolved = candidate.resolve()
     try:
         relative = resolved.relative_to(run_root).as_posix()
@@ -391,7 +418,9 @@ def validate_metric_records(frame: pd.DataFrame) -> None:
     _validate_rows(frame, "metric-record.schema.json", "metric_record")
 
     seen: set[tuple] = set()
-    for row in frame.to_dict(orient="records"):
+    columns = tuple(frame.columns)
+    for values in frame.itertuples(index=False, name=None):
+        row = dict(zip(columns, values))
         identity = _metric_identity(row)
         if identity in seen:
             raise ValueError("duplicate metric execution key")

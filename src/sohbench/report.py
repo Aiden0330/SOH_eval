@@ -1,10 +1,14 @@
 from __future__ import annotations
-import json, math
+import json, math, os, stat
 from dataclasses import asdict
 from pathlib import Path
 import pandas as pd
 from .acceptance import evaluate_verdicts
-from .fabric.evidence import validate_prediction_records, write_evidence_pack
+from .fabric.evidence import (
+    _validate_portable_path_segment,
+    validate_prediction_records,
+    write_evidence_pack,
+)
 from .fabric.ids import new_id
 from .fabric.outcomes import (
     RunOutcome,
@@ -124,9 +128,12 @@ def _run_identity(run_id):
     selected = new_id("RUN") if run_id is None else run_id
     if not isinstance(selected, str) or not selected:
         raise ValueError("run_id must be a non-empty directory name")
-    path = Path(selected)
-    if path.is_absolute() or len(path.parts) != 1 or selected in (".", ".."):
+    if "/" in selected or "\\" in selected:
         raise ValueError("run_id must be a single relative directory name")
+    try:
+        _validate_portable_path_segment(selected, "run_id")
+    except ValueError as exc:
+        raise ValueError(f"invalid run_id: {selected}") from exc
     return selected
 
 
@@ -146,15 +153,45 @@ def _evidence_manifest(run_id, evidence_context):
     return {"run_id": run_id, **context}
 
 
-def _create_run_dir(out_dir, run_id):
-    root = Path(out_dir)
-    root.mkdir(parents=True, exist_ok=True)
-    out = root / run_id
+def _is_directory_link(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    if is_junction is not None and is_junction():
+        return True
     try:
-        out.mkdir()
-    except FileExistsError:
+        attributes = getattr(path.lstat(), "st_file_attributes", 0)
+    except FileNotFoundError:
+        return False
+    return bool(attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0))
+
+
+def _require_within_root(target: Path, root: Path) -> None:
+    try:
+        target.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"target run directory resolves outside out_dir: {target}") from exc
+
+
+def _create_run_dir(out_dir, run_id):
+    root_path = Path(out_dir)
+    root_path.mkdir(parents=True, exist_ok=True)
+    root = root_path.resolve(strict=True)
+    out = root / run_id
+
+    if os.path.lexists(out):
+        if _is_directory_link(out):
+            raise ValueError(f"target run directory cannot be a link or reparse point: {out}")
+        resolved = out.resolve(strict=True)
+        _require_within_root(resolved, root)
         if not out.is_dir() or any(out.iterdir()):
             raise FileExistsError(f"target run directory is not empty: {out}")
+    else:
+        out.mkdir()
+        resolved = out.resolve(strict=True)
+        _require_within_root(resolved, root)
+        if _is_directory_link(out):
+            raise ValueError(f"target run directory cannot be a link or reparse point: {out}")
     return out
 
 

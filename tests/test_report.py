@@ -1,4 +1,4 @@
-import json, pandas as pd, numpy as np, pytest
+import json, os, subprocess, pandas as pd, numpy as np, pytest
 from pathlib import Path
 from sohbench.fabric.evidence import verify_evidence_pack
 from sohbench.report import _leaderboard_entries, write_artifacts
@@ -502,6 +502,94 @@ def test_write_artifacts_accepts_empty_target_and_rejects_nonempty_target(tmp_pa
         )
     assert marker.read_text(encoding="utf-8") == "do not overwrite"
     assert list(occupied.iterdir()) == [marker]
+
+
+@pytest.mark.parametrize(
+    "run_id",
+    [
+        ".",
+        "..",
+        "nested/RUN",
+        r"nested\RUN",
+        "RUN:stream",
+        "RUN.",
+        "RUN ",
+        "RUN<bad",
+        "RUN>bad",
+        'RUN"bad',
+        "RUN|bad",
+        "RUN?bad",
+        "RUN*bad",
+        "RUN\u001fbad",
+        "CON",
+        "con.log",
+        "PRN",
+        "AUX.txt",
+        "NUL",
+        "COM1.log",
+        "lpt9.txt",
+    ],
+)
+def test_write_artifacts_rejects_nonportable_run_ids_before_creating_target(
+    tmp_path, run_id,
+):
+    with pytest.raises(ValueError, match="run_id"):
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+        )
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_write_artifacts_rejects_existing_directory_symlink(tmp_path):
+    root = tmp_path / "runs"
+    root.mkdir()
+    target = tmp_path / "symlink-target"
+    target.mkdir()
+    link = root / "RUN-link"
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlink creation unavailable: {exc}")
+
+    try:
+        with pytest.raises(ValueError, match="link|reparse|outside"):
+            write_artifacts(
+                _results(), None, SOHEstimationTask(), {}, root, run_id="RUN-link"
+            )
+        assert list(target.iterdir()) == []
+    finally:
+        if link.is_symlink():
+            link.unlink()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="directory junctions require Windows")
+def test_write_artifacts_rejects_existing_directory_junction(tmp_path):
+    root = tmp_path / "runs"
+    root.mkdir()
+    target = tmp_path / "junction-target"
+    target.mkdir()
+    link = root / "RUN-link"
+    created = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+        capture_output=True,
+        text=True,
+    )
+    if created.returncode:
+        pytest.skip(
+            "directory junction creation unavailable: "
+            f"{created.stdout}{created.stderr}"
+        )
+
+    try:
+        with pytest.raises(ValueError, match="link|reparse|outside"):
+            write_artifacts(
+                _results(), None, SOHEstimationTask(), {}, root, run_id="RUN-link"
+            )
+        assert list(target.iterdir()) == []
+    finally:
+        if link.exists():
+            os.rmdir(link)
 
 
 @pytest.mark.parametrize("reserved", ["schema_version", "artifacts"])

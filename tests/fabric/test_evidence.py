@@ -50,6 +50,27 @@ METRIC_COLUMNS = [
     "cell_ids",
 ]
 
+PORTABLE_INVALID_ARTIFACT_PATHS = [
+    "nested/result.txt.",
+    "nested/result.txt ",
+    "result.txt:stream",
+    "evidence-pack.json:proof",
+    "nested/bad<name>.txt",
+    "nested/bad>name.txt",
+    'nested/bad"name.txt',
+    "nested/bad|name.txt",
+    "nested/bad?name.txt",
+    "nested/bad*name.txt",
+    "nested/control\u001f.txt",
+    "CON",
+    "con.txt",
+    "nested/PRN.log",
+    "AUX",
+    "NUL.bin",
+    "COM1.txt",
+    "nested/lpt9.log",
+]
+
 
 def prediction_frame(**overrides) -> pd.DataFrame:
     row = {
@@ -133,6 +154,58 @@ def test_evidence_artifacts_are_sorted_by_relative_posix_path(tmp_path):
         "z.txt",
     ]
     assert verify_evidence_pack(pack)["ok"] is True
+
+
+def test_writer_canonicalizes_raw_redundant_separators(tmp_path):
+    run_dir = tmp_path / "RUN-one"
+    artifact = run_dir / "nested" / "result.txt"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("result", encoding="utf-8")
+
+    pack = write_evidence_pack(
+        run_dir,
+        {"run_id": "RUN-one"},
+        ["nested//result.txt"],
+    )
+
+    document = json.loads(pack.read_text(encoding="utf-8"))
+    assert document["artifacts"][0]["path"] == "nested/result.txt"
+
+
+@pytest.mark.parametrize("invalid_path", PORTABLE_INVALID_ARTIFACT_PATHS)
+def test_writer_rejects_nonportable_logical_paths_before_file_lookup(
+    tmp_path, invalid_path,
+):
+    run_dir = tmp_path / "RUN-one"
+    run_dir.mkdir()
+
+    with pytest.raises(ValueError, match="invalid artifact path"):
+        write_evidence_pack(
+            run_dir,
+            {"run_id": "RUN-one"},
+            [Path(invalid_path)],
+        )
+
+
+@pytest.mark.skipif(os.name != "nt", reason="NTFS alternate streams require Windows")
+@pytest.mark.parametrize("base_name", ["result.txt", "evidence-pack.json"])
+def test_writer_rejects_ntfs_alternate_streams_without_changing_base_file(
+    tmp_path, base_name,
+):
+    run_dir = tmp_path / "RUN-one"
+    run_dir.mkdir()
+    base = run_dir / base_name
+    base.write_bytes(b"base sentinel")
+    stream = Path(f"{base}:proof")
+    try:
+        stream.write_bytes(b"stream sentinel")
+    except OSError as exc:
+        pytest.skip(f"alternate stream creation unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="invalid artifact path"):
+        write_evidence_pack(run_dir, {"run_id": "RUN-one"}, [stream])
+
+    assert base.read_bytes() == b"base sentinel"
 
 
 @pytest.mark.skipif(
@@ -428,6 +501,72 @@ def test_evidence_schema_rejects_noncanonical_and_reserved_alias_paths():
             jsonschema.validate(document, schema)
 
 
+@pytest.mark.parametrize("invalid_path", PORTABLE_INVALID_ARTIFACT_PATHS)
+def test_evidence_schema_rejects_nonportable_artifact_paths(invalid_path):
+    schema = json.loads(
+        files("sohbench.fabric.schemas")
+        .joinpath("evidence-pack.schema.json")
+        .read_text(encoding="utf-8")
+    )
+    document = {
+        "schema_version": "1.0.0",
+        "run_id": "RUN-one",
+        "artifacts": [
+            {"path": invalid_path, "size": 0, "sha256": "a" * 64}
+        ],
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(document, schema)
+
+
+def test_evidence_schema_accepts_canonical_nested_artifact_path():
+    schema = json.loads(
+        files("sohbench.fabric.schemas")
+        .joinpath("evidence-pack.schema.json")
+        .read_text(encoding="utf-8")
+    )
+    document = {
+        "schema_version": "1.0.0",
+        "run_id": "RUN-one",
+        "artifacts": [
+            {"path": "nested/result.txt", "size": 0, "sha256": "a" * 64}
+        ],
+    }
+
+    jsonschema.validate(document, schema)
+
+
+@pytest.mark.parametrize("invalid_path", PORTABLE_INVALID_ARTIFACT_PATHS)
+def test_verifier_rejects_nonportable_paths_before_artifact_reads(
+    tmp_path, monkeypatch, invalid_path,
+):
+    run_dir = tmp_path / "RUN-one"
+    run_dir.mkdir()
+    pack = run_dir / "evidence-pack.json"
+    pack.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0.0",
+                "run_id": "RUN-one",
+                "artifacts": [
+                    {"path": invalid_path, "size": 0, "sha256": "a" * 64}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(Path, "is_file", lambda self: True)
+    monkeypatch.setattr(
+        evidence_module,
+        "sha256_file",
+        lambda path: pytest.fail("verifier read bytes before rejecting path"),
+    )
+
+    with pytest.raises(ValueError, match="path"):
+        verify_evidence_pack(pack)
+
+
 def test_verification_reports_size_and_digest_mismatches_separately(tmp_path):
     run_dir = tmp_path / "RUN-one"
     run_dir.mkdir()
@@ -679,6 +818,7 @@ def test_row_validation_streams_rows_without_materializing_records(monkeypatch):
 
     monkeypatch.setattr(pd.DataFrame, "to_dict", fail_to_dict)
     validate_prediction_records(prediction_frame())
+    validate_metric_records(metric_frame())
 
 
 def test_row_validation_keeps_row_number_in_schema_errors():
