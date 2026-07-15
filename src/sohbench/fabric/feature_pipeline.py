@@ -135,7 +135,11 @@ def _reject_shared_pipeline_state(pipeline: FeaturePipeline) -> None:
             continue
         if inspect.isfunction(value):
             _reject_callable_references(value, original_class, seen_functions)
-        elif not inspect.isbuiltin(value):
+        elif inspect.ismethod(value):
+            if not _is_safe_shared_reference(value):
+                raise ValueError("feature pipeline references mutable instance callable state")
+            _reject_callable_references(value.__func__, original_class, seen_functions)
+        elif not _is_safe_shared_reference(value):
             raise ValueError("feature pipeline references mutable instance callable state")
 
 
@@ -177,6 +181,8 @@ def _reject_callable_references(method: Callable, original_class: type, seen_fun
     for value in owned_values:
         if inspect.isfunction(value):
             _reject_callable_references(value, original_class, seen_functions)
+        elif inspect.ismethod(value):
+            _reject_callable_references(value.__func__, original_class, seen_functions)
 
     globals_ = method.__globals__
     for name in method.__code__.co_names:
@@ -187,6 +193,10 @@ def _reject_callable_references(method: Callable, original_class: type, seen_fun
             raise ValueError("feature pipeline references mutable original class state")
         if inspect.isfunction(value):
             _reject_callable_references(value, original_class, seen_functions)
+        elif inspect.ismethod(value):
+            if not _is_safe_shared_reference(value):
+                raise ValueError(f"feature pipeline references mutable module global {name!r}")
+            _reject_callable_references(value.__func__, original_class, seen_functions)
         elif not _is_safe_shared_reference(value):
             raise ValueError(f"feature pipeline references mutable module global {name!r}")
 
@@ -199,6 +209,10 @@ def _reject_callable_references(method: Callable, original_class: type, seen_fun
             raise ValueError("feature pipeline references mutable original class state")
         if inspect.isfunction(value):
             _reject_callable_references(value, original_class, seen_functions)
+        elif inspect.ismethod(value):
+            if not _is_safe_shared_reference(value):
+                raise ValueError("feature pipeline references mutable closure state")
+            _reject_callable_references(value.__func__, original_class, seen_functions)
         elif not _is_safe_shared_reference(value):
             raise ValueError("feature pipeline references mutable closure state")
 
@@ -234,7 +248,12 @@ def _is_deeply_immutable(value: Any, seen: frozenset[int] = frozenset()) -> bool
 def _is_safe_shared_reference(value: Any) -> bool:
     if _is_deeply_immutable(value):
         return True
-    return inspect.ismodule(value) or inspect.isroutine(value) or isinstance(value, type)
+    if inspect.ismodule(value) or isinstance(value, type):
+        return True
+    if inspect.isroutine(value):
+        owner = getattr(value, "__self__", None)
+        return owner is None or inspect.ismodule(owner) or isinstance(owner, type) or _is_deeply_immutable(owner)
+    return False
 
 
 def _class_has_mutable_state(pipeline_class: type) -> bool:

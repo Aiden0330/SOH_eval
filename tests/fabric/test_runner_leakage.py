@@ -21,8 +21,12 @@ class _MutablePipelineBox:
     def __init__(self):
         self.values = []
 
+    def remember(self, labels):
+        self.values.append(labels.copy())
+
 
 MODULE_PIPELINE_BOX = _MutablePipelineBox()
+MODULE_PIPELINE_BOUND_HELPER = MODULE_PIPELINE_BOX.remember
 
 
 @pytest.fixture
@@ -751,6 +755,88 @@ def test_pipeline_with_instance_helper_closure_is_rejected(simple_table, simple_
         SOHEstimationTask(), simple_table, simple_meta,
         {"loco": LeaveOneCellOut()}, [SpyEstimator],
         feature_pipelines={"full": InstanceHelperPipeline()},
+    )
+
+    assert result["error"].str.contains("mutable closure state").all()
+
+
+def test_pipeline_with_instance_bound_builtin_helper_is_rejected(simple_table, simple_meta):
+    retained_labels = deque()
+
+    class BoundBuiltinHelperPipeline:
+        def fit(self, train_x, train_y, meta):
+            self.remember(train_y.copy())
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    pipeline = BoundBuiltinHelperPipeline()
+    pipeline.remember = retained_labels.append
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": pipeline},
+    )
+
+    assert result["error"].str.contains("mutable instance callable state").all()
+
+
+def test_pipeline_with_module_global_bound_method_is_rejected(simple_table, simple_meta):
+    class GlobalBoundMethodPipeline:
+        def fit(self, train_x, train_y, meta):
+            MODULE_PIPELINE_BOUND_HELPER(train_y)
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    MODULE_PIPELINE_BOX.values.clear()
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": GlobalBoundMethodPipeline()},
+    )
+
+    assert result["error"].str.contains("mutable module global").all()
+
+
+def test_pipeline_with_bound_method_default_is_rejected(simple_table, simple_meta):
+    retained_labels = deque()
+
+    class BoundDefaultPipeline:
+        def fit(self, train_x, train_y, meta, remember=retained_labels.append):
+            remember(train_y.copy())
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": BoundDefaultPipeline()},
+    )
+
+    assert result["error"].str.contains("mutable callable default state").all()
+
+
+def test_pipeline_with_bound_method_closure_is_rejected(simple_table, simple_meta):
+    box = _MutablePipelineBox()
+    remember = box.remember
+
+    class BoundClosurePipeline:
+        def fit(self, train_x, train_y, meta):
+            remember(train_y)
+            return FeatureState.create({})
+
+        def transform(self, frame, state, meta):
+            return frame.copy()
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        feature_pipelines={"full": BoundClosurePipeline()},
     )
 
     assert result["error"].str.contains("mutable closure state").all()
