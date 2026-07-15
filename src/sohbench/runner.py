@@ -396,7 +396,25 @@ class BenchmarkRunner:
 
     def _trajectory_metrics(self, task, test_x, yp):
         try:
-            order = np.argsort(test_x["cycle_index"].to_numpy())
-            return {"monotonicity_violation_rate": M.monotonicity_violation_rate(yp[order]), "value_range_violation": M.value_range_violation(yp)}
+            frame = test_x[["dataset", "cell_id", "cycle_index"]].copy()
+            frame["prediction"] = np.asarray(yp, dtype=float)
+            per_asset = []
+            for _, asset in frame.groupby(["dataset", "cell_id"], sort=True, dropna=False):
+                asset = asset.sort_values("cycle_index", kind="stable")
+                if len(asset) < 2:
+                    continue
+                prediction = asset["prediction"].to_numpy()
+                per_asset.append(
+                    {
+                        "monotonicity_violation_rate": M.monotonicity_violation_rate(prediction),
+                        "value_range_violation": M.value_range_violation(prediction),
+                    }
+                )
+            if not per_asset:
+                raise ValueError("trajectory metrics require an asset with at least two cycles")
+            return {
+                metric: float(np.mean([values[metric] for values in per_asset]))
+                for metric in task.trajectory_metrics
+            }
         except Exception as exc:
             raise MetricEvaluationError(str(exc)) from exc
