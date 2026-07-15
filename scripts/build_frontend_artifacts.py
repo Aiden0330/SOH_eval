@@ -252,6 +252,7 @@ def _drop_duplicate_metric_rows(frame: pd.DataFrame) -> pd.DataFrame:
     key_columns = [
         column
         for column in [
+            "candidate_id",
             "estimator",
             "featureset",
             "protocol",

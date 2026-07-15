@@ -844,6 +844,7 @@ function matchingDatasetRows(entry, rows) {
 
 function comboKey(row) {
   return [
+    row.candidate_id || "",
     row.estimator,
     row.featureset || "full",
     row.protocol || "",
@@ -904,6 +905,7 @@ function mergeGroup(items) {
   });
 
   return {
+    ...(base.candidate_id ? { candidate_id: base.candidate_id } : {}),
     estimator: base.estimator,
     featureset: base.featureset || "full",
     protocol: base.protocol,

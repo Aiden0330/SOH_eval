@@ -13,7 +13,14 @@ def _write_run(path: Path, rows: list[dict], config: dict, qc: dict | None = Non
     (path / "qc_report.json").write_text(json.dumps(qc or {"per_dataset": {}}), encoding="utf-8")
 
 
-def _metric_rows(estimator: str, featureset: str, held_out: str, mae: float, seed: int = 0) -> list[dict]:
+def _metric_rows(
+    estimator: str,
+    featureset: str,
+    held_out: str,
+    mae: float,
+    seed: int = 0,
+    candidate_id: str | None = None,
+) -> list[dict]:
     rows = []
     for metric, value in [
         ("mae", mae),
@@ -21,8 +28,7 @@ def _metric_rows(estimator: str, featureset: str, held_out: str, mae: float, see
         ("monotonicity_violation_rate", 0.0),
         ("value_range_violation", 0.0),
     ]:
-        rows.append(
-            {
+        row = {
                 "estimator": estimator,
                 "feature_mode": "unified",
                 "backend": "sklearn",
@@ -36,8 +42,10 @@ def _metric_rows(estimator: str, featureset: str, held_out: str, mae: float, see
                 "featureset": featureset,
                 "track": "unified",
                 "ci_source": "weighted_conformal",
-            }
-        )
+        }
+        if candidate_id is not None:
+            row["candidate_id"] = candidate_id
+        rows.append(row)
     return rows
 
 
@@ -195,3 +203,37 @@ def test_build_frontend_artifacts_copies_inference_and_model_files(tmp_path):
     assert (artifact_dir / "model_catalog.json").exists()
     assert (frontend_dir / "inference_benchmark.json").exists()
     assert (frontend_dir / "model_catalog.json").exists()
+
+
+def test_build_frontend_artifacts_preserves_distinct_candidate_ids_during_deduplication(tmp_path):
+    run = tmp_path / "runs" / "candidates"
+    archive_dir = tmp_path / "archive"
+    frontend_dir = tmp_path / "frontend-data"
+
+    _write_run(
+        run,
+        _metric_rows("ridge", "full", "nasa", 0.10, candidate_id="candidate-a")
+        + _metric_rows("ridge", "full", "nasa", 0.20, candidate_id="candidate-b"),
+        {
+            "phase": "candidates",
+            "datasets": ["nasa"],
+            "estimators": ["ridge"],
+            "featuresets": ["full"],
+            "protocols": ["lodo"],
+            "seeds": [0],
+        },
+    )
+
+    build_frontend_artifacts(
+        BuildFrontendArtifactsConfig(
+            source_runs=[run],
+            archive_dir=archive_dir,
+            frontend_data_dir=frontend_dir,
+        )
+    )
+
+    leaderboard = json.loads((frontend_dir / "leaderboard.json").read_text(encoding="utf-8"))
+    assert {(entry["candidate_id"], entry["metrics"]["mae"]["mean"]) for entry in leaderboard} == {
+        ("candidate-a", 0.10),
+        ("candidate-b", 0.20),
+    }

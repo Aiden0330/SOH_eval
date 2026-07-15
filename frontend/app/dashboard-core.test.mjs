@@ -66,6 +66,7 @@ function entry(estimator, featureset, mae, opts = {}) {
     protocol: "lodo",
     track: "unified",
     held_out_key: opts.held,
+    ...(opts.candidateId ? { candidate_id: opts.candidateId } : {}),
     ci_source: "weighted_conformal",
     metrics: {
       mae: { mean: mae, std: 0 },
@@ -75,6 +76,19 @@ function entry(estimator, featureset, mae, opts = {}) {
     },
     verdicts: { generalization: false, calibration: false, physical_consistency: false },
   };
+}
+
+{
+  const candidateRows = [
+    entry("ridge", "full", 0.10, { held: "nasa", candidateId: "candidate-a" }),
+    entry("ridge", "full", 0.20, { held: "nasa", candidateId: "candidate-b" }),
+  ];
+  const selected = summarizeBySelection([], candidateRows, ["nasa"], ["nasa", "hust"]);
+  assert.equal(selected.entries.length, 2);
+  assert.deepEqual(
+    selected.entries.map((row) => [row.candidate_id, row.metrics.mae.mean]).sort(),
+    [["candidate-a", 0.10], ["candidate-b", 0.20]],
+  );
 }
 
 {
