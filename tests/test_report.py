@@ -69,6 +69,69 @@ def test_leaderboard_schema_accepts_legacy_entries_without_task9_fields():
     jsonschema.validate([legacy], schema)
 
 
+def test_leaderboard_schema_accepts_task8_coverage_and_execution_without_task9_fields():
+    import jsonschema
+
+    schema = json.loads(
+        (Path(__file__).parents[1] / "src/sohbench/schemas/leaderboard.schema.json").read_text()
+    )
+    task8 = {
+        "estimator": "ridge",
+        "track": "unified",
+        "protocol": "loco",
+        "metrics": {"mae": {"mean": 0.1, "std": 0.01}},
+        "verdicts": {},
+        "coverage": 1.0,
+        "execution": {
+            "outcome": "complete",
+            "attempted": 1,
+            "succeeded": 1,
+            "failed": 0,
+        },
+    }
+
+    jsonschema.validate([task8], schema)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("comparison_key", "comparison-one"),
+        (
+            "confidence_intervals",
+            {
+                "mae": {"available": False, "reason": "predictions_not_provided"},
+                "rmse": {"available": False, "reason": "predictions_not_provided"},
+            },
+        ),
+    ],
+)
+def test_leaderboard_schema_rejects_partial_task9_upgrade_from_task8(field, value):
+    import jsonschema
+
+    schema = json.loads(
+        (Path(__file__).parents[1] / "src/sohbench/schemas/leaderboard.schema.json").read_text()
+    )
+    entry = {
+        "estimator": "ridge",
+        "track": "unified",
+        "protocol": "loco",
+        "metrics": {},
+        "verdicts": {},
+        "coverage": 1.0,
+        "execution": {
+            "outcome": "complete",
+            "attempted": 1,
+            "succeeded": 1,
+            "failed": 0,
+        },
+        field: value,
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate([entry], schema)
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -893,6 +956,62 @@ def test_held_out_entries_match_prediction_dataset_without_held_out_key(tmp_path
 
     assert by_held_out["nasa"]["confidence_intervals"]["mae"]["mean"] == 1.0
     assert by_held_out["hust"]["confidence_intervals"]["mae"]["mean"] == 3.0
+
+
+def test_held_out_dataset_fallback_is_unavailable_for_lcho(tmp_path):
+    results = pd.DataFrame(
+        _result_group(
+            protocol="lcho",
+            dataset="nasa,hust",
+            held_out_key="nasa",
+        )
+    )
+    predictions = pd.DataFrame(
+        [
+            _prediction_row(
+                run_id="RUN-lcho-held-out-datasets",
+                candidate_id="ridge",
+                protocol="lcho",
+                dataset="nasa",
+                cell_id="nasa-cell",
+                y_pred=1.0,
+            ),
+        ]
+    )
+
+    out = Path(
+        write_artifacts(
+            results,
+            None,
+            SOHEstimationTask(),
+            {},
+            tmp_path,
+            run_id="RUN-lcho-held-out-datasets",
+            predictions=predictions,
+        )
+    )
+    entry = json.loads((out / "dataset_leaderboard.json").read_text())[0]
+
+    assert entry["confidence_intervals"] == {
+        "mae": {"available": False, "reason": "prediction_entry_unmatched"},
+        "rmse": {"available": False, "reason": "prediction_entry_unmatched"},
+    }
+
+
+@pytest.mark.parametrize("candidate_id", [None, np.nan, 7, "", " "])
+def test_write_artifacts_rejects_invalid_result_candidate_id_before_reservation(
+    tmp_path, candidate_id,
+):
+    run_id = "RUN-invalid-result-candidate"
+    results = pd.DataFrame(_result_group(candidate_id=candidate_id))
+
+    with pytest.raises(ValueError, match="candidate_id"):
+        write_artifacts(
+            results, None, SOHEstimationTask(), {}, tmp_path, run_id=run_id,
+        )
+
+    assert not (tmp_path / report_module._reservation_name(run_id)).exists()
+    assert not (tmp_path / run_id).exists()
 
 
 def test_write_artifacts_uses_explicit_run_id_and_dual_writes_pack(tmp_path):

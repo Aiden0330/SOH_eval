@@ -120,11 +120,34 @@
       "execution": {"$ref": "#/definitions/execution"},
       "confidence_intervals": {"$ref": "#/definitions/confidenceIntervals"}
     },
-    "dependencies": {
-      "comparison_key": ["coverage", "execution", "confidence_intervals"],
-      "coverage": ["comparison_key", "execution", "confidence_intervals"],
-      "execution": ["comparison_key", "coverage", "confidence_intervals"],
-      "confidence_intervals": ["comparison_key", "coverage", "execution"]
-    }
+    "oneOf": [
+      {
+        "not": {
+          "anyOf": [
+            {"required": ["comparison_key"]},
+            {"required": ["coverage"]},
+            {"required": ["execution"]},
+            {"required": ["confidence_intervals"]}
+          ]
+        }
+      },
+      {
+        "required": ["coverage", "execution"],
+        "not": {
+          "anyOf": [
+            {"required": ["comparison_key"]},
+            {"required": ["confidence_intervals"]}
+          ]
+        }
+      },
+      {
+        "required": [
+          "comparison_key",
+          "coverage",
+          "execution",
+          "confidence_intervals"
+        ]
+      }
+    ]
   }
 }

@@ -112,7 +112,11 @@ def _prediction_confidence_intervals(
     if "held_out_key" in identity:
         if "held_out_key" in predictions.columns:
             mask &= predictions["held_out_key"].eq(identity["held_out_key"])
-        elif "dataset" in predictions.columns:
+        elif (
+            isinstance(identity["protocol"], str)
+            and identity["protocol"].casefold() == "lodo"
+            and "dataset" in predictions.columns
+        ):
             mask &= predictions["dataset"].eq(identity["held_out_key"])
         else:
             return _unavailable_confidence_intervals("prediction_entry_unmatched")
@@ -256,6 +260,16 @@ def _run_identity(run_id):
     ):
         raise ValueError(f"run_id is reserved: {selected}")
     return selected
+
+
+def _validate_result_candidate_ids(results: pd.DataFrame) -> None:
+    if "candidate_id" not in results.columns:
+        return
+    invalid = results["candidate_id"].map(
+        lambda value: not isinstance(value, str) or not value.strip()
+    )
+    if invalid.any():
+        raise ValueError("results candidate_id values must be non-empty strings")
 
 
 def _evidence_manifest(run_id, evidence_context):
@@ -527,6 +541,7 @@ def write_artifacts(
 ):
     selected_run_id = _run_identity(run_id)
     manifest = _evidence_manifest(selected_run_id, evidence_context)
+    _validate_result_candidate_ids(results)
     if predictions is not None:
         validate_prediction_records(predictions)
         if not predictions["run_id"].eq(selected_run_id).all():
