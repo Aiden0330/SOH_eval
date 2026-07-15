@@ -11,6 +11,8 @@ from .feature_pipeline import (
     clone_for_fold,
     scoped_meta_for_frame,
 )
+from .failures import FailureCategory, classify_exception
+from .outcomes import RunOutcome
 
 __all__ = [
     "RunSpec",
@@ -33,4 +35,7 @@ __all__ = [
     "assert_prefix_invariant",
     "clone_for_fold",
     "scoped_meta_for_frame",
+    "FailureCategory",
+    "classify_exception",
+    "RunOutcome",
 ]

@@ -1,8 +1,10 @@
 from __future__ import annotations
 import json, math, time
+from dataclasses import asdict
 from pathlib import Path
 import pandas as pd
 from .acceptance import evaluate_verdicts
+from .fabric.outcomes import RunOutcome
 from .tasks import SOHEstimationTask
 
 
@@ -47,7 +49,12 @@ def _leaderboard_entries(results: pd.DataFrame, task, group_cols: list[str]) -> 
                         "std": float(r["std"] if r["std"] == r["std"] else 0.0)}
                    for m, r in agg.iterrows()}
         flat = {m: v["mean"] for m, v in metrics.items()}
-        verdicts = {v.name: v.passed for v in evaluate_verdicts(flat, task)}
+        execution = RunOutcome.from_results(g)
+        coverage = execution.succeeded / execution.attempted if execution.attempted else 0.0
+        verdicts = (
+            {v.name: v.passed for v in evaluate_verdicts(flat, task)}
+            if execution.succeeded else {}
+        )
         ci_source = g["ci_source"].iloc[0] if "ci_source" in g.columns else "conformal"
 
         entry = {
@@ -57,6 +64,8 @@ def _leaderboard_entries(results: pd.DataFrame, task, group_cols: list[str]) -> 
             "protocol": proto,
             "metrics": metrics,
             "verdicts": verdicts,
+            "coverage": coverage,
+            "execution": asdict(execution),
             "ci_source": ci_source,
         }
         if "held_out_key" in keys:

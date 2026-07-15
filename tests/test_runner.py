@@ -18,9 +18,14 @@ def test_runner_produces_results_with_ci_and_seeds():
     rs = runner.run(SOHEstimationTask(), table=t, meta=meta,
                     protocols={"loco": LeaveOneCellOut()},
                     estimators=[RidgeEstimator])
-    assert set(rs.columns) >= {"estimator","protocol","held_out_key","fold","seed","metric","value"}
+    assert set(rs.columns) >= {
+        "estimator", "protocol", "held_out_key", "fold", "seed", "metric", "value",
+        "unit_status", "error_category", "error_type", "error_message",
+    }
     assert (rs["metric"] == "picp").any()                 # CI guaranteed (conformal)
     assert rs["seed"].nunique() == 5
+    assert rs["unit_status"].eq("succeeded").all()
+    assert rs[["error_category", "error_type", "error_message"]].eq("").all().all()
 
 def test_failed_estimator_isolated():
     from sohbench.metadata import build_meta
@@ -33,6 +38,10 @@ def test_failed_estimator_isolated():
                                         protocols={"loco":LeaveOneCellOut()},
                                         estimators=[Boom])
     assert rs["value"].isna().any()                       # failed fold recorded, run completed
+    assert rs["unit_status"].eq("failed").all()
+    assert rs["error_category"].eq("ALGORITHM").all()
+    assert rs["error_type"].eq("RuntimeError").all()
+    assert rs["error_message"].eq("boom").all()
 
 
 def test_runner_featureset_loop():

@@ -21,6 +21,10 @@ def test_write_artifacts(tmp_path):
     assert entry["estimator"]=="ridge" and entry["track"]=="unified"
     assert entry["metrics"]["mae"]["mean"]==0.01
     assert entry["verdicts"]["generalization"] is True
+    assert entry["coverage"] == 1.0
+    assert entry["execution"] == {
+        "outcome": "complete", "attempted": 5, "succeeded": 5, "failed": 0,
+    }
     assert (Path(out)/"results.parquet").exists()
 
 def test_leaderboard_matches_schema(tmp_path):
@@ -124,6 +128,34 @@ def test_nan_metrics_serialize_as_valid_json_null(tmp_path):
     assert "NaN" not in raw  # bare NaN token would break JSON.parse
     lb = json.loads(raw)     # must parse without error
     assert lb[0]["metrics"]["mae"]["mean"] is None
+    assert lb[0]["coverage"] == 0.0
+    assert lb[0]["execution"] == {
+        "outcome": "failed", "attempted": 3, "succeeded": 0, "failed": 3,
+    }
+    assert lb[0]["verdicts"] == {}
+
+
+def test_partial_results_report_attempted_execution_coverage(tmp_path):
+    rows = []
+    for seed, status in [(0, "succeeded"), (1, "failed")]:
+        for metric, value in [("mae", 0.01), ("picp", 0.92)]:
+            rows.append(
+                dict(
+                    estimator="ridge", feature_mode="unified", backend="sklearn",
+                    protocol="loco", held_out_key="c1", fold=0, seed=seed,
+                    metric=metric, value=value if status == "succeeded" else np.nan,
+                    featureset="full", unit_status=status,
+                )
+            )
+
+    out = write_artifacts(pd.DataFrame(rows), qc_report=None, task=SOHEstimationTask(),
+                          config={}, out_dir=tmp_path)
+    entry = json.loads((Path(out) / "leaderboard.json").read_text())[0]
+
+    assert entry["coverage"] == 0.5
+    assert entry["execution"] == {
+        "outcome": "partial", "attempted": 2, "succeeded": 1, "failed": 1,
+    }
 
 
 def test_write_artifacts_emits_dataset_leaderboard(tmp_path):

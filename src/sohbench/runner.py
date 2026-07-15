@@ -12,6 +12,7 @@ from joblib.externals import cloudpickle
 from . import metrics as M
 from .conformal import ConformalWrapper, WeightedConformalWrapper
 from .fabric import FeatureState, IdentityFeaturePipeline, clone_for_fold, scoped_meta_for_frame
+from .fabric.failures import classify_exception
 from .fabric.views import make_fold_views
 from .featuresets import project
 import sohbench.featuresets  # noqa: F401
@@ -182,6 +183,8 @@ class BenchmarkRunner:
                             "fold": fi, "seed": seed, "ci_source": "conformal", "featureset": fs_name,
                             "track": track, "feature_mode": feature_mode, "backend": backend,
                             "feature_state_digest": feature_state.digest,
+                            "unit_status": "succeeded", "error_category": "",
+                            "error_type": "", "error_message": "",
                         }
                         snapshot_path, snapshot_error = None, None
                         try:
@@ -216,6 +219,12 @@ class BenchmarkRunner:
                             snapshot_path = None
                             row = {metric: float("nan") for metric in (*task.point_metrics, *task.interval_metrics, *task.trajectory_metrics)}
                             rec_base["error"] = str(exc)
+                            rec_base.update(
+                                unit_status="failed",
+                                error_category=classify_exception(exc).value,
+                                error_type=type(exc).__name__,
+                                error_message=str(exc),
+                            )
                         event_records = []
                         for metric, value in row.items():
                             metric_record = {**rec_base, "metric": metric, "value": value}
