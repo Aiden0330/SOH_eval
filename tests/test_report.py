@@ -1,6 +1,8 @@
-import json, os, subprocess, pandas as pd, numpy as np, pytest
+import json, os, subprocess, threading, pandas as pd, numpy as np, pytest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from sohbench.fabric.evidence import verify_evidence_pack
+import sohbench.report as report_module
 from sohbench.report import _leaderboard_entries, write_artifacts
 from sohbench.tasks import SOHEstimationTask
 
@@ -569,6 +571,167 @@ def test_write_artifacts_rejects_case_equivalent_existing_run_directory(tmp_path
         )
     )
     assert out == physical
+
+
+def _run_concurrent_writers_after_shared_selection(
+    tmp_path, monkeypatch, run_ids, existing_empty=None,
+):
+    root = tmp_path / "runs"
+    root.mkdir()
+    if existing_empty is not None:
+        (root / existing_empty).mkdir()
+    selection_barrier = threading.Barrier(2)
+    first_ready_to_write = threading.Event()
+    second_finished_attempt = threading.Event()
+    state = threading.local()
+    original_select = report_module._select_run_target
+    original_to_parquet = pd.DataFrame.to_parquet
+
+    def synchronized_select(root_path, run_id):
+        selected = original_select(root_path, run_id)
+        if not getattr(state, "initial_selection_complete", False):
+            state.initial_selection_complete = True
+            selection_barrier.wait(timeout=10)
+            if state.role == "second":
+                assert first_ready_to_write.wait(timeout=10)
+        return selected
+
+    def synchronized_to_parquet(frame, *args, **kwargs):
+        if state.role == "first" and not getattr(state, "write_paused", False):
+            state.write_paused = True
+            first_ready_to_write.set()
+            assert second_finished_attempt.wait(timeout=10)
+        return original_to_parquet(frame, *args, **kwargs)
+
+    monkeypatch.setattr(report_module, "_select_run_target", synchronized_select)
+    monkeypatch.setattr(pd.DataFrame, "to_parquet", synchronized_to_parquet)
+
+    def run_writer(role, run_id):
+        state.role = role
+        try:
+            return Path(
+                write_artifacts(
+                    _results(),
+                    None,
+                    SOHEstimationTask(),
+                    {"writer": role},
+                    root,
+                    run_id=run_id,
+                )
+            )
+        except BaseException as exc:
+            return exc
+        finally:
+            if role == "second":
+                second_finished_attempt.set()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [
+            executor.submit(run_writer, "first", run_ids[0]),
+            executor.submit(run_writer, "second", run_ids[1]),
+        ]
+        outcomes = [future.result(timeout=20) for future in futures]
+
+    return root, list(zip(("first", "second"), run_ids, outcomes))
+
+
+def _assert_single_claimed_writer(root, outcomes):
+    successes = [item for item in outcomes if isinstance(item[2], Path)]
+    failures = [item for item in outcomes if isinstance(item[2], BaseException)]
+    if len(successes) == 2:
+        assert successes[0][2].resolve() != successes[1][2].resolve(), (
+            "concurrent writers returned the same physical run directory"
+        )
+    assert len(successes) == 1
+    assert len(failures) == 1
+    assert isinstance(failures[0][2], (FileExistsError, ValueError))
+    assert any(
+        word in str(failures[0][2]).lower()
+        for word in ("claim", "collision", "case", "not empty")
+    )
+
+    role, run_id, run_dir = successes[0]
+    assert json.loads((run_dir / "run_config.json").read_text(encoding="utf-8")) == {
+        "writer": role
+    }
+    pack = verify_evidence_pack(run_dir / "evidence-pack.json")
+    assert pack["run_id"] == run_id
+    assert ".sohbench-run.claim" not in {item["path"] for item in pack["artifacts"]}
+    assert not (run_dir / ".sohbench-run.claim").exists()
+    assert len([entry for entry in root.iterdir() if entry.is_dir()]) == 1
+
+
+def test_concurrent_exact_run_ids_allow_only_one_artifact_transaction(
+    tmp_path, monkeypatch,
+):
+    root, outcomes = _run_concurrent_writers_after_shared_selection(
+        tmp_path,
+        monkeypatch,
+        ("RUN-Race", "RUN-Race"),
+        existing_empty="RUN-Race",
+    )
+
+    _assert_single_claimed_writer(root, outcomes)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows case-alias regression")
+def test_concurrent_case_equivalent_run_ids_allow_only_one_artifact_transaction(
+    tmp_path, monkeypatch,
+):
+    probe_root = tmp_path / "probe"
+    probe_root.mkdir()
+    physical_probe = probe_root / "Case-Probe"
+    physical_probe.mkdir()
+    if not (probe_root / "case-probe").exists():
+        pytest.skip("filesystem proved case-sensitive")
+
+    root, outcomes = _run_concurrent_writers_after_shared_selection(
+        tmp_path, monkeypatch, ("RUN-Race", "run-race")
+    )
+
+    _assert_single_claimed_writer(root, outcomes)
+
+
+def test_stale_run_claim_fails_closed(tmp_path):
+    run_dir = tmp_path / "RUN-stale"
+    run_dir.mkdir()
+    claim = run_dir / ".sohbench-run.claim"
+    claim.write_bytes(b"stale")
+
+    with pytest.raises(FileExistsError, match="already claimed"):
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-stale"
+        )
+
+    assert claim.read_bytes() == b"stale"
+    assert list(run_dir.iterdir()) == [claim]
+
+
+def test_inference_holds_claim_through_evidence_pack_and_removes_it(
+    tmp_path, monkeypatch,
+):
+    from sohbench.report import write_inference_artifacts
+
+    original_write_pack = report_module.write_evidence_pack
+    observed_claims = []
+
+    def observe_claim(run_dir, manifest, artifact_paths):
+        claim = Path(run_dir) / ".sohbench-run.claim"
+        observed_claims.append(claim.exists())
+        return original_write_pack(run_dir, manifest, artifact_paths)
+
+    monkeypatch.setattr(report_module, "write_evidence_pack", observe_claim)
+    out = Path(
+        write_inference_artifacts(
+            [{"model": "predict_only", "dataset": "new_a", "status": "succeeded"}],
+            {},
+            tmp_path,
+            run_id="RUN-inference-claim",
+        )
+    )
+
+    assert observed_claims == [True]
+    assert not (out / ".sohbench-run.claim").exists()
 
 
 def test_write_artifacts_rejects_existing_directory_symlink(tmp_path):
