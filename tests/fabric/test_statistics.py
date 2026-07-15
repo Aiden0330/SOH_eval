@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import sohbench.fabric.statistics as statistics_module
 from sohbench.fabric.statistics import (
     asset_metric_table,
     bootstrap_mean_ci,
@@ -198,6 +199,85 @@ def test_bootstrap_mean_ci_validates_confidence(confidence):
 def test_bootstrap_mean_ci_requires_positive_integer_resamples(n_resamples):
     with pytest.raises((TypeError, ValueError), match="n_resamples|resamples"):
         bootstrap_mean_ci([1.0], n_resamples=n_resamples)
+
+
+def test_bootstrap_mean_ci_enforces_a_named_reasonable_resample_limit():
+    assert 2000 <= statistics_module.MAX_BOOTSTRAP_RESAMPLES <= 1_000_000
+
+    with pytest.raises(ValueError, match="n_resamples|resamples|maximum|at most"):
+        bootstrap_mean_ci(
+            [1.0],
+            n_resamples=statistics_module.MAX_BOOTSTRAP_RESAMPLES + 1,
+        )
+
+
+def test_bootstrap_mean_ci_chunks_a_100k_by_2000_resample(monkeypatch):
+    requested_sizes = []
+
+    class Draws:
+        def __init__(self, size):
+            self.size = size
+
+        def mean(self, axis):
+            assert axis == 1
+            return np.ones(self.size[0], dtype=float)
+
+    class RecordingRng:
+        def choice(self, values, *, size, replace):
+            assert len(values) == 100_000
+            assert replace is True
+            requested_sizes.append(size)
+            return Draws(size)
+
+    monkeypatch.setattr(
+        statistics_module.np.random,
+        "default_rng",
+        lambda seed: RecordingRng(),
+    )
+
+    interval = bootstrap_mean_ci(
+        np.ones(100_000, dtype=float),
+        n_resamples=2000,
+        seed=7,
+    )
+
+    assert statistics_module.MAX_BOOTSTRAP_SAMPLED_CELLS == 1_000_000
+    assert sum(size[0] for size in requested_sizes) == 2000
+    assert len(requested_sizes) > 1
+    assert max(rows * columns for rows, columns in requested_sizes) <= 1_000_000
+    assert interval["mean"] == interval["low"] == interval["high"] == 1.0
+
+
+def test_bootstrap_mean_ci_chunking_preserves_seeded_output(monkeypatch):
+    values = np.array([0.0, 0.1, 0.2, 0.3])
+    n_resamples = 17
+    seed = 11
+    expected_draws = np.random.default_rng(seed).choice(
+        values,
+        size=(n_resamples, values.size),
+        replace=True,
+    ).mean(axis=1)
+    expected = {
+        "mean": float(values.mean()),
+        "low": float(np.quantile(expected_draws, 0.025)),
+        "high": float(np.quantile(expected_draws, 0.975)),
+        "confidence": 0.95,
+        "n_assets": 4,
+    }
+    monkeypatch.setattr(statistics_module, "MAX_BOOTSTRAP_SAMPLED_CELLS", 8)
+
+    assert bootstrap_mean_ci(values, n_resamples=n_resamples, seed=seed) == expected
+
+
+def test_bootstrap_mean_ci_always_contains_the_observed_mean():
+    interval = bootstrap_mean_ci(
+        [0.0, 1.0],
+        confidence=0.01,
+        n_resamples=10,
+        seed=0,
+    )
+
+    assert interval["low"] <= interval["mean"] <= interval["high"]
 
 
 @pytest.mark.parametrize("seed", [-1, 1.5, True, "7", None])

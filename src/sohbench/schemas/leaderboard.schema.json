@@ -100,6 +100,11 @@
     "type": "object",
     "required": ["estimator", "track", "protocol", "metrics", "verdicts"],
     "properties": {
+      "candidate_id": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": ".*\\S.*"
+      },
       "estimator": {"type": "string"},
       "featureset": {"type": "string"},
       "track": {"enum": ["unified", "byo"]},
@@ -114,6 +119,12 @@
       "coverage": {"type": "number", "minimum": 0, "maximum": 1},
       "execution": {"$ref": "#/definitions/execution"},
       "confidence_intervals": {"$ref": "#/definitions/confidenceIntervals"}
+    },
+    "dependencies": {
+      "comparison_key": ["coverage", "execution", "confidence_intervals"],
+      "coverage": ["comparison_key", "execution", "confidence_intervals"],
+      "execution": ["comparison_key", "coverage", "confidence_intervals"],
+      "confidence_intervals": ["comparison_key", "coverage", "execution"]
     }
   }
 }

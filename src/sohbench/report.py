@@ -10,14 +10,14 @@ from .fabric.evidence import (
     validate_prediction_records,
     write_evidence_pack,
 )
-from .fabric.ids import new_id
+from .fabric.ids import new_id, sha256_json
 from .fabric.outcomes import (
     RunOutcome,
     is_finite_real_scalar,
     iter_execution_units,
     successful_result_rows,
 )
-from .fabric.specs import RunSpec
+from .fabric.specs import RunSpec, validate_run_spec_document
 from .fabric.statistics import asset_metric_table, bootstrap_mean_ci
 from .tasks import SOHEstimationTask
 
@@ -28,12 +28,14 @@ _STATISTICS_CONFIDENCE = 0.95
 _STATISTICS_RESAMPLES = 2000
 _STATISTICS_SEED = 0
 _STATISTICS_ENTRY_FIELDS = (
+    "candidate_id",
     "estimator",
     "featureset",
     "track",
     "protocol",
     "held_out_key",
 )
+_COMPARISON_SPEC_FIELDS = ("task", "dataset", "protocol", "metric", "policy")
 
 
 def _canonical_run_name(run_id: str) -> str:
@@ -91,20 +93,29 @@ def _prediction_confidence_intervals(
     if predictions is None:
         return _unavailable_confidence_intervals("predictions_not_provided")
 
-    required_matches = (
-        ("candidate_id", "estimator"),
-        ("featureset", "featureset"),
-        ("protocol", "protocol"),
-    )
-    if any(column not in predictions.columns for column, _ in required_matches):
+    required_matches = {
+        "candidate_id": identity.get("candidate_id", identity["estimator"]),
+        "featureset": identity["featureset"],
+        "protocol": identity["protocol"],
+    }
+    if any(column not in predictions.columns for column in required_matches):
         return _unavailable_confidence_intervals("prediction_entry_unmatched")
 
     mask = pd.Series(True, index=predictions.index, dtype=bool)
-    for prediction_column, identity_column in required_matches:
-        mask &= predictions[prediction_column].eq(identity[identity_column])
-    for optional_column in ("track", "dataset", "held_out_key"):
-        if optional_column in identity and optional_column in predictions.columns:
-            mask &= predictions[optional_column].eq(identity[optional_column])
+    for prediction_column, expected in required_matches.items():
+        mask &= predictions[prediction_column].eq(expected)
+    for exact_column in ("track", "dataset"):
+        if exact_column in identity:
+            if exact_column not in predictions.columns:
+                return _unavailable_confidence_intervals("prediction_entry_unmatched")
+            mask &= predictions[exact_column].eq(identity[exact_column])
+    if "held_out_key" in identity:
+        if "held_out_key" in predictions.columns:
+            mask &= predictions["held_out_key"].eq(identity["held_out_key"])
+        elif "dataset" in predictions.columns:
+            mask &= predictions["dataset"].eq(identity["held_out_key"])
+        else:
+            return _unavailable_confidence_intervals("prediction_entry_unmatched")
     selected = predictions.loc[mask]
     if selected.empty:
         return _unavailable_confidence_intervals("prediction_entry_unmatched")
@@ -154,7 +165,7 @@ def _leaderboard_entries(
             if has_track:
                 track = g["track"].iloc[0]
             else:
-                track = results["feature_mode"].iloc[0] if "feature_mode" in results.columns else "unified"
+                track = g["feature_mode"].iloc[0] if "feature_mode" in g.columns else "unified"
 
         execution = RunOutcome.from_results(g)
         evidence = successful_result_rows(g)
@@ -206,24 +217,24 @@ def _leaderboard_entries(
             "ci_source": ci_source,
             "comparison_key": comparison_key,
         }
+        if "candidate_id" in keys:
+            entry["candidate_id"] = keys["candidate_id"]
         if "held_out_key" in keys:
             entry["held_out_key"] = str(keys["held_out_key"])
         if "backend" in g.columns:
             entry["backend"] = g["backend"].iloc[0]
+        prediction_identity = {
+            "estimator": est,
+            "featureset": fs_name,
+            "protocol": proto,
+            **({"candidate_id": keys["candidate_id"]} if "candidate_id" in keys else {}),
+            **({"held_out_key": keys["held_out_key"]} if "held_out_key" in keys else {}),
+            **({"dataset": keys["dataset"]} if "dataset" in keys else {}),
+        }
+        if has_track or (predictions is not None and "track" in predictions.columns):
+            prediction_identity["track"] = track
         entry["confidence_intervals"] = _prediction_confidence_intervals(
-            predictions,
-            {
-                "estimator": est,
-                "featureset": fs_name,
-                "track": track,
-                "protocol": proto,
-                **(
-                    {"held_out_key": keys["held_out_key"]}
-                    if "held_out_key" in keys
-                    else {}
-                ),
-                **({"dataset": keys["dataset"]} if "dataset" in keys else {}),
-            },
+            predictions, prediction_identity,
         )
         entries.append(entry)
 
@@ -261,12 +272,23 @@ def _evidence_manifest(run_id, evidence_context):
         raise ValueError("evidence_context run_id does not match explicit run_id")
     context.pop("run_id", None)
     run_spec = context.get("run_spec")
-    if isinstance(run_spec, RunSpec):
-        derived_key = run_spec.comparison_key
+    if run_spec is not None:
+        if isinstance(run_spec, RunSpec):
+            run_spec_document = run_spec.to_dict()
+            derived_key = run_spec.comparison_key
+        elif isinstance(run_spec, dict):
+            run_spec_document = dict(run_spec)
+            validate_run_spec_document(run_spec_document)
+            derived_key = sha256_json({
+                field: run_spec_document[field]
+                for field in _COMPARISON_SPEC_FIELDS
+            })
+        else:
+            raise TypeError("evidence_context run_spec must be a RunSpec or dict")
         explicit_key = context.get("comparison_key")
         if explicit_key is not None and explicit_key != derived_key:
             raise ValueError("evidence_context comparison_key conflicts with RunSpec")
-        context["run_spec"] = run_spec.to_dict()
+        context["run_spec"] = run_spec_document
         context["comparison_key"] = derived_key
     comparison_key = context.get("comparison_key")
     if comparison_key is not None and (
@@ -520,10 +542,11 @@ def write_artifacts(
         has_featureset = "featureset" in results.columns
         has_track = "track" in results.columns
 
+        identity_cols = ["candidate_id"] if "candidate_id" in results.columns else []
         if has_featureset:
-            group_cols = ["estimator", "featureset", "protocol"]
+            group_cols = [*identity_cols, "estimator", "featureset", "protocol"]
         else:
-            group_cols = ["estimator", "protocol"]
+            group_cols = [*identity_cols, "estimator", "protocol"]
         if has_track:
             group_cols.append("track")
 
@@ -552,14 +575,13 @@ def write_artifacts(
         artifact_paths.append(out / "leaderboard.json")
         _dump(dataset_leaderboard, out / "dataset_leaderboard.json")
         artifact_paths.append(out / "dataset_leaderboard.json")
-        if predictions is not None:
-            _dump(
-                _statistics_document(
-                    leaderboard, dataset_leaderboard, comparison_key,
-                ),
-                out / "statistics.json",
-            )
-            artifact_paths.append(out / "statistics.json")
+        _dump(
+            _statistics_document(
+                leaderboard, dataset_leaderboard, comparison_key,
+            ),
+            out / "statistics.json",
+        )
+        artifact_paths.append(out / "statistics.json")
         if qc_report is not None:
             _dump(qc_report.__dict__, out / "qc_report.json")
             artifact_paths.append(out / "qc_report.json")

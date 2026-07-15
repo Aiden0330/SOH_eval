@@ -24,6 +24,8 @@ _SAMPLE_IDENTITY_COLUMNS = (
 )
 _SAMPLE_MARKERS = frozenset(("cycle_index", "sample_id"))
 _SUPPORTED_METRICS = frozenset(("mae", "rmse"))
+MAX_BOOTSTRAP_SAMPLED_CELLS = 1_000_000
+MAX_BOOTSTRAP_RESAMPLES = 100_000
 
 
 def _require_frame(frame: object, name: str) -> pd.DataFrame:
@@ -122,6 +124,11 @@ def bootstrap_mean_ci(
         or int(n_resamples) <= 0
     ):
         raise ValueError("n_resamples must be a positive integer")
+    selected_resamples = int(n_resamples)
+    if selected_resamples > MAX_BOOTSTRAP_RESAMPLES:
+        raise ValueError(
+            f"n_resamples must be at most {MAX_BOOTSTRAP_RESAMPLES}"
+        )
     if (
         isinstance(seed, (bool, np.bool_))
         or not isinstance(seed, (int, np.integer))
@@ -130,11 +137,31 @@ def bootstrap_mean_ci(
         raise ValueError("seed must be a nonnegative integer")
 
     with np.errstate(over="ignore", invalid="ignore"):
-        draws = np.random.default_rng(int(seed)).choice(
-            numeric,
-            size=(int(n_resamples), numeric.size),
-            replace=True,
-        ).mean(axis=1)
+        rng = np.random.default_rng(int(seed))
+        draws = np.empty(selected_resamples, dtype=float)
+        rows_per_chunk = MAX_BOOTSTRAP_SAMPLED_CELLS // numeric.size
+        if rows_per_chunk:
+            for start in range(0, selected_resamples, rows_per_chunk):
+                stop = min(start + rows_per_chunk, selected_resamples)
+                draws[start:stop] = rng.choice(
+                    numeric,
+                    size=(stop - start, numeric.size),
+                    replace=True,
+                ).mean(axis=1)
+        else:
+            for resample in range(selected_resamples):
+                sampled_sum = 0.0
+                for start in range(0, numeric.size, MAX_BOOTSTRAP_SAMPLED_CELLS):
+                    width = min(
+                        MAX_BOOTSTRAP_SAMPLED_CELLS,
+                        numeric.size - start,
+                    )
+                    sampled_sum += rng.choice(
+                        numeric,
+                        size=(1, width),
+                        replace=True,
+                    ).sum()
+                draws[resample] = sampled_sum / numeric.size
         mean = numeric.mean()
         alpha = (1.0 - selected_confidence) / 2.0
         low = np.quantile(draws, alpha)
@@ -144,8 +171,8 @@ def bootstrap_mean_ci(
         raise ValueError("bootstrap produced a non-finite result")
     return {
         "mean": float(mean),
-        "low": float(low),
-        "high": float(high),
+        "low": min(float(low), float(mean)),
+        "high": max(float(high), float(mean)),
         "confidence": selected_confidence,
         "n_assets": int(numeric.size),
     }
