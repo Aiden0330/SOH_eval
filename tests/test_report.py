@@ -1,5 +1,6 @@
 import json, pandas as pd, numpy as np, pytest
 from pathlib import Path
+from sohbench.fabric.evidence import verify_evidence_pack
 from sohbench.report import _leaderboard_entries, write_artifacts
 from sohbench.tasks import SOHEstimationTask
 
@@ -420,3 +421,138 @@ def test_write_inference_artifacts(tmp_path):
     assert (run_dir / "inference_benchmark.json").exists()
     payload = json.loads((run_dir / "inference_benchmark.json").read_text(encoding="utf-8"))
     assert payload["records"][0]["model"] == "predict_only"
+
+
+def _predictions(run_id="RUN-a"):
+    return pd.DataFrame(
+        [
+            {
+                "run_id": run_id,
+                "candidate_id": "ridge",
+                "featureset": "full",
+                "protocol": "loco",
+                "fold": 0,
+                "seed": 0,
+                "dataset": "ds",
+                "cell_id": "c1",
+                "cycle_index": 1,
+                "sample_id": "ds:c1:1",
+                "y_pred": 0.9,
+            }
+        ]
+    )
+
+
+def test_write_artifacts_uses_explicit_run_id_and_dual_writes_pack(tmp_path):
+    out = Path(
+        write_artifacts(
+            _results(),
+            None,
+            SOHEstimationTask(),
+            {},
+            tmp_path,
+            run_id="RUN-a",
+            evidence_context={"comparison_key": "comparison-one"},
+            predictions=_predictions(),
+        )
+    )
+
+    assert out.name == "RUN-a"
+    assert (out / "results.parquet").exists()
+    assert (out / "results.csv").exists()
+    assert (out / "leaderboard.json").exists()
+    assert (out / "dataset_leaderboard.json").exists()
+    assert (out / "run_config.json").exists()
+    assert (out / "predictions.parquet").exists()
+    pack = verify_evidence_pack(out / "evidence-pack.json")
+    assert pack["run_id"] == "RUN-a"
+    assert pack["comparison_key"] == "comparison-one"
+    assert [item["path"] for item in pack["artifacts"]] == sorted(
+        item["path"] for item in pack["artifacts"]
+    )
+    assert "evidence-pack.json" not in {item["path"] for item in pack["artifacts"]}
+
+
+def test_write_artifacts_uses_distinct_generated_run_ids(tmp_path):
+    first = Path(write_artifacts(_results(), None, SOHEstimationTask(), {}, tmp_path))
+    second = Path(write_artifacts(_results(), None, SOHEstimationTask(), {}, tmp_path))
+
+    assert first != second
+    assert first.name.startswith("RUN-")
+    assert second.name.startswith("RUN-")
+
+
+def test_write_artifacts_accepts_empty_target_and_rejects_nonempty_target(tmp_path):
+    empty = tmp_path / "RUN-empty"
+    empty.mkdir()
+    out = Path(
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-empty"
+        )
+    )
+    assert out == empty
+
+    occupied = tmp_path / "RUN-occupied"
+    occupied.mkdir()
+    marker = occupied / "marker.txt"
+    marker.write_text("do not overwrite", encoding="utf-8")
+    with pytest.raises(FileExistsError, match="not empty"):
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-occupied"
+        )
+    assert marker.read_text(encoding="utf-8") == "do not overwrite"
+    assert list(occupied.iterdir()) == [marker]
+
+
+@pytest.mark.parametrize("reserved", ["schema_version", "artifacts"])
+def test_write_artifacts_rejects_reserved_evidence_context(tmp_path, reserved):
+    with pytest.raises(ValueError, match=reserved):
+        write_artifacts(
+            _results(),
+            None,
+            SOHEstimationTask(),
+            {},
+            tmp_path,
+            run_id="RUN-a",
+            evidence_context={reserved: "override"},
+        )
+
+
+def test_write_artifacts_does_not_replace_explicit_run_id_from_context(tmp_path):
+    with pytest.raises(ValueError, match="run_id"):
+        write_artifacts(
+            _results(),
+            None,
+            SOHEstimationTask(),
+            {},
+            tmp_path,
+            run_id="RUN-explicit",
+            evidence_context={"run_id": "RUN-context"},
+        )
+    assert not (tmp_path / "RUN-explicit").exists()
+    assert not (tmp_path / "RUN-context").exists()
+
+
+def test_write_inference_artifacts_uses_run_id_and_dual_writes_pack(tmp_path):
+    from sohbench.report import write_inference_artifacts
+
+    out = Path(
+        write_inference_artifacts(
+            [{"model": "predict_only", "dataset": "new_a", "status": "succeeded"}],
+            {},
+            tmp_path,
+            run_id="RUN-inference",
+            evidence_context={"run_type": "inference"},
+        )
+    )
+
+    assert out.name == "RUN-inference"
+    pack = verify_evidence_pack(out / "evidence-pack.json")
+    assert pack["run_id"] == "RUN-inference"
+    assert pack["run_type"] == "inference"
+    assert {item["path"] for item in pack["artifacts"]} == {
+        "inference_results.parquet",
+        "inference_results.csv",
+        "inference_benchmark.json",
+        "inference_run_config.json",
+    }

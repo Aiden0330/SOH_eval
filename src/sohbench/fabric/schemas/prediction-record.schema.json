@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sohbench.local/schemas/prediction-record.schema.json",
+  "title": "PredictionRecord",
+  "type": "object",
+  "required": [
+    "run_id",
+    "candidate_id",
+    "featureset",
+    "protocol",
+    "fold",
+    "seed",
+    "dataset",
+    "cell_id",
+    "cycle_index",
+    "sample_id",
+    "y_pred"
+  ],
+  "properties": {
+    "run_id": {"type": "string", "minLength": 1},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "featureset": {"type": "string", "minLength": 1},
+    "protocol": {"type": "string", "minLength": 1},
+    "fold": {"type": "integer", "minimum": 0},
+    "seed": {"type": "integer"},
+    "dataset": {"type": "string", "minLength": 1},
+    "cell_id": {"type": "string", "minLength": 1},
+    "cycle_index": {"type": "integer", "minimum": 0},
+    "sample_id": {"type": "string", "minLength": 1},
+    "y_pred": {"type": "number"},
+    "y_true": {"type": ["number", "null"]},
+    "interval_low": {"type": ["number", "null"]},
+    "interval_high": {"type": ["number", "null"]},
+    "predict_ms": {"type": ["number", "null"], "minimum": 0},
+    "abstained": {"type": ["boolean", "null"]},
+    "status": {"type": ["string", "null"]}
+  },
+  "additionalProperties": true
+}

@@ -1,9 +1,11 @@
 from __future__ import annotations
-import json, math, time
+import json, math
 from dataclasses import asdict
 from pathlib import Path
 import pandas as pd
 from .acceptance import evaluate_verdicts
+from .fabric.evidence import validate_prediction_records, write_evidence_pack
+from .fabric.ids import new_id
 from .fabric.outcomes import (
     RunOutcome,
     is_finite_real_scalar,
@@ -118,11 +120,66 @@ def _leaderboard_entries(results: pd.DataFrame, task, group_cols: list[str]) -> 
     return entries
 
 
-def write_artifacts(results: pd.DataFrame, qc_report, task, config, out_dir):
-    out = Path(out_dir) / time.strftime("%Y%m%dT%H%M%S")
-    out.mkdir(parents=True, exist_ok=True)
+def _run_identity(run_id):
+    selected = new_id("RUN") if run_id is None else run_id
+    if not isinstance(selected, str) or not selected:
+        raise ValueError("run_id must be a non-empty directory name")
+    path = Path(selected)
+    if path.is_absolute() or len(path.parts) != 1 or selected in (".", ".."):
+        raise ValueError("run_id must be a single relative directory name")
+    return selected
+
+
+def _evidence_manifest(run_id, evidence_context):
+    if evidence_context is None:
+        context = {}
+    elif isinstance(evidence_context, dict):
+        context = dict(evidence_context)
+    else:
+        raise TypeError("evidence_context must be a dict or None")
+    for reserved in ("schema_version", "artifacts"):
+        if reserved in context:
+            raise ValueError(f"evidence_context cannot override {reserved}")
+    if "run_id" in context and context["run_id"] != run_id:
+        raise ValueError("evidence_context run_id does not match explicit run_id")
+    context.pop("run_id", None)
+    return {"run_id": run_id, **context}
+
+
+def _create_run_dir(out_dir, run_id):
+    root = Path(out_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    out = root / run_id
+    try:
+        out.mkdir()
+    except FileExistsError:
+        if not out.is_dir() or any(out.iterdir()):
+            raise FileExistsError(f"target run directory is not empty: {out}")
+    return out
+
+
+def write_artifacts(
+    results: pd.DataFrame,
+    qc_report,
+    task,
+    config,
+    out_dir,
+    run_id=None,
+    evidence_context=None,
+    predictions=None,
+):
+    selected_run_id = _run_identity(run_id)
+    manifest = _evidence_manifest(selected_run_id, evidence_context)
+    if predictions is not None:
+        validate_prediction_records(predictions)
+        if not predictions["run_id"].eq(selected_run_id).all():
+            raise ValueError("prediction run_id does not match artifact run_id")
+    out = _create_run_dir(out_dir, selected_run_id)
+    artifact_paths = []
     results.to_parquet(out / "results.parquet")
+    artifact_paths.append(out / "results.parquet")
     results.to_csv(out / "results.csv", index=False)
+    artifact_paths.append(out / "results.csv")
 
     # Group by featureset when the column is present; fall back for backward compat.
     has_featureset = "featureset" in results.columns
@@ -144,19 +201,37 @@ def write_artifacts(results: pd.DataFrame, qc_report, task, config, out_dir):
     )
 
     _dump(leaderboard, out / "leaderboard.json")
+    artifact_paths.append(out / "leaderboard.json")
     _dump(dataset_leaderboard, out / "dataset_leaderboard.json")
+    artifact_paths.append(out / "dataset_leaderboard.json")
     if qc_report is not None:
         _dump(qc_report.__dict__, out / "qc_report.json")
+        artifact_paths.append(out / "qc_report.json")
     _dump(config, out / "run_config.json")
+    artifact_paths.append(out / "run_config.json")
+    if predictions is not None:
+        predictions.to_parquet(out / "predictions.parquet", index=False)
+        artifact_paths.append(out / "predictions.parquet")
+    write_evidence_pack(out, manifest, artifact_paths)
     return str(out)
 
 
-def write_inference_artifacts(records: list[dict], config: dict, out_dir):
-    out = Path(out_dir) / time.strftime("%Y%m%dT%H%M%S")
-    out.mkdir(parents=True, exist_ok=True)
+def write_inference_artifacts(
+    records: list[dict],
+    config: dict,
+    out_dir,
+    run_id=None,
+    evidence_context=None,
+):
+    selected_run_id = _run_identity(run_id)
+    manifest = _evidence_manifest(selected_run_id, evidence_context)
+    out = _create_run_dir(out_dir, selected_run_id)
+    artifact_paths = []
     frame = pd.DataFrame.from_records(records)
     frame.to_parquet(out / "inference_results.parquet")
+    artifact_paths.append(out / "inference_results.parquet")
     frame.to_csv(out / "inference_results.csv", index=False)
+    artifact_paths.append(out / "inference_results.csv")
     _dump(
         {
             "records": records,
@@ -164,7 +239,10 @@ def write_inference_artifacts(records: list[dict], config: dict, out_dir):
         },
         out / "inference_benchmark.json",
     )
+    artifact_paths.append(out / "inference_benchmark.json")
     _dump(config, out / "inference_run_config.json")
+    artifact_paths.append(out / "inference_run_config.json")
+    write_evidence_pack(out, manifest, artifact_paths)
     return str(out)
 
 

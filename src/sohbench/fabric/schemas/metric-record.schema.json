@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sohbench.local/schemas/metric-record.schema.json",
+  "title": "MetricRecord",
+  "type": "object",
+  "required": [
+    "run_id",
+    "candidate_id",
+    "featureset",
+    "protocol",
+    "fold",
+    "seed",
+    "dataset",
+    "metric",
+    "metric_version",
+    "value",
+    "unit",
+    "direction",
+    "aggregation_scope",
+    "sample_ids",
+    "cell_ids"
+  ],
+  "properties": {
+    "run_id": {"type": "string", "minLength": 1},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "featureset": {"type": "string", "minLength": 1},
+    "protocol": {"type": "string", "minLength": 1},
+    "fold": {"type": "integer", "minimum": 0},
+    "seed": {"type": "integer"},
+    "dataset": {"type": "string", "minLength": 1},
+    "metric": {"type": "string", "minLength": 1},
+    "metric_version": {"type": "string", "minLength": 1},
+    "value": {"type": "number"},
+    "unit": {"type": "string", "minLength": 1},
+    "direction": {"type": "string", "minLength": 1},
+    "aggregation_scope": {"type": "string", "minLength": 1},
+    "sample_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "cell_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "interval_low": {"type": ["number", "null"]},
+    "interval_high": {"type": ["number", "null"]},
+    "standard_error": {"type": ["number", "null"], "minimum": 0},
+    "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "n_samples": {"type": ["integer", "null"], "minimum": 0},
+    "n_assets": {"type": ["integer", "null"], "minimum": 0}
+  },
+  "additionalProperties": true
+}
