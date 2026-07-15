@@ -263,6 +263,20 @@ def _validate_directory_handoff(
     label: str,
     captured_identity: tuple[int, int],
 ) -> Path:
+    # Two stable snapshots complete handoff under a trusted root and cooperative writers;
+    # continuously mutating same-privilege processes are outside that contract.
+    for _ in range(2):
+        _validate_handoff_snapshot(path, root, label, captured_identity)
+    return path
+
+
+def _validate_handoff_snapshot(
+    path: Path,
+    root: Path,
+    label: str,
+    captured_identity: tuple[int, int],
+) -> None:
+    _require_sole_canonical_entry(root, path, label)
     try:
         snapshot = path.lstat()
         _validate_direct_directory_snapshot(path, root, label, snapshot)
@@ -286,7 +300,6 @@ def _validate_directory_handoff(
     _require_ordinary_directory_snapshot(final_snapshot, path, label)
     if _directory_identity(final_snapshot) != captured_identity:
         raise ValueError(f"{label} identity changed before handoff: {path}")
-    return path
 
 
 def _require_sole_canonical_entry(
@@ -316,7 +329,6 @@ def _acquire_run_reservation(root: Path, run_id: str) -> Path:
     identity = _capture_created_directory_identity(
         reservation, root, "run reservation"
     )
-    _require_sole_canonical_entry(root, reservation, "run reservation")
     return _validate_directory_handoff(
         reservation, root, "run reservation", identity
     )
@@ -336,7 +348,6 @@ def _create_reserved_run_directory(root: Path, run_id: str) -> Path:
     identity = _capture_created_directory_identity(
         out, root, "target run directory"
     )
-    _require_sole_canonical_entry(root, out, "target run directory")
     return _validate_directory_handoff(
         out, root, "target run directory", identity
     )

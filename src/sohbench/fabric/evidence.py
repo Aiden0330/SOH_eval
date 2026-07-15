@@ -131,9 +131,28 @@ def _json_compatible_value(
 
     if _is_null(value):
         return None
+    if isinstance(value, np.bool_):
+        return bool(value)
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.floating):
+        if not np.isfinite(value):
+            raise ValueError(f"{path} contains a nonfinite NumPy floating value")
+        binary64_max = np.longdouble(np.finfo(np.float64).max)
+        if value < -binary64_max or value > binary64_max:
+            raise ValueError(f"{path} exceeds the finite JSON binary64 range")
+        converted = float(value)
+        if not math.isfinite(converted):
+            raise ValueError(f"{path} exceeds the finite JSON binary64 range")
+        return converted
     if isinstance(value, np.generic):
+        item = value.item()
+        if type(item) is type(value):
+            raise ValueError(
+                f"{path} cannot normalize NumPy scalar type {type(value).__name__}"
+            )
         return _json_compatible_value(
-            value.item(), path, _state=state, _depth=_depth + 1
+            item, path, _state=state, _depth=_depth + 1
         )
     if isinstance(value, bool):
         return value

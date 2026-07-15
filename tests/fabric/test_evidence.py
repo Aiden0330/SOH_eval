@@ -981,6 +981,91 @@ def test_persisted_evidence_pack_keeps_zero_dimensional_arrays_scalar(tmp_path):
     }
 
 
+def test_numpy_scalar_types_and_longdouble_persist_as_json_scalars(tmp_path):
+    context = {
+        "boolean": np.bool_(True),
+        "integer": np.int64(7),
+        "floating": np.float32(0.5),
+        "longdouble": np.longdouble("1.25"),
+        "zero_dimensional_longdouble": np.array(
+            np.longdouble("1.25"), dtype=np.longdouble
+        ),
+    }
+    document = {
+        "schema_version": "1.0.0",
+        "run_id": "RUN-numpy-scalars",
+        "artifacts": [],
+        "future_context": context,
+    }
+    evidence_module.validate_evidence_pack_document(document)
+
+    run_dir = tmp_path / "RUN-numpy-scalars"
+    run_dir.mkdir()
+    artifact = run_dir / "result.txt"
+    artifact.write_text("result", encoding="utf-8")
+    pack = write_evidence_pack(
+        run_dir,
+        {"run_id": "RUN-numpy-scalars", "future_context": context},
+        [artifact],
+    )
+    persisted = json.loads(pack.read_text(encoding="utf-8"))
+
+    assert persisted["future_context"] == {
+        "boolean": True,
+        "integer": 7,
+        "floating": 0.5,
+        "longdouble": 1.25,
+        "zero_dimensional_longdouble": 1.25,
+    }
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+@pytest.mark.parametrize("zero_dimensional", [False, True])
+def test_longdouble_nonfinite_values_are_rejected(value, zero_dimensional):
+    scalar = np.longdouble(value)
+    candidate = (
+        np.array(scalar, dtype=np.longdouble) if zero_dimensional else scalar
+    )
+    document = {
+        "schema_version": "1.0.0",
+        "run_id": "RUN-longdouble-nonfinite",
+        "artifacts": [],
+        "future_context": {"value": candidate},
+    }
+
+    with pytest.raises(ValueError, match="nonfinite|binary64"):
+        evidence_module.validate_evidence_pack_document(document)
+
+
+def test_longdouble_outside_binary64_range_is_rejected_when_supported():
+    if np.finfo(np.longdouble).max <= np.finfo(np.float64).max:
+        pytest.skip("platform longdouble has no range beyond binary64")
+    binary64_max = np.longdouble(np.finfo(np.float64).max)
+    candidate = np.nextafter(binary64_max, np.longdouble(np.inf))
+    assert np.isfinite(candidate) and candidate > binary64_max
+    document = {
+        "schema_version": "1.0.0",
+        "run_id": "RUN-longdouble-range",
+        "artifacts": [],
+        "future_context": {"value": candidate},
+    }
+
+    with pytest.raises(ValueError, match="binary64|range"):
+        evidence_module.validate_evidence_pack_document(document)
+
+
+def test_same_type_numpy_generic_item_fails_without_depth_overflow():
+    document = {
+        "schema_version": "1.0.0",
+        "run_id": "RUN-numpy-generic",
+        "artifacts": [],
+        "future_context": {"value": np.clongdouble(1 + 2j)},
+    }
+
+    with pytest.raises(ValueError, match="cannot normalize NumPy scalar"):
+        evidence_module.validate_evidence_pack_document(document)
+
+
 def test_nested_index_and_object_array_nonfinite_values_are_rejected():
     nested = np.empty(2, dtype=object)
     nested[0] = pd.Index([1.0, 2.0])

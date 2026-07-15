@@ -980,6 +980,86 @@ def test_final_handoff_rejects_replacement_junction(tmp_path, monkeypatch):
             os.rmdir(target)
 
 
+@pytest.mark.parametrize("directory_kind", ["reservation", "final"])
+def test_second_handoff_snapshot_rejects_late_canonical_sibling(
+    tmp_path, monkeypatch, directory_kind,
+):
+    run_id = "RUN-\u00e9"
+    target = tmp_path / run_id
+    reservation = tmp_path / _expected_reservation_name(run_id)
+    expected = reservation if directory_kind == "reservation" else target
+    label = "run reservation" if directory_kind == "reservation" else "target run directory"
+    alias = (
+        tmp_path / expected.name.upper()
+        if directory_kind == "reservation"
+        else tmp_path / "RUN-e\u0301"
+    )
+    original_scan = report_module._require_sole_canonical_entry
+    injected = False
+
+    def inject_alias_after_first_scan(root, scanned, scanned_label):
+        nonlocal injected
+        original_scan(root, scanned, scanned_label)
+        if scanned_label == label and not injected:
+            injected = True
+            try:
+                alias.mkdir()
+            except FileExistsError:
+                pytest.skip(
+                    "filesystem cannot represent the canonical reservation sibling"
+                )
+
+    monkeypatch.setattr(
+        report_module, "_require_sole_canonical_entry", inject_alias_after_first_scan
+    )
+    with pytest.raises(FileExistsError, match="canonical|collision|alias"):
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+        )
+
+    assert injected
+    assert expected.is_dir()
+    assert alias.is_dir()
+    assert not (target / "evidence-pack.json").exists()
+    if directory_kind == "reservation":
+        assert not target.exists()
+
+
+@pytest.mark.parametrize("directory_kind", ["reservation", "final"])
+def test_second_handoff_snapshot_rejects_late_foreign_marker(
+    tmp_path, monkeypatch, directory_kind,
+):
+    run_id = f"RUN-late-marker-{directory_kind}"
+    target = tmp_path / run_id
+    reservation = tmp_path / _expected_reservation_name(run_id)
+    selected = reservation if directory_kind == "reservation" else target
+    marker = selected / "foreign-marker.txt"
+    real_scandir = report_module.os.scandir
+    injected = False
+
+    @contextmanager
+    def inject_marker_after_first_empty_scan(path):
+        nonlocal injected
+        with real_scandir(path) as entries:
+            yield entries
+        if Path(path) == selected and not injected:
+            injected = True
+            marker.write_bytes(b"foreign data survives")
+
+    monkeypatch.setattr(report_module.os, "scandir", inject_marker_after_first_empty_scan)
+    with pytest.raises(ValueError, match="empty|handoff"):
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id=run_id
+        )
+
+    assert injected
+    assert marker.read_bytes() == b"foreign data survives"
+    assert not (target / "evidence-pack.json").exists()
+    assert not (target / "results.parquet").exists()
+    if directory_kind == "reservation":
+        assert not target.exists()
+
+
 def test_partial_artifact_failure_leaves_durable_fail_closed_history(
     tmp_path, monkeypatch,
 ):
