@@ -1,5 +1,6 @@
 from __future__ import annotations
-import json, math, os, stat
+import ctypes, json, math, os, stat
+from ctypes import wintypes
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -21,6 +22,65 @@ from .tasks import SOHEstimationTask
 
 
 _RUN_CLAIM_NAME = ".sohbench-run.claim"
+
+if os.name == "nt":
+    _FILE_ATTRIBUTE_DIRECTORY = 0x10
+    _FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+    _FILE_READ_ATTRIBUTES = 0x80
+    _DELETE = 0x00010000
+    _FILE_SHARE_ALL = 0x00000001 | 0x00000002 | 0x00000004
+    _OPEN_EXISTING = 3
+    _FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
+    _FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+    _FILE_DISPOSITION_INFO_CLASS = 4
+
+    class _ByHandleFileInformation(ctypes.Structure):
+        _fields_ = [
+            ("dwFileAttributes", wintypes.DWORD),
+            ("ftCreationTime", wintypes.FILETIME),
+            ("ftLastAccessTime", wintypes.FILETIME),
+            ("ftLastWriteTime", wintypes.FILETIME),
+            ("dwVolumeSerialNumber", wintypes.DWORD),
+            ("nFileSizeHigh", wintypes.DWORD),
+            ("nFileSizeLow", wintypes.DWORD),
+            ("nNumberOfLinks", wintypes.DWORD),
+            ("nFileIndexHigh", wintypes.DWORD),
+            ("nFileIndexLow", wintypes.DWORD),
+        ]
+
+    class _FileDispositionInfo(ctypes.Structure):
+        _fields_ = [("DeleteFile", wintypes.BOOL)]
+
+    _KERNEL32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    _CREATE_FILE_W = _KERNEL32.CreateFileW
+    _CREATE_FILE_W.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    _CREATE_FILE_W.restype = wintypes.HANDLE
+    _GET_FILE_INFORMATION_BY_HANDLE = _KERNEL32.GetFileInformationByHandle
+    _GET_FILE_INFORMATION_BY_HANDLE.argtypes = [
+        wintypes.HANDLE,
+        ctypes.POINTER(_ByHandleFileInformation),
+    ]
+    _GET_FILE_INFORMATION_BY_HANDLE.restype = wintypes.BOOL
+    _SET_FILE_INFORMATION_BY_HANDLE = _KERNEL32.SetFileInformationByHandle
+    _SET_FILE_INFORMATION_BY_HANDLE.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_int,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+    ]
+    _SET_FILE_INFORMATION_BY_HANDLE.restype = wintypes.BOOL
+    _CLOSE_HANDLE = _KERNEL32.CloseHandle
+    _CLOSE_HANDLE.argtypes = [wintypes.HANDLE]
+    _CLOSE_HANDLE.restype = wintypes.BOOL
+    _INVALID_HANDLE_VALUE = wintypes.HANDLE(-1).value
 
 
 def _json_safe(o):
@@ -246,22 +306,13 @@ def _acquire_run_claim(out: Path) -> tuple[Path, tuple[int, int]]:
         claim_path.mkdir(exist_ok=False)
     except FileExistsError as exc:
         raise FileExistsError(f"target run directory is already claimed: {out}") from exc
-    try:
-        claim_stat = claim_path.lstat()
-    except BaseException as acquisition_error:
-        try:
-            claim_path.rmdir()
-        except BaseException as cleanup_error:
-            acquisition_error.add_note(
-                f"run claim cleanup also failed: {cleanup_error!r}"
-            )
-        raise
+    claim_stat = _bounded_claim_lstat(claim_path)
     if not _ordinary_claim_directory(claim_stat):
         raise RuntimeError("run claim is not an ordinary directory")
     return claim_path, (claim_stat.st_dev, claim_stat.st_ino)
 
 
-def _release_claim_lstat(claim_path: Path):
+def _bounded_claim_lstat(claim_path: Path):
     first_error = None
     for _ in range(2):
         try:
@@ -274,8 +325,88 @@ def _release_claim_lstat(claim_path: Path):
     raise first_error
 
 
-def _cleanup_run_claim(claim_path: Path, identity: tuple[int, int]) -> None:
-    current = _release_claim_lstat(claim_path)
+def _windows_open_claim_for_delete(claim_path: Path):
+    handle = _CREATE_FILE_W(
+        str(claim_path),
+        _DELETE | _FILE_READ_ATTRIBUTES,
+        _FILE_SHARE_ALL,
+        None,
+        _OPEN_EXISTING,
+        _FILE_FLAG_BACKUP_SEMANTICS | _FILE_FLAG_OPEN_REPARSE_POINT,
+        None,
+    )
+    if handle == _INVALID_HANDLE_VALUE:
+        raise ctypes.WinError(ctypes.get_last_error())
+    return handle
+
+
+def _windows_claim_handle_information(handle):
+    information = _ByHandleFileInformation()
+    if not _GET_FILE_INFORMATION_BY_HANDLE(handle, ctypes.byref(information)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    file_index = (
+        (information.nFileIndexHigh << 32) | information.nFileIndexLow
+    )
+    return information.dwFileAttributes, file_index
+
+
+def _windows_mark_claim_for_deletion(handle) -> None:
+    disposition = _FileDispositionInfo(True)
+    if not _SET_FILE_INFORMATION_BY_HANDLE(
+        handle,
+        _FILE_DISPOSITION_INFO_CLASS,
+        ctypes.byref(disposition),
+        ctypes.sizeof(disposition),
+    ):
+        raise ctypes.WinError(ctypes.get_last_error())
+
+
+def _windows_close_claim_handle(handle) -> None:
+    if not _CLOSE_HANDLE(handle):
+        raise ctypes.WinError(ctypes.get_last_error())
+
+
+def _windows_delete_claim_directory(
+    claim_path: Path, identity: tuple[int, int],
+) -> None:
+    handle = _windows_open_claim_for_delete(claim_path)
+    try:
+        attributes, file_index = _windows_claim_handle_information(handle)
+        if not (attributes & _FILE_ATTRIBUTE_DIRECTORY) or (
+            attributes & _FILE_ATTRIBUTE_REPARSE_POINT
+        ):
+            raise RuntimeError(
+                "run claim is not an ordinary directory or is a reparse point"
+            )
+        if file_index != identity[1]:
+            raise RuntimeError("run claim identity mismatch")
+        try:
+            _windows_mark_claim_for_deletion(handle)
+        except OSError as exc:
+            raise RuntimeError(
+                "run claim directory is not empty or could not be removed"
+            ) from exc
+    except BaseException as deletion_error:
+        try:
+            _windows_close_claim_handle(handle)
+        except BaseException as close_error:
+            deletion_error.add_note(
+                f"run claim handle close also failed: {close_error!r}"
+            )
+        raise
+    else:
+        _windows_close_claim_handle(handle)
+
+    if os.path.lexists(claim_path):
+        raise RuntimeError("replacement run claim remains after owned claim deletion")
+
+
+def _portable_delete_claim_directory(
+    claim_path: Path, identity: tuple[int, int],
+) -> None:
+    # There is no portable handle-bound rmdir. Revalidate immediately before
+    # the conservative pathname operation and fail closed on any discrepancy.
+    current = _bounded_claim_lstat(claim_path)
     if not _ordinary_claim_directory(current):
         raise RuntimeError("run claim is not an ordinary directory or is a reparse point")
     if (current.st_dev, current.st_ino) != identity:
@@ -284,6 +415,18 @@ def _cleanup_run_claim(claim_path: Path, identity: tuple[int, int]) -> None:
         claim_path.rmdir()
     except OSError as exc:
         raise RuntimeError("run claim directory is not empty or could not be removed") from exc
+
+
+def _cleanup_run_claim(claim_path: Path, identity: tuple[int, int]) -> None:
+    current = _bounded_claim_lstat(claim_path)
+    if not _ordinary_claim_directory(current):
+        raise RuntimeError("run claim is not an ordinary directory or is a reparse point")
+    if (current.st_dev, current.st_ino) != identity:
+        raise RuntimeError("run claim identity mismatch")
+    if os.name == "nt":
+        _windows_delete_claim_directory(claim_path, identity)
+        return
+    _portable_delete_claim_directory(claim_path, identity)
 
 
 @contextmanager

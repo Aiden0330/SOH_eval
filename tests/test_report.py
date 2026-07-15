@@ -760,7 +760,7 @@ def test_claim_transaction_does_not_use_descriptor_lifecycle_apis(
     assert not (tmp_path / "RUN-no-descriptor" / ".sohbench-run.claim").exists()
 
 
-def test_claim_acquisition_lstat_failure_removes_claim_and_allows_retry(
+def test_claim_acquisition_retries_one_transient_lstat_failure(
     tmp_path, monkeypatch,
 ):
     real_lstat = Path.lstat
@@ -775,18 +775,53 @@ def test_claim_acquisition_lstat_failure_removes_claim_and_allows_retry(
         return real_lstat(path)
 
     monkeypatch.setattr(Path, "lstat", fail_first_claim_lstat)
-    with pytest.raises(OSError, match="injected claim lstat failure"):
+    out = Path(
         write_artifacts(
             _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-lstat"
+        )
+    )
+
+    assert claim_lstat_calls >= 2
+    assert out.is_dir()
+    assert not (out / ".sohbench-run.claim").exists()
+
+
+def test_persistent_acquisition_metadata_failure_leaves_replacement_fail_closed(
+    tmp_path, monkeypatch,
+):
+    real_lstat = Path.lstat
+    first_error = OSError("injected persistent acquisition metadata failure")
+    replacement_identity = None
+    claim_lstat_calls = 0
+
+    def replace_then_fail_claim_lstat(path):
+        nonlocal claim_lstat_calls, replacement_identity
+        if path.name == ".sohbench-run.claim":
+            claim_lstat_calls += 1
+            if claim_lstat_calls == 1:
+                path.rmdir()
+                path.mkdir()
+                replacement = real_lstat(path)
+                replacement_identity = (replacement.st_dev, replacement.st_ino)
+                raise first_error
+            raise OSError("injected repeated acquisition metadata failure")
+        return real_lstat(path)
+
+    monkeypatch.setattr(Path, "lstat", replace_then_fail_claim_lstat)
+    with pytest.raises(OSError) as exc_info:
+        write_artifacts(
+            _results(), None, SOHEstimationTask(), {}, tmp_path,
+            run_id="RUN-unknown-acquisition",
         )
 
-    claim = tmp_path / "RUN-lstat" / ".sohbench-run.claim"
-    assert not claim.exists()
-    assert Path(
-        write_artifacts(
-            _results(), None, SOHEstimationTask(), {}, tmp_path, run_id="RUN-lstat"
-        )
-    ).is_dir()
+    monkeypatch.setattr(Path, "lstat", real_lstat)
+    claim = tmp_path / "RUN-unknown-acquisition" / ".sohbench-run.claim"
+    current = real_lstat(claim)
+    assert exc_info.value is first_error
+    assert claim_lstat_calls == 2
+    assert claim.is_dir()
+    assert (current.st_dev, current.st_ino) == replacement_identity
+    claim.rmdir()
 
 
 def test_claim_release_retries_one_transient_lstat_failure(
@@ -868,6 +903,7 @@ def test_claim_identity_mismatch_is_reported_and_left_fail_closed(
 ):
     real_lstat = Path.lstat
     claim = None
+    owned_identity = None
 
     class DifferentIdentity:
         def __init__(self, original):
@@ -889,7 +925,13 @@ def test_claim_identity_mismatch_is_reported_and_left_fail_closed(
                 tmp_path, "RUN-identity"
             ) as out:
                 claim = out / ".sohbench-run.claim"
+                owned = real_lstat(claim)
+                owned_identity = (owned.st_dev, owned.st_ino)
                 monkeypatch.setattr(Path, "lstat", mismatched_claim_lstat)
+        monkeypatch.setattr(Path, "lstat", real_lstat)
+        current = real_lstat(claim)
+        assert claim.is_dir()
+        assert (current.st_dev, current.st_ino) == owned_identity
     finally:
         monkeypatch.setattr(Path, "lstat", real_lstat)
         if claim is not None and claim.exists():
@@ -910,6 +952,8 @@ def test_nonempty_claim_directory_is_reported_and_not_removed(tmp_path):
                 claim = out / ".sohbench-run.claim"
                 marker = claim / "marker.txt"
                 marker.write_text("owned content", encoding="utf-8")
+        assert claim.is_dir()
+        assert marker.read_text(encoding="utf-8") == "owned content"
     finally:
         if marker is not None and marker.exists():
             marker.unlink()
@@ -942,6 +986,8 @@ def test_replaced_claim_symlink_is_not_followed_or_removed(tmp_path):
                 claim = out / ".sohbench-run.claim"
                 claim.rmdir()
                 claim.symlink_to(target, target_is_directory=True)
+        assert claim.is_symlink()
+        assert sentinel.read_bytes() == b"external sentinel"
     finally:
         if claim is not None and claim.is_symlink():
             claim.unlink()
@@ -973,11 +1019,177 @@ def test_replaced_claim_junction_is_not_followed_or_removed(tmp_path):
                         "directory junction creation unavailable: "
                         f"{created.stdout}{created.stderr}"
                     )
+        assert claim.exists()
+        assert claim.is_junction()
+        assert sentinel.read_bytes() == b"external sentinel"
     finally:
         if claim is not None and claim.exists():
             os.rmdir(claim)
 
     assert sentinel.read_bytes() == b"external sentinel"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="native claim deletion requires Windows")
+def test_windows_replacement_before_claim_handle_open_survives(
+    tmp_path, monkeypatch,
+):
+    real_open = report_module._windows_open_claim_for_delete
+    replacement_identity = None
+    marker = None
+
+    def replace_before_open(claim_path):
+        nonlocal replacement_identity, marker
+        claim_path.rmdir()
+        claim_path.mkdir()
+        marker = claim_path / "replacement.txt"
+        marker.write_text("replacement survives", encoding="utf-8")
+        current = claim_path.lstat()
+        replacement_identity = (current.st_dev, current.st_ino)
+        return real_open(claim_path)
+
+    monkeypatch.setattr(
+        report_module, "_windows_open_claim_for_delete", replace_before_open
+    )
+    claim = None
+    try:
+        with pytest.raises(RuntimeError, match="identity"):
+            with report_module._run_directory_transaction(
+                tmp_path, "RUN-replaced-before-open"
+            ) as out:
+                claim = out / ".sohbench-run.claim"
+
+        current = claim.lstat()
+        assert (current.st_dev, current.st_ino) == replacement_identity
+        assert marker.read_text(encoding="utf-8") == "replacement survives"
+    finally:
+        if marker is not None and marker.exists():
+            marker.unlink()
+        if claim is not None and claim.exists():
+            claim.rmdir()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="native claim deletion requires Windows")
+def test_windows_replacement_in_final_claim_deletion_window_survives(
+    tmp_path, monkeypatch,
+):
+    real_mark = report_module._windows_mark_claim_for_deletion
+    detached = tmp_path / "detached-owned-claim"
+    replacement_identity = None
+    marker = None
+    claim = None
+
+    def replace_after_handle_verification(handle):
+        nonlocal replacement_identity, marker
+        claim.rename(detached)
+        claim.mkdir()
+        marker = claim / "replacement.txt"
+        marker.write_text("replacement survives", encoding="utf-8")
+        current = claim.lstat()
+        replacement_identity = (current.st_dev, current.st_ino)
+        return real_mark(handle)
+
+    monkeypatch.setattr(
+        report_module, "_windows_mark_claim_for_deletion",
+        replace_after_handle_verification,
+    )
+    try:
+        with pytest.raises(RuntimeError, match="replacement|claim"):
+            with report_module._run_directory_transaction(
+                tmp_path, "RUN-final-window"
+            ) as out:
+                claim = out / ".sohbench-run.claim"
+
+        current = claim.lstat()
+        assert (current.st_dev, current.st_ino) == replacement_identity
+        assert marker.read_text(encoding="utf-8") == "replacement survives"
+        assert not detached.exists()
+    finally:
+        if marker is not None and marker.exists():
+            marker.unlink()
+        if claim is not None and claim.exists():
+            claim.rmdir()
+        if detached.exists():
+            detached.rmdir()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="native claim deletion requires Windows")
+def test_windows_native_claim_deletion_removes_ordinary_claim(
+    tmp_path, monkeypatch,
+):
+    real_mark = report_module._windows_mark_claim_for_deletion
+    marked_handles = []
+
+    def observe_mark(handle):
+        marked_handles.append(handle)
+        return real_mark(handle)
+
+    monkeypatch.setattr(
+        report_module, "_windows_mark_claim_for_deletion", observe_mark
+    )
+    with report_module._run_directory_transaction(
+        tmp_path, "RUN-native-delete"
+    ) as out:
+        claim = out / ".sohbench-run.claim"
+        assert claim.is_dir()
+
+    assert len(marked_handles) == 1
+    assert not claim.exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="native claim deletion requires Windows")
+def test_windows_claim_handle_close_failure_is_not_retried(
+    tmp_path, monkeypatch,
+):
+    real_close = report_module._CLOSE_HANDLE
+    observed_handles = []
+
+    def close_then_report_failure(handle):
+        observed_handles.append(handle)
+        assert real_close(handle)
+        report_module.ctypes.set_last_error(5)
+        return 0
+
+    monkeypatch.setattr(
+        report_module, "_CLOSE_HANDLE", close_then_report_failure
+    )
+    claim = tmp_path / "RUN-close-handle" / ".sohbench-run.claim"
+    with pytest.raises(OSError):
+        with report_module._run_directory_transaction(
+            tmp_path, "RUN-close-handle"
+        ):
+            pass
+
+    assert len(observed_handles) == 1
+    assert not claim.exists()
+
+
+def test_portable_claim_cleanup_revalidation_leaves_replacement(
+    tmp_path, monkeypatch,
+):
+    claim = tmp_path / ".sohbench-run.claim"
+    claim.mkdir()
+    owned = claim.lstat()
+    identity = (owned.st_dev, owned.st_ino)
+    real_lstat = Path.lstat
+    marker = None
+
+    def replace_before_revalidation(path):
+        nonlocal marker
+        if path == claim and marker is None:
+            path.rmdir()
+            path.mkdir()
+            marker = path / "replacement.txt"
+            marker.write_text("replacement survives", encoding="utf-8")
+        return real_lstat(path)
+
+    monkeypatch.setattr(Path, "lstat", replace_before_revalidation)
+    with pytest.raises(RuntimeError, match="identity"):
+        report_module._portable_delete_claim_directory(claim, identity)
+
+    monkeypatch.setattr(Path, "lstat", real_lstat)
+    assert marker.read_text(encoding="utf-8") == "replacement survives"
+    marker.unlink()
+    claim.rmdir()
 
 
 @pytest.mark.parametrize("writer_kind", ["training", "inference"])
