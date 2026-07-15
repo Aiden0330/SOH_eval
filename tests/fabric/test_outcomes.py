@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+from sohbench.fabric import failures
 from sohbench.fabric.failures import FailureCategory, classify_exception
 from sohbench.fabric.outcomes import RunOutcome
 
@@ -38,11 +39,33 @@ def test_failure_categories_have_exact_stable_values():
     ]
 
 
-def test_classify_exception_handles_resource_contract_and_algorithm_failures():
+def test_classify_exception_handles_resource_and_algorithm_failures():
     assert classify_exception(MemoryError("out of memory")) is FailureCategory.RESOURCE
     assert classify_exception(MemoryError("leakage detected: allocator exhausted")) is FailureCategory.RESOURCE
-    assert classify_exception(ValueError("invalid feature shape")) is FailureCategory.INPUT_CONTRACT
+    assert classify_exception(TypeError("estimator rejected dtype")) is FailureCategory.ALGORITHM
+    assert classify_exception(ValueError("estimator rejected values")) is FailureCategory.ALGORITHM
     assert classify_exception(RuntimeError("estimator fit failed")) is FailureCategory.ALGORITHM
+
+
+def test_classify_exception_uses_narrow_contextual_failure_types():
+    assert hasattr(failures, "InputContractError")
+    assert hasattr(failures, "MetricEvaluationError")
+    assert (
+        classify_exception(failures.InputContractError("invalid feature shape"))
+        is FailureCategory.INPUT_CONTRACT
+    )
+    assert (
+        classify_exception(failures.MetricEvaluationError("mae failed"))
+        is FailureCategory.METRIC
+    )
+
+    resource_error = failures.MetricEvaluationError("metric allocation failed")
+    resource_error.__cause__ = MemoryError("out of memory")
+    assert classify_exception(resource_error) is FailureCategory.RESOURCE
+
+    leakage_error = failures.InputContractError("feature preparation failed")
+    leakage_error.__cause__ = ValueError("feature pipeline references mutable closure state")
+    assert classify_exception(leakage_error) is FailureCategory.LEAKAGE
 
 
 def test_classify_exception_recognizes_specific_leakage_markers_only():
@@ -81,4 +104,35 @@ def test_legacy_results_infer_status_and_use_available_unit_columns():
 
     assert RunOutcome.from_results(results) == RunOutcome(
         outcome="partial", attempted=2, succeeded=1, failed=1
+    )
+
+
+def test_unit_status_requires_every_row_to_explicitly_succeed():
+    results = _result_rows(["succeeded"])
+    results.loc[0, "unit_status"] = None
+
+    assert RunOutcome.from_results(results) == RunOutcome(
+        outcome="failed", attempted=1, succeeded=0, failed=1
+    )
+
+    results.loc[0, "unit_status"] = "unknown"
+    assert RunOutcome.from_results(results) == RunOutcome(
+        outcome="failed", attempted=1, succeeded=0, failed=1
+    )
+
+
+def test_legacy_success_requires_finite_numeric_metric_evidence():
+    results = pd.DataFrame(
+        [
+            {"estimator": "demo", "fold": 0, "seed": 0, "metric": "mae", "value": np.inf},
+            {"estimator": "demo", "fold": 0, "seed": 0, "metric": "picp", "value": -np.inf},
+            {"estimator": "demo", "fold": 1, "seed": 0, "metric": "mae", "value": "bad"},
+            {"estimator": "demo", "fold": 1, "seed": 0, "metric": "picp", "value": np.nan},
+            {"estimator": "demo", "fold": 2, "seed": 0, "metric": "mae", "value": 0.1},
+            {"estimator": "demo", "fold": 2, "seed": 0, "metric": "picp", "value": np.inf},
+        ]
+    )
+
+    assert RunOutcome.from_results(results) == RunOutcome(
+        outcome="partial", attempted=3, succeeded=1, failed=2
     )

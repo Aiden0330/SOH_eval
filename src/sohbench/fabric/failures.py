@@ -14,6 +14,14 @@ class FailureCategory(str, Enum):
     POLICY = "POLICY"
 
 
+class InputContractError(ValueError):
+    """A failure while preparing or validating benchmark inputs."""
+
+
+class MetricEvaluationError(RuntimeError):
+    """A failure raised while calculating benchmark metrics."""
+
+
 _LEAKAGE_PREFIXES = (
     "leakage detected:",
     "feature pipeline references mutable ",
@@ -22,17 +30,36 @@ _LEAKAGE_PREFIXES = (
 _LEAKAGE_MESSAGES = frozenset({"fold index overlap", "fold asset overlap"})
 
 
-def classify_exception(exc: BaseException) -> FailureCategory:
-    """Classify known failures without guessing from broad message fragments."""
+def _exception_chain(exc: BaseException):
+    seen = set()
+    current = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        yield current
+        current = current.__cause__ or current.__context__
+
+
+def _is_leakage(exc: BaseException) -> bool:
     message = str(exc).strip().lower()
     exception_name = type(exc).__name__.lower()
+    return (
+        exception_name in {"leakageerror", "dataleakageerror"}
+        or message in _LEAKAGE_MESSAGES
+        or message.startswith(_LEAKAGE_PREFIXES)
+    )
 
-    if isinstance(exc, MemoryError):
+
+def classify_exception(exc: BaseException) -> FailureCategory:
+    """Classify known failures without guessing from broad message fragments."""
+    chain = tuple(_exception_chain(exc))
+
+    if any(isinstance(error, MemoryError) for error in chain):
         return FailureCategory.RESOURCE
-    if exception_name in {"leakageerror", "dataleakageerror"}:
+    if any(_is_leakage(error) for error in chain):
         return FailureCategory.LEAKAGE
-    if message in _LEAKAGE_MESSAGES or message.startswith(_LEAKAGE_PREFIXES):
-        return FailureCategory.LEAKAGE
-    if isinstance(exc, (TypeError, ValueError)):
-        return FailureCategory.INPUT_CONTRACT
+    for error in chain:
+        if isinstance(error, InputContractError):
+            return FailureCategory.INPUT_CONTRACT
+        if isinstance(error, MetricEvaluationError):
+            return FailureCategory.METRIC
     return FailureCategory.ALGORITHM

@@ -2,9 +2,10 @@ from __future__ import annotations
 import json, math, time
 from dataclasses import asdict
 from pathlib import Path
+import numpy as np
 import pandas as pd
 from .acceptance import evaluate_verdicts
-from .fabric.outcomes import RunOutcome
+from .fabric.outcomes import RunOutcome, successful_result_rows
 from .tasks import SOHEstimationTask
 
 
@@ -44,16 +45,37 @@ def _leaderboard_entries(results: pd.DataFrame, task, group_cols: list[str]) -> 
             else:
                 track = results["feature_mode"].iloc[0] if "feature_mode" in results.columns else "unified"
 
-        agg = g.groupby("metric")["value"].agg(["mean", "std"])
-        metrics = {m: {"mean": float(r["mean"]),
-                        "std": float(r["std"] if r["std"] == r["std"] else 0.0)}
-                   for m, r in agg.iterrows()}
-        flat = {m: v["mean"] for m, v in metrics.items()}
         execution = RunOutcome.from_results(g)
+        evidence = successful_result_rows(g)
+        numeric_values = pd.to_numeric(evidence["value"], errors="coerce").to_numpy(
+            dtype=float, na_value=np.nan,
+        )
+        finite_evidence = evidence.loc[np.isfinite(numeric_values)].copy()
+        finite_evidence["value"] = numeric_values[np.isfinite(numeric_values)]
+        agg = finite_evidence.groupby("metric")["value"].agg(["mean", "std"])
+        metric_names = g["metric"].dropna().drop_duplicates()
+        metrics = {}
+        for metric in metric_names:
+            if metric in agg.index:
+                row = agg.loc[metric]
+                metrics[metric] = {
+                    "mean": float(row["mean"]),
+                    "std": float(row["std"] if math.isfinite(row["std"]) else 0.0),
+                }
+            else:
+                metrics[metric] = {"mean": float("nan"), "std": 0.0}
+        flat = {
+            metric: values["mean"]
+            for metric, values in metrics.items()
+            if math.isfinite(values["mean"])
+        }
         coverage = execution.succeeded / execution.attempted if execution.attempted else 0.0
+        required_acceptance_metrics = {
+            "mae", "picp", "monotonicity_violation_rate", "value_range_violation",
+        }
         verdicts = (
             {v.name: v.passed for v in evaluate_verdicts(flat, task)}
-            if execution.succeeded else {}
+            if required_acceptance_metrics.issubset(flat) else {}
         )
         ci_source = g["ci_source"].iloc[0] if "ci_source" in g.columns else "conformal"
 

@@ -12,7 +12,7 @@ from joblib.externals import cloudpickle
 from . import metrics as M
 from .conformal import ConformalWrapper, WeightedConformalWrapper
 from .fabric import FeatureState, IdentityFeaturePipeline, clone_for_fold, scoped_meta_for_frame
-from .fabric.failures import classify_exception
+from .fabric.failures import InputContractError, MetricEvaluationError, classify_exception
 from .fabric.views import make_fold_views
 from .featuresets import project
 import sohbench.featuresets  # noqa: F401
@@ -81,6 +81,23 @@ def _transform_fold(pipeline, frame, state, meta, target):
     return transformed.drop(columns=[target], errors="ignore").copy(deep=True)
 
 
+def _contextual_error(error_type, exc):
+    if isinstance(exc, error_type):
+        return exc
+    contextual = error_type(str(exc))
+    contextual.__cause__ = exc
+    return contextual
+
+
+def _root_error(exc):
+    seen = set()
+    current = exc
+    while current.__cause__ is not None and id(current) not in seen:
+        seen.add(id(current))
+        current = current.__cause__
+    return current
+
+
 class BenchmarkRunner:
     def __init__(self, seeds=(0, 1, 2, 3, 4)):
         self.seeds = list(seeds)
@@ -119,7 +136,7 @@ class BenchmarkRunner:
                 try:
                     views_cache[key] = (make_fold_views(table, fold, task.target), None)
                 except Exception as exc:
-                    views_cache[key] = (None, exc)
+                    views_cache[key] = (None, _contextual_error(InputContractError, exc))
             return views_cache[key]
 
         def raw_prepared_for(pname, fi, fold, pipeline_name):
@@ -139,7 +156,7 @@ class BenchmarkRunner:
                 transformed_test = _transform_fold(clone_for_fold(template), views.test_x, state, meta, task.target)
                 value = (transformed_train, transformed_test, state, None)
             except Exception as exc:
-                value = (None, None, state, exc)
+                value = (None, None, state, _contextual_error(InputContractError, exc))
             raw_prepared_cache[key] = value
             return value
 
@@ -158,7 +175,7 @@ class BenchmarkRunner:
                 )
                 value = (train_x, test_x, state, None)
             except Exception as exc:
-                value = (None, None, state, exc)
+                value = (None, None, state, _contextual_error(InputContractError, exc))
             prepared_cache[key] = value
             return value
 
@@ -190,10 +207,13 @@ class BenchmarkRunner:
                         try:
                             if feature_error is not None:
                                 raise feature_error
-                            train_x, test_x = _copy_fold_frame(fit_train_x), _copy_fold_frame(fit_test_x)
-                            train_y, test_y = views.train_y.copy(), views.test_y.copy()
-                            train_meta = scoped_meta_for_frame(meta, train_x, task.target)
-                            test_meta = scoped_meta_for_frame(meta, test_x, task.target)
+                            try:
+                                train_x, test_x = _copy_fold_frame(fit_train_x), _copy_fold_frame(fit_test_x)
+                                train_y, test_y = views.train_y.copy(), views.test_y.copy()
+                                train_meta = scoped_meta_for_frame(meta, train_x, task.target)
+                                test_meta = scoped_meta_for_frame(meta, test_x, task.target)
+                            except Exception as exc:
+                                raise InputContractError(str(exc)) from exc
                             est = _instantiate_estimator(est_factory, seed)
                             if not hasattr(est, "predict_interval"):
                                 alpha = 1 - task.acceptance["calibration"]["nominal"]
@@ -211,19 +231,20 @@ class BenchmarkRunner:
                             yp = est.predict(test_x, test_meta)
                             row = self._point_metrics(task, test_y, yp)
                             lo, hi = est.predict_interval(test_x, test_meta)
-                            row["picp"] = M.picp(test_y, lo, hi)
+                            row.update(self._interval_metrics(test_y, lo, hi))
                             row.update(self._trajectory_metrics(task, test_x, yp))
                         except Exception as exc:
                             if callback_spool is not None:
                                 callback_spool.discard(snapshot_path)
                             snapshot_path = None
                             row = {metric: float("nan") for metric in (*task.point_metrics, *task.interval_metrics, *task.trajectory_metrics)}
-                            rec_base["error"] = str(exc)
+                            reported_error = _root_error(exc)
+                            rec_base["error"] = str(reported_error)
                             rec_base.update(
                                 unit_status="failed",
                                 error_category=classify_exception(exc).value,
-                                error_type=type(exc).__name__,
-                                error_message=str(exc),
+                                error_type=type(reported_error).__name__,
+                                error_message=str(reported_error),
                             )
                         event_records = []
                         for metric, value in row.items():
@@ -362,8 +383,20 @@ class BenchmarkRunner:
         return pd.DataFrame.from_records(records)
 
     def _point_metrics(self, task, yt, yp):
-        return {metric: getattr(M, metric)(yt, yp) for metric in task.point_metrics}
+        try:
+            return {metric: getattr(M, metric)(yt, yp) for metric in task.point_metrics}
+        except Exception as exc:
+            raise MetricEvaluationError(str(exc)) from exc
+
+    def _interval_metrics(self, yt, lo, hi):
+        try:
+            return {"picp": M.picp(yt, lo, hi)}
+        except Exception as exc:
+            raise MetricEvaluationError(str(exc)) from exc
 
     def _trajectory_metrics(self, task, test_x, yp):
-        order = np.argsort(test_x["cycle_index"].to_numpy())
-        return {"monotonicity_violation_rate": M.monotonicity_violation_rate(yp[order]), "value_range_violation": M.value_range_violation(yp)}
+        try:
+            order = np.argsort(test_x["cycle_index"].to_numpy())
+            return {"monotonicity_violation_rate": M.monotonicity_violation_rate(yp[order]), "value_range_violation": M.value_range_violation(yp)}
+        except Exception as exc:
+            raise MetricEvaluationError(str(exc)) from exc

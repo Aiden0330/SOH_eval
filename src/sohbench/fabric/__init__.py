@@ -11,8 +11,13 @@ from .feature_pipeline import (
     clone_for_fold,
     scoped_meta_for_frame,
 )
-from .failures import FailureCategory, classify_exception
-from .outcomes import RunOutcome
+from .failures import (
+    FailureCategory,
+    InputContractError,
+    MetricEvaluationError,
+    classify_exception,
+)
+from .outcomes import RunOutcome, execution_unit_succeeded, successful_result_rows
 
 __all__ = [
     "RunSpec",
@@ -36,6 +41,10 @@ __all__ = [
     "clone_for_fold",
     "scoped_meta_for_frame",
     "FailureCategory",
+    "InputContractError",
+    "MetricEvaluationError",
     "classify_exception",
     "RunOutcome",
+    "execution_unit_succeeded",
+    "successful_result_rows",
 ]

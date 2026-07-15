@@ -158,6 +158,96 @@ def test_partial_results_report_attempted_execution_coverage(tmp_path):
     }
 
 
+def test_leaderboard_uses_only_finite_evidence_from_successful_units(tmp_path):
+    rows = []
+    metric_values = {
+        "mae": (0.01, 10.0),
+        "picp": (0.92, 0.0),
+        "monotonicity_violation_rate": (0.0, 1.0),
+        "value_range_violation": (0.0, 1.0),
+    }
+    for metric, (good, bad) in metric_values.items():
+        rows.extend(
+            [
+                dict(estimator="ridge", feature_mode="unified", backend="sklearn",
+                     protocol="loco", held_out_key="c1", fold=0, seed=0,
+                     metric=metric, value=good, featureset="full", unit_status="succeeded"),
+                dict(estimator="ridge", feature_mode="unified", backend="sklearn",
+                     protocol="loco", held_out_key="c1", fold=0, seed=1,
+                     metric=metric, value=bad, featureset="full", unit_status="failed"),
+                dict(estimator="ridge", feature_mode="unified", backend="sklearn",
+                     protocol="loco", held_out_key="c1", fold=0, seed=2,
+                     metric=metric, value=np.inf, featureset="full", unit_status="succeeded"),
+            ]
+        )
+    rows.extend(
+        [
+            dict(estimator="ridge", feature_mode="unified", backend="sklearn",
+                 protocol="loco", held_out_key="c1", fold=0, seed=3,
+                 metric="mae", value=20.0, featureset="full", unit_status="succeeded"),
+            dict(estimator="ridge", feature_mode="unified", backend="sklearn",
+                 protocol="loco", held_out_key="c1", fold=0, seed=3,
+                 metric="picp", value=0.0, featureset="full", unit_status=None),
+        ]
+    )
+
+    results = pd.DataFrame(rows, index=[0] * len(rows))
+    out = write_artifacts(results, qc_report=None, task=SOHEstimationTask(),
+                          config={}, out_dir=tmp_path)
+    entry = json.loads((Path(out) / "leaderboard.json").read_text())[0]
+
+    assert entry["metrics"]["mae"] == {"mean": 0.01, "std": 0.0}
+    assert entry["metrics"]["picp"] == {"mean": 0.92, "std": 0.0}
+    assert entry["verdicts"] == {
+        "generalization": True,
+        "calibration": True,
+        "physical_consistency": True,
+    }
+    assert entry["coverage"] == 0.5
+    assert entry["execution"] == {
+        "outcome": "partial", "attempted": 4, "succeeded": 2, "failed": 2,
+    }
+
+
+def test_succeeded_non_finite_evidence_has_no_acceptance_verdicts(tmp_path):
+    values = [np.nan, np.inf, -np.inf, np.nan]
+    rows = [
+        dict(estimator="ridge", feature_mode="unified", backend="sklearn",
+             protocol="loco", held_out_key="c1", fold=0, seed=0,
+             metric=metric, value=value, featureset="full", unit_status="succeeded")
+        for metric, value in zip(
+            ("mae", "picp", "monotonicity_violation_rate", "value_range_violation"),
+            values,
+        )
+    ]
+
+    out = write_artifacts(pd.DataFrame(rows), qc_report=None, task=SOHEstimationTask(),
+                          config={}, out_dir=tmp_path)
+    entry = json.loads((Path(out) / "leaderboard.json").read_text())[0]
+
+    assert all(metric["mean"] is None for metric in entry["metrics"].values())
+    assert entry["verdicts"] == {}
+    assert entry["coverage"] == 1.0
+
+
+def test_partial_finite_metrics_do_not_produce_acceptance_verdicts(tmp_path):
+    rows = [
+        dict(estimator="ridge", feature_mode="unified", backend="sklearn",
+             protocol="loco", held_out_key="c1", fold=0, seed=0,
+             metric="mae", value=0.01, featureset="full", unit_status="succeeded"),
+        dict(estimator="ridge", feature_mode="unified", backend="sklearn",
+             protocol="loco", held_out_key="c1", fold=0, seed=0,
+             metric="picp", value=0.92, featureset="full", unit_status="succeeded"),
+    ]
+
+    out = write_artifacts(pd.DataFrame(rows), qc_report=None, task=SOHEstimationTask(),
+                          config={}, out_dir=tmp_path)
+    entry = json.loads((Path(out) / "leaderboard.json").read_text())[0]
+
+    assert entry["metrics"]["mae"] == {"mean": 0.01, "std": 0.0}
+    assert entry["verdicts"] == {}
+
+
 def test_write_artifacts_emits_dataset_leaderboard(tmp_path):
     rows = []
     for held_out, mae in [("nasa", 0.20), ("hust", 0.05)]:

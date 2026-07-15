@@ -1,4 +1,5 @@
-import numpy as np, pandas as pd
+import numpy as np, pandas as pd, pytest
+from sohbench import metrics as M
 from sohbench.runner import BenchmarkRunner
 from sohbench.protocols import LeaveOneCellOut, LeaveOneDatasetOut
 from sohbench.tasks import SOHEstimationTask
@@ -42,6 +43,97 @@ def test_failed_estimator_isolated():
     assert rs["error_category"].eq("ALGORITHM").all()
     assert rs["error_type"].eq("RuntimeError").all()
     assert rs["error_message"].eq("boom").all()
+
+
+@pytest.mark.parametrize(
+    ("stage", "exception_type", "message"),
+    [
+        ("fit", TypeError, "fit rejected dtype"),
+        ("predict", ValueError, "predict rejected values"),
+        ("predict_interval", TypeError, "interval rejected shape"),
+    ],
+)
+def test_estimator_type_and_value_errors_are_algorithm_failures(stage, exception_type, message):
+    from sohbench.metadata import build_meta
+
+    class StageFailure:
+        name = "stage_failure"
+        feature_mode = "unified"
+        backend = "sklearn"
+
+        def fit(self, X, y, meta):
+            if stage == "fit":
+                raise exception_type(message)
+            return self
+
+        def predict(self, X, meta):
+            if stage == "predict":
+                raise exception_type(message)
+            return np.full(len(X), 0.9)
+
+        def predict_interval(self, X, meta):
+            if stage == "predict_interval":
+                raise exception_type(message)
+            center = self.predict(X, meta)
+            return center, center
+
+    table = _table()
+    results = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), table=table, meta=build_meta(table),
+        protocols={"loco": LeaveOneCellOut()}, estimators=[StageFailure],
+    )
+
+    assert results["unit_status"].eq("failed").all()
+    assert results["error_category"].eq("ALGORITHM").all()
+    assert results["error_type"].eq(exception_type.__name__).all()
+    assert results["error_message"].eq(message).all()
+
+
+def test_metric_value_error_is_a_metric_failure(monkeypatch):
+    from sohbench.metadata import build_meta
+
+    def fail_mae(y_true, y_pred):
+        raise ValueError("mae calculation failed")
+
+    monkeypatch.setattr(M, "mae", fail_mae)
+    table = _table()
+    results = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), table=table, meta=build_meta(table),
+        protocols={"loco": LeaveOneCellOut()}, estimators=[RidgeEstimator],
+    )
+
+    assert results["unit_status"].eq("failed").all()
+    assert results["error_category"].eq("METRIC").all()
+    assert results["error_type"].eq("ValueError").all()
+    assert results["error_message"].eq("mae calculation failed").all()
+
+
+def test_feature_contract_value_error_is_an_input_contract_failure():
+    from sohbench.metadata import build_meta
+
+    class MalformedFeaturePipeline:
+        def clone_for_fold(self):
+            return MalformedFeaturePipeline()
+
+        def fit(self, train_x, train_y, meta):
+            from sohbench.fabric import FeatureState
+
+            return FeatureState.create({"kind": "malformed"})
+
+        def transform(self, frame, state, meta):
+            return frame.to_numpy()
+
+    table = _table()
+    results = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), table=table, meta=build_meta(table),
+        protocols={"loco": LeaveOneCellOut()}, estimators=[RidgeEstimator],
+        featuresets=["custom"], feature_pipelines={"custom": MalformedFeaturePipeline()},
+    )
+
+    assert results["unit_status"].eq("failed").all()
+    assert results["error_category"].eq("INPUT_CONTRACT").all()
+    assert results["error_type"].eq("ValueError").all()
+    assert results["error_message"].eq("feature pipeline did not return a DataFrame").all()
 
 
 def test_runner_featureset_loop():
