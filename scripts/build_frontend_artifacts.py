@@ -100,9 +100,12 @@ def _merge_results(
 ) -> pd.DataFrame:
     combined = pd.DataFrame()
     explicit_cells = set(explicit_replace_cells)
+    candidate_aware = any("candidate_id" in item["results"].columns for item in loaded_runs)
 
     for item in loaded_runs:
         frame = _normalize_results_frame(item["results"])
+        if candidate_aware and "candidate_id" not in frame.columns:
+            frame["candidate_id"] = frame["estimator"]
         replacement_cells = set(explicit_cells)
         if auto_replace_from_stability and not item["stability"].empty:
             replacement_cells.update(_config_cells(item["config"].get("configs", [])))

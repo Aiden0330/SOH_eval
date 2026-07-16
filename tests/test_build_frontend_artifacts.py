@@ -237,3 +237,75 @@ def test_build_frontend_artifacts_preserves_distinct_candidate_ids_during_dedupl
         ("candidate-a", 0.10),
         ("candidate-b", 0.20),
     }
+
+
+def test_build_frontend_artifacts_normalizes_mixed_legacy_and_candidate_runs(tmp_path):
+    legacy_run = tmp_path / "runs" / "legacy"
+    candidate_run = tmp_path / "runs" / "candidates"
+    config = {
+        "phase": "mixed",
+        "datasets": ["nasa"],
+        "estimators": ["ridge"],
+        "featuresets": ["full"],
+        "protocols": ["lodo"],
+        "seeds": [0],
+    }
+    _write_run(
+        legacy_run,
+        _metric_rows("ridge", "full", "nasa", 0.30),
+        config,
+    )
+    _write_run(
+        candidate_run,
+        _metric_rows("ridge", "full", "nasa", 0.10, candidate_id="candidate-a")
+        + _metric_rows("ridge", "full", "nasa", 0.20, candidate_id="candidate-b"),
+        config,
+    )
+
+    for label, source_runs in [
+        ("legacy-first", [legacy_run, candidate_run]),
+        ("candidate-first", [candidate_run, legacy_run]),
+    ]:
+        frontend_dir = tmp_path / f"frontend-{label}"
+        build_frontend_artifacts(
+            BuildFrontendArtifactsConfig(
+                source_runs=source_runs,
+                archive_dir=tmp_path / f"archive-{label}",
+                frontend_data_dir=frontend_dir,
+            )
+        )
+
+        leaderboard = json.loads((frontend_dir / "leaderboard.json").read_text(encoding="utf-8"))
+        assert {(entry["candidate_id"], entry["metrics"]["mae"]["mean"]) for entry in leaderboard} == {
+            ("ridge", 0.30),
+            ("candidate-a", 0.10),
+            ("candidate-b", 0.20),
+        }
+
+
+def test_build_frontend_artifacts_keeps_all_legacy_output_candidate_free(tmp_path):
+    run = tmp_path / "runs" / "legacy"
+    frontend_dir = tmp_path / "frontend"
+    _write_run(
+        run,
+        _metric_rows("ridge", "full", "nasa", 0.30),
+        {
+            "phase": "legacy",
+            "datasets": ["nasa"],
+            "estimators": ["ridge"],
+            "featuresets": ["full"],
+            "protocols": ["lodo"],
+            "seeds": [0],
+        },
+    )
+
+    build_frontend_artifacts(
+        BuildFrontendArtifactsConfig(
+            source_runs=[run],
+            archive_dir=tmp_path / "archive",
+            frontend_data_dir=frontend_dir,
+        )
+    )
+
+    leaderboard = json.loads((frontend_dir / "leaderboard.json").read_text(encoding="utf-8"))
+    assert all("candidate_id" not in entry for entry in leaderboard)

@@ -10,6 +10,9 @@ import {
   buildEvaluationPayload,
   catalogOptions,
   evaluationPlanSummary,
+  evaluationIdentity,
+  evaluationLabel,
+  evaluationMatrixRows,
   datasetOptions,
   inferenceInsightSummary,
   inferenceDatasetOptions,
@@ -382,7 +385,6 @@ function resetProfileScopedState() {
 function renderKpis(lb, dsOptions) {
   const withMae = lb.filter((x) => metricMean(x, "mae") != null);
   const best = bestComparableEntry(withMae, selectedDatasetNames(), DATA.datasetLeaderboard || []);
-  const algos = uniq(lb.map((x) => x.estimator));
   const selected = dsOptions.filter((item) => activeDatasets.has(item.name));
   const selectedRows = selected.reduce((sum, item) => sum + item.rows, 0);
   const qc = DATA.qc;
@@ -391,7 +393,7 @@ function renderKpis(lb, dsOptions) {
   const kpi = (lab, val, hint, color) =>
     `<div class="kpi"><div class="lab">${lab}</div><div class="val"${color ? ` style="color:${color}"` : ""}>${val}</div><div class="hint">${hint}</div></div>`;
   $("kpis").innerHTML =
-    kpi("可比最佳 MAE", best ? esc(best.estimator) : "无",
+    kpi("可比最佳 MAE", best ? esc(evaluationLabel(best)) : "无",
       best ? `MAE ${fmt(metricMean(best, "mae"))} / ${esc(best.featureset)}` : "无指标",
       "var(--primary)") +
     kpi("数据集范围", `${selected.length}/${dsOptions.length}`,
@@ -1446,22 +1448,19 @@ function renderStabilityPanel() {
 }
 
 function renderMatrix(lb, sets) {
-  const algos = uniq(lb.map((x) => x.estimator));
-  const cell = {};
-  lb.forEach((x) => { cell[x.estimator + "|" + (x.featureset || "full")] = metricMean(x, "mae"); });
-  const vals = Object.values(cell).filter((v) => v != null);
+  const rows = evaluationMatrixRows(lb, sets);
+  const vals = rows.flatMap((row) => row.cells.map((cell) => cell.value)).filter((v) => v != null);
   const lo = Math.min(...vals), hi = Math.max(...vals);
   const best = Math.min(...vals);
   let h = "<table class='matrix'><thead><tr><th>算法</th>" +
     sets.map((s) => `<th>${esc(s)}</th>`).join("") + "</tr></thead><tbody>";
-  algos.forEach((a) => {
-    h += `<tr><td>${esc(a)}</td>`;
-    sets.forEach((s) => {
-      const v = cell[a + "|" + s];
+  rows.forEach((row) => {
+    h += `<tr><td>${esc(row.label)}</td>`;
+    row.cells.forEach(({ featureset, value: v }) => {
       if (v == null) { h += '<td class="na" title="不可用">无</td>'; return; }
       const t = hi > lo ? (v - lo) / (hi - lo) : 0;
       const isBest = Math.abs(v - best) < 1e-9;
-      h += `<td class="cell${isBest ? " best" : ""}" style="background:${heat(t)}" title="${esc(a)} x ${esc(s)}: MAE ${v.toFixed(4)}">${v.toFixed(3)}</td>`;
+      h += `<td class="cell${isBest ? " best" : ""}" style="background:${heat(t)}" title="${esc(row.label)} x ${esc(featureset)}: MAE ${v.toFixed(4)}">${v.toFixed(3)}</td>`;
     });
     h += "</tr>";
   });
@@ -1481,7 +1480,7 @@ function renderInsights(lb) {
   const rows = lb.filter((x) => (x.featureset || "full") === activeFs);
   const insights = algorithmInsights(rows);
   const item = (label, entry, value) => `<div class="insight"><span>${label}</span>` +
-    (entry ? `<b>${esc(entry.estimator)}</b><small>${value(entry)}</small>` : "<b>无</b><small>无指标</small>") +
+    (entry ? `<b>${esc(evaluationLabel(entry))}</b><small>${value(entry)}</small>` : "<b>无</b><small>无指标</small>") +
     "</div>";
   $("insights").innerHTML =
     item("精度", insights.bestAccuracy, (x) => `MAE ${fmt(metricMean(x, "mae"))}`) +
@@ -1491,11 +1490,11 @@ function renderInsights(lb) {
 }
 
 function renderBestFeatureList(lb) {
-  const algos = uniq(lb.map((x) => x.estimator));
-  const rows = algos.map((algo) => {
-    const best = lb.filter((x) => x.estimator === algo && metricMean(x, "mae") != null)
+  const identities = uniq(lb.map((x) => evaluationIdentity(x)));
+  const rows = identities.map((identity) => {
+    const best = lb.filter((x) => evaluationIdentity(x) === identity && metricMean(x, "mae") != null)
       .sort((a, b) => metricMean(a, "mae") - metricMean(b, "mae"))[0];
-    return `<tr><td>${esc(algo)}</td><td>${best ? esc(best.featureset) : "无"}</td><td class="tnum">${best ? fmt(metricMean(best, "mae")) : "无"}</td></tr>`;
+    return `<tr><td>${best ? esc(evaluationLabel(best)) : "无"}</td><td>${best ? esc(best.featureset) : "无"}</td><td class="tnum">${best ? fmt(metricMean(best, "mae")) : "无"}</td></tr>`;
   }).join("");
   return `<div class="best-feature"><table><thead><tr><th>算法</th><th>最佳特征</th><th>MAE</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
@@ -1524,7 +1523,7 @@ function renderLeaderboard(lb) {
     const v = x.verdicts || {};
     const ci = x.ci_source || "conformal";
     h += `<tr class="${i === 0 ? "best" : ""}">` +
-      `<td><span class="rank">${i + 1}</span><span class="algo">${esc(x.estimator)}</span></td>` +
+      `<td><span class="rank">${i + 1}</span><span class="algo">${esc(evaluationLabel(x))}</span></td>` +
       `<td><span class="coverage-badge ${esc(coverage.kind)}" title="${esc(coverage.detail)}">${esc(coverage.label)}</span></td>` +
       `<td><div class="bar-cell"><span class="bar ${i === rows.length - 1 && rows.length > 1 ? "bad" : ""}" style="width:${w}px"></span><span class="tnum">${fmt(mae)}</span></div></td>` +
       `<td class="tnum">${fmt(metricMean(x, "rmse"))}</td>` +
@@ -1547,7 +1546,7 @@ function renderPicp(lb) {
   }
   $("picp").innerHTML = rows.map((x) => {
     const p = metricMean(x, "picp"), low = p < 0.9;
-    return `<div class="picp-row"><span class="nm">${esc(x.estimator)}</span>` +
+    return `<div class="picp-row"><span class="nm">${esc(evaluationLabel(x))}</span>` +
       `<div class="picp-track"><div class="picp-fill ${low ? "low" : ""}" style="width:${(p * 100).toFixed(1)}%"></div>` +
       '<div class="nominal" style="left:90%"></div></div>' +
       `<span class="picp-val">${p.toFixed(3)}</span></div>`;
@@ -1567,7 +1566,7 @@ function renderQc() {
 }
 
 function renderFoot() {
-  const algos = uniq(DATA.leaderboard.map((x) => x.estimator)).join(" / ");
+  const algos = uniq(DATA.leaderboard.map((x) => evaluationLabel(x))).join(" / ");
   const scope = scoped.usedDatasetLevel ? `已选数据集：${scoped.scopeLabel}` : "全量聚合结果";
   const profile = activeProfileOption?.label || "当前根目录";
   $("foot").textContent = `${DATA.fallback ? "示例数据" : "sohbench 实测运行"} / ${profile} / ${algos} / ${scope}`;

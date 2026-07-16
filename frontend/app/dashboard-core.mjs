@@ -5,6 +5,45 @@ export function metricMean(entry, name) {
   return value == null || Number.isNaN(value) ? null : value;
 }
 
+export function evaluationIdentity(entry = {}) {
+  const candidate = String(entry?.candidate_id || "").trim();
+  const estimator = String(entry?.estimator || "").trim();
+  return JSON.stringify(candidate ? ["candidate", candidate] : ["estimator", estimator]);
+}
+
+export function evaluationLabel(entry = {}) {
+  const candidate = String(entry?.candidate_id || "").trim();
+  const estimator = String(entry?.estimator || "").trim();
+  if (!candidate || candidate === estimator) return estimator || candidate;
+  return `${candidate} (${estimator})`;
+}
+
+export function evaluationCellKey(entry = {}, featureset = entry?.featureset || "full") {
+  return JSON.stringify([evaluationIdentity(entry), String(featureset || "full")]);
+}
+
+export function evaluationMatrixRows(entries = [], featureSets = []) {
+  const rows = new Map();
+  const cells = new Map();
+  entries.forEach((entry) => {
+    const identity = evaluationIdentity(entry);
+    if (!rows.has(identity)) rows.set(identity, entry);
+    cells.set(evaluationCellKey(entry), metricMean(entry, "mae"));
+  });
+
+  return [...rows.entries()].map(([identity, entry]) => ({
+    identity,
+    label: evaluationLabel(entry),
+    cells: featureSets.map((featureset) => {
+      const key = evaluationCellKey(entry, featureset);
+      return {
+        featureset,
+        value: cells.has(key) ? cells.get(key) : null,
+      };
+    }),
+  }));
+}
+
 export function datasetOptions(config = {}, qc = {}, datasetRows = []) {
   const names = new Set(config.datasets || []);
   Object.keys(qc?.per_dataset || {}).forEach((name) => names.add(name));

@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import {
   summarizeBySelection,
   datasetOptions,
+  evaluationCellKey,
+  evaluationIdentity,
+  evaluationLabel,
+  evaluationMatrixRows,
   algorithmInsights,
   bestComparableEntry,
   buildEvaluationPayload,
@@ -88,6 +92,14 @@ function entry(estimator, featureset, mae, opts = {}) {
   assert.deepEqual(
     selected.entries.map((row) => [row.candidate_id, row.metrics.mae.mean]).sort(),
     [["candidate-a", 0.10], ["candidate-b", 0.20]],
+  );
+  assert.notEqual(evaluationIdentity(candidateRows[0]), evaluationIdentity(candidateRows[1]));
+  assert.notEqual(evaluationCellKey(candidateRows[0]), evaluationCellKey(candidateRows[1]));
+  assert.equal(evaluationLabel(candidateRows[0]), "candidate-a (ridge)");
+  assert.equal(evaluationLabel(entry("ridge", "full", 0.30)), "ridge");
+  assert.deepEqual(
+    evaluationMatrixRows(candidateRows, ["full"]).map((row) => [row.label, row.cells[0].value]),
+    [["candidate-a (ridge)", 0.10], ["candidate-b (ridge)", 0.20]],
   );
 }
 
