@@ -314,10 +314,6 @@ def _validate_dataset_table(table: pd.DataFrame, *, require_labels: bool = True)
         raise TrustedPluginError(f"missing required columns: {sorted(missing)}")
     if table.empty:
         raise TrustedPluginError("dataset table is empty")
-    try:
-        normalize_cycle_index(table)
-    except ValueError as exc:
-        raise TrustedPluginError(str(exc)) from exc
 
 
 def _load_module(path: Path, kind: str) -> ModuleType:
