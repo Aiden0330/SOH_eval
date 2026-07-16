@@ -121,6 +121,8 @@ def _trajectory_metrics(group: pd.DataFrame, pred: np.ndarray) -> dict:
     for _, asset in frame.groupby(
         ["dataset", "cell_id"], sort=True, dropna=False
     ):
+        if len(asset) < 2:
+            continue
         ordered = asset.sort_values("cycle_index", kind="stable")[
             "prediction"
         ].to_numpy()
@@ -132,13 +134,20 @@ def _trajectory_metrics(group: pd.DataFrame, pred: np.ndarray) -> dict:
                 "value_range_violation": M.value_range_violation(ordered),
             }
         )
-    return {
+    if not per_asset:
+        raise ValueError(
+            "trajectory metrics require an asset with at least two cycles"
+        )
+    result = {
         metric: float(np.mean([values[metric] for values in per_asset]))
         for metric in (
             "monotonicity_violation_rate",
             "value_range_violation",
         )
     }
+    if not all(np.isfinite(value) for value in result.values()):
+        raise ValueError("trajectory metrics must be finite")
+    return result
 
 
 def _failed_record(model_name: str, dataset: str, n_samples: int, load_ms: float, error: str) -> dict:

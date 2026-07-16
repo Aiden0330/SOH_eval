@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from sohbench import metrics as M
 from sohbench.inference import run_inference_benchmark
 from sohbench.model_store import ModelStore
 
@@ -209,6 +210,67 @@ def test_inference_trajectory_metrics_average_eligible_assets_equally(tmp_path):
 
     assert record["monotonicity_violation_rate"] == 0.5
     assert record["value_range_violation"] == 0.5
+
+
+def test_inference_trajectory_metrics_exclude_singleton_assets(tmp_path):
+    store = ModelStore(tmp_path / "models")
+    store.save_training_model("trajectory", ColumnModel(), _manifest())
+    table = pd.DataFrame(
+        {
+            "dataset": ["d", "d", "d"],
+            "cell_id": ["singleton", "eligible", "eligible"],
+            "cycle_index": [0, 0, 1],
+            "soh": [1.0, 1.0, 0.9],
+            "voltage_mean": [1.4, 1.0, 0.9],
+        }
+    )
+
+    record = run_inference_benchmark(
+        store, table, pd.DataFrame(), ["trajectory"]
+    )[0]
+
+    assert record["status"] == "succeeded"
+    assert record["monotonicity_violation_rate"] == 0.0
+    assert record["value_range_violation"] == 0.0
+
+
+def test_inference_fails_when_no_asset_has_two_cycles(tmp_path):
+    store = ModelStore(tmp_path / "models")
+    store.save_training_model("trajectory", ColumnModel(), _manifest())
+    table = pd.DataFrame(
+        {
+            "dataset": ["d", "d"],
+            "cell_id": ["a", "b"],
+            "cycle_index": [0, 0],
+            "soh": [1.0, 0.9],
+            "voltage_mean": [1.0, 0.9],
+        }
+    )
+
+    record = run_inference_benchmark(
+        store, table, pd.DataFrame(), ["trajectory"]
+    )[0]
+
+    assert record["status"] == "failed"
+    assert record["monotonicity_violation_rate"] is None
+    assert "trajectory metrics require an asset with at least two cycles" in record[
+        "error"
+    ]
+
+
+def test_inference_rejects_non_finite_trajectory_metrics(tmp_path, monkeypatch):
+    store = ModelStore(tmp_path / "models")
+    store.save_training_model("trajectory", ColumnModel(), _manifest())
+    table = _table().loc[lambda frame: frame["dataset"].eq("new_a")]
+    monkeypatch.setattr(M, "monotonicity_violation_rate", lambda values: np.nan)
+
+    record = run_inference_benchmark(
+        store, table, pd.DataFrame(), ["trajectory"]
+    )[0]
+
+    assert record["status"] == "failed"
+    assert record["monotonicity_violation_rate"] is None
+    assert "trajectory metrics must be finite" in record["error"]
 
 
 def test_inference_rejects_duplicate_asset_cycle_identities(tmp_path):
