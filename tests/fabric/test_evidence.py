@@ -16,6 +16,7 @@ from sohbench.fabric.evidence import (
     write_evidence_pack,
 )
 from sohbench.fabric.ids import sha256_file
+from sohbench.fabric.specs import RunSpec, SpecRef
 
 
 PREDICTION_COLUMNS = [
@@ -127,6 +128,28 @@ def metric_frame(**overrides) -> pd.DataFrame:
     return pd.DataFrame([row])
 
 
+def evidence_run_spec() -> RunSpec:
+    def ref(kind: str, spec_id: str) -> SpecRef:
+        return SpecRef(
+            kind=kind,
+            spec_id=spec_id,
+            version="1.0.0",
+            digest="a" * 64,
+        )
+
+    return RunSpec(
+        run_type="training",
+        task=ref("task", "soh"),
+        dataset=ref("dataset_snapshot", "demo"),
+        protocol=ref("protocol", "loco"),
+        metric=ref("metric", "soh-core"),
+        policy=ref("policy", "trusted-local"),
+        candidates=(ref("candidate", "ridge"),),
+        seeds=(0,),
+        idempotency_key="request-one",
+    )
+
+
 def test_evidence_pack_verifies_and_detects_tamper(tmp_path):
     run_dir = tmp_path / "RUN-one"
     run_dir.mkdir()
@@ -149,6 +172,47 @@ def test_evidence_pack_verifies_and_detects_tamper(tmp_path):
 
     result.write_text('{"ok":false}', encoding="utf-8")
     with pytest.raises(ValueError, match="size mismatch|digest mismatch"):
+        verify_evidence_pack(path)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (lambda document: document.update(comparison_key=17), "comparison_key"),
+        (
+            lambda document: document.update(
+                run_spec={"run_type": "magic", "candidates": "not-a-list"},
+            ),
+            "run_spec",
+        ),
+        (
+            lambda document: document.update(comparison_key="f" * 64),
+            "comparison_key",
+        ),
+    ],
+)
+def test_verifier_rejects_invalid_or_mismatched_run_identity(
+    tmp_path, mutation, message,
+):
+    run_dir = tmp_path / "RUN-identity"
+    run_dir.mkdir()
+    artifact = run_dir / "result.txt"
+    artifact.write_text("result", encoding="utf-8")
+    run_spec = evidence_run_spec()
+    path = write_evidence_pack(
+        run_dir,
+        {
+            "run_id": "RUN-identity",
+            "run_spec": run_spec.to_dict(),
+            "comparison_key": run_spec.comparison_key,
+        },
+        [artifact],
+    )
+    document = json.loads(path.read_text(encoding="utf-8"))
+    mutation(document)
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=message):
         verify_evidence_pack(path)
 
 

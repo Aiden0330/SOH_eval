@@ -1,4 +1,5 @@
 from __future__ import annotations
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -15,21 +16,54 @@ def normalize_cycle_index(table: pd.DataFrame, *, context: str = "dataset") -> p
         raise ValueError(f"{context}: missing required column cycle_index")
 
     source = table["cycle_index"]
-    numeric = pd.to_numeric(source, errors="coerce")
-    integer_bounds = np.iinfo(np.int64)
-    bool_values = source.map(lambda value: isinstance(value, (bool, np.bool_)))
-    valid = (
-        numeric.notna()
-        & np.isfinite(numeric)
-        & numeric.mod(1).eq(0)
-        & numeric.ge(integer_bounds.min)
-        & numeric.le(integer_bounds.max)
-        & ~bool_values
-    )
+    int64_max = int(np.iinfo(np.int64).max)
+    if pd.api.types.is_bool_dtype(source.dtype):
+        valid = pd.Series(False, index=source.index)
+        numeric = pd.Series(0, index=source.index, dtype="int64")
+    elif pd.api.types.is_integer_dtype(source.dtype):
+        valid = (
+            source.notna()
+            & source.ge(0)
+            & source.le(int64_max)
+        ).fillna(False)
+        numeric = source
+    elif pd.api.types.is_float_dtype(source.dtype):
+        values = source.to_numpy(dtype="float64", na_value=np.nan)
+        valid = pd.Series(
+            np.isfinite(values)
+            & (values >= 0)
+            & (values < float(2**63))
+            & (values == np.floor(values)),
+            index=source.index,
+        )
+        numeric = pd.Series(values, index=source.index)
+    else:
+        converted = []
+        validity = []
+        for value in source.tolist():
+            candidate = 0
+            is_valid = not isinstance(value, (bool, np.bool_))
+            try:
+                decimal_value = Decimal(str(value).strip())
+                is_valid = (
+                    is_valid
+                    and decimal_value.is_finite()
+                    and decimal_value == decimal_value.to_integral_value()
+                )
+                if is_valid:
+                    candidate = int(decimal_value)
+                    is_valid = 0 <= candidate <= int64_max
+            except (InvalidOperation, TypeError, ValueError):
+                is_valid = False
+            converted.append(candidate)
+            validity.append(is_valid)
+        valid = pd.Series(validity, index=source.index, dtype=bool)
+        numeric = pd.Series(converted, index=source.index, dtype="object")
     if not bool(valid.all()):
         invalid = source.loc[~valid].head(3).tolist()
         raise ValueError(
-            f"{context}: cycle_index must contain finite integers; "
+            f"{context}: cycle_index must contain finite integers in the "
+            f"range 0..{int64_max}; "
             f"invalid values: {invalid}"
         )
 

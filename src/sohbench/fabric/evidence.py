@@ -12,8 +12,9 @@ import jsonschema
 import numpy as np
 import pandas as pd
 
-from .ids import sha256_file
+from .ids import sha256_file, sha256_json
 from .outcomes import is_finite_real_scalar
+from .specs import validate_run_spec_document
 
 
 EVIDENCE_SCHEMA_VERSION = "1.0.0"
@@ -90,6 +91,7 @@ _RESERVED_ARTIFACT_KEYS = frozenset(
     os.path.normcase(path) for path in _RESERVED_ARTIFACT_PATHS
 )
 _RESERVED_MANIFEST_FIELDS = frozenset(("schema_version", "artifacts"))
+_COMPARISON_SPEC_FIELDS = ("task", "dataset", "protocol", "metric", "policy")
 _WINDOWS_INVALID_PATH_CHARS = frozenset('<>:"|?*')
 _DOS_DEVICE_NAME = re.compile(
     r"^(?:CON|PRN|AUX|NUL|COM[1-9\u00b9\u00b2\u00b3]|LPT[1-9\u00b9\u00b2\u00b3])"
@@ -232,8 +234,29 @@ def _validate_document(document: dict, schema_name: str, root: str) -> dict:
     return normalized
 
 
+def _validated_evidence_pack_document(document: dict) -> dict:
+    normalized = _validate_document(
+        document, "evidence-pack.schema.json", "evidence_pack"
+    )
+    run_spec = normalized.get("run_spec")
+    if run_spec is not None:
+        try:
+            validate_run_spec_document(run_spec)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"run_spec: {exc}") from exc
+        comparison_key = normalized.get("comparison_key")
+        if comparison_key is None:
+            raise ValueError("comparison_key is required when run_spec is present")
+        derived_key = sha256_json({
+            field: run_spec[field] for field in _COMPARISON_SPEC_FIELDS
+        })
+        if comparison_key != derived_key:
+            raise ValueError("comparison_key conflicts with run_spec")
+    return normalized
+
+
 def validate_evidence_pack_document(document: dict) -> None:
-    _validate_document(document, "evidence-pack.schema.json", "evidence_pack")
+    _validated_evidence_pack_document(document)
 
 
 def _validate_portable_path_segment(segment: str, field: str) -> None:
@@ -339,9 +362,7 @@ def write_evidence_pack(
         **manifest,
         "artifacts": _artifact_entries(run_root, artifact_paths),
     }
-    document = _validate_document(
-        document, "evidence-pack.schema.json", "evidence_pack"
-    )
+    document = _validated_evidence_pack_document(document)
 
     target = run_root / EVIDENCE_PACK_NAME
     temporary = run_root / EVIDENCE_TEMP_NAME
@@ -405,7 +426,7 @@ def verify_evidence_pack(path: str | Path) -> dict:
     except (OSError, ValueError) as exc:
         raise ValueError(f"cannot read evidence pack: {pack_path}") from exc
 
-    validate_evidence_pack_document(document)
+    document = _validated_evidence_pack_document(document)
     run_root = pack_path.resolve().parent
     seen_paths: set[str] = set()
     seen_files: set[str] = set()

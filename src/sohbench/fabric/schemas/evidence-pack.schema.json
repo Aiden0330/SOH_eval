@@ -12,6 +12,13 @@
       "type": "string",
       "minLength": 1
     },
+    "comparison_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_spec": {
+      "type": "object"
+    },
     "artifacts": {
       "type": "array",
       "items": {

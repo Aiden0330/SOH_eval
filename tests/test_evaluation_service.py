@@ -355,10 +355,13 @@ def test_prediction_sample_ids_are_intrinsic_and_order_independent(tmp_path):
     assert observed[0] == observed[1]
 
 
-@pytest.mark.parametrize("bad_cycle", [1.2, np.nan, np.inf, -np.inf])
+@pytest.mark.parametrize(
+    "bad_cycle",
+    [1.2, np.nan, np.inf, -np.inf, True, -1, 2**63, float(2**63)],
+)
 def test_prediction_identity_rejects_non_integral_cycle_index(bad_cycle):
     frame = pd.read_csv(BytesIO(_dataset_csv()))
-    frame["cycle_index"] = frame["cycle_index"].astype(float)
+    frame["cycle_index"] = frame["cycle_index"].astype(object)
     frame.loc[0, "cycle_index"] = bad_cycle
 
     with pytest.raises(ValueError, match="cycle_index must contain finite integers"):

@@ -69,13 +69,16 @@ def test_upload_and_catalog_preserve_unlabeled_inference_dataset(tmp_path):
     ]
 
 
-@pytest.mark.parametrize("bad_cycle", [1.2, np.nan, np.inf, -np.inf])
+@pytest.mark.parametrize(
+    "bad_cycle",
+    [1.2, np.nan, np.inf, -np.inf, True, -1, 2**63, float(2**63)],
+)
 def test_upload_dataset_rejects_non_integral_cycle_index(tmp_path, bad_cycle):
     store = TrustedPluginStore(
         base_dir=tmp_path / "plugins", data_dir=tmp_path / "data",
     )
     frame = _dataset_frame()
-    frame["cycle_index"] = frame["cycle_index"].astype(float)
+    frame["cycle_index"] = frame["cycle_index"].astype(object)
     frame.loc[1, "cycle_index"] = bad_cycle
 
     with pytest.raises(
