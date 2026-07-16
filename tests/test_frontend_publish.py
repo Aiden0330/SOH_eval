@@ -11,7 +11,10 @@ import scripts.package_portable_frontend as portable_module
 from scripts.package_portable_frontend import package_portable_frontend
 from scripts.sync_battery_dashboard_native import sync_native_dashboard
 import sohbench.frontend_publish as frontend_publish_module
-from sohbench.frontend_publish import publish_frontend_profile
+from sohbench.frontend_publish import (
+    publish_frontend_profile,
+    sync_frontend_artifacts,
+)
 
 
 def _write_json(path: Path, payload) -> None:
@@ -148,3 +151,36 @@ def test_concurrent_profile_publication_never_mixes_runs(tmp_path, monkeypatch):
         json.loads((profile / "manifest.json").read_text(encoding="utf-8"))["run"],
     }
     assert len(runs) == 1
+
+
+def test_root_publication_removes_omitted_artifacts_but_preserves_profiles(
+    tmp_path,
+):
+    frontend_data = tmp_path / "frontend" / "data"
+    run_dir = tmp_path / "run-b"
+    _write_json(
+        frontend_data / "leaderboard.json",
+        {"run": "A", "artifact": "leaderboard"},
+    )
+    _write_json(
+        frontend_data / "recommendation_summary.json",
+        {"run": "A", "artifact": "recommendation"},
+    )
+    _write_json(
+        frontend_data / "profiles" / "accepted" / "manifest.json",
+        {"profile": "accepted", "persistent": True},
+    )
+    _write_json(
+        run_dir / "leaderboard.json",
+        {"run": "B", "artifact": "leaderboard"},
+    )
+    profile_before = _snapshot(frontend_data / "profiles")
+
+    copied = sync_frontend_artifacts(run_dir, frontend_data)
+
+    assert copied == ["leaderboard.json"]
+    assert json.loads(
+        (frontend_data / "leaderboard.json").read_text(encoding="utf-8")
+    )["run"] == "B"
+    assert not (frontend_data / "recommendation_summary.json").exists()
+    assert _snapshot(frontend_data / "profiles") == profile_before

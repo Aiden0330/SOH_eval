@@ -98,6 +98,8 @@ def sync_frontend_artifacts(run_dir: str | Path, frontend_data_dir: str | Path) 
             shutil.copytree(target_dir, staging)
         else:
             staging.mkdir(parents=True)
+        for filename in FRONTEND_ARTIFACTS:
+            (staging / filename).unlink(missing_ok=True)
         for filename in copied:
             shutil.copy2(source_dir / filename, staging / filename)
 
