@@ -5,6 +5,8 @@ import json
 import shutil
 from pathlib import Path
 
+from sohbench.frontend_publish import _publish_directory
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE = Path(r"D:\battery_SOH\dashboard")
@@ -22,6 +24,25 @@ def _scenario_names(manifest: dict) -> list[str]:
         if name:
             names.append(str(name))
     return names
+
+
+def _required_assets(scenarios: list[str], *, include_curves: bool, include_detection: bool) -> list[str]:
+    required = ["manifest.json", "overview.json"]
+    for name in scenarios:
+        required.append(f"{name}.json")
+        if include_curves:
+            required.append(f"{name}_curves.json")
+    if include_detection:
+        required.extend(["ess_detection.json", "ess_detection_curves.json"])
+    return required
+
+
+def _validate_json_assets(data_dir: Path, filenames: list[str]) -> None:
+    for filename in filenames:
+        path = data_dir / filename
+        if not path.is_file():
+            raise FileNotFoundError(f"Missing required source dashboard asset: {path}")
+        _read_json(path)
 
 
 LINKED_CONTROL_CSS = """  .linked-select { max-width:220px; }
@@ -286,41 +307,25 @@ def sync_native_dashboard(
     source = Path(source)
     target = Path(target)
     source_data = source / "data"
-    target_data = target / "data"
 
     if not (source / "index.html").is_file():
         raise FileNotFoundError(f"Missing source dashboard index.html: {source / 'index.html'}")
     if not source_data.is_dir():
         raise FileNotFoundError(f"Missing source dashboard data directory: {source_data}")
+    if not (source_data / "manifest.json").is_file():
+        raise FileNotFoundError(f"Missing required source dashboard asset: {source_data / 'manifest.json'}")
 
     manifest = _read_json(source_data / "manifest.json")
     scenarios = _scenario_names(manifest)
     if not scenarios:
         raise RuntimeError("Source manifest has no scenarios")
-
-    target.mkdir(parents=True, exist_ok=True)
-    if target_data.exists():
-        shutil.rmtree(target_data)
-    target_data.mkdir(parents=True, exist_ok=True)
-
     html = _patch_embedded_entry((source / "index.html").read_text(encoding="utf-8"))
-    (target / "index.html").write_text(html, encoding="utf-8", newline="\n")
-
-    copied: list[str] = []
-    required = ["manifest.json", "overview.json"]
-    for name in scenarios:
-        required.append(f"{name}.json")
-        if include_curves:
-            required.append(f"{name}_curves.json")
-    if include_detection:
-        required.extend(["ess_detection.json", "ess_detection_curves.json"])
-
-    for filename in required:
-        src = source_data / filename
-        if not src.exists():
-            raise FileNotFoundError(f"Missing required source dashboard asset: {src}")
-        shutil.copy2(src, target_data / filename)
-        copied.append(filename)
+    required = _required_assets(
+        scenarios,
+        include_curves=include_curves,
+        include_detection=include_detection,
+    )
+    _validate_json_assets(source_data, required)
 
     manifest_payload = {
         "source": str(source),
@@ -328,13 +333,24 @@ def sync_native_dashboard(
         "scenario_count": len(scenarios),
         "include_soh_curves": bool(include_curves),
         "excluded_detection_assets": not include_detection,
-        "copied_files": copied,
+        "copied_files": list(required),
     }
-    (target / "SYNC_MANIFEST.json").write_text(
-        json.dumps(manifest_payload, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-        newline="\n",
-    )
+
+    def build(staging: Path) -> None:
+        staging_data = staging / "data"
+        staging_data.mkdir(parents=True)
+        (staging / "index.html").write_text(html, encoding="utf-8", newline="\n")
+        for filename in required:
+            shutil.copy2(source_data / filename, staging_data / filename)
+        (staging / "SYNC_MANIFEST.json").write_text(
+            json.dumps(manifest_payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+            newline="\n",
+        )
+        _validate_json_assets(staging_data, required)
+        _read_json(staging / "SYNC_MANIFEST.json")
+
+    _publish_directory(target, build)
     return manifest_payload
 
 

@@ -6,6 +6,8 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
+from sohbench.frontend_publish import _publish_directory
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_APP_DIR = ROOT / "frontend" / "app"
@@ -110,6 +112,43 @@ def _remove_detection_assets(path: Path) -> None:
             item.unlink()
 
 
+def _validate_native_dashboard(path: Path) -> None:
+    index = path / "index.html"
+    data = path / "data"
+    manifest_path = data / "manifest.json"
+    if not index.is_file():
+        raise FileNotFoundError(f"Missing native dashboard index.html: {index}")
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"Missing native dashboard manifest: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    scenarios = manifest.get("scenarios") if isinstance(manifest, dict) else None
+    if not isinstance(scenarios, list) or not scenarios:
+        raise ValueError("native dashboard manifest has no scenarios")
+    required = [data / "overview.json"]
+    for item in scenarios:
+        if not isinstance(item, dict):
+            raise ValueError("native dashboard scenario must be an object")
+        name = item.get("mode") or item.get("id")
+        if not name:
+            raise ValueError("native dashboard scenario has no mode or id")
+        required.append(data / f"{name}.json")
+    for asset in required:
+        if not asset.is_file():
+            raise FileNotFoundError(f"Missing native dashboard asset: {asset}")
+        json.loads(asset.read_text(encoding="utf-8"))
+
+    sync_manifest_path = path / "SYNC_MANIFEST.json"
+    if sync_manifest_path.is_file():
+        sync_manifest = json.loads(sync_manifest_path.read_text(encoding="utf-8"))
+        for filename in sync_manifest.get("copied_files") or []:
+            if "ess_detection" in str(filename):
+                continue
+            asset = data / str(filename)
+            if not asset.is_file():
+                raise FileNotFoundError(f"Missing synced native dashboard asset: {asset}")
+            json.loads(asset.read_text(encoding="utf-8"))
+
+
 def package_portable_frontend(app_dir: Path = DEFAULT_APP_DIR, output: Path = DEFAULT_OUTPUT) -> dict:
     app_dir = Path(app_dir)
     output = Path(output)
@@ -119,59 +158,66 @@ def package_portable_frontend(app_dir: Path = DEFAULT_APP_DIR, output: Path = DE
         raise FileNotFoundError(f"Missing frontend index.html: {app_dir / 'index.html'}")
     if not native_dashboard.is_dir():
         raise FileNotFoundError(f"Missing native battery dashboard: {native_dashboard}")
+    _validate_native_dashboard(native_dashboard)
+    result: dict = {}
 
-    if output.exists():
-        shutil.rmtree(output)
-    output.mkdir(parents=True)
+    def build(staging: Path) -> None:
+        staging.mkdir(parents=True)
+        copied_assets: list[str] = []
+        for name in sorted(APP_ASSET_NAMES):
+            src = app_dir / name
+            if src.is_file():
+                _copy_file(src, staging / name)
+                copied_assets.append(name)
 
-    copied_assets: list[str] = []
-    for name in sorted(APP_ASSET_NAMES):
-        src = app_dir / name
-        if src.is_file():
-            _copy_file(src, output / name)
-            copied_assets.append(name)
+        data_source = app_dir / "data"
+        if data_source.is_dir():
+            _copy_data_tree_without_detection(data_source, staging / "data")
+            copied_assets.append("data/")
 
-    data_source = app_dir / "data"
-    if data_source.is_dir():
-        _copy_data_tree_without_detection(data_source, output / "data")
-        copied_assets.append("data/")
+        staged_dashboard = staging / "battery-dashboard"
+        _copy_tree(native_dashboard, staged_dashboard)
+        _remove_detection_assets(staged_dashboard / "data")
+        copied_assets.append("battery-dashboard/")
+        _validate_native_dashboard(staged_dashboard)
 
-    _copy_tree(native_dashboard, output / "battery-dashboard")
-    _remove_detection_assets(output / "battery-dashboard" / "data")
-    copied_assets.append("battery-dashboard/")
-
-    native_data = output / "battery-dashboard" / "data"
-    detection_assets = [
-        native_data / "ess_detection.json",
-        native_data / "ess_detection_curves.json",
-    ]
-    excluded_detection_assets = not any(path.exists() for path in detection_assets)
-    soh_curve_count = len([path for path in native_data.glob("*_curves.json") if not path.name.startswith("ess_detection")])
-
-    file_count, total_bytes = _directory_stats(output)
-    manifest = {
-        "portable": True,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "app_dir": str(app_dir),
-        "output": str(output),
-        "copied_assets": copied_assets,
-        "file_count": file_count,
-        "total_bytes": total_bytes,
-        "include_soh_curves": soh_curve_count > 0,
-        "excluded_detection_assets": excluded_detection_assets,
-        "battery_dashboard": {
-            "included": True,
+        native_data = staged_dashboard / "data"
+        detection_assets = [
+            native_data / "ess_detection.json",
+            native_data / "ess_detection_curves.json",
+        ]
+        excluded_detection_assets = not any(path.exists() for path in detection_assets)
+        soh_curve_count = len(
+            [path for path in native_data.glob("*_curves.json") if not path.name.startswith("ess_detection")]
+        )
+        file_count, total_bytes = _directory_stats(staging)
+        manifest = {
+            "portable": True,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "app_dir": str(app_dir),
+            "output": str(output),
+            "copied_assets": copied_assets,
+            "file_count": file_count,
+            "total_bytes": total_bytes,
             "include_soh_curves": soh_curve_count > 0,
-            "soh_curve_file_count": soh_curve_count,
             "excluded_detection_assets": excluded_detection_assets,
-        },
-    }
-    (output / "MANIFEST.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-        newline="\n",
-    )
-    return manifest
+            "battery_dashboard": {
+                "included": True,
+                "include_soh_curves": soh_curve_count > 0,
+                "soh_curve_file_count": soh_curve_count,
+                "excluded_detection_assets": excluded_detection_assets,
+            },
+        }
+        (staging / "MANIFEST.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+            newline="\n",
+        )
+        json.loads((staging / "MANIFEST.json").read_text(encoding="utf-8"))
+        result["manifest"] = manifest
+
+    _publish_directory(output, build)
+    return result["manifest"]
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
