@@ -961,8 +961,32 @@ def test_inference_job_keeps_object_pd_na_labels_unscored_and_successful(tmp_pat
     persisted = pd.read_parquet(
         Path(finished["raw_run_dir"]) / "inference_results.parquet"
     )
+    metric_names = {
+        "mae",
+        "rmse",
+        "mean_bias_error",
+        "monotonicity_violation_rate",
+        "value_range_violation",
+        "load_ms",
+        "predict_ms",
+        "ms_per_1000_samples",
+        "samples_per_second",
+    }
+    assert metric_names.isdisjoint(persisted.columns)
+    persisted_metrics = json.loads(persisted.loc[0, "metrics_json"])
     assert {"mae", "rmse", "mean_bias_error"}.isdisjoint(
-        persisted.columns
+        persisted_metrics
+    )
+    assert set(persisted_metrics) == metric_names - {
+        "mae",
+        "rmse",
+        "mean_bias_error",
+    }
+    assert all(
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and np.isfinite(value)
+        for value in persisted_metrics.values()
     )
     assert verify_evidence_pack(finished["evidence_path"])["ok"] is True
 

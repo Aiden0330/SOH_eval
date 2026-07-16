@@ -44,7 +44,7 @@ _INFERENCE_METRICS = (
     *_INFERENCE_PREDICTION_METRICS,
     *_INFERENCE_TIMING_METRICS,
 )
-_INFERENCE_LABEL_METRICS_FIELD = "label_metrics_json"
+_INFERENCE_METRICS_FIELD = "metrics_json"
 _STATISTICS_ENTRY_FIELDS = (
     "candidate_id",
     "estimator",
@@ -709,15 +709,15 @@ def _inference_persistence_frame(records: list[dict]) -> pd.DataFrame:
         row = {
             key: value
             for key, value in record.items()
-            if key not in _INFERENCE_LABEL_METRICS
+            if key not in _INFERENCE_METRICS
         }
-        label_metrics = {
+        metrics = {
             name: record[name]
-            for name in _INFERENCE_LABEL_METRICS
+            for name in _INFERENCE_METRICS
             if name in record
         }
-        row[_INFERENCE_LABEL_METRICS_FIELD] = json.dumps(
-            label_metrics,
+        row[_INFERENCE_METRICS_FIELD] = json.dumps(
+            metrics,
             ensure_ascii=False,
             allow_nan=False,
             sort_keys=True,
