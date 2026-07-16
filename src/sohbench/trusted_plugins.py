@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from . import registry as R
-from .contracts import feature_columns
+from .contracts import feature_columns, validate_finite_vector
 from .data import (
     DatasetLoader,
     INFERENCE_REQUIRED_COLUMNS,
@@ -408,11 +408,23 @@ def _smoke_estimator(cls: type) -> None:
     fitted = est.fit(train, train["soh"].to_numpy(), pd.DataFrame())
     if fitted is not None:
         est = fitted
-    pred = np.asarray(est.predict(test, pd.DataFrame()), dtype=float)
-    if pred.shape[0] != len(test):
-        raise TrustedPluginError("estimator predict() must return one value per row")
-    if not np.isfinite(pred).all():
-        raise TrustedPluginError("estimator predict() returned non-finite values")
+    try:
+        validate_finite_vector(
+            est.predict(test, pd.DataFrame()),
+            name="predictions",
+            n_samples=len(test),
+        )
+        predict_interval = getattr(est, "predict_interval", None)
+        if callable(predict_interval):
+            low, high = predict_interval(test, pd.DataFrame())
+            validate_finite_vector(
+                low, name="interval_low", n_samples=len(test)
+            )
+            validate_finite_vector(
+                high, name="interval_high", n_samples=len(test)
+            )
+    except (TypeError, ValueError) as exc:
+        raise TrustedPluginError(str(exc)) from exc
 
 
 def _smoke_featureset_plugin(plugin: FeaturePlugin) -> None:

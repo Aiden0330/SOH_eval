@@ -3,6 +3,7 @@ import pickle
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from sohbench.inference import run_inference_benchmark
 from sohbench.model_store import ModelStore
@@ -22,6 +23,37 @@ class ConstantModel:
 
     def predict(self, X, meta=None):
         return np.full(len(X), 0.95)
+
+
+class ColumnModel:
+    def fit(self, X, y=None, meta=None):
+        raise AssertionError("fit must not be called")
+
+    def predict(self, X, meta=None):
+        return np.asarray(X["voltage_mean"], dtype=float)
+
+
+class FixedOutputLoadedModel:
+    load_ms = 0.0
+    manifest = {"featureset": "full", "estimator": "fixed_output"}
+
+    def __init__(self, prediction, interval=None):
+        self.prediction = prediction
+        self.interval = interval
+
+    def predict(self, table, meta=None):
+        return self.prediction
+
+    def predict_interval(self, table, meta=None):
+        return self.interval
+
+
+class FixedOutputStore:
+    def __init__(self, loaded):
+        self.loaded = loaded
+
+    def load_model(self, name):
+        return self.loaded
 
 
 def _manifest():
@@ -131,3 +163,125 @@ def test_inference_benchmark_treats_object_pd_na_labels_as_unscored(tmp_path):
     assert records[0]["mae"] is None
     assert records[0]["rmse"] is None
     assert records[0]["mean_bias_error"] is None
+
+
+def test_inference_trajectory_metrics_do_not_join_independent_cells(tmp_path):
+    store = ModelStore(tmp_path / "models")
+    store.save_training_model("trajectory", ColumnModel(), _manifest())
+    table = pd.DataFrame(
+        {
+            "dataset": ["d"] * 4,
+            "cell_id": ["a", "a", "b", "b"],
+            "cycle_index": [0, 1, 0, 1],
+            "soh": [1.0, 0.9, 0.8, 0.7],
+            "voltage_mean": [1.0, 0.9, 0.8, 0.7],
+        }
+    )
+
+    record = run_inference_benchmark(
+        store, table, pd.DataFrame(), ["trajectory"]
+    )[0]
+    shuffled = table.iloc[[3, 0, 2, 1]].reset_index(drop=True)
+    shuffled_record = run_inference_benchmark(
+        store, shuffled, pd.DataFrame(), ["trajectory"]
+    )[0]
+
+    assert record["monotonicity_violation_rate"] == 0.0
+    assert shuffled_record["monotonicity_violation_rate"] == 0.0
+
+
+def test_inference_trajectory_metrics_average_eligible_assets_equally(tmp_path):
+    store = ModelStore(tmp_path / "models")
+    store.save_training_model("trajectory", ColumnModel(), _manifest())
+    table = pd.DataFrame(
+        {
+            "dataset": ["d"] * 6,
+            "cell_id": ["short", "short", "long", "long", "long", "long"],
+            "cycle_index": [0, 1, 0, 1, 2, 3],
+            "soh": [1.0, 0.9, 1.0, 0.9, 0.8, 0.7],
+            "voltage_mean": [1.4, 1.5, 1.0, 0.9, 0.8, 0.7],
+        }
+    )
+
+    record = run_inference_benchmark(
+        store, table, pd.DataFrame(), ["trajectory"]
+    )[0]
+
+    assert record["monotonicity_violation_rate"] == 0.5
+    assert record["value_range_violation"] == 0.5
+
+
+def test_inference_rejects_duplicate_asset_cycle_identities(tmp_path):
+    store = ModelStore(tmp_path / "models")
+    store.save_training_model("trajectory", ColumnModel(), _manifest())
+    table = pd.DataFrame(
+        {
+            "dataset": ["d", "d", "d"],
+            "cell_id": ["a", "a", "a"],
+            "cycle_index": [0, 1, 0],
+            "soh": [1.0, 0.9, 0.95],
+            "voltage_mean": [1.0, 0.9, 0.95],
+        }
+    )
+
+    record = run_inference_benchmark(
+        store, table, pd.DataFrame(), ["trajectory"]
+    )[0]
+
+    assert record["status"] == "failed"
+    assert "duplicate cycle identity" in record["error"]
+
+
+@pytest.mark.parametrize(
+    "prediction",
+    [
+        pytest.param(np.array([[0.9], [0.8]]), id="two-dimensional"),
+        pytest.param(np.array([0.9]), id="wrong-length"),
+        pytest.param(np.array([0.9, np.nan]), id="nan"),
+        pytest.param(np.array([0.9, np.inf]), id="infinity"),
+    ],
+)
+def test_inference_rejects_invalid_prediction_arrays(prediction):
+    table = _table().loc[lambda frame: frame["dataset"].eq("new_a")]
+    store = FixedOutputStore(FixedOutputLoadedModel(prediction))
+
+    record = run_inference_benchmark(
+        store, table, pd.DataFrame(), ["fixed_output"]
+    )[0]
+
+    assert record["status"] == "failed"
+    assert record["mae"] is None
+    assert "predictions" in record["error"]
+
+
+@pytest.mark.parametrize("bound", ["interval_low", "interval_high"])
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        pytest.param(np.array([[0.7], [0.7]]), id="two-dimensional"),
+        pytest.param(np.array([0.7]), id="wrong-length"),
+        pytest.param(np.array([0.7, np.nan]), id="nan"),
+        pytest.param(np.array([0.7, np.inf]), id="infinity"),
+    ],
+)
+def test_inference_rejects_invalid_interval_arrays(bound, invalid):
+    table = _table().loc[lambda frame: frame["dataset"].eq("new_a")]
+    interval = {
+        "interval_low": np.array([0.7, 0.7]),
+        "interval_high": np.array([1.0, 1.0]),
+    }
+    interval[bound] = invalid
+    store = FixedOutputStore(
+        FixedOutputLoadedModel(
+            np.array([0.9, 0.8]),
+            (interval["interval_low"], interval["interval_high"]),
+        )
+    )
+
+    record = run_inference_benchmark(
+        store, table, pd.DataFrame(), ["fixed_output"]
+    )[0]
+
+    assert record["status"] == "failed"
+    assert record["mae"] is None
+    assert bound in record["error"]

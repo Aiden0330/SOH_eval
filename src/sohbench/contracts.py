@@ -6,8 +6,25 @@ import pandas as pd
 
 ID_COLUMNS = ["dataset", "cell_id", "cycle_index", "soh"]
 
+
 def feature_columns(X: pd.DataFrame) -> list[str]:
     return [c for c in X.columns if c not in ID_COLUMNS]
+
+
+def validate_finite_vector(values, *, name: str, n_samples: int) -> np.ndarray:
+    try:
+        array = np.asarray(values, dtype=float)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a numeric array") from exc
+    if array.ndim != 1:
+        raise ValueError(f"{name} must be a one-dimensional array")
+    if len(array) != n_samples:
+        raise ValueError(
+            f"{name} must contain exactly {n_samples} values; got {len(array)}"
+        )
+    if not np.isfinite(array).all():
+        raise ValueError(f"{name} must contain only finite values")
+    return array
 
 @dataclass(frozen=True)
 class CellMeta:

@@ -124,6 +124,59 @@ class Estimator:
     assert any(item["name"] == "trusted_mean_estimator" for item in store.catalog()["estimators"])
 
 
+def test_upload_estimator_plugin_rejects_non_vector_predictions(tmp_path):
+    store = TrustedPluginStore(
+        base_dir=tmp_path / "plugins", data_dir=tmp_path / "data"
+    )
+    code = b'''
+import numpy as np
+
+class Estimator:
+    name = "trusted_column_prediction"
+
+    def fit(self, X, y, meta=None):
+        return self
+
+    def predict(self, X, meta=None):
+        return np.full((len(X), 1), 0.9)
+'''
+
+    with pytest.raises(TrustedPluginError, match="one-dimensional"):
+        store.upload_estimator_plugin(
+            name="column_prediction",
+            filename="column_prediction.py",
+            payload=code,
+        )
+
+
+def test_upload_estimator_plugin_rejects_non_finite_native_intervals(tmp_path):
+    store = TrustedPluginStore(
+        base_dir=tmp_path / "plugins", data_dir=tmp_path / "data"
+    )
+    code = b'''
+import numpy as np
+
+class Estimator:
+    name = "trusted_non_finite_interval"
+
+    def fit(self, X, y, meta=None):
+        return self
+
+    def predict(self, X, meta=None):
+        return np.full(len(X), 0.9)
+
+    def predict_interval(self, X, meta=None):
+        return np.full(len(X), 0.8), np.full(len(X), np.inf)
+'''
+
+    with pytest.raises(TrustedPluginError, match="interval_high.*finite"):
+        store.upload_estimator_plugin(
+            name="non_finite_interval",
+            filename="non_finite_interval.py",
+            payload=code,
+        )
+
+
 def test_upload_featureset_plugin_registers_transforming_feature_set(tmp_path):
     store = TrustedPluginStore(base_dir=tmp_path / "plugins", data_dir=tmp_path / "data")
     code = b'''

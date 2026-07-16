@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from . import metrics as M
+from .contracts import validate_finite_vector
 
 
 def run_inference_benchmark(
@@ -33,8 +34,13 @@ def run_inference_benchmark(
             }
             try:
                 start = time.perf_counter()
-                pred = loaded.predict(group, meta)
+                pred = validate_finite_vector(
+                    loaded.predict(group, meta),
+                    name="predictions",
+                    n_samples=len(group),
+                )
                 predict_ms = (time.perf_counter() - start) * 1000.0
+                _validate_optional_intervals(loaded, group, meta)
                 records.append(
                     {
                         **base,
@@ -66,12 +72,7 @@ def run_inference_benchmark(
 
 
 def _metrics(group: pd.DataFrame, pred: np.ndarray) -> dict:
-    out = {
-        "monotonicity_violation_rate": M.monotonicity_violation_rate(
-            pred[np.argsort(group["cycle_index"].to_numpy())]
-        ),
-        "value_range_violation": M.value_range_violation(pred),
-    }
+    out = _trajectory_metrics(group, pred)
     if "soh" in group.columns:
         y = pd.to_numeric(group["soh"], errors="coerce").to_numpy(
             dtype=float,
@@ -90,6 +91,54 @@ def _metrics(group: pd.DataFrame, pred: np.ndarray) -> dict:
     else:
         out.update({"mae": None, "rmse": None, "mean_bias_error": None})
     return out
+
+
+def _validate_optional_intervals(loaded, group, meta) -> None:
+    predict_interval = getattr(loaded, "predict_interval", None)
+    if not callable(predict_interval):
+        return
+    intervals = predict_interval(group, meta)
+    if intervals is None:
+        return
+    try:
+        low, high = intervals
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "predict_interval() must return interval_low and interval_high arrays"
+        ) from exc
+    validate_finite_vector(low, name="interval_low", n_samples=len(group))
+    validate_finite_vector(high, name="interval_high", n_samples=len(group))
+
+
+def _trajectory_metrics(group: pd.DataFrame, pred: np.ndarray) -> dict:
+    frame = group[["dataset", "cell_id", "cycle_index"]].copy()
+    frame["prediction"] = pred
+    identity = ["dataset", "cell_id", "cycle_index"]
+    if frame.duplicated(identity).any():
+        raise ValueError("duplicate cycle identity")
+
+    per_asset = []
+    for _, asset in frame.groupby(
+        ["dataset", "cell_id"], sort=True, dropna=False
+    ):
+        ordered = asset.sort_values("cycle_index", kind="stable")[
+            "prediction"
+        ].to_numpy()
+        per_asset.append(
+            {
+                "monotonicity_violation_rate": M.monotonicity_violation_rate(
+                    ordered
+                ),
+                "value_range_violation": M.value_range_violation(ordered),
+            }
+        )
+    return {
+        metric: float(np.mean([values[metric] for values in per_asset]))
+        for metric in (
+            "monotonicity_violation_rate",
+            "value_range_violation",
+        )
+    }
 
 
 def _failed_record(model_name: str, dataset: str, n_samples: int, load_ms: float, error: str) -> dict:
