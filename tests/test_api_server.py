@@ -215,6 +215,11 @@ def test_api_upload_catalog_and_job_flow(tmp_path):
             status = _get_json(base_url, f"/api/jobs/{job['id']}")
 
         assert status["status"] == "succeeded"
+        assert status["run_id"].startswith("RUN-")
+        assert status["execution_state"] == "REVIEW"
+        assert status["outcome"] in {"complete", "partial"}
+        assert status["verdict"] == "not_reviewed"
+        assert status["evidence_path"].endswith("evidence-pack.json")
     finally:
         server.shutdown()
 
@@ -528,5 +533,10 @@ def test_api_upload_model_and_start_inference_job(tmp_path):
             time.sleep(0.2)
             status = _get_json(base_url, f"/api/inference-jobs/{job['id']}")
         assert status["status"] == "succeeded"
+        assert status["run_id"].startswith("RUN-")
+        assert status["execution_state"] == "REVIEW"
+        assert status["outcome"] == "complete"
+        assert status["verdict"] == "not_reviewed"
+        assert status["evidence_path"].endswith("evidence-pack.json")
     finally:
         server.shutdown()

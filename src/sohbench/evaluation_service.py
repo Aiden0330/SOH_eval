@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import tempfile
 import threading
 import time
 import traceback
@@ -23,7 +25,19 @@ from .report import write_artifacts, write_inference_artifacts
 from .runner import BenchmarkRunner
 from .tasks import SOHEstimationTask
 from .trusted_plugins import TrustedPluginStore
-from .fabric import FeatureState, IdentityFeaturePipeline, scoped_meta_for_frame
+from .fabric import (
+    DatasetSnapshot,
+    FeatureState,
+    IdentityFeaturePipeline,
+    RunOutcome,
+    RunSpec,
+    SpecRef,
+    frame_digest,
+    new_id,
+    scoped_meta_for_frame,
+)
+from .fabric.evidence import verify_evidence_pack, write_evidence_pack
+from .fabric.ids import sha256_json
 
 
 PROTOCOLS = {
@@ -171,6 +185,11 @@ class EvaluationService:
             loader = DatasetLoader(self.data_dir)
             datasets = loader.resolve_datasets(request["datasets"])
             table, meta, qc = loader.load(datasets)
+            run_id = new_id("RUN")
+            run_spec = self._build_run_spec(
+                run_type="training", request=request, datasets=datasets,
+                table=table, qc=qc,
+            )
             estimators = [R.get_estimator(name) for name in request["estimators"]]
             protocols = {name: PROTOCOLS[name]() for name in request["protocols"]}
             feature_pipelines = {
@@ -180,6 +199,7 @@ class EvaluationService:
             }
             saved_models = []
             model_warnings = []
+            prediction_rows = []
 
             def save_fitted_model(**kwargs) -> None:
                 record = kwargs["record"]
@@ -226,6 +246,35 @@ class EvaluationService:
                 except Exception as exc:
                     model_warnings.append(f"{model_name}: {exc}")
 
+            def collect_predictions(**kwargs) -> None:
+                record = kwargs["record"]
+                sample_frame = kwargs["sample_frame"]
+                y_pred = kwargs["y_pred"]
+                interval_low = kwargs["interval_low"]
+                interval_high = kwargs["interval_high"]
+                for position, (_, sample) in enumerate(sample_frame.iterrows()):
+                    dataset = str(sample["dataset"])
+                    cell_id = str(sample["cell_id"])
+                    cycle_index = int(sample["cycle_index"])
+                    row = {
+                        "run_id": run_id,
+                        "candidate_id": str(record["estimator"]),
+                        "featureset": str(record["featureset"]),
+                        "protocol": str(record["protocol"]),
+                        "fold": int(record["fold"]),
+                        "seed": int(record["seed"]),
+                        "dataset": dataset,
+                        "cell_id": cell_id,
+                        "cycle_index": cycle_index,
+                        "sample_id": f"{dataset}:{cell_id}:{cycle_index}:{sample.name}",
+                        "y_pred": float(y_pred[position]),
+                        "interval_low": float(interval_low[position]),
+                        "interval_high": float(interval_high[position]),
+                    }
+                    if "soh" in sample:
+                        row["y_true"] = float(sample["soh"])
+                    prediction_rows.append(row)
+
             results = BenchmarkRunner(seeds=request["seeds"]).run(
                 SOHEstimationTask(),
                 table=table,
@@ -235,8 +284,11 @@ class EvaluationService:
                 featuresets=request["featuresets"],
                 feature_pipelines=feature_pipelines,
                 on_model_fitted=save_fitted_model,
+                on_predictions=collect_predictions,
             )
             results["dataset"] = ",".join(datasets)
+            results["candidate_id"] = results["estimator"].astype(str)
+            predictions = pd.DataFrame.from_records(prediction_rows) if prediction_rows else None
             raw_run_dir = Path(
                 write_artifacts(
                     results,
@@ -250,6 +302,9 @@ class EvaluationService:
                         "model_warnings": model_warnings,
                     },
                     out_dir=self.runs_dir,
+                    run_id=run_id,
+                    evidence_context={"run_spec": run_spec},
+                    predictions=predictions,
                 )
             )
             (raw_run_dir / "model_catalog.json").write_text(
@@ -260,10 +315,17 @@ class EvaluationService:
                 ),
                 encoding="utf-8",
             )
+            self._rebuild_evidence_pack(raw_run_dir)
             published_run_dir = self._publish_frontend_artifacts(raw_run_dir)
+            outcome = RunOutcome.from_results(results)
             job.update(
                 {
-                    "status": "succeeded",
+                    "run_id": run_id,
+                    "execution_state": "REVIEW" if outcome.outcome != "failed" else "FAILED",
+                    "outcome": outcome.outcome,
+                    "verdict": "not_reviewed" if outcome.outcome != "failed" else "fail",
+                    "status": "succeeded" if outcome.outcome == "complete" else "partial" if outcome.outcome == "partial" else "failed",
+                    "evidence_path": str(raw_run_dir / "evidence-pack.json"),
                     "finished_at": _now(),
                     "raw_run_dir": str(raw_run_dir),
                     "run_dir": str(published_run_dir),
@@ -292,6 +354,11 @@ class EvaluationService:
             loader = DatasetLoader(self.data_dir)
             datasets = loader.resolve_datasets(request["datasets"])
             table, meta, _qc = loader.load(datasets)
+            run_id = new_id("RUN")
+            run_spec = self._build_run_spec(
+                run_type="inference", request=request, datasets=datasets,
+                table=table, qc={},
+            )
             inferred_featuresets = self._featuresets_for_models(request["models"])
             records = []
             for model_name in request["models"]:
@@ -304,17 +371,17 @@ class EvaluationService:
                         **request,
                         "datasets": datasets,
                         "job_id": job_id,
+                        "run_id": run_id,
+                        "run_dir": str(self.runs_dir / run_id),
+                        "raw_run_dir": str(self.runs_dir / run_id),
                         "trusted_local_pickle_models": True,
                         "applied_featureset_transforms": inferred_featuresets,
                     },
                     self.runs_dir,
+                    run_id=run_id,
+                    evidence_context={"run_spec": run_spec},
                 )
             )
-            config_path = raw_run_dir / "inference_run_config.json"
-            if config_path.exists():
-                run_config = json.loads(config_path.read_text(encoding="utf-8"))
-                run_config.update({"job_id": job_id, "run_dir": str(raw_run_dir), "raw_run_dir": str(raw_run_dir)})
-                config_path.write_text(json.dumps(run_config, indent=2, ensure_ascii=False), encoding="utf-8")
             (raw_run_dir / "model_catalog.json").write_text(
                 json.dumps(
                     {"models": self.model_store.catalog()},
@@ -323,10 +390,17 @@ class EvaluationService:
                 ),
                 encoding="utf-8",
             )
+            self._rebuild_evidence_pack(raw_run_dir)
             published_run_dir = self._publish_frontend_artifacts(raw_run_dir)
+            outcome = self._inference_outcome(records)
             job.update(
                 {
-                    "status": "succeeded",
+                    "run_id": run_id,
+                    "execution_state": "REVIEW" if outcome.outcome != "failed" else "FAILED",
+                    "outcome": outcome.outcome,
+                    "verdict": "not_reviewed" if outcome.outcome != "failed" else "fail",
+                    "status": "succeeded" if outcome.outcome == "complete" else "partial" if outcome.outcome == "partial" else "failed",
+                    "evidence_path": str(raw_run_dir / "evidence-pack.json"),
                     "finished_at": _now(),
                     "raw_run_dir": str(raw_run_dir),
                     "run_dir": str(published_run_dir),
@@ -348,14 +422,14 @@ class EvaluationService:
         path = self.jobs_dir / f"{job_id}.json"
         if not path.exists():
             raise KeyError(job_id)
-        return json.loads(path.read_text(encoding="utf-8"))
+        return _read_job_json(path)
 
     def list_jobs(self) -> list[dict]:
         jobs = []
         for path in sorted(self.jobs_dir.glob("*.json"), reverse=True):
             try:
-                jobs.append(json.loads(path.read_text(encoding="utf-8")))
-            except json.JSONDecodeError:
+                jobs.append(_read_job_json(path))
+            except (OSError, json.JSONDecodeError):
                 continue
         return sorted(jobs, key=_job_sort_key, reverse=True)
 
@@ -363,14 +437,14 @@ class EvaluationService:
         path = self.inference_jobs_dir / f"{job_id}.json"
         if not path.exists():
             raise KeyError(job_id)
-        return json.loads(path.read_text(encoding="utf-8"))
+        return _read_job_json(path)
 
     def list_inference_jobs(self) -> list[dict]:
         jobs = []
         for path in sorted(self.inference_jobs_dir.glob("*.json"), reverse=True):
             try:
-                jobs.append(json.loads(path.read_text(encoding="utf-8")))
-            except json.JSONDecodeError:
+                jobs.append(_read_job_json(path))
+            except (OSError, json.JSONDecodeError):
                 continue
         return sorted(jobs, key=_job_sort_key, reverse=True)
 
@@ -413,6 +487,79 @@ class EvaluationService:
             "skipped_datasets": _string_list(payload.get("skipped_datasets") or []),
         }
         return request
+
+    def _build_run_spec(self, *, run_type: str, request: dict, datasets: list[str], table: pd.DataFrame, qc) -> RunSpec:
+        task = SOHEstimationTask()
+        snapshot = DatasetSnapshot.from_frame(
+            table,
+            datasets,
+            frame_digest(table[[task.target]]),
+            qc.__dict__ if hasattr(qc, "__dict__") else qc,
+        )
+
+        def ref(kind: str, spec_id: str, document: dict) -> SpecRef:
+            return SpecRef(kind=kind, spec_id=spec_id, version="1.0.0", digest=sha256_json(document))
+
+        candidates = request["estimators"] if run_type == "training" else request["models"]
+        return RunSpec(
+            run_type=run_type,
+            task=ref("task", task.name, {"name": task.name, "target": task.target}),
+            dataset=ref("dataset_snapshot", snapshot.snapshot_id, {
+                "snapshot_id": snapshot.snapshot_id,
+                "digest": snapshot.digest,
+                "datasets": list(snapshot.datasets),
+                "rows": snapshot.rows,
+                "assets": snapshot.assets,
+                "label_digest": snapshot.label_digest,
+                "qc": dict(snapshot.qc),
+            }),
+            protocol=ref("protocol", ",".join(request.get("protocols", ["inference"])), {
+                "protocols": request.get("protocols", ["inference"]),
+            }),
+            metric=ref("metric", "soh_metrics", {
+                "point": list(task.point_metrics),
+                "interval": list(task.interval_metrics),
+                "trajectory": list(task.trajectory_metrics),
+            }),
+            policy=ref("policy", "trusted_local", {
+                "trusted_local_plugins": run_type == "training",
+                "trusted_local_pickle_models": run_type == "inference",
+            }),
+            candidates=tuple(
+                ref("candidate", str(candidate), {"name": str(candidate), "run_type": run_type})
+                for candidate in candidates
+            ),
+            seeds=tuple(request.get("seeds", [0])),
+            idempotency_key=sha256_json({"run_type": run_type, "request": request, "dataset": snapshot.digest}),
+        )
+
+    def _inference_outcome(self, records: list[dict]) -> RunOutcome:
+        rows = [
+            {
+                "estimator": record.get("model", "unknown"),
+                "featureset": record.get("featureset", "full"),
+                "protocol": "inference",
+                "held_out_key": record.get("dataset", "all"),
+                "fold": index,
+                "seed": 0,
+                "unit_status": record.get("status", "failed"),
+            }
+            for index, record in enumerate(records)
+        ]
+        return RunOutcome.from_results(pd.DataFrame.from_records(rows))
+
+    def _rebuild_evidence_pack(self, run_dir: Path) -> None:
+        pack = verify_evidence_pack(run_dir / "evidence-pack.json")
+        manifest = {
+            key: value
+            for key, value in pack.items()
+            if key not in {"schema_version", "artifacts", "ok"}
+        }
+        artifact_paths = [run_dir / item["path"] for item in pack["artifacts"]]
+        catalog = run_dir / "model_catalog.json"
+        if catalog.exists():
+            artifact_paths.append(catalog)
+        write_evidence_pack(run_dir, manifest, artifact_paths)
 
     def _featuresets_for_models(self, model_names: list[str]) -> list[str]:
         selected = set(model_names)
@@ -663,17 +810,11 @@ class EvaluationService:
 
     def _save_job(self, job: dict) -> None:
         self.jobs_dir.mkdir(parents=True, exist_ok=True)
-        (self.jobs_dir / f"{job['id']}.json").write_text(
-            json.dumps(job, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        _atomic_json_write(self.jobs_dir / f"{job['id']}.json", job)
 
     def _save_inference_job(self, job: dict) -> None:
         self.inference_jobs_dir.mkdir(parents=True, exist_ok=True)
-        (self.inference_jobs_dir / f"{job['id']}.json").write_text(
-            json.dumps(job, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        _atomic_json_write(self.inference_jobs_dir / f"{job['id']}.json", job)
 
 
 def _compact_job(job: dict) -> dict:
@@ -688,6 +829,11 @@ def _compact_job(job: dict) -> dict:
         "raw_run_dir",
         "request",
         "error",
+        "run_id",
+        "execution_state",
+        "outcome",
+        "verdict",
+        "evidence_path",
     }
     return {key: job[key] for key in keep if key in job}
 
@@ -696,6 +842,43 @@ def _string_list(value) -> list[str]:
     if isinstance(value, str):
         return [value]
     return [str(item) for item in value]
+
+
+def _atomic_json_write(path: Path, document: dict) -> None:
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
+            json.dump(document, stream, indent=2, ensure_ascii=False)
+            stream.flush()
+            os.fsync(stream.fileno())
+        deadline = time.monotonic() + 5.0
+        while True:
+            try:
+                os.replace(temporary, path)
+                break
+            except PermissionError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.01)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
+def _read_job_json(path: Path) -> dict:
+    deadline = time.monotonic() + 5.0
+    while True:
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.01)
 
 
 def _safe_profile_name(value: str) -> str:

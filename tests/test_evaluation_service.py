@@ -1,11 +1,13 @@
 import json
 import pickle
+import threading
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from sohbench.evaluation_service import EvaluationService
+from sohbench.fabric.evidence import verify_evidence_pack
 
 
 def _dataset_csv(name="plugin_eval_demo"):
@@ -55,6 +57,20 @@ def transform(table, meta=None):
     out = table.copy()
     out["cycle_feature"] = out["cycle_index"].astype(float)
     return out
+'''
+
+
+FAILING_ESTIMATOR_PLUGIN = b'''
+class Estimator:
+    name = "always_fails"
+
+    def fit(self, X, y, meta=None):
+        if len(X) == 8:
+            return self
+        raise RuntimeError("intentional estimator failure")
+
+    def predict(self, X, meta=None):
+        return [1.0] * len(X)
 '''
 
 
@@ -111,6 +127,130 @@ def test_inline_job_runs_uploaded_dataset_algorithm_and_featureset(tmp_path):
     assert cfg["datasets"] == ["plugin_eval_demo"]
     assert cfg["estimators"] == ["trusted_linear_decay"]
     assert cfg["featuresets"] == ["trusted_cycle_shape"]
+
+
+def test_training_job_exposes_verified_evidence_contract(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset("plugin_eval_demo", "demo.csv", _dataset_csv())
+
+    job = service.create_job(
+        {
+            "datasets": ["plugin_eval_demo"],
+            "estimators": ["ridge"],
+            "featuresets": ["full"],
+            "protocols": ["loco"],
+            "seeds": [0],
+        },
+        start=False,
+    )
+    finished = service.run_job_inline(job["id"])
+
+    assert finished["run_id"].startswith("RUN-")
+    assert finished["execution_state"] == "REVIEW"
+    assert finished["outcome"] in {"complete", "partial", "failed"}
+    assert Path(finished["evidence_path"]).name == "evidence-pack.json"
+    assert verify_evidence_pack(finished["evidence_path"])["ok"] is True
+
+
+def test_all_failed_training_job_has_failed_outcome_without_leaderboard_verdict(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset("plugin_eval_demo", "demo.csv", _dataset_csv())
+    service.store.upload_estimator_plugin(
+        "always_fails", "always_fails.py", FAILING_ESTIMATOR_PLUGIN,
+    )
+
+    job = service.create_job(
+        {
+            "datasets": ["plugin_eval_demo"],
+            "estimators": ["always_fails"],
+            "featuresets": ["full"],
+            "protocols": ["loco"],
+            "seeds": [0],
+        },
+        start=False,
+    )
+    finished = service.run_job_inline(job["id"])
+
+    assert finished["status"] == "failed"
+    assert finished["outcome"] == "failed"
+    assert finished["execution_state"] == "FAILED"
+    assert finished["verdict"] == "fail"
+    assert all(not entry["verdicts"] for entry in json.loads(
+        (Path(finished["raw_run_dir"]) / "leaderboard.json").read_text(encoding="utf-8")
+    ))
+
+
+def test_inference_job_keeps_config_digest_valid_after_evidence_creation(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset("plugin_eval_demo", "demo.csv", _dataset_csv())
+    service.model_store.upload_model(
+        "api_model", "api_model.pkl", pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json", json.dumps(_model_manifest()).encode("utf-8"),
+    )
+
+    job = service.create_inference_job(
+        {"datasets": ["plugin_eval_demo"], "models": ["api_model"]}, start=False,
+    )
+    finished = service.run_inference_job_inline(job["id"])
+
+    assert finished["run_id"].startswith("RUN-")
+    assert finished["execution_state"] == "REVIEW"
+    assert finished["outcome"] == "complete"
+    assert verify_evidence_pack(finished["evidence_path"])["ok"] is True
+
+
+def test_job_json_persistence_does_not_expose_partial_documents(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    for job_id, save, get in (
+        ("polling-training", service._save_job, service.get_job),
+        ("polling-inference", service._save_inference_job, service.get_inference_job),
+    ):
+        job = {"id": job_id, "status": "queued", "payload": "x" * 100_000}
+        save(job)
+        errors = []
+        done = threading.Event()
+
+        def writer():
+            for index in range(50):
+                save({**job, "status": str(index)})
+            done.set()
+
+        def reader():
+            while not done.is_set():
+                try:
+                    get(job_id)
+                except (json.JSONDecodeError, OSError) as exc:
+                    errors.append(exc)
+
+        writer_thread = threading.Thread(target=writer)
+        reader_thread = threading.Thread(target=reader)
+        writer_thread.start()
+        reader_thread.start()
+        writer_thread.join()
+        done.set()
+        reader_thread.join()
+
+        assert errors == []
 
 
 def test_service_catalog_lists_uploaded_and_builtin_resources(tmp_path):
