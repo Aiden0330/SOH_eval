@@ -79,3 +79,32 @@ def test_inference_benchmark_records_feature_mismatch(tmp_path):
 
     assert records[0]["status"] == "failed"
     assert "missing feature columns" in records[0]["error"]
+
+
+def test_inference_benchmark_scores_only_fully_labeled_dataset_groups(tmp_path):
+    store = ModelStore(tmp_path / "models")
+    store.upload_model(
+        "predict_only",
+        "predict_only.pkl",
+        pickle.dumps(PredictOnlyModel()),
+        "model_manifest.json",
+        json.dumps(_manifest()).encode("utf-8"),
+    )
+    labeled = _table().loc[lambda frame: frame["dataset"].eq("new_a")]
+    unlabeled = (
+        _table()
+        .loc[lambda frame: frame["dataset"].eq("new_b")]
+        .drop(columns=["soh"])
+    )
+    mixed = pd.concat([labeled, unlabeled], ignore_index=True, sort=False)
+
+    records = run_inference_benchmark(
+        store, mixed, pd.DataFrame(), ["predict_only"],
+    )
+    by_dataset = {record["dataset"]: record for record in records}
+
+    assert np.isfinite(by_dataset["new_a"]["mae"])
+    assert by_dataset["new_b"]["mae"] is None
+    assert by_dataset["new_b"]["rmse"] is None
+    assert by_dataset["new_b"]["mean_bias_error"] is None
+    assert by_dataset["new_b"]["status"] == "succeeded"

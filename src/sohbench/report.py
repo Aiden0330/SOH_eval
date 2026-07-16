@@ -641,14 +641,19 @@ def write_inference_artifacts(
 
 def _inference_summary(records: list[dict]) -> dict:
     succeeded = [row for row in records if row.get("status") == "succeeded"]
+    finite_speed = [
+        row
+        for row in succeeded
+        if is_finite_real_scalar(row.get("ms_per_1000_samples"))
+    ]
     fastest = min(
-        succeeded,
-        key=lambda row: row.get("ms_per_1000_samples") or float("inf"),
+        finite_speed,
+        key=lambda row: row["ms_per_1000_samples"],
         default=None,
     )
     best = min(
-        [row for row in succeeded if row.get("mae") is not None],
-        key=lambda row: row.get("mae"),
+        [row for row in succeeded if is_finite_real_scalar(row.get("mae"))],
+        key=lambda row: row["mae"],
         default=None,
     )
     return {

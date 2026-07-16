@@ -669,6 +669,37 @@ def test_write_inference_artifacts(tmp_path):
     assert payload["records"][0]["model"] == "predict_only"
 
 
+def test_inference_summary_ignores_nonfinite_accuracy_and_speed(tmp_path):
+    from sohbench.report import write_inference_artifacts
+
+    records = [
+        {
+            "model": "first_bad",
+            "dataset": "a_unlabeled",
+            "mae": float("nan"),
+            "ms_per_1000_samples": float("nan"),
+            "status": "succeeded",
+        },
+        {
+            "model": "second_good",
+            "dataset": "z_labeled",
+            "mae": 0.0,
+            "ms_per_1000_samples": 12.0,
+            "status": "succeeded",
+        },
+    ]
+
+    out = Path(write_inference_artifacts(records, {}, tmp_path))
+    payload = json.loads(
+        (out / "inference_benchmark.json").read_text(encoding="utf-8")
+    )
+
+    assert payload["summary"]["best_transfer_model"] == "second_good"
+    assert payload["summary"]["best_transfer_mae"] == 0.0
+    assert payload["summary"]["fastest_model"] == "second_good"
+    assert payload["summary"]["fastest_ms_per_1000_samples"] == 12.0
+
+
 def _predictions(run_id="RUN-a"):
     return pd.DataFrame(
         [

@@ -74,13 +74,16 @@ def _metrics(group: pd.DataFrame, pred: np.ndarray) -> dict:
     }
     if "soh" in group.columns:
         y = group["soh"].to_numpy(dtype=float)
-        out.update(
-            {
-                "mae": M.mae(y, pred),
-                "rmse": M.rmse(y, pred),
-                "mean_bias_error": M.mean_bias_error(y, pred),
-            }
-        )
+        if np.isfinite(y).all():
+            out.update(
+                {
+                    "mae": M.mae(y, pred),
+                    "rmse": M.rmse(y, pred),
+                    "mean_bias_error": M.mean_bias_error(y, pred),
+                }
+            )
+        else:
+            out.update({"mae": None, "rmse": None, "mean_bias_error": None})
     else:
         out.update({"mae": None, "rmse": None, "mean_bias_error": None})
     return out
