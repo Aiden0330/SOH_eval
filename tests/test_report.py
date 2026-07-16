@@ -669,6 +669,146 @@ def test_write_inference_artifacts(tmp_path):
     assert payload["records"][0]["model"] == "predict_only"
 
 
+def _valid_inference_record():
+    return {
+        "model": "predict_only",
+        "dataset": "labeled",
+        "featureset": "full",
+        "estimator": "ridge",
+        "n_samples": 2,
+        "load_ms": 0.4,
+        "mae": 0.01,
+        "rmse": 0.02,
+        "mean_bias_error": 0.0,
+        "monotonicity_violation_rate": 0.0,
+        "value_range_violation": 0.0,
+        "predict_ms": 1.2,
+        "ms_per_1000_samples": 600.0,
+        "samples_per_second": 1666.7,
+        "status": "succeeded",
+        "error": "",
+    }
+
+
+@pytest.mark.parametrize(
+    "metric_name",
+    [
+        "mae",
+        "rmse",
+        "mean_bias_error",
+        "monotonicity_violation_rate",
+        "value_range_violation",
+        "load_ms",
+        "predict_ms",
+        "ms_per_1000_samples",
+        "samples_per_second",
+    ],
+)
+@pytest.mark.parametrize(
+    "invalid_value",
+    [
+        pytest.param(float("nan"), id="nan"),
+        pytest.param(float("inf"), id="positive_infinity"),
+        pytest.param(float("-inf"), id="negative_infinity"),
+        pytest.param(None, id="none"),
+        pytest.param(True, id="boolean"),
+        pytest.param("0.1", id="string"),
+        pytest.param(np.array([0.1]), id="array"),
+        pytest.param(0.1 + 0.2j, id="complex"),
+    ],
+)
+def test_inference_writer_rejects_invalid_success_metrics_before_commit(
+    tmp_path, metric_name, invalid_value
+):
+    record = _valid_inference_record()
+    record[metric_name] = invalid_value
+    run_id = "invalid-success-metric"
+
+    with pytest.raises(
+        ValueError, match=rf"inference record 0.*{metric_name}"
+    ):
+        report_module.write_inference_artifacts(
+            [record], {}, tmp_path, run_id=run_id
+        )
+
+    assert not (tmp_path / run_id).exists()
+    assert not list(tmp_path.rglob("evidence-pack.json"))
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "invalid_value",
+    [
+        pytest.param(float("nan"), id="nan"),
+        pytest.param(float("inf"), id="positive_infinity"),
+        pytest.param(float("-inf"), id="negative_infinity"),
+        pytest.param(np.float32("nan"), id="numpy_nan"),
+        pytest.param(np.float32("inf"), id="numpy_infinity"),
+    ],
+)
+def test_inference_writer_rejects_nonstandard_json_numbers_before_commit(
+    tmp_path, invalid_value
+):
+    run_id = "invalid-json-number"
+
+    with pytest.raises(ValueError):
+        report_module.write_inference_artifacts(
+            [_valid_inference_record()],
+            {"nested": {"invalid_number": invalid_value}},
+            tmp_path,
+            run_id=run_id,
+        )
+
+    assert not (tmp_path / run_id).exists()
+    assert not list(tmp_path.rglob("evidence-pack.json"))
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "numpy_value,expected",
+    [
+        pytest.param(np.float32(0.25), 0.25, id="numpy_float"),
+        pytest.param(np.int64(2), 2.0, id="numpy_integer"),
+    ],
+)
+def test_inference_writer_normalizes_finite_numpy_metric_scalars(
+    tmp_path, numpy_value, expected
+):
+    record = _valid_inference_record()
+    metric_names = (
+        "mae",
+        "rmse",
+        "mean_bias_error",
+        "monotonicity_violation_rate",
+        "value_range_violation",
+        "load_ms",
+        "predict_ms",
+        "ms_per_1000_samples",
+        "samples_per_second",
+    )
+    for metric_name in metric_names:
+        record[metric_name] = numpy_value
+
+    out = Path(
+        report_module.write_inference_artifacts([record], {}, tmp_path)
+    )
+
+    payload = json.loads(
+        (out / "inference_benchmark.json").read_text(encoding="utf-8")
+    )
+    for metric_name in metric_names:
+        assert payload["records"][0][metric_name] == expected
+        assert isinstance(payload["records"][0][metric_name], float)
+    frame = pd.read_parquet(out / "inference_results.parquet")
+    label_metrics = json.loads(frame.loc[0, "label_metrics_json"])
+    assert label_metrics == {
+        "mae": expected,
+        "mean_bias_error": expected,
+        "rmse": expected,
+    }
+    assert verify_evidence_pack(out / "evidence-pack.json")["ok"] is True
+
+
 @pytest.mark.parametrize(
     "filename,reader",
     [
@@ -836,9 +976,7 @@ def test_unlabeled_success_and_failed_record_do_not_widen_label_metrics(
     assert verify_evidence_pack(out / "evidence-pack.json")["ok"] is True
 
 
-def test_inference_summary_ignores_nonfinite_accuracy_and_speed(tmp_path):
-    from sohbench.report import write_inference_artifacts
-
+def test_inference_summary_ignores_nonfinite_accuracy_and_speed():
     records = [
         {
             "model": "first_bad",
@@ -856,15 +994,12 @@ def test_inference_summary_ignores_nonfinite_accuracy_and_speed(tmp_path):
         },
     ]
 
-    out = Path(write_inference_artifacts(records, {}, tmp_path))
-    payload = json.loads(
-        (out / "inference_benchmark.json").read_text(encoding="utf-8")
-    )
+    summary = report_module._inference_summary(records)
 
-    assert payload["summary"]["best_transfer_model"] == "second_good"
-    assert payload["summary"]["best_transfer_mae"] == 0.0
-    assert payload["summary"]["fastest_model"] == "second_good"
-    assert payload["summary"]["fastest_ms_per_1000_samples"] == 12.0
+    assert summary["best_transfer_model"] == "second_good"
+    assert summary["best_transfer_mae"] == 0.0
+    assert summary["fastest_model"] == "second_good"
+    assert summary["fastest_ms_per_1000_samples"] == 12.0
 
 
 def test_inference_summary_breaks_finite_ties_independently_of_record_order():

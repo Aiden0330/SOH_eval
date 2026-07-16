@@ -3,6 +3,7 @@ import hashlib, json, math, os, stat, unicodedata
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
+import numpy as np
 import pandas as pd
 from .acceptance import evaluate_verdicts
 from .fabric.evidence import (
@@ -28,6 +29,21 @@ _STATISTICS_CONFIDENCE = 0.95
 _STATISTICS_RESAMPLES = 2000
 _STATISTICS_SEED = 0
 _INFERENCE_LABEL_METRICS = ("mae", "rmse", "mean_bias_error")
+_INFERENCE_PREDICTION_METRICS = (
+    "monotonicity_violation_rate",
+    "value_range_violation",
+)
+_INFERENCE_TIMING_METRICS = (
+    "load_ms",
+    "predict_ms",
+    "ms_per_1000_samples",
+    "samples_per_second",
+)
+_INFERENCE_METRICS = (
+    *_INFERENCE_LABEL_METRICS,
+    *_INFERENCE_PREDICTION_METRICS,
+    *_INFERENCE_TIMING_METRICS,
+)
 _INFERENCE_LABEL_METRICS_FIELD = "label_metrics_json"
 _STATISTICS_ENTRY_FIELDS = (
     "candidate_id",
@@ -620,25 +636,71 @@ def write_inference_artifacts(
 ):
     selected_run_id = _run_identity(run_id)
     manifest = _evidence_manifest(selected_run_id, evidence_context)
+    normalized_records = _normalize_inference_records(records)
+    frame = _inference_persistence_frame(normalized_records)
+    benchmark_json = _strict_inference_json(
+        {
+            "records": normalized_records,
+            "summary": _inference_summary(normalized_records),
+        }
+    )
+    config_json = _strict_inference_json(config)
     with _run_directory_transaction(out_dir, selected_run_id) as out:
         artifact_paths = []
-        frame = _inference_persistence_frame(records)
         frame.to_parquet(out / "inference_results.parquet")
         artifact_paths.append(out / "inference_results.parquet")
         frame.to_csv(out / "inference_results.csv", index=False)
         artifact_paths.append(out / "inference_results.csv")
-        _dump(
-            {
-                "records": records,
-                "summary": _inference_summary(records),
-            },
-            out / "inference_benchmark.json",
+        (out / "inference_benchmark.json").write_text(
+            benchmark_json, encoding="utf-8"
         )
         artifact_paths.append(out / "inference_benchmark.json")
-        _dump(config, out / "inference_run_config.json")
+        (out / "inference_run_config.json").write_text(
+            config_json, encoding="utf-8"
+        )
         artifact_paths.append(out / "inference_run_config.json")
         write_evidence_pack(out, manifest, artifact_paths)
     return str(out)
+
+
+def _normalize_inference_records(records: list[dict]) -> list[dict]:
+    normalized_records = []
+    for index, record in enumerate(records):
+        normalized = dict(record)
+        if record.get("status") == "succeeded":
+            invalid = [
+                name
+                for name in _INFERENCE_METRICS
+                if name in record and not is_finite_real_scalar(record[name])
+            ]
+            if invalid:
+                raise ValueError(
+                    f"inference record {index} metrics must be finite "
+                    "non-boolean real scalars: " + ", ".join(sorted(invalid))
+                )
+            for name in _INFERENCE_METRICS:
+                if name in record and isinstance(record[name], np.generic):
+                    normalized[name] = float(record[name])
+        normalized_records.append(normalized)
+    return normalized_records
+
+
+def _strict_inference_json(obj) -> str:
+    return json.dumps(
+        obj,
+        indent=2,
+        allow_nan=False,
+        default=_strict_inference_json_default,
+    )
+
+
+def _strict_inference_json_default(value):
+    if isinstance(value, np.generic):
+        normalized = value.item()
+        if isinstance(normalized, float) and not math.isfinite(normalized):
+            raise ValueError("inference JSON cannot contain non-finite numbers")
+        return normalized
+    return str(value)
 
 
 def _inference_persistence_frame(records: list[dict]) -> pd.DataFrame:
@@ -657,8 +719,10 @@ def _inference_persistence_frame(records: list[dict]) -> pd.DataFrame:
         row[_INFERENCE_LABEL_METRICS_FIELD] = json.dumps(
             label_metrics,
             ensure_ascii=False,
+            allow_nan=False,
             sort_keys=True,
             separators=(",", ":"),
+            default=_strict_inference_json_default,
         )
         persisted.append(row)
     return pd.DataFrame.from_records(persisted)
