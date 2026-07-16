@@ -252,6 +252,20 @@ def _validated_evidence_pack_document(document: dict) -> dict:
         })
         if comparison_key != derived_key:
             raise ValueError("comparison_key conflicts with run_spec")
+        run_spec_digest = normalized.get("run_spec_digest")
+        content_bound = any(
+            "artifacts" in candidate
+            for candidate in run_spec["candidates"]
+        )
+        if content_bound and run_spec_digest is None:
+            raise ValueError(
+                "run_spec_digest is required for content-bound candidates"
+            )
+        if (
+            run_spec_digest is not None
+            and run_spec_digest != sha256_json(run_spec)
+        ):
+            raise ValueError("run_spec_digest conflicts with run_spec")
     return normalized
 
 
@@ -362,6 +376,10 @@ def write_evidence_pack(
         **manifest,
         "artifacts": _artifact_entries(run_root, artifact_paths),
     }
+    if isinstance(document.get("run_spec"), dict):
+        document.setdefault(
+            "run_spec_digest", sha256_json(document["run_spec"])
+        )
     document = _validated_evidence_pack_document(document)
 
     target = run_root / EVIDENCE_PACK_NAME

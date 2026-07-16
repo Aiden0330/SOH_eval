@@ -1,5 +1,5 @@
 from .ids import canonical_json, new_id, sha256_file, sha256_json
-from .specs import RunSpec, RunType, SpecRef, validate_run_spec_document
+from .specs import CandidateSpec, RunSpec, RunType, SpecRef, validate_run_spec_document
 from .snapshots import DatasetSnapshot, frame_digest
 from .views import FoldViews, assert_fold_integrity, make_fold_views
 from .feature_pipeline import (
@@ -20,6 +20,7 @@ from .failures import (
 from .outcomes import RunOutcome, execution_unit_succeeded, successful_result_rows
 
 __all__ = [
+    "CandidateSpec",
     "RunSpec",
     "RunType",
     "SpecRef",

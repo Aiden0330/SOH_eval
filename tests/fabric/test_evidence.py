@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 import sohbench.fabric.evidence as evidence_module
+import sohbench.fabric.specs as specs_module
 from sohbench.fabric.evidence import (
     validate_metric_records,
     validate_prediction_records,
@@ -214,6 +215,75 @@ def test_verifier_rejects_invalid_or_mismatched_run_identity(
 
     with pytest.raises(ValueError, match=message):
         verify_evidence_pack(path)
+
+
+def test_evidence_pack_binds_content_candidate_into_run_spec_digest(tmp_path):
+    CandidateSpec = getattr(specs_module, "CandidateSpec", None)
+    assert CandidateSpec is not None, "CandidateSpec is missing"
+    run_dir = tmp_path / "RUN-content"
+    run_dir.mkdir()
+    artifact = run_dir / "result.txt"
+    artifact.write_text("result", encoding="utf-8")
+    base = evidence_run_spec()
+    model_ref = SpecRef(
+        kind="model_pickle",
+        spec_id="model.pkl",
+        version="sha256",
+        digest="a" * 64,
+    )
+    candidate = CandidateSpec(
+        spec_id="same-display-name", artifacts=(model_ref,)
+    )
+    run_spec = RunSpec(
+        **{**base.__dict__, "candidates": (candidate,)}
+    )
+
+    path = write_evidence_pack(
+        run_dir,
+        {
+            "run_id": "RUN-content",
+            "run_spec": run_spec.to_dict(),
+            "comparison_key": run_spec.comparison_key,
+        },
+        [artifact],
+    )
+    document = json.loads(path.read_text(encoding="utf-8"))
+
+    assert document["run_spec_digest"] == run_spec.digest
+
+    changed_candidate = CandidateSpec(
+        spec_id="same-display-name",
+        artifacts=(
+            SpecRef(
+                kind="model_pickle",
+                spec_id="model.pkl",
+                version="sha256",
+                digest="b" * 64,
+            ),
+        ),
+    )
+    document["run_spec"]["candidates"] = [changed_candidate.to_dict()]
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="run_spec_digest"):
+        verify_evidence_pack(path)
+
+
+def test_legacy_comparison_key_only_evidence_pack_remains_valid(tmp_path):
+    run_dir = tmp_path / "RUN-legacy"
+    run_dir.mkdir()
+    artifact = run_dir / "result.txt"
+    artifact.write_text("result", encoding="utf-8")
+
+    path = write_evidence_pack(
+        run_dir,
+        {"run_id": "RUN-legacy", "comparison_key": "legacy-key"},
+        [artifact],
+    )
+
+    verified = verify_evidence_pack(path)
+    assert verified["comparison_key"] == "legacy-key"
+    assert "run_spec_digest" not in verified
 
 
 def test_evidence_artifacts_are_sorted_by_relative_posix_path(tmp_path):

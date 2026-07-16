@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import copy
 import inspect
+import random
+import threading
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -11,11 +14,15 @@ from joblib.externals import cloudpickle
 
 from . import metrics as M
 from .conformal import ConformalWrapper, WeightedConformalWrapper
+from .contracts import validate_finite_vector
 from .fabric import FeatureState, IdentityFeaturePipeline, clone_for_fold, scoped_meta_for_frame
 from .fabric.failures import InputContractError, MetricEvaluationError, classify_exception
 from .fabric.views import make_fold_views
 from .featuresets import project
 import sohbench.featuresets  # noqa: F401
+
+
+_LEGACY_RANDOM_LOCK = threading.RLock()
 
 
 class _DeferredCallbackSpool:
@@ -61,6 +68,33 @@ def _instantiate_estimator(factory, seed):
     elif hasattr(estimator, "random_state"):
         estimator.random_state = seed
     return estimator
+
+
+def _supports_private_random_state(factory) -> bool:
+    if isinstance(factory, type):
+        params = inspect.signature(factory).parameters
+        return (
+            "random_state" in params
+            or callable(getattr(factory, "set_seed", None))
+            or hasattr(factory, "random_state")
+        )
+    return callable(getattr(factory, "set_seed", None)) or hasattr(
+        factory, "random_state"
+    )
+
+
+@contextmanager
+def _legacy_random_scope(seed: int):
+    with _LEGACY_RANDOM_LOCK:
+        numpy_state = np.random.get_state()
+        python_state = random.getstate()
+        np.random.seed(seed)
+        random.seed(seed)
+        try:
+            yield
+        finally:
+            np.random.set_state(numpy_state)
+            random.setstate(python_state)
 
 
 def _copy_fold_frame(frame):
@@ -194,7 +228,6 @@ class BenchmarkRunner:
                     prepared_key = (pname, fi, fs_name, track, pipeline_name)
                     fit_train_x, fit_test_x, feature_state, feature_error = prepared_for(pname, fi, fold, fs_name, track, pipeline_name)
                     for seed in self.seeds:
-                        np.random.seed(seed)
                         rec_base = {
                             "estimator": est_name, "protocol": pname, "held_out_key": fold.held_out_key,
                             "fold": fi, "seed": seed, "ci_source": "conformal", "featureset": fs_name,
@@ -205,34 +238,54 @@ class BenchmarkRunner:
                         }
                         snapshot_path, snapshot_error = None, None
                         try:
-                            if feature_error is not None:
-                                raise feature_error
-                            try:
-                                train_x, test_x = _copy_fold_frame(fit_train_x), _copy_fold_frame(fit_test_x)
-                                train_y, test_y = views.train_y.copy(), views.test_y.copy()
-                                train_meta = scoped_meta_for_frame(meta, train_x, task.target)
-                                test_meta = scoped_meta_for_frame(meta, test_x, task.target)
-                            except Exception as exc:
-                                raise InputContractError(str(exc)) from exc
-                            est = _instantiate_estimator(est_factory, seed)
-                            if not hasattr(est, "predict_interval"):
-                                alpha = 1 - task.acceptance["calibration"]["nominal"]
-                                est = WeightedConformalWrapper(est, alpha=alpha, random_state=seed) if cross else ConformalWrapper(est, alpha=alpha)
-                                rec_base["ci_source"] = "weighted_conformal" if cross else "conformal"
-                            else:
-                                rec_base["ci_source"] = "native"
-                            est.fit(train_x, train_y, train_meta)
-                            if on_model_fitted is not None:
+                            random_scope = (
+                                nullcontext()
+                                if _supports_private_random_state(est_factory)
+                                else _legacy_random_scope(seed)
+                            )
+                            with random_scope:
+                                if feature_error is not None:
+                                    raise feature_error
                                 try:
-                                    snapshot_path = callback_spool.dump("model", est)
+                                    train_x, test_x = _copy_fold_frame(fit_train_x), _copy_fold_frame(fit_test_x)
+                                    train_y, test_y = views.train_y.copy(), views.test_y.copy()
+                                    train_meta = scoped_meta_for_frame(meta, train_x, task.target)
+                                    test_meta = scoped_meta_for_frame(meta, test_x, task.target)
                                 except Exception as exc:
-                                    snapshot_error = str(exc)
-                                    rec_base["model_snapshot_error"] = snapshot_error
-                            yp = est.predict(test_x, test_meta)
-                            row = self._point_metrics(task, test_y, yp)
-                            lo, hi = est.predict_interval(test_x, test_meta)
-                            row.update(self._interval_metrics(test_y, lo, hi))
-                            row.update(self._trajectory_metrics(task, test_x, yp))
+                                    raise InputContractError(str(exc)) from exc
+                                est = _instantiate_estimator(est_factory, seed)
+                                if not hasattr(est, "predict_interval"):
+                                    alpha = 1 - task.acceptance["calibration"]["nominal"]
+                                    est = WeightedConformalWrapper(est, alpha=alpha, random_state=seed) if cross else ConformalWrapper(est, alpha=alpha)
+                                    rec_base["ci_source"] = "weighted_conformal" if cross else "conformal"
+                                else:
+                                    rec_base["ci_source"] = "native"
+                                est.fit(train_x, train_y, train_meta)
+                                if on_model_fitted is not None:
+                                    try:
+                                        snapshot_path = callback_spool.dump("model", est)
+                                    except Exception as exc:
+                                        snapshot_error = str(exc)
+                                        rec_base["model_snapshot_error"] = snapshot_error
+                                yp = validate_finite_vector(
+                                    est.predict(test_x, test_meta),
+                                    name="predictions",
+                                    n_samples=len(test_x),
+                                )
+                                row = self._point_metrics(task, test_y, yp)
+                                lo, hi = est.predict_interval(test_x, test_meta)
+                                lo = validate_finite_vector(
+                                    lo,
+                                    name="interval_low",
+                                    n_samples=len(test_x),
+                                )
+                                hi = validate_finite_vector(
+                                    hi,
+                                    name="interval_high",
+                                    n_samples=len(test_x),
+                                )
+                                row.update(self._interval_metrics(test_y, lo, hi))
+                                row.update(self._trajectory_metrics(task, test_x, yp))
                         except Exception as exc:
                             if callback_spool is not None:
                                 callback_spool.discard(snapshot_path)

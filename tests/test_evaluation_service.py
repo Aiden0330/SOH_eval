@@ -85,6 +85,11 @@ class PickledPredictOnly:
         return np.full(len(X), 0.95)
 
 
+class PickledPredictOnlyV2(PickledPredictOnly):
+    def predict(self, X, meta=None):
+        return np.full(len(X), 0.94)
+
+
 def _model_manifest(name="api_model"):
     return {
         "model_name": name,
@@ -509,6 +514,58 @@ def test_training_job_publishes_model_catalog(tmp_path):
     assert any(item["estimator"] == "ridge" for item in models)
 
 
+def test_identical_training_jobs_publish_immutable_run_scoped_models(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset(
+        "plugin_eval_demo", "demo.csv", _dataset_csv()
+    )
+    payload = {
+        "datasets": ["plugin_eval_demo"],
+        "estimators": ["ridge"],
+        "featuresets": ["full"],
+        "protocols": ["loco"],
+        "seeds": [0],
+    }
+
+    first_job = service.create_job(payload, start=False)
+    first = service.run_job_inline(first_job["id"])
+    first_names = set(first["saved_models"])
+    first_catalog = {
+        item["name"]: item for item in service.model_store.catalog()
+        if item["name"] in first_names
+    }
+    first_bytes = {
+        name: Path(item["model_path"]).read_bytes()
+        for name, item in first_catalog.items()
+    }
+
+    second_job = service.create_job(payload, start=False)
+    second = service.run_job_inline(second_job["id"])
+    second_names = set(second["saved_models"])
+    catalog = {item["name"]: item for item in service.model_store.catalog()}
+
+    assert first["status"] == "succeeded"
+    assert second["status"] == "succeeded"
+    assert first_names
+    assert second_names
+    assert first_names.isdisjoint(second_names)
+    assert first_names | second_names <= set(catalog)
+    for name in first_names:
+        assert Path(catalog[name]["model_path"]).read_bytes() == first_bytes[name]
+        assert service.model_store.load_model(name).manifest["created_by_run"] == first[
+            "run_id"
+        ]
+    for name in second_names:
+        assert service.model_store.load_model(name).manifest["created_by_run"] == second[
+            "run_id"
+        ]
+
+
 def test_saved_model_manifest_excludes_control_target_from_model_inputs(tmp_path):
     service = EvaluationService(
         data_dir=tmp_path / "data",
@@ -757,6 +814,119 @@ def test_training_run_spec_canonicalizes_equivalent_protocol_sets(tmp_path):
         "featuresets": ["full"],
         "seeds": [0],
     }
+
+
+def test_inference_run_spec_identity_binds_model_and_manifest_bytes(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset(
+        "plugin_eval_demo", "demo.csv", _dataset_csv()
+    )
+    service.model_store.upload_model(
+        "api_model",
+        "api_model.pkl",
+        pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json",
+        json.dumps(_model_manifest()).encode("utf-8"),
+    )
+    table = pd.read_csv(BytesIO(_dataset_csv()))
+    request = service._normalize_inference_request(
+        {"datasets": ["plugin_eval_demo"], "models": ["api_model"]}
+    )
+
+    first = service._build_run_spec(
+        run_type="inference",
+        request=request,
+        datasets=["plugin_eval_demo"],
+        table=table,
+        qc={},
+    )
+    artifact_kinds = {item.kind for item in first.candidates[0].artifacts}
+
+    changed_manifest = _model_manifest()
+    changed_manifest["created_by_run"] = "replacement"
+    service.model_store.upload_model(
+        "api_model",
+        "api_model.pkl",
+        pickle.dumps(PickledPredictOnlyV2()),
+        "model_manifest.json",
+        json.dumps(changed_manifest).encode("utf-8"),
+        replace=True,
+    )
+    second = service._build_run_spec(
+        run_type="inference",
+        request=request,
+        datasets=["plugin_eval_demo"],
+        table=table,
+        qc={},
+    )
+
+    assert {"model_pickle", "model_manifest", "feature_definition"} <= artifact_kinds
+    assert first.candidates[0].spec_id == second.candidates[0].spec_id
+    assert first.candidates[0].digest != second.candidates[0].digest
+    assert first.digest != second.digest
+    assert first.comparison_key == second.comparison_key
+
+
+def test_training_run_spec_identity_binds_estimator_and_feature_plugin_bytes(
+    tmp_path,
+):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset(
+        "plugin_eval_demo", "demo.csv", _dataset_csv()
+    )
+    service.store.upload_estimator_plugin(
+        "trusted_linear_decay", "trusted_linear_decay.py", ESTIMATOR_PLUGIN
+    )
+    service.store.upload_featureset_plugin(
+        "trusted_cycle_shape", "trusted_cycle_shape.py", FEATURE_PLUGIN
+    )
+    table = pd.read_csv(BytesIO(_dataset_csv()))
+    request = service._normalize_request(
+        {
+            "datasets": ["plugin_eval_demo"],
+            "estimators": ["trusted_linear_decay"],
+            "featuresets": ["trusted_cycle_shape"],
+            "protocols": ["loco"],
+            "seeds": [0],
+        }
+    )
+
+    first = service._build_run_spec(
+        run_type="training",
+        request=request,
+        datasets=["plugin_eval_demo"],
+        table=table,
+        qc={},
+    )
+    artifact_kinds = {item.kind for item in first.candidates[0].artifacts}
+
+    service.store.upload_featureset_plugin(
+        "trusted_cycle_shape",
+        "trusted_cycle_shape.py",
+        FEATURE_PLUGIN + b"\n# replacement bytes\n",
+        replace=True,
+    )
+    second = service._build_run_spec(
+        run_type="training",
+        request=request,
+        datasets=["plugin_eval_demo"],
+        table=table,
+        qc={},
+    )
+
+    assert {"estimator_plugin", "feature_plugin"} <= artifact_kinds
+    assert first.candidates[0].digest != second.candidates[0].digest
+    assert first.digest != second.digest
     specs = [
         service._build_run_spec(
             run_type="training",

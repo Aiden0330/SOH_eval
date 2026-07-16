@@ -26,7 +26,12 @@
     "policy": { "$ref": "#/$defs/specRef" },
     "candidates": {
       "type": "array",
-      "items": { "$ref": "#/$defs/specRef" }
+      "items": {
+        "anyOf": [
+          { "$ref": "#/$defs/specRef" },
+          { "$ref": "#/$defs/candidateSpec" }
+        ]
+      }
     },
     "seeds": {
       "type": "array",
@@ -46,6 +51,25 @@
         "digest": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "candidateSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "spec_id", "version", "digest", "artifacts"],
+      "properties": {
+        "kind": { "const": "candidate" },
+        "spec_id": { "type": "string" },
+        "version": { "type": "string" },
+        "digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/specRef" }
         }
       }
     }

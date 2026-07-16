@@ -1,5 +1,9 @@
+import random
+import threading
+
 import numpy as np, pandas as pd, pytest
 from sohbench import metrics as M
+from sohbench.contracts import Fold
 from sohbench.runner import BenchmarkRunner
 from sohbench.protocols import LeaveOneCellOut, LeaveOneDatasetOut
 from sohbench.tasks import SOHEstimationTask
@@ -11,6 +15,193 @@ def _table():
         for k in range(15):
             rows.append(("ds", cell, k, 1.0-0.01*k, float(k), float(k*k)))
     return pd.DataFrame(rows, columns=["dataset","cell_id","cycle_index","soh","f1","f2"])
+
+
+class _SingleFoldProtocol:
+    def generate(self, table, meta):
+        yield Fold(
+            train_idx=np.array([0, 1, 2]),
+            test_idx=np.array([3, 4]),
+            held_out_key="demo",
+        )
+
+
+def _single_fold_table():
+    return pd.DataFrame(
+        {
+            "dataset": ["demo"] * 5,
+            "cell_id": ["c1", "c1", "c1", "c2", "c2"],
+            "cycle_index": [0, 1, 2, 3, 4],
+            "soh": [1.0, 0.99, 0.98, 0.97, 0.96],
+            "voltage_mean": [3.5, 3.49, 3.48, 3.47, 3.46],
+        }
+    )
+
+
+def test_concurrent_legacy_candidates_keep_seeded_random_streams_isolated():
+    first_drawn = {
+        "seed-111": threading.Event(),
+        "seed-222": threading.Event(),
+    }
+    release_first = threading.Event()
+    draws = {}
+    errors = []
+
+    class InterleavingGlobalRandomEstimator:
+        name = "interleaving_global_random"
+        feature_mode = "unified"
+        backend = "external"
+
+        def fit(self, X, y, meta=None):
+            job = threading.current_thread().name
+            numpy_values = [float(np.random.random())]
+            python_values = [random.random()]
+            first_drawn[job].set()
+            if job == "seed-111":
+                if not release_first.wait(timeout=5):
+                    raise TimeoutError("second candidate was not released")
+            numpy_values.append(float(np.random.random()))
+            python_values.append(random.random())
+            draws[job] = {
+                "numpy": numpy_values,
+                "python": python_values,
+            }
+            return self
+
+        def predict(self, X, meta=None):
+            return np.full(len(X), 0.9)
+
+        def predict_interval(self, X, meta=None):
+            center = self.predict(X, meta)
+            return center, center
+
+    table = _single_fold_table()
+    original_numpy_state = np.random.get_state()
+    original_python_state = random.getstate()
+
+    def execute(seed):
+        try:
+            BenchmarkRunner(seeds=[seed]).run(
+                SOHEstimationTask(),
+                table=table,
+                meta=pd.DataFrame(),
+                protocols={"demo": _SingleFoldProtocol()},
+                estimators=[InterleavingGlobalRandomEstimator],
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=execute, args=(111,), name="seed-111")
+    second = threading.Thread(target=execute, args=(222,), name="seed-222")
+    try:
+        first.start()
+        assert first_drawn["seed-111"].wait(timeout=5)
+        second.start()
+        first_drawn["seed-222"].wait(timeout=1)
+        release_first.set()
+        first.join(timeout=5)
+        second.join(timeout=5)
+    finally:
+        release_first.set()
+        first.join(timeout=5)
+        if second.ident is not None:
+            second.join(timeout=5)
+        np.random.set_state(original_numpy_state)
+        random.setstate(original_python_state)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+    for seed in (111, 222):
+        job = f"seed-{seed}"
+        expected_numpy = np.random.RandomState(seed).random_sample(2)
+        expected_python_rng = random.Random(seed)
+        expected_python = [
+            expected_python_rng.random(),
+            expected_python_rng.random(),
+        ]
+        np.testing.assert_allclose(draws[job]["numpy"], expected_numpy)
+        np.testing.assert_allclose(draws[job]["python"], expected_python)
+
+
+@pytest.mark.parametrize(
+    "prediction",
+    [
+        pytest.param(np.array([[0.9], [0.8]]), id="two-dimensional"),
+        pytest.param(np.array([0.9]), id="wrong-length"),
+        pytest.param(np.array([0.9, np.nan]), id="nan"),
+        pytest.param(np.array([0.9, np.inf]), id="infinity"),
+    ],
+)
+def test_runner_rejects_invalid_prediction_arrays(prediction):
+    class InvalidPredictionEstimator:
+        name = "invalid_prediction"
+        feature_mode = "unified"
+        backend = "external"
+
+        def fit(self, X, y, meta=None):
+            return self
+
+        def predict(self, X, meta=None):
+            return prediction
+
+        def predict_interval(self, X, meta=None):
+            return np.full(len(X), 0.8), np.full(len(X), 1.0)
+
+    results = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(),
+        table=_single_fold_table(),
+        meta=pd.DataFrame(),
+        protocols={"demo": _SingleFoldProtocol()},
+        estimators=[InvalidPredictionEstimator],
+    )
+
+    assert results["unit_status"].eq("failed").all()
+    assert results["error_category"].eq("ALGORITHM").all()
+    assert results["error_message"].str.contains("predictions").all()
+
+
+@pytest.mark.parametrize("bound", ["interval_low", "interval_high"])
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        pytest.param(np.array([[0.8], [0.8]]), id="two-dimensional"),
+        pytest.param(np.array([0.8]), id="wrong-length"),
+        pytest.param(np.array([0.8, np.nan]), id="nan"),
+        pytest.param(np.array([0.8, np.inf]), id="infinity"),
+    ],
+)
+def test_runner_rejects_invalid_interval_arrays(bound, invalid):
+    class InvalidIntervalEstimator:
+        name = "invalid_interval"
+        feature_mode = "unified"
+        backend = "external"
+
+        def fit(self, X, y, meta=None):
+            return self
+
+        def predict(self, X, meta=None):
+            return np.full(len(X), 0.9)
+
+        def predict_interval(self, X, meta=None):
+            interval = {
+                "interval_low": np.full(len(X), 0.8),
+                "interval_high": np.full(len(X), 1.0),
+            }
+            interval[bound] = invalid
+            return interval["interval_low"], interval["interval_high"]
+
+    results = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(),
+        table=_single_fold_table(),
+        meta=pd.DataFrame(),
+        protocols={"demo": _SingleFoldProtocol()},
+        estimators=[InvalidIntervalEstimator],
+    )
+
+    assert results["unit_status"].eq("failed").all()
+    assert results["error_category"].eq("ALGORITHM").all()
+    assert results["error_message"].str.contains(bound).all()
 
 def test_runner_produces_results_with_ci_and_seeds():
     from sohbench.metadata import build_meta

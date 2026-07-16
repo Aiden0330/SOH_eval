@@ -2,7 +2,13 @@ from importlib.resources import files
 
 import pytest
 
-from sohbench.fabric.specs import RunSpec, RunType, SpecRef, validate_run_spec_document
+import sohbench.fabric.specs as specs_module
+from sohbench.fabric.specs import (
+    RunSpec,
+    RunType,
+    SpecRef,
+    validate_run_spec_document,
+)
 
 
 def ref(kind: str, name: str) -> SpecRef:
@@ -24,6 +30,68 @@ def run_spec(candidate: str = "ridge") -> RunSpec:
 
 def test_candidate_change_does_not_change_comparison_key():
     assert run_spec("ridge").comparison_key == run_spec("gbdt").comparison_key
+
+
+def test_candidate_and_run_digests_bind_canonical_artifact_references():
+    CandidateSpec = getattr(specs_module, "CandidateSpec", None)
+    assert CandidateSpec is not None, "CandidateSpec is missing"
+    first_artifact = SpecRef(
+        kind="model_pickle",
+        spec_id="model.pkl",
+        version="sha256",
+        digest="a" * 64,
+    )
+    second_artifact = SpecRef(
+        kind="model_pickle",
+        spec_id="model.pkl",
+        version="sha256",
+        digest="b" * 64,
+    )
+    first_candidate = CandidateSpec(
+        spec_id="same-display-name", artifacts=(first_artifact,)
+    )
+    second_candidate = CandidateSpec(
+        spec_id="same-display-name", artifacts=(second_artifact,)
+    )
+    base = run_spec()
+    first_run = RunSpec(
+        **{**base.__dict__, "candidates": (first_candidate,)}
+    )
+    second_run = RunSpec(
+        **{**base.__dict__, "candidates": (second_candidate,)}
+    )
+
+    assert first_candidate.digest != second_candidate.digest
+    assert first_run.digest != second_run.digest
+    assert first_run.comparison_key == second_run.comparison_key
+    validate_run_spec_document(first_run.to_dict())
+
+
+def test_candidate_artifact_order_is_canonical():
+    CandidateSpec = getattr(specs_module, "CandidateSpec", None)
+    assert CandidateSpec is not None, "CandidateSpec is missing"
+    model = SpecRef(
+        kind="model_pickle",
+        spec_id="model.pkl",
+        version="sha256",
+        digest="a" * 64,
+    )
+    manifest = SpecRef(
+        kind="model_manifest",
+        spec_id="model_manifest.json",
+        version="sha256",
+        digest="b" * 64,
+    )
+
+    first = CandidateSpec(
+        spec_id="candidate", artifacts=(model, manifest)
+    )
+    second = CandidateSpec(
+        spec_id="candidate", artifacts=(manifest, model)
+    )
+
+    assert first.artifacts == second.artifacts
+    assert first.digest == second.digest
 
 
 def test_policy_change_changes_comparison_key():
@@ -166,10 +234,12 @@ def test_schema_rejects_unknown_nested_spec_ref_properties():
 
 
 def test_public_exports_are_available_from_fabric_package():
+    from sohbench.fabric import CandidateSpec as ExportedCandidateSpec
     from sohbench.fabric import RunSpec as ExportedRunSpec
     from sohbench.fabric import SpecRef as ExportedSpecRef
     from sohbench.fabric import validate_run_spec_document as exported_validator
 
+    assert ExportedCandidateSpec is specs_module.CandidateSpec
     assert ExportedRunSpec is RunSpec
     assert ExportedSpecRef is SpecRef
     assert exported_validator is validate_run_spec_document

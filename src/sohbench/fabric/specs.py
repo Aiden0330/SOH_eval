@@ -35,6 +35,64 @@ class SpecRef:
 
 
 @dataclass(frozen=True)
+class CandidateSpec:
+    spec_id: str
+    artifacts: tuple[SpecRef, ...]
+    version: str = "1.0.0"
+    kind: str = "candidate"
+
+    def __post_init__(self) -> None:
+        for field in ("kind", "spec_id", "version"):
+            _require_string(getattr(self, field), field)
+        if self.kind != "candidate":
+            raise ValueError("candidate kind must be 'candidate'")
+        if not isinstance(self.artifacts, (list, tuple)):
+            raise TypeError("artifacts must be a list or tuple of SpecRef")
+        artifacts = tuple(self.artifacts)
+        if not artifacts:
+            raise ValueError("candidate artifacts must not be empty")
+        if any(not isinstance(item, SpecRef) for item in artifacts):
+            raise TypeError("artifacts must contain only SpecRef values")
+        artifacts = tuple(
+            sorted(
+                artifacts,
+                key=lambda item: (
+                    item.kind,
+                    item.spec_id,
+                    item.version,
+                    item.digest,
+                ),
+            )
+        )
+        identities = [
+            (item.kind, item.spec_id, item.version) for item in artifacts
+        ]
+        if len(identities) != len(set(identities)):
+            raise ValueError("candidate artifact references must be unique")
+        object.__setattr__(self, "artifacts", artifacts)
+
+    @property
+    def digest(self) -> str:
+        return sha256_json(
+            {
+                "kind": self.kind,
+                "spec_id": self.spec_id,
+                "version": self.version,
+                "artifacts": [asdict(item) for item in self.artifacts],
+            }
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "kind": self.kind,
+            "spec_id": self.spec_id,
+            "version": self.version,
+            "digest": self.digest,
+            "artifacts": [asdict(item) for item in self.artifacts],
+        }
+
+
+@dataclass(frozen=True)
 class RunSpec:
     run_type: RunType
     task: SpecRef
@@ -42,7 +100,7 @@ class RunSpec:
     protocol: SpecRef
     metric: SpecRef
     policy: SpecRef
-    candidates: tuple[SpecRef, ...]
+    candidates: tuple[SpecRef | CandidateSpec, ...]
     seeds: tuple[int, ...] = (0,)
     idempotency_key: str = ""
 
@@ -56,8 +114,13 @@ class RunSpec:
         if not isinstance(self.candidates, (list, tuple)):
             raise TypeError("candidates must be a list or tuple of SpecRef")
         candidates = tuple(self.candidates)
-        if any(not isinstance(item, SpecRef) for item in candidates):
-            raise TypeError("candidates must contain only SpecRef values")
+        if any(
+            not isinstance(item, (SpecRef, CandidateSpec))
+            for item in candidates
+        ):
+            raise TypeError(
+                "candidates must contain only SpecRef or CandidateSpec values"
+            )
         object.__setattr__(self, "candidates", candidates)
         if not isinstance(self.seeds, (list, tuple)):
             raise TypeError("seeds must be a list or tuple of int")
@@ -69,9 +132,16 @@ class RunSpec:
 
     def to_dict(self) -> dict:
         value = asdict(self)
-        value["candidates"] = [asdict(item) for item in self.candidates]
+        value["candidates"] = [
+            item.to_dict() if isinstance(item, CandidateSpec) else asdict(item)
+            for item in self.candidates
+        ]
         value["seeds"] = list(self.seeds)
         return value
+
+    @property
+    def digest(self) -> str:
+        return sha256_json(self.to_dict())
 
     @property
     def comparison_key(self) -> str:
@@ -92,3 +162,22 @@ def validate_run_spec_document(document: dict) -> None:
     except jsonschema.ValidationError as exc:
         location = ".".join(map(str, exc.absolute_path)) or "run_spec"
         raise ValueError(f"{location}: {exc.message}") from exc
+    for index, candidate_document in enumerate(document["candidates"]):
+        if "artifacts" not in candidate_document:
+            continue
+        candidate = CandidateSpec(
+            spec_id=candidate_document["spec_id"],
+            version=candidate_document["version"],
+            artifacts=tuple(
+                SpecRef(**artifact)
+                for artifact in candidate_document["artifacts"]
+            ),
+        )
+        if candidate_document["digest"] != candidate.digest:
+            raise ValueError(
+                f"candidates.{index}.digest conflicts with artifact references"
+            )
+        if candidate_document["artifacts"] != candidate.to_dict()["artifacts"]:
+            raise ValueError(
+                f"candidates.{index}.artifacts must use canonical order"
+            )

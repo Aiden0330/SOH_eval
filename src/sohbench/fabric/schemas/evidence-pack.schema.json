@@ -19,6 +19,10 @@
     "run_spec": {
       "type": "object"
     },
+    "run_spec_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
     "artifacts": {
       "type": "array",
       "items": {

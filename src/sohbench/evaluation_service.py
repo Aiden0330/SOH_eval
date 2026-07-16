@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import re
@@ -26,6 +27,7 @@ from .runner import BenchmarkRunner
 from .tasks import SOHEstimationTask
 from .trusted_plugins import TrustedPluginStore
 from .fabric import (
+    CandidateSpec,
     DatasetSnapshot,
     FeatureState,
     IdentityFeaturePipeline,
@@ -37,7 +39,7 @@ from .fabric import (
     scoped_meta_for_frame,
 )
 from .fabric.evidence import verify_evidence_pack, write_evidence_pack
-from .fabric.ids import sha256_json
+from .fabric.ids import sha256_file, sha256_json
 
 
 PROTOCOLS = {
@@ -233,6 +235,7 @@ class EvaluationService:
                 fs_name = str(record.get("featureset", "full"))
                 model_name = "_".join(
                     [
+                        _model_name_token(run_id),
                         _model_name_token(record["estimator"]),
                         _model_name_token(fs_name),
                         _model_name_token(record["protocol"]),
@@ -252,7 +255,7 @@ class EvaluationService:
                     "held_out_key": str(record["held_out_key"]),
                     "protocol": str(record["protocol"]),
                     "seed": int(record["seed"]),
-                    "created_by_run": job_id,
+                    "created_by_run": run_id,
                     "predict_contract": "predict(X, meta=None)",
                     "feature_state": feature_state.to_dict(),
                     "feature_pipeline": feature_pipeline_name,
@@ -263,7 +266,6 @@ class EvaluationService:
                             model_name,
                             fitted,
                             manifest,
-                            replace=True,
                         )
                     )
                 except Exception as exc:
@@ -598,7 +600,11 @@ class EvaluationService:
                 "trusted_local_pickle_models": run_type == "inference",
             }),
             candidates=tuple(
-                ref("candidate", str(candidate), {"name": str(candidate), "run_type": run_type})
+                self._candidate_spec(
+                    run_type=run_type,
+                    candidate_name=str(candidate),
+                    request=request,
+                )
                 for candidate in candidates
             ),
             seeds=tuple(request.get("seeds", [0])),
@@ -607,6 +613,98 @@ class EvaluationService:
                 "request": canonical_request,
                 "dataset": snapshot.digest,
             }),
+        )
+
+    def _candidate_spec(
+        self, *, run_type: str, candidate_name: str, request: dict
+    ) -> CandidateSpec | SpecRef:
+        if run_type == "training":
+            estimator = R.get_estimator(candidate_name)
+            artifacts = [
+                _file_spec_ref(
+                    "estimator_plugin",
+                    candidate_name,
+                    _source_path(estimator),
+                )
+            ]
+            for featureset_name in request.get("featuresets", []):
+                artifacts.append(self._feature_content_ref(featureset_name))
+        else:
+            known_models = {
+                item["name"] for item in self.model_store.catalog()
+            }
+            if candidate_name not in known_models:
+                return SpecRef(
+                    kind="candidate",
+                    spec_id=candidate_name,
+                    version="1.0.0",
+                    digest=sha256_json(
+                        {
+                            "name": candidate_name,
+                            "run_type": run_type,
+                            "content": "unavailable",
+                        }
+                    ),
+                )
+            digests = self.model_store.content_digests(candidate_name)
+            artifacts = [
+                SpecRef(
+                    kind="model_pickle",
+                    spec_id=f"{candidate_name}/model.pkl",
+                    version="sha256",
+                    digest=digests["model_pickle"],
+                ),
+                SpecRef(
+                    kind="model_manifest",
+                    spec_id=f"{candidate_name}/model_manifest.json",
+                    version="sha256",
+                    digest=digests["model_manifest"],
+                ),
+            ]
+            manifest = self.model_store.load_model(candidate_name).manifest
+            featureset_name = str(
+                manifest.get("feature_pipeline")
+                or manifest.get("featureset")
+                or ""
+            ).strip()
+            if featureset_name:
+                artifacts.append(
+                    self._feature_content_ref(
+                        featureset_name,
+                        manifest=manifest,
+                    )
+                )
+        return CandidateSpec(
+            spec_id=candidate_name,
+            artifacts=tuple(artifacts),
+        )
+
+    def _feature_content_ref(
+        self, featureset_name: str, *, manifest: dict | None = None
+    ) -> SpecRef:
+        name = str(featureset_name)
+        pipeline = self.store.feature_pipeline(name)
+        plugin_path = getattr(pipeline, "_path", None)
+        if plugin_path is not None:
+            return _file_spec_ref("feature_plugin", name, Path(plugin_path))
+        try:
+            featureset = R.get_featureset(name)
+        except KeyError:
+            return SpecRef(
+                kind="feature_definition",
+                spec_id=name,
+                version="sha256",
+                digest=sha256_json(
+                    {
+                        "featureset": name,
+                        "feature_columns": list(
+                            (manifest or {}).get("feature_columns", [])
+                        ),
+                    }
+                ),
+            )
+        return _file_spec_ref(
+            "feature_definition", name, _source_path(type(featureset))
         )
 
     def _inference_outcome(self, records: list[dict]) -> RunOutcome:
@@ -1179,6 +1277,31 @@ def _job_sort_key(job: dict) -> tuple[str, str]:
 def _model_name_token(value) -> str:
     token = re.sub(r"[^A-Za-z0-9_-]+", "_", str(value)).strip("_")
     return token or "model"
+
+
+def _source_path(value) -> Path:
+    try:
+        source = inspect.getsourcefile(value)
+    except TypeError:
+        source = None
+    if source is None:
+        module = inspect.getmodule(value)
+        source = getattr(module, "__file__", None)
+    if source is None:
+        raise ValueError(f"source bytes are unavailable for {value!r}")
+    path = Path(source).resolve()
+    if not path.is_file():
+        raise ValueError(f"source file is unavailable: {path}")
+    return path
+
+
+def _file_spec_ref(kind: str, spec_id: str, path: Path) -> SpecRef:
+    return SpecRef(
+        kind=kind,
+        spec_id=str(spec_id),
+        version="sha256",
+        digest=sha256_file(Path(path)),
+    )
 
 
 def _sync_frontend_files(run_dir: Path, frontend_data_dir: Path) -> None:
