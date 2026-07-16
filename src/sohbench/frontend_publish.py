@@ -107,6 +107,32 @@ def sync_frontend_artifacts(run_dir: str | Path, frontend_data_dir: str | Path) 
     return copied
 
 
+def publish_frontend_artifacts(
+    source_dirs: Sequence[str | Path], frontend_data_dir: str | Path
+) -> list[str]:
+    target_dir = Path(frontend_data_dir)
+    sources = [Path(item) for item in source_dirs]
+    selected_sources = {
+        filename: source
+        for filename in FRONTEND_ARTIFACTS
+        if (source := _find_artifact(filename, sources)) is not None
+    }
+    copied = list(selected_sources)
+
+    def build(staging: Path) -> None:
+        if target_dir.is_dir():
+            shutil.copytree(target_dir, staging)
+        else:
+            staging.mkdir(parents=True)
+        for filename in FRONTEND_ARTIFACTS:
+            (staging / filename).unlink(missing_ok=True)
+        for filename, source in selected_sources.items():
+            shutil.copy2(source, staging / filename)
+
+    _publish_directory(target_dir, build)
+    return copied
+
+
 def publish_frontend_profile(
     frontend_data_dir: str | Path,
     profile_name: str,

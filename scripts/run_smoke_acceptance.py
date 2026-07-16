@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from sohbench.evaluation_service import EvaluationService
+from sohbench.frontend_publish import publish_frontend_artifacts
 
 
 ESTIMATOR_TEMPLATE = '''
@@ -139,6 +140,9 @@ def run_smoke_acceptance(config: SmokeAcceptanceConfig) -> dict:
             "inference_run_config.json",
             "model_catalog.json",
         ],
+    )
+    publish_frontend_artifacts(
+        [Path(training["run_dir"]), Path(inference["run_dir"])], frontend_data_dir
     )
     _require_frontend_files(frontend_data_dir)
     _require_inference_success(frontend_data_dir / "inference_benchmark.json", selected_datasets)

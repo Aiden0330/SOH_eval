@@ -184,3 +184,38 @@ def test_root_publication_removes_omitted_artifacts_but_preserves_profiles(
     )["run"] == "B"
     assert not (frontend_data / "recommendation_summary.json").exists()
     assert _snapshot(frontend_data / "profiles") == profile_before
+
+
+def test_composite_root_publication_uses_first_source_and_preserves_profiles(tmp_path):
+    frontend_data = tmp_path / "frontend" / "data"
+    training_dir = tmp_path / "training"
+    inference_dir = tmp_path / "inference"
+    _write_json(frontend_data / "recommendation_summary.json", {"run": "stale"})
+    _write_json(
+        frontend_data / "profiles" / "accepted" / "manifest.json",
+        {"profile": "accepted", "persistent": True},
+    )
+    _write_json(training_dir / "leaderboard.json", {"run": "training"})
+    _write_json(training_dir / "run_config.json", {"run": "training"})
+    _write_json(training_dir / "model_catalog.json", {"run": "training"})
+    _write_json(inference_dir / "model_catalog.json", {"run": "inference"})
+    _write_json(inference_dir / "inference_benchmark.json", {"run": "inference"})
+    _write_json(inference_dir / "inference_run_config.json", {"run": "inference"})
+    profile_before = _snapshot(frontend_data / "profiles")
+
+    copied = frontend_publish_module.publish_frontend_artifacts(
+        [training_dir, inference_dir], frontend_data
+    )
+
+    assert copied == [
+        "leaderboard.json",
+        "run_config.json",
+        "model_catalog.json",
+        "inference_benchmark.json",
+        "inference_run_config.json",
+    ]
+    assert json.loads((frontend_data / "leaderboard.json").read_text(encoding="utf-8"))["run"] == "training"
+    assert json.loads((frontend_data / "model_catalog.json").read_text(encoding="utf-8"))["run"] == "training"
+    assert json.loads((frontend_data / "inference_benchmark.json").read_text(encoding="utf-8"))["run"] == "inference"
+    assert not (frontend_data / "recommendation_summary.json").exists()
+    assert _snapshot(frontend_data / "profiles") == profile_before
