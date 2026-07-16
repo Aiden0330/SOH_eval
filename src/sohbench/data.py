@@ -4,14 +4,15 @@ import pandas as pd
 from .metadata import build_meta
 from .qc import qc_gate
 
-REQUIRED_COLUMNS = {"dataset", "cell_id", "cycle_index", "soh"}
+INFERENCE_REQUIRED_COLUMNS = {"dataset", "cell_id", "cycle_index"}
+REQUIRED_COLUMNS = INFERENCE_REQUIRED_COLUMNS | {"soh"}
 ALL_DATASETS = {"all", "*"}
 
 class DatasetLoader:
     def __init__(self, data_dir):
         self.data_dir = Path(data_dir)
 
-    def discover_datasets(self) -> list[str]:
+    def discover_datasets(self, *, require_labels: bool = True) -> list[str]:
         processed = self.data_dir / "processed"
         if not processed.exists():
             return []
@@ -23,28 +24,30 @@ class DatasetLoader:
                 df = pd.read_pickle(path)
             except Exception:
                 continue
-            if REQUIRED_COLUMNS <= set(df.columns):
+            required = REQUIRED_COLUMNS if require_labels else INFERENCE_REQUIRED_COLUMNS
+            if required <= set(df.columns):
                 names.append(name)
         return names
 
-    def resolve_datasets(self, names) -> list[str]:
+    def resolve_datasets(self, names, *, require_labels: bool = True) -> list[str]:
         if names is None:
             names = ["all"]
         if isinstance(names, str):
             names = [names]
         names = list(names)
         if not names or any(str(name).lower() in ALL_DATASETS for name in names):
-            names = self.discover_datasets()
+            names = self.discover_datasets(require_labels=require_labels)
         if not names:
             raise ValueError(f"no valid *_features.pkl datasets found under {self.data_dir / 'processed'}")
         return names
 
-    def _read_one(self, name: str) -> pd.DataFrame:
+    def _read_one(self, name: str, *, require_labels: bool = True) -> pd.DataFrame:
         path = self.data_dir / "processed" / f"{name}_features.pkl"
         if not path.exists():
             raise FileNotFoundError(f"missing dataset file: {path}")
         df = pd.read_pickle(path)
-        missing = REQUIRED_COLUMNS - set(df.columns)
+        required = REQUIRED_COLUMNS if require_labels else INFERENCE_REQUIRED_COLUMNS
+        missing = required - set(df.columns)
         if missing:
             raise ValueError(f"{name}: missing required columns {missing}")
         # Normalize 'dataset' column to the canonical loader name so that
@@ -54,11 +57,16 @@ class DatasetLoader:
         df["dataset"] = name
         return df
 
-    def load(self, names, *, qc: bool = True, **qc_kwargs):
-        names = self.resolve_datasets(names)
-        table = pd.concat([self._read_one(n) for n in names], ignore_index=True)
+    def load(self, names, *, qc: bool = True, require_labels: bool = True, **qc_kwargs):
+        names = self.resolve_datasets(names, require_labels=require_labels)
+        table = pd.concat(
+            [self._read_one(n, require_labels=require_labels) for n in names],
+            ignore_index=True,
+        )
         meta = build_meta(table)
         if qc:
+            if "soh" not in table.columns:
+                raise ValueError("label QC requires the soh column")
             table, report = qc_gate(table, meta, **qc_kwargs)
             meta = build_meta(table)  # rebuild after row drops
         else:

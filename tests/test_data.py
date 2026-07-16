@@ -1,4 +1,5 @@
 import pandas as pd, numpy as np
+import pytest
 from pathlib import Path
 from sohbench.data import DatasetLoader
 
@@ -52,4 +53,25 @@ def test_load_all_uses_discovered_datasets(tmp_path):
 
     assert set(table["dataset"]) == {"alpha", "beta"}
     assert set(meta["dataset"]) == {"alpha", "beta"}
+    assert report.n_in == len(table)
+
+
+def test_unlabeled_tables_are_discoverable_and_loadable_only_for_inference(tmp_path):
+    proc = tmp_path / "processed"
+    proc.mkdir()
+    unlabeled = _feature_frame("event").drop(columns=["soh"])
+    unlabeled.to_pickle(proc / "event_features.pkl")
+    loader = DatasetLoader(tmp_path)
+
+    assert loader.discover_datasets() == []
+    assert loader.discover_datasets(require_labels=False) == ["event"]
+    with pytest.raises(ValueError, match="missing required columns"):
+        loader.load(["event"], qc=False)
+
+    table, meta, report = loader.load(
+        ["event"], require_labels=False, qc=False,
+    )
+
+    assert "soh" not in table.columns
+    assert set(meta["dataset"]) == {"event"}
     assert report.n_in == len(table)

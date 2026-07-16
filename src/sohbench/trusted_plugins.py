@@ -15,7 +15,7 @@ import pandas as pd
 
 from . import registry as R
 from .contracts import feature_columns
-from .data import DatasetLoader, REQUIRED_COLUMNS
+from .data import DatasetLoader, INFERENCE_REQUIRED_COLUMNS, REQUIRED_COLUMNS
 from .featuresets import FeatureSet
 from .fabric import LegacyStatelessPipeline, assert_prefix_invariant
 
@@ -67,7 +67,7 @@ class TrustedPluginStore:
     ) -> dict:
         name = _safe_resource_name(name)
         table = _read_table(filename, payload)
-        _validate_dataset_table(table)
+        _validate_dataset_table(table, require_labels=False)
         table = table.copy()
         table["dataset"] = name
 
@@ -82,6 +82,7 @@ class TrustedPluginStore:
             "path": str(out_path),
             "rows": int(len(table)),
             "columns": list(map(str, table.columns)),
+            "has_labels": "soh" in table.columns,
             "source_filename": filename,
         }
         self._upsert_catalog("datasets", resource)
@@ -148,7 +149,7 @@ class TrustedPluginStore:
             if target is not None:
                 transformed = transformed.copy(deep=True)
                 transformed["soh"] = target
-            _validate_dataset_table(transformed)
+            _validate_dataset_table(transformed, require_labels=target is not None)
             out = transformed
         return out
 
@@ -160,7 +161,7 @@ class TrustedPluginStore:
 
     def catalog(self) -> dict:
         datasets = []
-        for name in DatasetLoader(self.data_dir).discover_datasets():
+        for name in DatasetLoader(self.data_dir).discover_datasets(require_labels=False):
             path = self.data_dir / "processed" / f"{name}_features.pkl"
             rows = 0
             columns: list[str] = []
@@ -176,6 +177,7 @@ class TrustedPluginStore:
                 "kind": "dataset",
                 "rows": rows,
                 "columns": columns,
+                "has_labels": "soh" in columns,
                 "uploaded": catalog_item is not None,
             })
 
@@ -296,8 +298,9 @@ def _read_table(filename: str, payload: bytes) -> pd.DataFrame:
     raise TrustedPluginError("dataset upload must be .csv, .pkl, or .parquet")
 
 
-def _validate_dataset_table(table: pd.DataFrame) -> None:
-    missing = REQUIRED_COLUMNS - set(table.columns)
+def _validate_dataset_table(table: pd.DataFrame, *, require_labels: bool = True) -> None:
+    required = REQUIRED_COLUMNS if require_labels else INFERENCE_REQUIRED_COLUMNS
+    missing = required - set(table.columns)
     if missing:
         raise TrustedPluginError(f"missing required columns: {sorted(missing)}")
     if table.empty:

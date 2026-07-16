@@ -591,10 +591,15 @@ function cloneJson(value) {
 function taskStatusLabel(status) {
   const value = String(status || "unknown");
   if (value === "succeeded") return "成功";
+  if (value === "partial") return "部分完成";
   if (value === "failed") return "失败";
   if (value === "running") return "运行中";
   if (value === "queued") return "排队中";
   return "未知";
+}
+
+export function isTerminalJobStatus(status) {
+  return ["succeeded", "partial", "failed"].includes(String(status || ""));
 }
 
 function uniqueStrings(values = []) {
@@ -628,6 +633,13 @@ export function inferenceActionState({
         disabled: false,
         tone: "ok",
         message: `推理任务 ${currentJob.id} 已完成，结果已发布到推理结果表。`,
+      };
+    }
+    if (currentJob.status === "partial") {
+      return {
+        disabled: false,
+        tone: "warn",
+        message: `推理任务 ${currentJob.id} 部分完成，成功结果已发布；请检查失败组合。`,
       };
     }
     if (currentJob.status === "failed") {

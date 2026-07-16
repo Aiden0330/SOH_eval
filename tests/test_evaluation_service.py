@@ -1,11 +1,14 @@
 import json
 import pickle
 import threading
+from io import BytesIO
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
+import sohbench.evaluation_service as evaluation_service_module
 from sohbench.evaluation_service import EvaluationService
 from sohbench.fabric.evidence import verify_evidence_pack
 
@@ -157,6 +160,82 @@ def test_training_job_exposes_verified_evidence_contract(tmp_path):
     assert verify_evidence_pack(finished["evidence_path"])["ok"] is True
 
 
+def test_training_lifecycle_persists_contract_before_loader_failure(tmp_path, monkeypatch):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    queued = service.create_job(
+        {"datasets": ["missing"], "estimators": ["ridge"]}, start=False,
+    )
+
+    assert queued["run_id"].startswith("RUN-")
+    assert queued["execution_state"] == "QUEUED"
+    assert queued["outcome"] is None
+    assert queued["verdict"] == "not_reviewed"
+    assert queued["evidence_path"] is None
+
+    def fail_load(_loader, _datasets, **_kwargs):
+        running = service.get_job(queued["id"])
+        assert running["run_id"] == queued["run_id"]
+        assert running["execution_state"] == "RUNNING"
+        assert running["outcome"] is None
+        assert running["evidence_path"] is None
+        raise RuntimeError("loader exploded")
+
+    monkeypatch.setattr(evaluation_service_module.DatasetLoader, "load", fail_load)
+    failed = service.run_job_inline(queued["id"])
+
+    assert failed["run_id"] == queued["run_id"]
+    assert failed["status"] == "failed"
+    assert failed["execution_state"] == "FAILED"
+    assert failed["outcome"] == "failed"
+    assert failed["verdict"] == "fail"
+    assert failed["evidence_path"] is None
+
+
+def test_inference_lifecycle_persists_contract_before_loader_failure(tmp_path, monkeypatch):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.model_store.upload_model(
+        "api_model", "api_model.pkl", pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json", json.dumps(_model_manifest()).encode("utf-8"),
+    )
+    queued = service.create_inference_job(
+        {"datasets": ["missing"], "models": ["api_model"]}, start=False,
+    )
+
+    assert queued["run_id"].startswith("RUN-")
+    assert queued["execution_state"] == "QUEUED"
+    assert queued["outcome"] is None
+    assert queued["verdict"] == "not_reviewed"
+    assert queued["evidence_path"] is None
+
+    def fail_load(_loader, _datasets, **_kwargs):
+        running = service.get_inference_job(queued["id"])
+        assert running["run_id"] == queued["run_id"]
+        assert running["execution_state"] == "RUNNING"
+        assert running["outcome"] is None
+        assert running["evidence_path"] is None
+        raise RuntimeError("loader exploded")
+
+    monkeypatch.setattr(evaluation_service_module.DatasetLoader, "load", fail_load)
+    failed = service.run_inference_job_inline(queued["id"])
+
+    assert failed["run_id"] == queued["run_id"]
+    assert failed["status"] == "failed"
+    assert failed["execution_state"] == "FAILED"
+    assert failed["outcome"] == "failed"
+    assert failed["verdict"] == "fail"
+    assert failed["evidence_path"] is None
+
+
 def test_all_failed_training_job_has_failed_outcome_without_leaderboard_verdict(tmp_path):
     service = EvaluationService(
         data_dir=tmp_path / "data",
@@ -212,6 +291,91 @@ def test_inference_job_keeps_config_digest_valid_after_evidence_creation(tmp_pat
     assert finished["execution_state"] == "REVIEW"
     assert finished["outcome"] == "complete"
     assert verify_evidence_pack(finished["evidence_path"])["ok"] is True
+
+
+def test_final_rebuilt_evidence_is_verified_before_publish(tmp_path, monkeypatch):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset("plugin_eval_demo", "demo.csv", _dataset_csv())
+    original_write = evaluation_service_module.write_evidence_pack
+
+    def write_then_corrupt(run_dir, manifest, artifact_paths):
+        path = original_write(run_dir, manifest, artifact_paths)
+        catalog = Path(run_dir) / "model_catalog.json"
+        catalog.write_text(catalog.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+        return path
+
+    monkeypatch.setattr(
+        evaluation_service_module, "write_evidence_pack", write_then_corrupt,
+    )
+    job = service.create_job(
+        {"datasets": ["plugin_eval_demo"], "estimators": ["ridge"]}, start=False,
+    )
+    finished = service.run_job_inline(job["id"])
+
+    assert finished["status"] == "failed"
+    assert finished["execution_state"] == "FAILED"
+    assert finished["outcome"] == "failed"
+    assert finished["evidence_path"] is None
+    assert "mismatch" in finished["error"]
+    assert not (tmp_path / "frontend_data" / "leaderboard.json").exists()
+
+
+def test_prediction_sample_ids_are_intrinsic_and_order_independent(tmp_path):
+    source = pd.read_csv(BytesIO(_dataset_csv()))
+    observed = []
+    for label, frame in (
+        ("ordered", source),
+        ("shuffled", source.sample(frac=1.0, random_state=17)),
+    ):
+        root = tmp_path / label
+        service = EvaluationService(
+            data_dir=root / "data",
+            work_dir=root / "work",
+            runs_dir=root / "runs",
+            frontend_data_dir=root / "frontend_data",
+        )
+        service.store.upload_dataset(
+            "plugin_eval_demo", "demo.csv", frame.to_csv(index=False).encode("utf-8"),
+        )
+        job = service.create_job(
+            {"datasets": ["plugin_eval_demo"], "estimators": ["ridge"]}, start=False,
+        )
+        finished = service.run_job_inline(job["id"])
+        predictions = pd.read_parquet(Path(finished["raw_run_dir"]) / "predictions.parquet")
+        observed.append({
+            (row.dataset, row.cell_id, int(row.cycle_index)): row.sample_id
+            for row in predictions.itertuples()
+        })
+
+    assert observed[0] == observed[1]
+
+
+def test_duplicate_intrinsic_prediction_identity_fails_closed(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    frame = pd.read_csv(BytesIO(_dataset_csv()))
+    frame = pd.concat([frame, frame.iloc[[0]]], ignore_index=True)
+    service.store.upload_dataset(
+        "plugin_eval_demo", "demo.csv", frame.to_csv(index=False).encode("utf-8"),
+    )
+    job = service.create_job(
+        {"datasets": ["plugin_eval_demo"], "estimators": ["ridge"]}, start=False,
+    )
+
+    finished = service.run_job_inline(job["id"])
+
+    assert finished["status"] == "failed"
+    assert finished["evidence_path"] is None
+    assert "duplicate intrinsic sample identity" in finished["error"]
 
 
 def test_job_json_persistence_does_not_expose_partial_documents(tmp_path):
@@ -409,7 +573,14 @@ def test_inference_fails_when_manifest_pipeline_or_state_is_missing(tmp_path):
     finished = service.run_inference_job_inline(job["id"])
 
     assert finished["status"] == "failed"
-    assert "missing_pipeline" in finished["error"]
+    assert finished["outcome"] == "failed"
+    assert verify_evidence_pack(finished["evidence_path"])["ok"] is True
+    records = json.loads(
+        (Path(finished["raw_run_dir"]) / "inference_benchmark.json").read_text(encoding="utf-8")
+    )["records"]
+    assert len(records) == 1
+    assert records[0]["status"] == "failed"
+    assert "missing_pipeline" in records[0]["error"]
 
 
 def test_inference_fails_when_explicit_pipeline_state_is_missing(tmp_path):
@@ -443,7 +614,79 @@ def transform(table, meta=None):
     finished = service.run_inference_job_inline(job["id"])
 
     assert finished["status"] == "failed"
-    assert "feature state" in finished["error"]
+    assert finished["outcome"] == "failed"
+    assert verify_evidence_pack(finished["evidence_path"])["ok"] is True
+    records = json.loads(
+        (Path(finished["raw_run_dir"]) / "inference_benchmark.json").read_text(encoding="utf-8")
+    )["records"]
+    assert records[0]["status"] == "failed"
+    assert "feature state" in records[0]["error"]
+
+
+def test_inference_preparation_failure_isolated_per_model_and_dataset(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset("plugin_eval_demo", "demo.csv", _dataset_csv())
+    service.store.upload_dataset("plugin_eval_second", "second.csv", _dataset_csv())
+    service.model_store.upload_model(
+        "valid_model", "valid.pkl", pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json", json.dumps(_model_manifest("valid_model")).encode("utf-8"),
+    )
+    broken_manifest = _model_manifest("broken_model")
+    broken_manifest["feature_pipeline"] = "missing_pipeline"
+    service.model_store.upload_model(
+        "broken_model", "broken.pkl", pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json", json.dumps(broken_manifest).encode("utf-8"),
+    )
+    job = service.create_inference_job(
+        {
+            "datasets": ["plugin_eval_demo", "plugin_eval_second"],
+            "models": ["valid_model", "broken_model"],
+        },
+        start=False,
+    )
+
+    finished = service.run_inference_job_inline(job["id"])
+
+    assert finished["status"] == "partial"
+    assert finished["outcome"] == "partial"
+    assert finished["execution_state"] == "REVIEW"
+    assert verify_evidence_pack(finished["evidence_path"])["ok"] is True
+    records = json.loads(
+        (Path(finished["raw_run_dir"]) / "inference_benchmark.json").read_text(encoding="utf-8")
+    )["records"]
+    assert [(row["model"], row["dataset"], row["status"]) for row in records] == [
+        ("valid_model", "plugin_eval_demo", "succeeded"),
+        ("valid_model", "plugin_eval_second", "succeeded"),
+        ("broken_model", "plugin_eval_demo", "failed"),
+        ("broken_model", "plugin_eval_second", "failed"),
+    ]
+
+
+def test_unlabeled_run_spec_digest_is_stable_without_label_qc(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    table = pd.read_csv(BytesIO(_dataset_csv())).drop(columns=["soh"])
+    request = {"datasets": ["plugin_eval_demo"], "models": ["api_model"]}
+
+    first = service._build_run_spec(
+        run_type="inference", request=request, datasets=["plugin_eval_demo"],
+        table=table, qc={},
+    )
+    second = service._build_run_spec(
+        run_type="inference", request=request, datasets=["plugin_eval_demo"],
+        table=table.sample(frac=1.0, random_state=11), qc={},
+    )
+
+    assert first.dataset.digest == second.dataset.digest
 
 
 def test_inference_job_persists_launch_strategy_audit_fields(tmp_path):

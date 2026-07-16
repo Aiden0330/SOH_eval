@@ -22,6 +22,7 @@ import {
   inferenceAuditSummary,
   inferenceActionState,
   inferenceSummary,
+  isTerminalJobStatus,
   leaderboardCoverage,
   modelAssetRows,
   metricMean,
@@ -525,11 +526,12 @@ function renderWorkbenchSteps(plan = null) {
   const node = $("workbench-steps");
   if (!node) return;
   const jobStatus = CURRENT_JOB?.status || "";
+  const published = isPublishedJobStatus(jobStatus);
   const items = [
     ["上传", CATALOG ? "complete" : "pending", CATALOG ? "资源目录已载入" : "等待后端连接"],
     ["校验", plan?.ready ? "complete" : "pending", plan?.ready ? "选择完整" : "选择不完整"],
-    ["评测", jobStatus === "running" || jobStatus === "queued" ? "active" : (jobStatus === "succeeded" ? "complete" : "pending"), jobStatus || "未启动"],
-    ["发布", jobStatus === "succeeded" ? "complete" : "pending", jobStatus === "succeeded" ? "已发布到仪表盘" : "等待评测完成"],
+    ["评测", jobStatus === "running" || jobStatus === "queued" ? "active" : (published ? "complete" : "pending"), jobStatus ? statusLabel(jobStatus) : "未启动"],
+    ["发布", published ? "complete" : "pending", published ? "结果已发布到仪表盘" : "等待评测完成"],
   ];
   node.innerHTML = items.map(([label, state, hint], index) =>
     `<div class="workbench-step ${state}">` +
@@ -543,11 +545,12 @@ function renderTrainingWorkflow(plan = null) {
   const node = $("training-workflow");
   if (!node) return;
   const jobStatus = CURRENT_JOB?.status || "";
+  const published = isPublishedJobStatus(jobStatus);
   const steps = [
     ["资源接入", CATALOG ? "complete" : "pending", CATALOG ? "资源目录已加载" : "等待后端连接"],
     ["组合配置", plan?.ready ? "active" : "pending", plan?.partsLabel || "请选择数据、算法、特征"],
-    ["训练执行", jobStatus === "running" || jobStatus === "queued" ? "active" : (jobStatus === "succeeded" ? "complete" : "pending"), jobStatus || "尚未启动"],
-    ["模型发布", jobStatus === "succeeded" ? "complete" : "pending", "Pickle 模型进入模型资产库"],
+    ["训练执行", jobStatus === "running" || jobStatus === "queued" ? "active" : (published ? "complete" : "pending"), jobStatus ? statusLabel(jobStatus) : "尚未启动"],
+    ["模型发布", published ? "complete" : "pending", "Pickle 模型进入模型资产库"],
   ];
   node.innerHTML =
     `<div class="panel-title"><span>训练流程</span><b>实验编排台</b></div>` +
@@ -567,7 +570,7 @@ function renderTrainingArtifacts() {
   const node = $("training-artifacts");
   if (!node) return;
   const summary = trainingArtifactSummary(DATA?.config || {}, currentModelCatalog());
-  const jobStatus = CURRENT_JOB?.status || "未启动";
+  const jobStatus = CURRENT_JOB?.status ? statusLabel(CURRENT_JOB.status) : "未启动";
   node.innerHTML =
     `<div class="panel-title"><span>训练产物</span><b>模型资产库</b></div>` +
     `<div class="panel-scroll">` +
@@ -612,9 +615,9 @@ function renderJobState() {
     node.textContent = "上传资源通过合约校验后，可启动一轮新的本机评测。";
     return;
   }
-  const bits = [`任务 ${CURRENT_JOB.id}`, `状态 ${CURRENT_JOB.status}`];
+  const bits = [`任务 ${CURRENT_JOB.id}`, `状态 ${statusLabel(CURRENT_JOB.status)}`];
   if (CURRENT_JOB.run_dir) bits.push(`结果 ${CURRENT_JOB.run_dir}`);
-  if (CURRENT_JOB.status === "succeeded") bits.push("已发布到仪表盘");
+  if (isPublishedJobStatus(CURRENT_JOB.status)) bits.push("结果已发布到仪表盘");
   if (CURRENT_JOB.error) bits.push(`错误 ${CURRENT_JOB.error}`);
   node.innerHTML = bits.map((bit, i) => i === 0 ? `<strong>${esc(bit)}</strong>` : esc(bit)).join(" / ");
 }
@@ -792,10 +795,15 @@ function renderTaskHistoryRow(row) {
 
 function statusLabel(status) {
   if (status === "succeeded") return "成功";
+  if (status === "partial") return "部分完成";
   if (status === "failed") return "失败";
   if (status === "running") return "运行中";
   if (status === "queued") return "排队中";
   return status || "未知";
+}
+
+function isPublishedJobStatus(status) {
+  return status === "succeeded" || status === "partial";
 }
 
 async function rerunTaskFromHistory(taskId) {
@@ -1291,11 +1299,10 @@ async function pollJob(jobId) {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       CURRENT_JOB = await response.json();
       renderWorkbench();
-      if (CURRENT_JOB.status === "succeeded") {
-        await load({ cacheBust: true });
+      if (isTerminalJobStatus(CURRENT_JOB.status)) {
+        if (CURRENT_JOB.status !== "failed") await load({ cacheBust: true });
         return;
       }
-      if (CURRENT_JOB.status === "failed") return;
     } catch (err) {
       setJobMessage(`任务轮询失败：${err.message}`);
       return;
@@ -1311,13 +1318,14 @@ async function pollInferenceJob(jobId) {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       CURRENT_JOB = { kind: "inference", ...(await response.json()) };
       renderInferencePanel(currentInferenceDatasetOptions());
-      if (CURRENT_JOB.status === "succeeded") {
-        await load({ cacheBust: true });
-        activeMode = "inference";
-        render();
+      if (isTerminalJobStatus(CURRENT_JOB.status)) {
+        if (CURRENT_JOB.status !== "failed") {
+          await load({ cacheBust: true });
+          activeMode = "inference";
+          render();
+        }
         return;
       }
-      if (CURRENT_JOB.status === "failed") return;
     } catch (err) {
       setInferenceMessage(`推理任务轮询失败：${err.message}`, "fail");
       return;

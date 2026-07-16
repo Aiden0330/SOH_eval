@@ -115,6 +115,9 @@ assert.match(app, /预计组合数/);
 assert.match(app, /模型资产库/);
 assert.match(app, /data-side-mode/);
 assert.match(app, /asset-table/);
+assert.match(app, /isTerminalJobStatus\(CURRENT_JOB\.status\)/);
+assert.match(app, /CURRENT_JOB\.status !== "failed"/);
+assert.match(app, /status === "partial"/);
 
 assert.match(css, /\.app-shell/);
 assert.match(css, /\.app-shell\{[^}]*grid-template-columns:216px minmax\(0,1fr\)/);

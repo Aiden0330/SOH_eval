@@ -20,6 +20,7 @@ import {
   inferenceLaunchPlan,
   inferenceInsightSummary,
   inferenceSummary,
+  isTerminalJobStatus,
   preferredInferenceModels,
   profileOptions,
   leaderboardCoverage,
@@ -31,6 +32,14 @@ import {
   trainingArtifactSummary,
   nextDatasetSelection,
 } from "./dashboard-core.mjs";
+
+{
+  assert.equal(isTerminalJobStatus("queued"), false);
+  assert.equal(isTerminalJobStatus("running"), false);
+  assert.equal(isTerminalJobStatus("succeeded"), true);
+  assert.equal(isTerminalJobStatus("partial"), true);
+  assert.equal(isTerminalJobStatus("failed"), true);
+}
 
 const aggregate = [
   entry("ridge", "full", 0.30, { picp: 0.72, mono: 0.10 }),
@@ -715,4 +724,28 @@ function entry(estimator, featureset, mae, opts = {}) {
   assert.equal(assets[0].latestMae, 0.1);
   assert.equal(assets[0].featureColumnCount, 1);
   assert.equal(assets[1].trainedOn.join(","), "nasa");
+}
+
+{
+  const partial = inferenceActionState({
+    backendConnected: true,
+    selectedModelCount: 1,
+    selectedDatasetCount: 1,
+    currentJob: { kind: "inference", id: "job-partial", status: "partial" },
+  });
+  assert.equal(partial.disabled, false);
+  assert.equal(partial.tone, "warn");
+  assert.match(partial.message, /job-partial/);
+}
+
+{
+  const history = taskHistoryRows({
+    jobs: [{
+      id: "train-partial",
+      status: "partial",
+      request: { datasets: ["nasa"], estimators: ["ridge"], featuresets: ["full"] },
+    }],
+  });
+  assert.deepEqual(history.statusOptions, ["partial"]);
+  assert.equal(history.rows[0].statusLabel, "部分完成");
 }

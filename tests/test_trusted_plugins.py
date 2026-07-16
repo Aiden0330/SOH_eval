@@ -48,6 +48,27 @@ def test_upload_dataset_validates_and_persists_normalized_pickle(tmp_path):
     assert DatasetLoader(tmp_path / "data").discover_datasets() == ["public_demo"]
 
 
+def test_upload_and_catalog_preserve_unlabeled_inference_dataset(tmp_path):
+    store = TrustedPluginStore(base_dir=tmp_path / "plugins", data_dir=tmp_path / "data")
+    payload = _dataset_frame("ignored_name").drop(columns=["soh"]).to_csv(index=False).encode("utf-8")
+
+    registered = store.upload_dataset(
+        name="unlabeled_demo",
+        filename="unlabeled.csv",
+        payload=payload,
+    )
+    catalog_item = next(
+        item for item in store.catalog()["datasets"] if item["name"] == "unlabeled_demo"
+    )
+
+    assert registered["has_labels"] is False
+    assert catalog_item["has_labels"] is False
+    assert DatasetLoader(tmp_path / "data").discover_datasets() == []
+    assert DatasetLoader(tmp_path / "data").discover_datasets(require_labels=False) == [
+        "unlabeled_demo"
+    ]
+
+
 def test_upload_estimator_plugin_smoke_tests_and_registers(tmp_path):
     store = TrustedPluginStore(base_dir=tmp_path / "plugins", data_dir=tmp_path / "data")
     code = b'''

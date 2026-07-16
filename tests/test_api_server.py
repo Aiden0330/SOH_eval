@@ -7,12 +7,15 @@ import urllib.parse
 import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
+from io import BytesIO
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from sohbench.api_server import create_handler
 from sohbench.evaluation_service import EvaluationService
+from sohbench.fabric.evidence import verify_evidence_pack
 
 
 def _dataset_bytes():
@@ -29,6 +32,12 @@ def _dataset_bytes():
                 }
             )
     return pd.DataFrame(rows).to_csv(index=False).encode("utf-8")
+
+
+def _unlabeled_dataset_bytes():
+    return pd.read_csv(BytesIO(_dataset_bytes())).drop(
+        columns=["soh"]
+    ).to_csv(index=False).encode("utf-8")
 
 
 class PickledPredictOnly:
@@ -210,7 +219,8 @@ def test_api_upload_catalog_and_job_flow(tmp_path):
 
         deadline = time.time() + 20
         status = job
-        while time.time() < deadline and status["status"] not in {"succeeded", "failed"}:
+        terminal_statuses = {"succeeded", "partial", "failed"}
+        while time.time() < deadline and status["status"] not in terminal_statuses:
             time.sleep(0.2)
             status = _get_json(base_url, f"/api/jobs/{job['id']}")
 
@@ -529,7 +539,8 @@ def test_api_upload_model_and_start_inference_job(tmp_path):
         )
         deadline = time.time() + 20
         status = job
-        while time.time() < deadline and status["status"] not in {"succeeded", "failed"}:
+        terminal_statuses = {"succeeded", "partial", "failed"}
+        while time.time() < deadline and status["status"] not in terminal_statuses:
             time.sleep(0.2)
             status = _get_json(base_url, f"/api/inference-jobs/{job['id']}")
         assert status["status"] == "succeeded"
@@ -538,5 +549,111 @@ def test_api_upload_model_and_start_inference_job(tmp_path):
         assert status["outcome"] == "complete"
         assert status["verdict"] == "not_reviewed"
         assert status["evidence_path"].endswith("evidence-pack.json")
+    finally:
+        server.shutdown()
+
+
+def test_api_partial_inference_is_terminal_and_preserves_successful_model(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset("api_demo", "api.csv", _dataset_bytes())
+    service.model_store.upload_model(
+        "valid_model", "valid.pkl", pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json", json.dumps(_model_manifest("valid_model")).encode("utf-8"),
+    )
+    broken = _model_manifest("broken_model")
+    broken["feature_pipeline"] = "missing_pipeline"
+    service.model_store.upload_model(
+        "broken_model", "broken.pkl", pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json", json.dumps(broken).encode("utf-8"),
+    )
+    server, base_url = _serve(service)
+    try:
+        job = _post_json(
+            base_url,
+            "/api/inference-jobs",
+            {"datasets": ["api_demo"], "models": ["valid_model", "broken_model"]},
+        )
+        deadline = time.time() + 20
+        status = job
+        polls = 0
+        terminal_statuses = {"succeeded", "partial", "failed"}
+        while time.time() < deadline and status["status"] not in terminal_statuses:
+            time.sleep(0.2)
+            status = _get_json(base_url, f"/api/inference-jobs/{job['id']}")
+            polls += 1
+
+        assert polls < 100
+        assert status["status"] == "partial"
+        assert status["outcome"] == "partial"
+        payload = json.loads(
+            (Path(status["raw_run_dir"]) / "inference_benchmark.json").read_text(encoding="utf-8")
+        )
+        assert {row["status"] for row in payload["records"]} == {"succeeded", "failed"}
+    finally:
+        server.shutdown()
+
+
+def test_api_unlabeled_upload_catalog_and_inference_flow(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    server, base_url = _serve(service)
+    try:
+        uploaded = _post_json(
+            base_url,
+            "/api/upload/dataset",
+            {
+                "name": "unlabeled_demo",
+                "filename": "unlabeled.csv",
+                "contentBase64": base64.b64encode(_unlabeled_dataset_bytes()).decode("ascii"),
+            },
+        )
+        assert uploaded["resource"]["has_labels"] is False
+        catalog = _get_json(base_url, "/api/catalog")
+        dataset = next(item for item in catalog["datasets"] if item["name"] == "unlabeled_demo")
+        assert dataset["has_labels"] is False
+
+        _post_json(
+            base_url,
+            "/api/upload/model",
+            {
+                "name": "api_model",
+                "modelFilename": "api_model.pkl",
+                "modelContentBase64": base64.b64encode(pickle.dumps(PickledPredictOnly())).decode("ascii"),
+                "manifestFilename": "model_manifest.json",
+                "manifestContentBase64": base64.b64encode(
+                    json.dumps(_model_manifest()).encode("utf-8")
+                ).decode("ascii"),
+            },
+        )
+        job = _post_json(
+            base_url,
+            "/api/inference-jobs",
+            {"datasets": ["unlabeled_demo"], "models": ["api_model"]},
+        )
+        deadline = time.time() + 20
+        status = job
+        terminal_statuses = {"succeeded", "partial", "failed"}
+        while time.time() < deadline and status["status"] not in terminal_statuses:
+            time.sleep(0.2)
+            status = _get_json(base_url, f"/api/inference-jobs/{job['id']}")
+
+        assert status["status"] == "succeeded"
+        assert verify_evidence_pack(status["evidence_path"])["ok"] is True
+        records = json.loads(
+            (Path(status["raw_run_dir"]) / "inference_benchmark.json").read_text(encoding="utf-8")
+        )["records"]
+        assert records[0]["status"] == "succeeded"
+        assert records[0]["mae"] is None
+        assert records[0]["rmse"] is None
+        assert records[0]["mean_bias_error"] is None
     finally:
         server.shutdown()

@@ -148,9 +148,15 @@ class EvaluationService:
     def create_job(self, payload: dict, *, start: bool = True) -> dict:
         request = self._normalize_request(payload)
         job_id = time.strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:8]
+        run_id = new_id("RUN")
         job = {
             "id": job_id,
             "status": "queued",
+            "run_id": run_id,
+            "execution_state": "QUEUED",
+            "outcome": None,
+            "verdict": "not_reviewed",
+            "evidence_path": None,
             "created_at": _now(),
             "request": request,
         }
@@ -163,10 +169,16 @@ class EvaluationService:
     def create_inference_job(self, payload: dict, *, start: bool = True) -> dict:
         request = self._normalize_inference_request(payload)
         job_id = time.strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:8]
+        run_id = new_id("RUN")
         job = {
             "id": job_id,
             "kind": "inference",
             "status": "queued",
+            "run_id": run_id,
+            "execution_state": "QUEUED",
+            "outcome": None,
+            "verdict": "not_reviewed",
+            "evidence_path": None,
             "created_at": _now(),
             "request": request,
         }
@@ -178,14 +190,25 @@ class EvaluationService:
 
     def run_job_inline(self, job_id: str) -> dict:
         job = self.get_job(job_id)
-        job.update({"status": "running", "started_at": _now()})
+        if not job.get("run_id"):
+            job["run_id"] = new_id("RUN")
+        job.update({
+            "status": "running",
+            "execution_state": "RUNNING",
+            "outcome": None,
+            "verdict": "not_reviewed",
+            "evidence_path": None,
+            "started_at": _now(),
+        })
         self._save_job(job)
+        raw_run_dir = None
         try:
             request = job["request"]
+            run_id = job["run_id"]
             loader = DatasetLoader(self.data_dir)
             datasets = loader.resolve_datasets(request["datasets"])
             table, meta, qc = loader.load(datasets)
-            run_id = new_id("RUN")
+            sample_ids = _intrinsic_sample_ids(table)
             run_spec = self._build_run_spec(
                 run_type="training", request=request, datasets=datasets,
                 table=table, qc=qc,
@@ -266,7 +289,7 @@ class EvaluationService:
                         "dataset": dataset,
                         "cell_id": cell_id,
                         "cycle_index": cycle_index,
-                        "sample_id": f"{dataset}:{cell_id}:{cycle_index}:{sample.name}",
+                        "sample_id": sample_ids[(dataset, cell_id, cycle_index)],
                         "y_pred": float(y_pred[position]),
                         "interval_low": float(interval_low[position]),
                         "interval_high": float(interval_high[position]),
@@ -334,27 +357,48 @@ class EvaluationService:
                 }
             )
         except Exception as exc:
+            evidence_path = _verified_evidence_path(raw_run_dir)
             job.update(
                 {
                     "status": "failed",
+                    "execution_state": "FAILED",
+                    "outcome": "failed",
+                    "verdict": "fail",
+                    "evidence_path": evidence_path,
                     "finished_at": _now(),
                     "error": str(exc),
                     "traceback": traceback.format_exc(limit=12),
                 }
             )
+            if evidence_path is not None:
+                job.update({"raw_run_dir": str(raw_run_dir), "run_dir": str(raw_run_dir)})
         self._save_job(job)
         return job
 
     def run_inference_job_inline(self, job_id: str) -> dict:
         job = self.get_inference_job(job_id)
-        job.update({"status": "running", "started_at": _now()})
+        if not job.get("run_id"):
+            job["run_id"] = new_id("RUN")
+        job.update({
+            "status": "running",
+            "execution_state": "RUNNING",
+            "outcome": None,
+            "verdict": "not_reviewed",
+            "evidence_path": None,
+            "started_at": _now(),
+        })
         self._save_inference_job(job)
+        raw_run_dir = None
         try:
             request = job["request"]
+            run_id = job["run_id"]
             loader = DatasetLoader(self.data_dir)
-            datasets = loader.resolve_datasets(request["datasets"])
-            table, meta, _qc = loader.load(datasets)
-            run_id = new_id("RUN")
+            datasets = loader.resolve_datasets(
+                request["datasets"], require_labels=False,
+            )
+            table, meta, _qc = loader.load(
+                datasets, require_labels=False, qc=False,
+            )
             run_spec = self._build_run_spec(
                 run_type="inference", request=request, datasets=datasets,
                 table=table, qc={},
@@ -362,8 +406,19 @@ class EvaluationService:
             inferred_featuresets = self._featuresets_for_models(request["models"])
             records = []
             for model_name in request["models"]:
-                prepared = self._prepare_inference_table(model_name, table, meta)
-                records.extend(run_inference_benchmark(self.model_store, prepared, meta, [model_name]))
+                try:
+                    prepared = self._prepare_inference_table(model_name, table, meta)
+                    records.extend(
+                        run_inference_benchmark(
+                            self.model_store, prepared, meta, [model_name],
+                        )
+                    )
+                except Exception as exc:
+                    records.extend(
+                        self._inference_preparation_failures(
+                            model_name, datasets, table, exc,
+                        )
+                    )
             raw_run_dir = Path(
                 write_inference_artifacts(
                     records,
@@ -407,14 +462,21 @@ class EvaluationService:
                 }
             )
         except Exception as exc:
+            evidence_path = _verified_evidence_path(raw_run_dir)
             job.update(
                 {
                     "status": "failed",
+                    "execution_state": "FAILED",
+                    "outcome": "failed",
+                    "verdict": "fail",
+                    "evidence_path": evidence_path,
                     "finished_at": _now(),
                     "error": str(exc),
                     "traceback": traceback.format_exc(limit=12),
                 }
             )
+            if evidence_path is not None:
+                job.update({"raw_run_dir": str(raw_run_dir), "run_dir": str(raw_run_dir)})
         self._save_inference_job(job)
         return job
 
@@ -490,10 +552,15 @@ class EvaluationService:
 
     def _build_run_spec(self, *, run_type: str, request: dict, datasets: list[str], table: pd.DataFrame, qc) -> RunSpec:
         task = SOHEstimationTask()
+        label_digest = (
+            frame_digest(table[[task.target]])
+            if task.target in table.columns
+            else sha256_json({"target": task.target, "state": "absent"})
+        )
         snapshot = DatasetSnapshot.from_frame(
             table,
             datasets,
-            frame_digest(table[[task.target]]),
+            label_digest,
             qc.__dict__ if hasattr(qc, "__dict__") else qc,
         )
 
@@ -548,7 +615,43 @@ class EvaluationService:
         ]
         return RunOutcome.from_results(pd.DataFrame.from_records(rows))
 
-    def _rebuild_evidence_pack(self, run_dir: Path) -> None:
+    def _inference_preparation_failures(
+        self,
+        model_name: str,
+        datasets: list[str],
+        table: pd.DataFrame,
+        exc: Exception,
+    ) -> list[dict]:
+        catalog_item = next(
+            (
+                item for item in self.model_store.catalog()
+                if item.get("name") == model_name
+            ),
+            {},
+        )
+        return [
+            {
+                "model": model_name,
+                "dataset": dataset,
+                "featureset": catalog_item.get("featureset"),
+                "estimator": catalog_item.get("estimator"),
+                "n_samples": int(table["dataset"].eq(dataset).sum()),
+                "load_ms": 0.0,
+                "mae": None,
+                "rmse": None,
+                "mean_bias_error": None,
+                "monotonicity_violation_rate": None,
+                "value_range_violation": None,
+                "predict_ms": None,
+                "ms_per_1000_samples": None,
+                "samples_per_second": None,
+                "status": "failed",
+                "error": str(exc),
+            }
+            for dataset in sorted(map(str, datasets))
+        ]
+
+    def _rebuild_evidence_pack(self, run_dir: Path) -> dict:
         pack = verify_evidence_pack(run_dir / "evidence-pack.json")
         manifest = {
             key: value
@@ -560,6 +663,7 @@ class EvaluationService:
         if catalog.exists():
             artifact_paths.append(catalog)
         write_evidence_pack(run_dir, manifest, artifact_paths)
+        return verify_evidence_pack(run_dir / "evidence-pack.json")
 
     def _featuresets_for_models(self, model_names: list[str]) -> list[str]:
         selected = set(model_names)
@@ -815,6 +919,44 @@ class EvaluationService:
     def _save_inference_job(self, job: dict) -> None:
         self.inference_jobs_dir.mkdir(parents=True, exist_ok=True)
         _atomic_json_write(self.inference_jobs_dir / f"{job['id']}.json", job)
+
+
+def _intrinsic_sample_ids(table: pd.DataFrame) -> dict[tuple[str, str, int], str]:
+    identity_columns = ["dataset", "cell_id", "cycle_index"]
+    missing = [column for column in identity_columns if column not in table.columns]
+    if missing:
+        raise ValueError(
+            f"prediction identity requires columns: {', '.join(missing)}"
+        )
+    sample_ids = {}
+    for dataset, cell_id, cycle_index in table[identity_columns].itertuples(
+        index=False, name=None,
+    ):
+        key = (str(dataset), str(cell_id), int(cycle_index))
+        if key in sample_ids:
+            raise ValueError(
+                "duplicate intrinsic sample identity: "
+                f"dataset={key[0]!r}, cell_id={key[1]!r}, cycle_index={key[2]}"
+            )
+        sample_ids[key] = "SAMPLE-" + sha256_json({
+            "dataset": key[0],
+            "cell_id": key[1],
+            "cycle_index": key[2],
+        })
+    return sample_ids
+
+
+def _verified_evidence_path(run_dir: Path | None) -> str | None:
+    if run_dir is None:
+        return None
+    evidence_path = Path(run_dir) / "evidence-pack.json"
+    if not evidence_path.is_file():
+        return None
+    try:
+        verify_evidence_pack(evidence_path)
+    except (OSError, ValueError):
+        return None
+    return str(evidence_path)
 
 
 def _compact_job(job: dict) -> dict:
