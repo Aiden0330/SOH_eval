@@ -73,7 +73,10 @@ def _metrics(group: pd.DataFrame, pred: np.ndarray) -> dict:
         "value_range_violation": M.value_range_violation(pred),
     }
     if "soh" in group.columns:
-        y = group["soh"].to_numpy(dtype=float)
+        y = pd.to_numeric(group["soh"], errors="coerce").to_numpy(
+            dtype=float,
+            na_value=np.nan,
+        )
         if np.isfinite(y).all():
             out.update(
                 {

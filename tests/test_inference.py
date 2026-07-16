@@ -108,3 +108,26 @@ def test_inference_benchmark_scores_only_fully_labeled_dataset_groups(tmp_path):
     assert by_dataset["new_b"]["rmse"] is None
     assert by_dataset["new_b"]["mean_bias_error"] is None
     assert by_dataset["new_b"]["status"] == "succeeded"
+
+
+def test_inference_benchmark_treats_object_pd_na_labels_as_unscored(tmp_path):
+    store = ModelStore(tmp_path / "models")
+    store.upload_model(
+        "predict_only",
+        "predict_only.pkl",
+        pickle.dumps(PredictOnlyModel()),
+        "model_manifest.json",
+        json.dumps(_manifest()).encode("utf-8"),
+    )
+    table = _table().loc[lambda frame: frame["dataset"].eq("new_a")].copy()
+    table["soh"] = table["soh"].astype(object)
+    table.loc[table.index[0], "soh"] = pd.NA
+
+    records = run_inference_benchmark(
+        store, table, pd.DataFrame(), ["predict_only"],
+    )
+
+    assert records[0]["status"] == "succeeded"
+    assert records[0]["mae"] is None
+    assert records[0]["rmse"] is None
+    assert records[0]["mean_bias_error"] is None

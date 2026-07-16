@@ -562,6 +562,47 @@ def test_inference_job_runs_uploaded_pickle_model(tmp_path):
     assert (tmp_path / "frontend_data" / "inference_benchmark.json").exists()
 
 
+def test_inference_job_keeps_object_pd_na_labels_unscored_and_successful(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    table = pd.read_csv(BytesIO(_dataset_csv("partial_labels")))
+    table["soh"] = table["soh"].astype(object)
+    table.loc[0, "soh"] = pd.NA
+    service.store.upload_dataset(
+        "partial_labels",
+        "partial.pkl",
+        pickle.dumps(table),
+    )
+    service.model_store.upload_model(
+        "api_model",
+        "api_model.pkl",
+        pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json",
+        json.dumps(_model_manifest()).encode("utf-8"),
+    )
+    job = service.create_inference_job(
+        {"datasets": ["partial_labels"], "models": ["api_model"]},
+        start=False,
+    )
+
+    finished = service.run_inference_job_inline(job["id"])
+    payload = json.loads(
+        (Path(finished["raw_run_dir"]) / "inference_benchmark.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert finished["status"] == "succeeded"
+    assert finished["outcome"] == "complete"
+    assert payload["records"][0]["status"] == "succeeded"
+    assert payload["records"][0]["mae"] is None
+    assert verify_evidence_pack(finished["evidence_path"])["ok"] is True
+
+
 def test_inference_fails_when_manifest_pipeline_or_state_is_missing(tmp_path):
     service = EvaluationService(
         data_dir=tmp_path / "data",
