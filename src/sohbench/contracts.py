@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
+from numbers import Real
 from typing import Protocol, runtime_checkable, Literal, Optional
 import numpy as np
 import pandas as pd
@@ -33,14 +34,23 @@ def validate_interval_bounds(low: np.ndarray, high: np.ndarray) -> None:
 
 
 def validate_finite_metrics(metrics: dict) -> dict:
-    invalid = [
-        str(name)
-        for name, value in metrics.items()
-        if value is not None and not np.isfinite(value)
-    ]
+    invalid = []
+    normalized = {}
+    for name, value in metrics.items():
+        if (
+            isinstance(value, (bool, np.bool_))
+            or not isinstance(value, Real)
+            or not bool(np.isfinite(value))
+        ):
+            invalid.append(str(name))
+            continue
+        normalized[name] = float(value) if isinstance(value, np.generic) else value
     if invalid:
-        raise ValueError(f"metrics must be finite: {', '.join(sorted(invalid))}")
-    return metrics
+        raise ValueError(
+            "metrics must be finite non-boolean real scalars: "
+            + ", ".join(sorted(invalid))
+        )
+    return normalized
 
 @dataclass(frozen=True)
 class CellMeta:

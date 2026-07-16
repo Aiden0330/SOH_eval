@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+import sohbench.frontend_publish as frontend_publish_module
 
 from scripts.run_smoke_acceptance import (
     FEATURESET_TEMPLATE,
@@ -44,7 +45,14 @@ def test_smoke_dataset_matches_the_causal_generated_feature_contract():
     np.testing.assert_allclose(frame["smoke_voltage_margin"], 4.25 - frame["voltage_mean"])
 
 
-def test_smoke_acceptance_runs_training_inference_and_syncs_frontend(tmp_path):
+def test_smoke_acceptance_runs_training_inference_and_syncs_frontend(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        frontend_publish_module,
+        "_sync_compatibility_view",
+        lambda _target, _generation, _generation_name: None,
+    )
     config = SmokeAcceptanceConfig(
         data_dir=tmp_path / "data",
         work_dir=tmp_path / "work",
@@ -67,7 +75,9 @@ def test_smoke_acceptance_runs_training_inference_and_syncs_frontend(tmp_path):
     assert (inference_dir / "inference_benchmark.json").exists()
     assert (inference_dir / "inference_run_config.json").exists()
 
-    frontend_dir = tmp_path / "frontend_data"
+    frontend_dir = frontend_publish_module.resolve_published_directory(
+        tmp_path / "frontend_data"
+    )
     assert (frontend_dir / "leaderboard.json").exists()
     assert (frontend_dir / "model_catalog.json").exists()
     assert (frontend_dir / "inference_benchmark.json").exists()

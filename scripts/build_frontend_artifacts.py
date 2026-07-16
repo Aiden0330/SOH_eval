@@ -12,14 +12,8 @@ import pandas as pd
 
 from sohbench.report import write_artifacts
 from sohbench.tasks import SOHEstimationTask
+from sohbench.frontend_publish import sync_frontend_artifacts
 
-
-FRONTEND_FILES = (
-    "leaderboard.json",
-    "dataset_leaderboard.json",
-    "qc_report.json",
-    "run_config.json",
-)
 
 OPTIONAL_FRONTEND_FILES = (
     "inference_benchmark.json",
@@ -74,7 +68,9 @@ def build_frontend_artifacts(config: BuildFrontendArtifactsConfig) -> Path:
     _copy_optional_frontend_files(source_runs, artifact_dir)
 
     if config.frontend_data_dir is not None:
-        _sync_frontend_files(artifact_dir, Path(config.frontend_data_dir))
+        sync_frontend_artifacts(
+            artifact_dir, Path(config.frontend_data_dir)
+        )
 
     return artifact_dir
 
@@ -213,16 +209,6 @@ def _merge_qc_reports(qc_reports: Sequence[dict]) -> dict:
         merged["dropped_columns"] = sorted(dropped_columns)
     merged.setdefault("drop_reasons", {})
     return merged
-
-
-def _sync_frontend_files(artifact_dir: Path, frontend_data_dir: Path) -> None:
-    frontend_data_dir.mkdir(parents=True, exist_ok=True)
-    for filename in FRONTEND_FILES:
-        shutil.copy2(artifact_dir / filename, frontend_data_dir / filename)
-    for filename in OPTIONAL_FRONTEND_FILES:
-        source = artifact_dir / filename
-        if source.exists():
-            shutil.copy2(source, frontend_data_dir / filename)
 
 
 def _copy_optional_frontend_files(source_runs: Sequence[Path], artifact_dir: Path) -> None:

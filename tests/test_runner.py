@@ -445,6 +445,34 @@ def test_non_finite_metric_output_is_a_metric_failure():
     assert results["error_message"].str.contains("metrics must be finite").all()
 
 
+@pytest.mark.parametrize(
+    "invalid_metric",
+    [None, np.array([0.1]), 0.1 + 0j],
+    ids=["none", "one_element_array", "complex"],
+)
+def test_non_real_scalar_metric_output_is_a_metric_failure(
+    monkeypatch, invalid_metric
+):
+    from sohbench.metadata import build_meta
+
+    monkeypatch.setattr(M, "mae", lambda _y_true, _y_pred: invalid_metric)
+    table = _table()
+
+    results = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(point_metrics=("mae",)),
+        table=table,
+        meta=build_meta(table),
+        protocols={"loco": LeaveOneCellOut()},
+        estimators=[RidgeEstimator],
+    )
+
+    assert results["unit_status"].eq("failed").all()
+    assert results["error_category"].eq("METRIC").all()
+    assert results["error_message"].str.contains(
+        "finite non-boolean real scalar"
+    ).all()
+
+
 def test_feature_contract_value_error_is_an_input_contract_failure():
     from sohbench.metadata import build_meta
 

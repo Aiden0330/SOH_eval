@@ -28,6 +28,8 @@ GENERATIONS_DIRNAME = ".generations"
 CURRENT_POINTER_NAME = "CURRENT.json"
 _PUBLICATION_LOCK = threading.RLock()
 _ATOMIC_REPLACE_TIMEOUT_SECONDS = 5.0
+_POINTER_READ_ATTEMPTS = 5
+_POINTER_READ_DELAY_SECONDS = 0.01
 
 
 def _remove_owned_directory(path: Path) -> None:
@@ -60,9 +62,9 @@ def _fsync_tree(path: Path) -> None:
 def resolve_published_directory(target: str | Path) -> Path:
     root = Path(target)
     pointer = root / CURRENT_POINTER_NAME
-    if not pointer.is_file():
+    document = _read_pointer_document(pointer)
+    if document is None:
         return root
-    document = json.loads(pointer.read_text(encoding="utf-8"))
     generation = str(document.get("generation") or "")
     if (
         document.get("schema_version") != 1
@@ -75,6 +77,21 @@ def resolve_published_directory(target: str | Path) -> Path:
             f"active publication generation is unavailable: {active}"
         )
     return active
+
+
+def _read_pointer_document(pointer: Path) -> dict | None:
+    for attempt in range(_POINTER_READ_ATTEMPTS):
+        try:
+            payload = pointer.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return None
+        except PermissionError:
+            if attempt + 1 >= _POINTER_READ_ATTEMPTS:
+                raise
+            time.sleep(_POINTER_READ_DELAY_SECONDS * (2**attempt))
+            continue
+        return json.loads(payload)
+    raise RuntimeError("unreachable pointer read retry state")
 
 
 def _atomic_replace(source: Path, destination: Path) -> None:
@@ -215,7 +232,8 @@ def _publish_directory(target: Path, build: Callable[[Path], None]) -> None:
                     },
                 )
             except BaseException:
-                _remove_owned_directory(generation)
+                if _generation_is_definitely_unreferenced(target, generation):
+                    _remove_owned_directory(generation)
                 raise
             try:
                 _sync_compatibility_view(target, generation, token)
@@ -223,6 +241,15 @@ def _publish_directory(target: Path, build: Callable[[Path], None]) -> None:
                 pass
         finally:
             _remove_owned_directory(staging)
+
+
+def _generation_is_definitely_unreferenced(
+    target: Path, generation: Path
+) -> bool:
+    try:
+        return resolve_published_directory(target) != generation
+    except BaseException:
+        return False
 
 
 def _copy_current_publication(target: Path, staging: Path) -> None:

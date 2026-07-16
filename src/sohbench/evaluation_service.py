@@ -481,7 +481,7 @@ class EvaluationService:
                 )
                 self._rebuild_evidence_pack(raw_run_dir)
             training_run_dirs = self._training_run_dirs_for_models(
-                model_snapshots
+                model_snapshots, model_catalog=model_catalog
             )
             published_run_dir = self._publish_frontend_composite(
                 raw_run_dir, training_run_dirs
@@ -781,6 +781,26 @@ class EvaluationService:
                 or manifest.get("featureset")
                 or ""
             ).strip()
+            estimator_name = str(manifest.get("estimator") or "").strip()
+            if estimator_name:
+                try:
+                    estimator = R.get_estimator(estimator_name)
+                    estimator_source = _source_path(estimator)
+                except (KeyError, OSError, ValueError):
+                    pass
+                else:
+                    artifacts.append(
+                        _file_spec_ref(
+                            "estimator_plugin",
+                            estimator_name,
+                            estimator_source,
+                        )
+                    )
+                    artifacts.extend(
+                        self._plugin_dependency_refs(
+                            "estimators", estimator_name
+                        )
+                    )
             if featureset_name:
                 artifacts.append(
                     self._feature_content_ref(
@@ -979,20 +999,102 @@ class EvaluationService:
         return inference_run_dir
 
     def _training_run_dirs_for_models(
-        self, model_snapshots: dict[str, ModelReadSnapshot]
+        self,
+        model_snapshots: dict[str, ModelReadSnapshot],
+        *,
+        model_catalog: list[dict] | None = None,
     ) -> list[Path]:
+        catalog_by_name = {
+            str(item.get("name")): item
+            for item in (
+                model_catalog
+                if model_catalog is not None
+                else self.model_store.catalog()
+            )
+        }
+        jobs_by_run = {
+            str(job.get("run_id")): job for job in self.list_jobs()
+        }
         run_dirs = []
         seen = set()
-        for snapshot in model_snapshots.values():
+        for model_name, snapshot in model_snapshots.items():
             run_id = str(
                 snapshot.loaded.manifest.get("created_by_run") or ""
             ).strip()
+            catalog_item = catalog_by_name.get(str(model_name), {})
             run_dir = self.runs_dir / run_id
-            if not run_id or run_id in seen or not run_dir.is_dir():
+            job = jobs_by_run.get(run_id, {})
+            if (
+                not run_id
+                or run_id in seen
+                or Path(run_id).name != run_id
+                or catalog_item.get("source") != "training"
+                or str(catalog_item.get("created_by_run") or "") != run_id
+                or snapshot.loaded.manifest.get("model_name") != model_name
+                or catalog_item.get("model_sha256")
+                != snapshot.digests.get("model_pickle")
+                or catalog_item.get("manifest_sha256")
+                != snapshot.digests.get("model_manifest")
+                or job.get("status") != "succeeded"
+                or str(model_name) not in set(map(str, job.get("saved_models", [])))
+                or not run_dir.is_dir()
+                or not self._training_run_matches_catalog(
+                    run_dir, run_id, str(model_name), catalog_item, job
+                )
+            ):
                 continue
             seen.add(run_id)
             run_dirs.append(run_dir)
         return run_dirs
+
+    def _training_run_matches_catalog(
+        self,
+        run_dir: Path,
+        run_id: str,
+        model_name: str,
+        catalog_item: dict,
+        job: dict,
+    ) -> bool:
+        try:
+            expected_run_dir = run_dir.resolve()
+            if expected_run_dir.parent != self.runs_dir.resolve():
+                return False
+            if (
+                Path(str(job.get("raw_run_dir") or "")).resolve()
+                != expected_run_dir
+            ):
+                return False
+            evidence = verify_evidence_pack(run_dir / "evidence-pack.json")
+            if evidence.get("run_id") != run_id:
+                return False
+            run_config = json.loads(
+                (run_dir / "run_config.json").read_text(encoding="utf-8")
+            )
+            if model_name not in set(
+                map(str, run_config.get("saved_models", []))
+            ):
+                return False
+            run_catalog = json.loads(
+                (run_dir / "model_catalog.json").read_text(encoding="utf-8")
+            )
+            run_item = next(
+                item
+                for item in run_catalog.get("models", [])
+                if item.get("name") == model_name
+            )
+        except (OSError, ValueError, KeyError, StopIteration):
+            return False
+        authenticated_fields = (
+            "name",
+            "source",
+            "created_by_run",
+            "model_sha256",
+            "manifest_sha256",
+        )
+        return all(
+            run_item.get(field) == catalog_item.get(field)
+            for field in authenticated_fields
+        )
 
     def publish_frontend_profile(
         self,

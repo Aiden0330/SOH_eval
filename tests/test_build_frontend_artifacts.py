@@ -4,6 +4,7 @@ from pathlib import Path
 import pandas as pd
 
 from scripts.build_frontend_artifacts import BuildFrontendArtifactsConfig, build_frontend_artifacts
+from sohbench.frontend_publish import resolve_published_directory
 
 
 def _write_run(path: Path, rows: list[dict], config: dict, qc: dict | None = None) -> None:
@@ -111,13 +112,15 @@ def test_build_frontend_artifacts_merges_runs_and_syncs_frontend(tmp_path):
     )
 
     assert artifact_dir.exists()
+    assert (frontend_dir / "CURRENT.json").is_file()
+    active_frontend = resolve_published_directory(frontend_dir)
     for filename in ["leaderboard.json", "dataset_leaderboard.json", "qc_report.json", "run_config.json"]:
         assert (artifact_dir / filename).exists()
-        assert (frontend_dir / filename).exists()
+        assert (active_frontend / filename).exists()
 
-    leaderboard = json.loads((frontend_dir / "leaderboard.json").read_text(encoding="utf-8"))
-    dataset_leaderboard = json.loads((frontend_dir / "dataset_leaderboard.json").read_text(encoding="utf-8"))
-    config = json.loads((frontend_dir / "run_config.json").read_text(encoding="utf-8"))
+    leaderboard = json.loads((active_frontend / "leaderboard.json").read_text(encoding="utf-8"))
+    dataset_leaderboard = json.loads((active_frontend / "dataset_leaderboard.json").read_text(encoding="utf-8"))
+    config = json.loads((active_frontend / "run_config.json").read_text(encoding="utf-8"))
 
     assert {entry["estimator"] for entry in leaderboard} == {"ridge", "mlp", "new_algo"}
     mlp = next(entry for entry in leaderboard if entry["estimator"] == "mlp")

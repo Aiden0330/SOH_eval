@@ -210,6 +210,89 @@ def test_battery_dependency_change_updates_candidate_and_run_identity(tmp_path):
     assert first.digest != second.digest
 
 
+def test_battery_inference_prediction_and_identity_follow_managed_dependency(
+    tmp_path,
+):
+    battery_root = tmp_path / "battery_SOH"
+    _write_fake_battery_soh_root(battery_root)
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.import_battery_soh_plugins(
+        battery_soh_root=battery_root, replace=True
+    )
+    table = _sample_frame()
+    service.store.upload_dataset(
+        "demo",
+        "demo.csv",
+        table.to_csv(index=False).encode("utf-8"),
+        replace=True,
+    )
+    training_job = service.create_job(
+        {
+            "datasets": ["demo"],
+            "estimators": ["battery_soh_tabular_ensemble"],
+            "featuresets": ["battery_soh_operational"],
+            "protocols": ["loco"],
+            "seeds": [0],
+        },
+        start=False,
+    )
+    training = service.run_job_inline(training_job["id"])
+    model_name = training["saved_models"][0]
+    request = service._normalize_inference_request(
+        {"datasets": ["demo"], "models": [model_name]}
+    )
+
+    def prediction_and_spec():
+        with service.model_store.read_lease([model_name]) as snapshots:
+            loaded = snapshots[model_name].loaded
+            prepared = service._prepare_inference_table(
+                model_name,
+                table,
+                pd.DataFrame(),
+                loaded_model=loaded,
+            )
+            prediction = loaded.predict(prepared, pd.DataFrame())
+            spec = service._build_run_spec(
+                run_type="inference",
+                request=request,
+                datasets=["demo"],
+                table=table,
+                qc={},
+                model_snapshots=snapshots,
+            )
+        return prediction, spec
+
+    first_prediction, first_spec = prediction_and_spec()
+    dependency_file = (
+        battery_root / "soh_core" / "models" / "tabular_ensemble.py"
+    )
+    dependency_file.write_text(
+        dependency_file.read_text(encoding="utf-8").replace(
+            "self.mean_ + calibration_offset",
+            "self.mean_ - 0.20 + calibration_offset",
+        ),
+        encoding="utf-8",
+    )
+    service.import_battery_soh_plugins(
+        battery_soh_root=battery_root, replace=True
+    )
+    second_prediction, second_spec = prediction_and_spec()
+
+    artifact_kinds = {
+        artifact.kind for artifact in second_spec.candidates[0].artifacts
+    }
+    assert "estimator_plugin" in artifact_kinds
+    assert "executable_dependency_tree" in artifact_kinds
+    assert not np.allclose(first_prediction, second_prediction)
+    assert first_spec.candidates[0].digest != second_spec.candidates[0].digest
+    assert first_spec.digest != second_spec.digest
+
+
 def test_battery_dependency_snapshot_excludes_unhashed_bytecode(tmp_path):
     battery_root = tmp_path / "battery_SOH"
     _write_fake_battery_soh_root(battery_root)

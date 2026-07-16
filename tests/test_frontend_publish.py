@@ -329,3 +329,150 @@ def test_directory_activation_interruption_preserves_last_known_good(
     assert json.loads(
         (active / "payload.json").read_text(encoding="utf-8")
     )["version"] == "old"
+
+
+def test_resolve_published_directory_retries_transient_pointer_read_failure(
+    tmp_path, monkeypatch
+):
+    target = tmp_path / "published"
+
+    def build(staging):
+        staging.mkdir(parents=True)
+        _write_json(staging / "manifest.json", {"version": "current"})
+
+    frontend_publish_module._publish_directory(target, build)
+    pointer = target / "CURRENT.json"
+    real_read_text = Path.read_text
+    attempts = 0
+
+    def transient_read_error(path, *args, **kwargs):
+        nonlocal attempts
+        if path == pointer and attempts < 2:
+            attempts += 1
+            raise PermissionError("injected pointer sharing violation")
+        return real_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", transient_read_error)
+
+    active = frontend_publish_module.resolve_published_directory(target)
+
+    assert attempts == 2
+    assert json.loads(
+        (active / "manifest.json").read_text(encoding="utf-8")
+    )["version"] == "current"
+
+
+def test_resolve_published_directory_rejects_stable_invalid_pointer_immediately(
+    tmp_path, monkeypatch
+):
+    target = tmp_path / "published"
+    _write_json(
+        target / "CURRENT.json",
+        {"schema_version": 1, "generation": "not-a-generation"},
+    )
+    sleeps = []
+    monkeypatch.setattr(
+        frontend_publish_module.time,
+        "sleep",
+        lambda delay: sleeps.append(delay),
+    )
+
+    with pytest.raises(ValueError, match="invalid publication pointer"):
+        frontend_publish_module.resolve_published_directory(target)
+
+    assert sleeps == []
+
+
+def test_repeated_directory_publication_keeps_active_reader_resolvable(
+    tmp_path,
+):
+    target = tmp_path / "published"
+    stop = threading.Event()
+    errors = []
+
+    def build_version(version):
+        def build(staging):
+            staging.mkdir(parents=True)
+            _write_json(staging / "manifest.json", {"version": version})
+            _write_json(staging / "payload.json", {"version": version})
+
+        return build
+
+    frontend_publish_module._publish_directory(target, build_version(0))
+
+    def read_active_generation():
+        while not stop.is_set():
+            try:
+                active = frontend_publish_module.resolve_published_directory(
+                    target
+                )
+                manifest = json.loads(
+                    (active / "manifest.json").read_text(encoding="utf-8")
+                )
+                payload = json.loads(
+                    (active / "payload.json").read_text(encoding="utf-8")
+                )
+                assert manifest["version"] == payload["version"]
+            except BaseException as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+                return
+
+    reader = threading.Thread(target=read_active_generation)
+    reader.start()
+    try:
+        for version in range(1, 6):
+            frontend_publish_module._publish_directory(
+                target, build_version(version)
+            )
+    finally:
+        stop.set()
+        reader.join(timeout=5)
+
+    assert not reader.is_alive()
+    assert errors == []
+    active = frontend_publish_module.resolve_published_directory(target)
+    assert json.loads(
+        (active / "manifest.json").read_text(encoding="utf-8")
+    )["version"] == 5
+
+
+def test_post_replace_failure_never_deletes_referenced_generation(
+    tmp_path, monkeypatch
+):
+    target = tmp_path / "published"
+
+    def build_version(version):
+        def build(staging):
+            staging.mkdir(parents=True)
+            _write_json(staging / "manifest.json", {"version": version})
+            _write_json(staging / "payload.json", {"version": version})
+
+        return build
+
+    frontend_publish_module._publish_directory(target, build_version("old"))
+    real_write_pointer = frontend_publish_module._write_atomic_json
+
+    def install_pointer_then_fail(path, document):
+        real_write_pointer(path, document)
+        raise OSError("injected post-replace durability failure")
+
+    monkeypatch.setattr(
+        frontend_publish_module,
+        "_write_atomic_json",
+        install_pointer_then_fail,
+    )
+
+    with pytest.raises(OSError, match="post-replace durability failure"):
+        frontend_publish_module._publish_directory(
+            target, build_version("new")
+        )
+
+    active = frontend_publish_module.resolve_published_directory(target)
+    manifest = json.loads(
+        (active / "manifest.json").read_text(encoding="utf-8")
+    )
+    payload = json.loads(
+        (active / "payload.json").read_text(encoding="utf-8")
+    )
+    assert manifest["version"] == payload["version"]
+    assert manifest["version"] in {"old", "new"}

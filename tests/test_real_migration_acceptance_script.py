@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import sohbench.frontend_publish as frontend_publish_module
 
 from scripts.run_real_migration_acceptance import (
     RealMigrationAcceptanceConfig,
@@ -34,7 +35,14 @@ def _write_dataset(data_dir: Path, name: str, *, cells: int = 3, cycles: int = 1
     pd.DataFrame(rows).to_pickle(processed / f"{name}_features.pkl")
 
 
-def test_real_migration_acceptance_runs_train_to_transfer_profile(tmp_path):
+def test_real_migration_acceptance_runs_train_to_transfer_profile(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        frontend_publish_module,
+        "_sync_compatibility_view",
+        lambda _target, _generation, _generation_name: None,
+    )
     data_dir = tmp_path / "data"
     _write_dataset(data_dir, "nasa")
     _write_dataset(data_dir, "calce_cs2")
@@ -55,7 +63,9 @@ def test_real_migration_acceptance_runs_train_to_transfer_profile(tmp_path):
     assert summary["inference"]["status"] == "succeeded"
     assert summary["profile"]["name"] == "migration-smoke"
 
-    frontend_dir = tmp_path / "frontend_data"
+    frontend_dir = frontend_publish_module.resolve_published_directory(
+        tmp_path / "frontend_data"
+    )
     profile_dir = frontend_dir / "profiles" / "migration-smoke"
     assert (profile_dir / "manifest.json").exists()
     assert (profile_dir / "inference_benchmark.json").exists()

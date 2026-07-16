@@ -10,6 +10,7 @@ import pytest
 
 import sohbench.evaluation_service as evaluation_service_module
 import sohbench.frontend_publish as frontend_publish_module
+import sohbench.runner as runner_module
 from sohbench.evaluation_service import EvaluationService
 from sohbench.fabric.evidence import verify_evidence_pack
 
@@ -198,6 +199,40 @@ def test_training_job_exposes_verified_evidence_contract(tmp_path):
     assert finished["execution_state"] == "REVIEW"
     assert finished["outcome"] in {"complete", "partial", "failed"}
     assert Path(finished["evidence_path"]).name == "evidence-pack.json"
+    assert verify_evidence_pack(finished["evidence_path"])["ok"] is True
+
+
+def test_training_service_evidence_rejects_non_scalar_success_metric(
+    tmp_path, monkeypatch
+):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset(
+        "plugin_eval_demo", "demo.csv", _dataset_csv()
+    )
+    monkeypatch.setattr(
+        runner_module.M, "mae", lambda _y_true, _y_pred: None
+    )
+    job = service.create_job(
+        {
+            "datasets": ["plugin_eval_demo"],
+            "estimators": ["ridge"],
+            "featuresets": ["full"],
+            "protocols": ["loco"],
+            "seeds": [0],
+        },
+        start=False,
+    )
+
+    finished = service.run_job_inline(job["id"])
+    results = pd.read_csv(Path(finished["raw_run_dir"]) / "results.csv")
+
+    assert finished["status"] == "failed"
+    assert results["unit_status"].eq("failed").all()
     assert verify_evidence_pack(finished["evidence_path"])["ok"] is True
 
 
@@ -725,6 +760,57 @@ def test_training_then_inference_publishes_explicit_composite_generation(tmp_pat
     )
     assert inference_config["job_id"] == inference["id"]
     assert inference_config["run_id"] == inference["run_id"]
+
+
+def test_uploaded_model_cannot_spoof_training_composite_provenance(tmp_path):
+    frontend_data = tmp_path / "frontend_data"
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=frontend_data,
+    )
+    service.store.upload_dataset(
+        "plugin_eval_demo", "demo.csv", _dataset_csv()
+    )
+    training_job = service.create_job(
+        {
+            "datasets": ["plugin_eval_demo"],
+            "estimators": ["ridge"],
+            "featuresets": ["full"],
+            "protocols": ["loco"],
+            "seeds": [0],
+        },
+        start=False,
+    )
+    training = service.run_job_inline(training_job["id"])
+    assert training["status"] == "succeeded"
+
+    spoofed_manifest = _model_manifest("spoofed_upload")
+    spoofed_manifest["created_by_run"] = training["run_id"]
+    service.model_store.upload_model(
+        "spoofed_upload",
+        "spoofed_upload.pkl",
+        pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json",
+        json.dumps(spoofed_manifest).encode("utf-8"),
+    )
+    inference_job = service.create_inference_job(
+        {
+            "datasets": ["plugin_eval_demo"],
+            "models": ["spoofed_upload"],
+        },
+        start=False,
+    )
+
+    inference = service.run_inference_job_inline(inference_job["id"])
+    active = frontend_publish_module.resolve_published_directory(frontend_data)
+
+    assert inference["status"] == "succeeded"
+    assert (active / "inference_benchmark.json").is_file()
+    assert (active / "inference_run_config.json").is_file()
+    assert not (active / "leaderboard.json").exists()
+    assert not (active / "run_config.json").exists()
 
 
 def test_inference_job_executes_only_explicit_model_dataset_pairs(tmp_path):
