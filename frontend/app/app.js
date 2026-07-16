@@ -8,6 +8,7 @@ import {
   bestComparableEntry,
   buildInferencePayload,
   buildEvaluationPayload,
+  canLaunchModeJob,
   catalogOptions,
   evaluationPlanSummary,
   evaluationIdentity,
@@ -22,6 +23,7 @@ import {
   inferenceAuditSummary,
   inferenceActionState,
   inferenceSummary,
+  isCurrentModePollResponse,
   isTerminalJobStatus,
   leaderboardCoverage,
   modelAssetRows,
@@ -126,7 +128,8 @@ let activeMode = "training";
 let scoped = null;
 let CATALOG = null;
 let WORKBENCH_ERROR = "";
-let CURRENT_JOB = null;
+const ACTIVE_JOBS = { training: null, inference: null };
+const POLL_TOKENS = { training: 0, inference: 0 };
 let resourceSelection = {
   datasets: new Set(),
   estimators: new Set(),
@@ -148,9 +151,41 @@ let lastTaskHistoryRows = [];
 let taskHistoryExpandedIds = new Set();
 let taskHistoryBusyId = "";
 let taskHistoryMessage = "";
+let DELIVERY_REPORT = null;
+let DELIVERY_BUSY = "";
+let DELIVERY_ERROR = "";
+let DELIVERY_NOTICE = "";
+let NATIVE_DASHBOARD_AVAILABLE = false;
+let NATIVE_DASHBOARD_REVISION = 0;
 let PROFILE_INDEX = { profiles: [] };
 let activeProfile = INITIAL_PROFILE;
 let activeProfileOption = { name: "root", label: "当前根目录", kind: "root", active: true };
+
+function activeJob(mode) {
+  return ACTIVE_JOBS[mode] || null;
+}
+
+function reserveModeJob(mode) {
+  if (!canLaunchModeJob(ACTIVE_JOBS, mode)) return null;
+  const token = POLL_TOKENS[mode] + 1;
+  POLL_TOKENS[mode] = token;
+  ACTIVE_JOBS[mode] = {
+    kind: mode === "inference" ? "inference" : "training",
+    id: `${mode}-pending-${token}`,
+    status: "queued",
+  };
+  return token;
+}
+
+function acceptLaunchResponse(mode, token, response) {
+  if (POLL_TOKENS[mode] !== token) return null;
+  const job = {
+    kind: mode === "inference" ? "inference" : "training",
+    ...response,
+  };
+  ACTIVE_JOBS[mode] = job;
+  return job;
+}
 
 async function load(options = {}) {
   const suffix = `?v=${encodeURIComponent(DATA_VERSION)}${options.cacheBust ? `&t=${Date.now()}` : ""}`;
@@ -171,7 +206,9 @@ async function load(options = {}) {
       DATA = fallbackData();
     }
   }
+  await probeNativeDashboard();
   await loadBackendCatalog();
+  if (CATALOG) await refreshDeliveryReport({ renderAfter: false });
   render();
 }
 
@@ -304,6 +341,7 @@ function render() {
   renderKpis(lb, dsOptions);
   renderScopeContext(dsOptions);
   renderModeTabs();
+  renderNativeDashboard();
   wireProfileSelector(profileOptions(PROFILE_INDEX, activeProfile));
   renderWorkbench();
   renderInferencePanel(inferenceDsOptions);
@@ -336,7 +374,7 @@ function currentInferenceAuditSummary() {
   return inferenceAuditSummary({
     inferenceConfig: DATA?.inferenceConfig || {},
     catalog: CATALOG || {},
-    currentJob: CURRENT_JOB?.kind === "inference" ? CURRENT_JOB : null,
+    currentJob: activeJob("inference"),
   });
 }
 
@@ -525,7 +563,7 @@ function renderRunPlan() {
 function renderWorkbenchSteps(plan = null) {
   const node = $("workbench-steps");
   if (!node) return;
-  const jobStatus = CURRENT_JOB?.status || "";
+  const jobStatus = activeJob("training")?.status || "";
   const published = isPublishedJobStatus(jobStatus);
   const items = [
     ["上传", CATALOG ? "complete" : "pending", CATALOG ? "资源目录已载入" : "等待后端连接"],
@@ -544,7 +582,7 @@ function renderWorkbenchSteps(plan = null) {
 function renderTrainingWorkflow(plan = null) {
   const node = $("training-workflow");
   if (!node) return;
-  const jobStatus = CURRENT_JOB?.status || "";
+  const jobStatus = activeJob("training")?.status || "";
   const published = isPublishedJobStatus(jobStatus);
   const steps = [
     ["资源接入", CATALOG ? "complete" : "pending", CATALOG ? "资源目录已加载" : "等待后端连接"],
@@ -570,14 +608,15 @@ function renderTrainingArtifacts() {
   const node = $("training-artifacts");
   if (!node) return;
   const summary = trainingArtifactSummary(DATA?.config || {}, currentModelCatalog());
-  const jobStatus = CURRENT_JOB?.status ? statusLabel(CURRENT_JOB.status) : "未启动";
+  const trainingJob = activeJob("training");
+  const jobStatus = trainingJob?.status ? statusLabel(trainingJob.status) : "未启动";
   node.innerHTML =
     `<div class="panel-title"><span>训练产物</span><b>模型资产库</b></div>` +
     `<div class="panel-scroll">` +
     `<div class="artifact-stack">` +
       artifactMetric("Pickle 模型", summary.label, `${summary.generatedCount} 训练产出 / ${summary.uploadedCount} 外部上传`, "model") +
       artifactMetric("数据集范围", `${summary.datasetCount || 0} 个数据集`, "训练矩阵使用的数据源范围", "dataset") +
-      artifactMetric("任务状态", jobStatus, CURRENT_JOB?.id || "等待新任务", "job") +
+      artifactMetric("任务状态", jobStatus, trainingJob?.id || "等待新任务", "job") +
     `</div>` +
     `<button class="secondary-action" data-mode-shortcut="models">查看模型资产库</button>` +
     `</div>`;
@@ -611,14 +650,15 @@ function buildCurrentEvaluationPayload() {
 function renderJobState() {
   const node = $("job-state");
   if (!node) return;
-  if (!CURRENT_JOB) {
+  const trainingJob = activeJob("training");
+  if (!trainingJob) {
     node.textContent = "上传资源通过合约校验后，可启动一轮新的本机评测。";
     return;
   }
-  const bits = [`任务 ${CURRENT_JOB.id}`, `状态 ${statusLabel(CURRENT_JOB.status)}`];
-  if (CURRENT_JOB.run_dir) bits.push(`结果 ${CURRENT_JOB.run_dir}`);
-  if (isPublishedJobStatus(CURRENT_JOB.status)) bits.push("结果已发布到仪表盘");
-  if (CURRENT_JOB.error) bits.push(`错误 ${CURRENT_JOB.error}`);
+  const bits = [`任务 ${trainingJob.id}`, `状态 ${statusLabel(trainingJob.status)}`];
+  if (trainingJob.run_dir) bits.push(`结果 ${trainingJob.run_dir}`);
+  if (isPublishedJobStatus(trainingJob.status)) bits.push("结果已发布到仪表盘");
+  if (trainingJob.error) bits.push(`错误 ${trainingJob.error}`);
   node.innerHTML = bits.map((bit, i) => i === 0 ? `<strong>${esc(bit)}</strong>` : esc(bit)).join(" / ");
 }
 
@@ -629,8 +669,9 @@ function wireWorkbenchActions(enabled) {
   });
   const start = $("start-eval");
   if (start) {
-    start.disabled = !enabled;
-    start.onclick = enabled ? startEvaluation : null;
+    const launchable = enabled && canLaunchModeJob(ACTIVE_JOBS, "training");
+    start.disabled = !launchable;
+    start.onclick = launchable ? startEvaluation : null;
   }
   document.querySelectorAll("input[name='run-protocol']").forEach((input) => {
     input.onchange = renderRunPlan;
@@ -666,6 +707,158 @@ function renderModeTabs() {
   document.querySelectorAll("[data-mode-panel]").forEach((panel) => {
     panel.hidden = panel.dataset.modePanel !== activeMode;
   });
+}
+
+function renderNativeDashboard() {
+  const frame = $("native-dashboard-frame");
+  const unsynced = $("native-dashboard-unsynced");
+  const state = $("native-dashboard-state");
+  const reportNode = $("delivery-report");
+  if (!frame || !unsynced || !state || !reportNode) return;
+
+  const embedded = typeof window.__SOH_STANDALONE_NATIVE_DASHBOARD__ === "string"
+    ? window.__SOH_STANDALONE_NATIVE_DASHBOARD__
+    : "";
+  const nativeOutput = DELIVERY_REPORT?.outputs?.native_dashboard || {};
+  const ready = Boolean(embedded || NATIVE_DASHBOARD_AVAILABLE || nativeOutput.present);
+  frame.hidden = !ready;
+  unsynced.hidden = ready;
+  state.textContent = ready ? (embedded ? "已内嵌" : "已同步") : "等待同步";
+  state.classList.toggle("ready", ready);
+
+  if (ready && embedded && frame.dataset.source !== "standalone") {
+    frame.removeAttribute("src");
+    frame.srcdoc = embedded;
+    frame.dataset.source = "standalone";
+  } else if (ready && !embedded && frame.dataset.source !== `sync-${NATIVE_DASHBOARD_REVISION}`) {
+    frame.removeAttribute("srcdoc");
+    frame.src = `./battery-dashboard/index.html?v=${encodeURIComponent(DATA_VERSION)}&sync=${NATIVE_DASHBOARD_REVISION}`;
+    frame.dataset.source = `sync-${NATIVE_DASHBOARD_REVISION}`;
+  } else if (!ready) {
+    frame.removeAttribute("src");
+    frame.removeAttribute("srcdoc");
+    delete frame.dataset.source;
+    const detail = unsynced.querySelector("span");
+    if (detail) {
+      detail.textContent = window.__SOH_STANDALONE__
+        ? "此单文件包构建时未包含原生看板。"
+        : (DELIVERY_ERROR || "同步完成后将在此处载入完整 SOH 分析视图。");
+    }
+  }
+
+  reportNode.innerHTML = renderDeliveryReport();
+  wireDeliveryActions();
+}
+
+function renderDeliveryReport() {
+  if (!DELIVERY_REPORT) {
+    const message = DELIVERY_ERROR || DELIVERY_NOTICE || (CATALOG ? "交付报告尚未刷新" : "后端未连接，交付操作暂不可用");
+    return `<div class="delivery-empty">${esc(message)}</div>`;
+  }
+  const summary = DELIVERY_REPORT.summary || {};
+  const checks = (DELIVERY_REPORT.checks || []).map((check) =>
+    `<div class="delivery-check ${check.passed ? "pass" : "fail"}">` +
+      `<span>${esc(check.label || check.id || "交付检查")}</span>` +
+      `<b>${check.passed ? "通过" : "未通过"}</b>` +
+      `<small>${esc(check.detail || "无详情")}</small>` +
+    `</div>`
+  ).join("");
+  return `${DELIVERY_NOTICE ? `<div class="delivery-empty">${esc(DELIVERY_NOTICE)}</div>` : ""}` +
+    `<div class="delivery-summary">` +
+      `<span>检查项<b>${Number(summary.total || 0)}</b></span>` +
+      `<span>通过<b>${Number(summary.passed || 0)}</b></span>` +
+      `<span>未通过<b>${Number(summary.failed || 0)}</b></span>` +
+    `</div>` +
+    `<div class="delivery-checks">${checks || '<div class="delivery-empty">暂无交付检查</div>'}</div>`;
+}
+
+function wireDeliveryActions() {
+  const disabled = Boolean(DELIVERY_BUSY) || !CATALOG;
+  const source = $("native-dashboard-source");
+  const actions = [
+    ["sync-native-dashboard", "sync", "/api/sync/native-dashboard", () => ({
+      source: String(source?.value || "").trim(),
+      include_curves: true,
+      include_detection: false,
+    })],
+    ["package-portable", "portable", "/api/package/portable", () => ({})],
+    ["package-standalone", "standalone", "/api/package/standalone", () => ({})],
+  ];
+  actions.forEach(([id, action, endpoint, payload]) => {
+    const button = $(id);
+    if (!button) return;
+    button.disabled = disabled;
+    button.onclick = disabled ? null : () => runDeliveryAction(action, endpoint, payload());
+  });
+  const refresh = $("refresh-package-status");
+  if (refresh) {
+    refresh.disabled = disabled;
+    refresh.onclick = disabled ? null : () => refreshDeliveryReport();
+  }
+}
+
+async function runDeliveryAction(action, endpoint, payload) {
+  if (DELIVERY_BUSY) return;
+  const labels = {
+    sync: "原生看板同步",
+    portable: "便携目录包生成",
+    standalone: "单文件包生成",
+  };
+  DELIVERY_BUSY = action;
+  DELIVERY_ERROR = "";
+  DELIVERY_NOTICE = `${labels[action]}正在执行`;
+  renderNativeDashboard();
+  try {
+    await postJson(endpoint, payload);
+    if (action === "sync") {
+      NATIVE_DASHBOARD_REVISION += 1;
+      await probeNativeDashboard();
+    }
+    DELIVERY_NOTICE = `${labels[action]}已完成`;
+    await refreshDeliveryReport({ renderAfter: false, showBusy: false });
+  } catch (err) {
+    DELIVERY_ERROR = `${labels[action]}失败：${err.message}`;
+    DELIVERY_NOTICE = "";
+  } finally {
+    DELIVERY_BUSY = "";
+    renderNativeDashboard();
+  }
+}
+
+async function probeNativeDashboard() {
+  if (typeof window.__SOH_STANDALONE_NATIVE_DASHBOARD__ === "string") {
+    NATIVE_DASHBOARD_AVAILABLE = true;
+    return true;
+  }
+  try {
+    const response = await fetch(
+      `./battery-dashboard/SYNC_MANIFEST.json?v=${encodeURIComponent(DATA_VERSION)}&sync=${NATIVE_DASHBOARD_REVISION}`,
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const manifest = await response.json();
+    NATIVE_DASHBOARD_AVAILABLE = Number(manifest?.scenario_count || 0) > 0;
+  } catch (_) {
+    NATIVE_DASHBOARD_AVAILABLE = false;
+  }
+  return NATIVE_DASHBOARD_AVAILABLE;
+}
+
+async function refreshDeliveryReport({ renderAfter = true, showBusy = true } = {}) {
+  if (showBusy && DELIVERY_BUSY) return;
+  if (showBusy) DELIVERY_BUSY = "status";
+  DELIVERY_ERROR = "";
+  try {
+    const response = await fetch(`${API_BASE}/api/package/status`);
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+    DELIVERY_REPORT = body.report || null;
+  } catch (err) {
+    DELIVERY_REPORT = null;
+    DELIVERY_ERROR = `交付报告读取失败：${err.message}`;
+  } finally {
+    if (showBusy) DELIVERY_BUSY = "";
+    if (renderAfter) renderNativeDashboard();
+  }
 }
 
 function renderTaskHistoryDrawer() {
@@ -815,12 +1008,20 @@ async function rerunTaskFromHistory(taskId) {
     setJobMessage("后端未连接，无法重新运行任务。");
     return;
   }
+  const mode = row.kind === "inference" ? "inference" : "training";
+  const token = reserveModeJob(mode);
+  if (token == null) {
+    taskHistoryMessage = `${mode === "inference" ? "推理" : "训练"}任务正在执行，请等待完成后重试。`;
+    renderTaskHistoryDrawer();
+    return;
+  }
   taskHistoryBusyId = taskId;
   taskHistoryMessage = "正在提交同配置任务...";
   renderTaskHistoryDrawer();
   try {
-    const job = await postJson(row.rerunEndpoint, row.rerunPayload);
-    CURRENT_JOB = row.kind === "inference" ? { kind: "inference", ...job } : job;
+    const response = await postJson(row.rerunEndpoint, row.rerunPayload);
+    const job = acceptLaunchResponse(mode, token, response);
+    if (!job) return;
     await loadBackendCatalog();
     taskHistoryBusyId = "";
     taskHistoryMessage = `已重新启动${row.kind === "inference" ? "推理" : "训练"}任务 ${job.id}`;
@@ -829,14 +1030,15 @@ async function rerunTaskFromHistory(taskId) {
       activeMode = "inference";
       render();
       setInferenceMessage(`已重新启动推理任务 ${job.id}`, "active");
-      pollInferenceJob(job.id);
+      pollInferenceJob(job.id, token);
     } else {
       activeMode = "training";
       render();
       setJobMessage(`已重新启动训练任务 ${job.id}`);
-      pollJob(job.id);
+      pollJob(job.id, token);
     }
   } catch (err) {
+    if (POLL_TOKENS[mode] === token) ACTIVE_JOBS[mode] = null;
     taskHistoryBusyId = "";
     taskHistoryMessage = `重新运行失败：${err.message}`;
     renderTaskHistoryDrawer();
@@ -902,15 +1104,21 @@ function renderInferencePanel(dsOptions) {
     [...inferenceSelection.models],
     [...inferenceSelection.datasets],
   );
-  const summary = inferenceSummary({ records: rows });
+  const summary = inferenceSummary({
+    records: rows,
+    summary: DATA?.inference?.summary || {},
+  });
   renderInferenceCompatibilityPanel(models, dsOptions);
-  renderInferenceInsights(inferenceInsightSummary(rows), currentInferenceAuditSummary());
+  renderInferenceInsights(
+    inferenceInsightSummary(rows, DATA?.inference?.summary || {}),
+    currentInferenceAuditSummary(),
+  );
   $("inference-results").innerHTML = renderInferenceSummary(summary) + renderInferenceTable(rows);
   const actionState = inferenceActionState({
     backendConnected: Boolean(CATALOG),
     selectedModelCount: models.filter((item) => inferenceSelection.models.has(item.name)).length,
     selectedDatasetCount: dsOptions.filter((item) => inferenceSelection.datasets.has(item.name)).length,
-    currentJob: CURRENT_JOB?.kind === "inference" ? CURRENT_JOB : null,
+    currentJob: activeJob("inference"),
   });
   renderInferenceActionState(actionState);
   renderInferencePolicyControls(models, dsOptions);
@@ -1229,13 +1437,26 @@ async function startEvaluation() {
     setJobMessage("请至少选择一个数据集、算法和特征。");
     return;
   }
+  if (!canLaunchModeJob(ACTIVE_JOBS, "training")) {
+    setJobMessage("训练任务正在执行，请等待完成后再启动。");
+    return;
+  }
+  const token = reserveModeJob("training");
+  renderWorkbench();
   try {
-    CURRENT_JOB = await postJson("/api/jobs", payload);
+    const job = acceptLaunchResponse(
+      "training",
+      token,
+      await postJson("/api/jobs", payload),
+    );
+    if (!job) return;
     renderJobState();
     renderRunPlan();
-    pollJob(CURRENT_JOB.id);
+    pollJob(job.id, token);
   } catch (err) {
+    if (POLL_TOKENS.training === token) ACTIVE_JOBS.training = null;
     setJobMessage(`启动失败：${err.message}`);
+    renderRunPlan();
   }
 }
 
@@ -1256,15 +1477,28 @@ async function startInferenceEvaluationWithPolicy() {
       : "请至少选择一个模型和一个数据集。", "warn");
     return;
   }
+  if (!canLaunchModeJob(ACTIVE_JOBS, "inference")) {
+    setInferenceMessage("推理任务正在执行，请等待完成后再启动。", "active");
+    return;
+  }
+  const token = reserveModeJob("inference");
+  renderInferencePanel(currentInferenceDatasetOptions());
   try {
     setInferenceMessage(plan.skippedCount
       ? `正在启动推理任务，${plan.message}`
       : "正在启动推理任务...", "active");
-    CURRENT_JOB = { kind: "inference", ...(await postJson("/api/inference-jobs", payload)) };
+    const job = acceptLaunchResponse(
+      "inference",
+      token,
+      await postJson("/api/inference-jobs", payload),
+    );
+    if (!job) return;
     renderInferencePanel(currentInferenceDatasetOptions());
-    pollInferenceJob(CURRENT_JOB.id);
+    pollInferenceJob(job.id, token);
   } catch (err) {
+    if (POLL_TOKENS.inference === token) ACTIVE_JOBS.inference = null;
     setInferenceMessage(`推理任务启动失败：${err.message}`, "fail");
+    renderInferencePanel(currentInferenceDatasetOptions());
   }
 }
 
@@ -1277,13 +1511,26 @@ async function startInferenceEvaluation() {
     setInferenceMessage("请至少选择一个模型和一个数据集。", "warn");
     return;
   }
+  if (!canLaunchModeJob(ACTIVE_JOBS, "inference")) {
+    setInferenceMessage("推理任务正在执行，请等待完成后再启动。", "active");
+    return;
+  }
+  const token = reserveModeJob("inference");
+  renderInferencePanel(currentInferenceDatasetOptions());
   try {
     setInferenceMessage("正在启动推理任务...", "active");
-    CURRENT_JOB = { kind: "inference", ...(await postJson("/api/inference-jobs", payload)) };
+    const job = acceptLaunchResponse(
+      "inference",
+      token,
+      await postJson("/api/inference-jobs", payload),
+    );
+    if (!job) return;
     renderInferencePanel(currentInferenceDatasetOptions());
-    pollInferenceJob(CURRENT_JOB.id);
+    pollInferenceJob(job.id, token);
   } catch (err) {
+    if (POLL_TOKENS.inference === token) ACTIVE_JOBS.inference = null;
     setInferenceMessage(`推理任务启动失败：${err.message}`, "fail");
+    renderInferencePanel(currentInferenceDatasetOptions());
   }
 }
 
@@ -1291,42 +1538,55 @@ function selectedValues(id) {
   return [...($(id)?.querySelectorAll("input[type='checkbox']:checked") || [])].map((input) => input.value);
 }
 
-async function pollJob(jobId) {
+async function pollJob(jobId, token) {
   while (true) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     try {
       const response = await fetch(`${API_BASE}/api/jobs/${encodeURIComponent(jobId)}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      CURRENT_JOB = await response.json();
+      const job = await response.json();
+      if (!isCurrentModePollResponse({
+        mode: "training", token, pollTokens: POLL_TOKENS,
+        activeJobs: ACTIVE_JOBS, response: job,
+      })) return;
+      ACTIVE_JOBS.training = { kind: "training", ...job };
       renderWorkbench();
-      if (isTerminalJobStatus(CURRENT_JOB.status)) {
-        if (CURRENT_JOB.status !== "failed") await load({ cacheBust: true });
+      if (isTerminalJobStatus(job.status)) {
+        if (job.status !== "failed") await load({ cacheBust: true });
         return;
       }
     } catch (err) {
+      if (POLL_TOKENS.training !== token) return;
       setJobMessage(`任务轮询失败：${err.message}`);
       return;
     }
   }
 }
 
-async function pollInferenceJob(jobId) {
+async function pollInferenceJob(jobId, token) {
   while (true) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     try {
       const response = await fetch(`${API_BASE}/api/inference-jobs/${encodeURIComponent(jobId)}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      CURRENT_JOB = { kind: "inference", ...(await response.json()) };
+      const job = { kind: "inference", ...(await response.json()) };
+      if (!isCurrentModePollResponse({
+        mode: "inference", token, pollTokens: POLL_TOKENS,
+        activeJobs: ACTIVE_JOBS, response: job,
+      })) return;
+      ACTIVE_JOBS.inference = job;
       renderInferencePanel(currentInferenceDatasetOptions());
-      if (isTerminalJobStatus(CURRENT_JOB.status)) {
-        if (CURRENT_JOB.status !== "failed") {
+      if (isTerminalJobStatus(job.status)) {
+        if (job.status !== "failed") {
           await load({ cacheBust: true });
+          if (POLL_TOKENS.inference !== token) return;
           activeMode = "inference";
           render();
         }
         return;
       }
     } catch (err) {
+      if (POLL_TOKENS.inference !== token) return;
       setInferenceMessage(`推理任务轮询失败：${err.message}`, "fail");
       return;
     }

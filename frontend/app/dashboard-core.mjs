@@ -227,20 +227,67 @@ export function inferenceRows(payload = {}, selectedModels = [], selectedDataset
 
 export function inferenceSummary(payload = {}) {
   const ok = (payload.records || []).filter((row) => row.status === "succeeded");
-  const fastest = [...ok].sort((a, b) =>
-    (a.ms_per_1000_samples ?? Infinity) - (b.ms_per_1000_samples ?? Infinity))[0] || null;
-  const bestTransfer = ok
-    .filter((row) => row.mae != null)
-    .sort((a, b) => a.mae - b.mae)[0] || null;
-  const highestThroughput = [...ok].sort((a, b) =>
-    (b.samples_per_second ?? 0) - (a.samples_per_second ?? 0))[0] || null;
+  const backend = payload.summary || {};
+  const fastest = backendInferenceWinner(
+    ok,
+    backend.fastest,
+    backend.fastest_model,
+    backend.fastest_ms_per_1000_samples,
+    "ms_per_1000_samples",
+  ) || rankInferenceRows(ok, "ms_per_1000_samples", "asc")[0] || null;
+  const bestTransfer = backendInferenceWinner(
+    ok,
+    backend.best_transfer,
+    backend.best_transfer_model,
+    backend.best_transfer_mae,
+    "mae",
+  ) || rankInferenceRows(ok, "mae", "asc")[0] || null;
+  const highestThroughput = backendInferenceWinner(
+    ok,
+    backend.highest_throughput,
+    backend.highest_throughput_model,
+    backend.highest_throughput_samples_per_second,
+    "samples_per_second",
+  ) || rankInferenceRows(ok, "samples_per_second", "desc")[0] || null;
   return { count: ok.length, fastest, bestTransfer, highestThroughput };
 }
 
-export function inferenceInsightSummary(records = []) {
+function backendInferenceWinner(rows, entry, model, metricValue, metric) {
+  if (entry && typeof entry === "object" && Number.isFinite(entry[metric])) return entry;
+  const name = String(model || "");
+  if (!name) return null;
+  let candidates = rows.filter((row) => row.model === name && Number.isFinite(row[metric]));
+  if (Number.isFinite(metricValue)) {
+    const exact = candidates.filter((row) => row[metric] === metricValue);
+    if (exact.length) return rankInferenceRows(exact, metric, metric === "samples_per_second" ? "desc" : "asc")[0];
+    return { model: name, [metric]: metricValue };
+  }
+  return rankInferenceRows(candidates, metric, metric === "samples_per_second" ? "desc" : "asc")[0] || null;
+}
+
+function rankInferenceRows(rows, metric, direction) {
+  const factor = direction === "desc" ? -1 : 1;
+  return (rows || [])
+    .filter((row) => Number.isFinite(row?.[metric]))
+    .sort((a, b) => {
+      const metricOrder = factor * (a[metric] - b[metric]);
+      if (metricOrder) return metricOrder;
+      const aKey = inferenceTieKey(a);
+      const bKey = inferenceTieKey(b);
+      return aKey < bKey ? -1 : (aKey > bKey ? 1 : 0);
+    });
+}
+
+function inferenceTieKey(row = {}) {
+  return ["model", "dataset", "featureset", "estimator"]
+    .map((field) => String(row[field] || ""))
+    .join("\u0000");
+}
+
+export function inferenceInsightSummary(records = [], backendSummary = {}) {
   const succeeded = (records || []).filter((row) => row.status === "succeeded");
   const failed = (records || []).filter((row) => row.status === "failed");
-  const summary = inferenceSummary({ records });
+  const summary = inferenceSummary({ records, summary: backendSummary });
   const bestName = summary.bestTransfer?.model || "暂无模型";
   const fastestName = summary.fastest?.model || "暂无模型";
   return {
@@ -377,30 +424,32 @@ export function inferenceLaunchPlan({
   const selectedModels = selectedModelNames.map((name) => modelByName.get(name) || { name });
   const selectedDatasets = selectedDatasetNames.map((name) => datasetByName.get(name) || { name });
   const compatibility = inferenceCompatibilitySummary({ models: selectedModels, datasets: selectedDatasets });
-  const riskyDatasets = new Set(
-    compatibility.rows
-      .filter((row) => row.status !== "ok")
-      .map((row) => row.dataset)
-      .filter(Boolean),
-  );
-  const allowedDatasets = selectedDatasetNames.filter((name) => !riskyDatasets.has(name));
-  const skippedDatasets = selectedDatasetNames.filter((name) => riskyDatasets.has(name));
+  const pairs = compatibility.rows
+    .filter((row) => row.status === "ok" && row.model && row.dataset)
+    .map((row) => ({ model: row.model, dataset: row.dataset }));
+  const skippedPairs = compatibility.rows.filter((row) => row.status !== "ok");
+  const submittedDatasetSet = new Set(pairs.map((row) => row.dataset));
+  const allowedDatasets = selectedDatasetNames.filter((name) => submittedDatasetSet.has(name));
+  const skippedDatasets = selectedDatasetNames.filter((name) => !submittedDatasetSet.has(name));
 
   return {
     strategy: "compatible_only",
     payload: {
       ...buildInferencePayload({ models: selectedModelNames, datasets: allowedDatasets }),
+      pairs,
       launch_strategy: "compatible_only",
       selected_datasets: selectedDatasetNames,
       submitted_datasets: allowedDatasets,
       skipped_datasets: skippedDatasets,
     },
+    pairs,
+    skippedPairs,
     skippedDatasets,
-    skippedCount: skippedDatasets.length,
+    skippedCount: skippedPairs.length,
     compatibility,
-    message: skippedDatasets.length
-      ? `已跳过 ${skippedDatasets.length} 个存在 schema 风险的数据集：${skippedDatasets.slice(0, 3).join(", ")}`
-      : "所有已选数据集通过 schema 预检。",
+    message: skippedPairs.length
+      ? `已跳过 ${skippedPairs.length} 个存在 schema 风险的模型-数据集组合。`
+      : "所有已选模型-数据集组合通过 schema 预检。",
   };
 }
 
@@ -600,6 +649,27 @@ function taskStatusLabel(status) {
 
 export function isTerminalJobStatus(status) {
   return ["succeeded", "partial", "failed"].includes(String(status || ""));
+}
+
+export function canLaunchModeJob(activeJobs = {}, mode = "training") {
+  const current = activeJobs?.[mode] || null;
+  return !current || isTerminalJobStatus(current.status);
+}
+
+export function isCurrentModePollResponse({
+  mode,
+  token,
+  pollTokens = {},
+  activeJobs = {},
+  response = {},
+} = {}) {
+  const current = activeJobs?.[mode] || null;
+  return Boolean(
+    current?.id
+    && response?.id
+    && current.id === response.id
+    && pollTokens?.[mode] === token,
+  );
 }
 
 function uniqueStrings(values = []) {

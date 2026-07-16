@@ -640,6 +640,57 @@ def test_inference_job_runs_uploaded_pickle_model(tmp_path):
     assert (tmp_path / "frontend_data" / "inference_benchmark.json").exists()
 
 
+def test_inference_job_executes_only_explicit_model_dataset_pairs(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    for dataset in ("pair_left", "pair_right"):
+        service.store.upload_dataset(
+            dataset, f"{dataset}.csv", _dataset_csv(dataset)
+        )
+    for model in ("model_left", "model_right"):
+        service.model_store.upload_model(
+            model,
+            f"{model}.pkl",
+            pickle.dumps(PickledPredictOnly()),
+            "model_manifest.json",
+            json.dumps(_model_manifest(model)).encode("utf-8"),
+        )
+    pairs = [
+        {"model": "model_left", "dataset": "pair_left"},
+        {"model": "model_right", "dataset": "pair_right"},
+    ]
+    job = service.create_inference_job(
+        {
+            "datasets": ["pair_left", "pair_right"],
+            "models": ["model_left", "model_right"],
+            "pairs": pairs,
+            "launch_strategy": "compatible_only",
+        },
+        start=False,
+    )
+
+    finished = service.run_inference_job_inline(job["id"])
+    payload = json.loads(
+        (Path(finished["raw_run_dir"]) / "inference_benchmark.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert finished["status"] == "succeeded"
+    assert job["request"]["pairs"] == pairs
+    assert {
+        (record["model"], record["dataset"])
+        for record in payload["records"]
+    } == {
+        ("model_left", "pair_left"),
+        ("model_right", "pair_right"),
+    }
+
+
 def test_inference_job_keeps_object_pd_na_labels_unscored_and_successful(tmp_path):
     service = EvaluationService(
         data_dir=tmp_path / "data",

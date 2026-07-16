@@ -149,6 +149,16 @@ def _validate_native_dashboard(path: Path) -> None:
             json.loads(asset.read_text(encoding="utf-8"))
 
 
+def _native_dashboard_is_available(path: Path) -> bool:
+    if not path.is_dir():
+        return False
+    generated_entries = [item for item in path.iterdir() if item.name.lower() != "readme.md"]
+    if not generated_entries:
+        return False
+    _validate_native_dashboard(path)
+    return True
+
+
 def package_portable_frontend(app_dir: Path = DEFAULT_APP_DIR, output: Path = DEFAULT_OUTPUT) -> dict:
     app_dir = Path(app_dir)
     output = Path(output)
@@ -156,9 +166,7 @@ def package_portable_frontend(app_dir: Path = DEFAULT_APP_DIR, output: Path = DE
 
     if not (app_dir / "index.html").is_file():
         raise FileNotFoundError(f"Missing frontend index.html: {app_dir / 'index.html'}")
-    if not native_dashboard.is_dir():
-        raise FileNotFoundError(f"Missing native battery dashboard: {native_dashboard}")
-    _validate_native_dashboard(native_dashboard)
+    native_dashboard_included = _native_dashboard_is_available(native_dashboard)
     result: dict = {}
 
     def build(staging: Path) -> None:
@@ -175,21 +183,24 @@ def package_portable_frontend(app_dir: Path = DEFAULT_APP_DIR, output: Path = DE
             _copy_data_tree_without_detection(data_source, staging / "data")
             copied_assets.append("data/")
 
-        staged_dashboard = staging / "battery-dashboard"
-        _copy_tree(native_dashboard, staged_dashboard)
-        _remove_detection_assets(staged_dashboard / "data")
-        copied_assets.append("battery-dashboard/")
-        _validate_native_dashboard(staged_dashboard)
+        excluded_detection_assets = True
+        soh_curve_count = 0
+        if native_dashboard_included:
+            staged_dashboard = staging / "battery-dashboard"
+            _copy_tree(native_dashboard, staged_dashboard)
+            _remove_detection_assets(staged_dashboard / "data")
+            copied_assets.append("battery-dashboard/")
+            _validate_native_dashboard(staged_dashboard)
 
-        native_data = staged_dashboard / "data"
-        detection_assets = [
-            native_data / "ess_detection.json",
-            native_data / "ess_detection_curves.json",
-        ]
-        excluded_detection_assets = not any(path.exists() for path in detection_assets)
-        soh_curve_count = len(
-            [path for path in native_data.glob("*_curves.json") if not path.name.startswith("ess_detection")]
-        )
+            native_data = staged_dashboard / "data"
+            detection_assets = [
+                native_data / "ess_detection.json",
+                native_data / "ess_detection_curves.json",
+            ]
+            excluded_detection_assets = not any(path.exists() for path in detection_assets)
+            soh_curve_count = len(
+                [path for path in native_data.glob("*_curves.json") if not path.name.startswith("ess_detection")]
+            )
         file_count, total_bytes = _directory_stats(staging)
         manifest = {
             "portable": True,
@@ -202,7 +213,8 @@ def package_portable_frontend(app_dir: Path = DEFAULT_APP_DIR, output: Path = DE
             "include_soh_curves": soh_curve_count > 0,
             "excluded_detection_assets": excluded_detection_assets,
             "battery_dashboard": {
-                "included": True,
+                "included": native_dashboard_included,
+                "sync_required": not native_dashboard_included,
                 "include_soh_curves": soh_curve_count > 0,
                 "soh_curve_file_count": soh_curve_count,
                 "excluded_detection_assets": excluded_detection_assets,

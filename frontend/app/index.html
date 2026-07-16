@@ -24,6 +24,7 @@
       <button class="side-mode" type="button" data-side-mode="inference"><span class="nav-icon"></span><span>推理测评</span></button>
       <button class="side-mode" type="button" data-side-mode="models"><span class="nav-icon"></span><span>模型资产库</span></button>
       <button class="side-action" type="button" id="open-task-history"><span class="nav-icon"></span><span>任务历史</span></button>
+      <button class="side-mode" type="button" data-side-mode="native"><span class="nav-icon"></span><span>SOH 完整看板</span></button>
       <button class="side-mode" type="button" data-side-mode="diagnostics"><span class="nav-icon"></span><span>全局诊断</span></button>
     </nav>
     <div class="sidenav-footer">
@@ -57,6 +58,7 @@
       <button class="mode-tab" role="tab" data-mode="training" aria-selected="true">训练测评</button>
       <button class="mode-tab" role="tab" data-mode="inference" aria-selected="false">推理测评</button>
       <button class="mode-tab" role="tab" data-mode="models" aria-selected="false">模型资产库</button>
+      <button class="mode-tab" role="tab" data-mode="native" aria-selected="false">SOH 完整看板</button>
       <button class="mode-tab" role="tab" data-mode="diagnostics" aria-selected="false">全局诊断</button>
     </nav>
 
@@ -249,6 +251,43 @@
                 <strong>RWTH 0.047 MAE，建议保留迁移记录。</strong>
               </div>
               <button class="primary-action" data-mode-shortcut="inference" type="button">进入推理测评</button>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="native-dashboard-card mode-panel" id="native-dashboard-panel" data-mode-panel="native" hidden>
+        <div class="native-dashboard-layout">
+          <div class="native-dashboard-stage">
+            <div class="native-dashboard-bar">
+              <div>
+                <span>原生分析视图</span>
+                <strong>SOH 完整看板</strong>
+              </div>
+              <span class="native-dashboard-state" id="native-dashboard-state">等待同步</span>
+            </div>
+            <div class="native-dashboard-unsynced" id="native-dashboard-unsynced" role="status">
+              <strong>尚未同步原生看板</strong>
+              <span>同步完成后将在此处载入完整 SOH 分析视图。</span>
+            </div>
+            <iframe class="native-dashboard-frame" id="native-dashboard-frame" title="SOH 完整看板" hidden></iframe>
+          </div>
+          <aside class="delivery-operations" aria-label="交付操作">
+            <div class="delivery-heading">
+              <span>交付操作</span>
+              <strong>本机构建</strong>
+            </div>
+            <label class="delivery-source">原生看板来源
+              <input id="native-dashboard-source" type="text" value="D:\battery_SOH\dashboard" />
+            </label>
+            <div class="delivery-actions">
+              <button class="primary-action" id="sync-native-dashboard" type="button">同步原生看板</button>
+              <button class="secondary-action" id="package-portable" type="button">生成便携目录包</button>
+              <button class="secondary-action" id="package-standalone" type="button">生成单文件包</button>
+              <button class="secondary-action" id="refresh-package-status" type="button">刷新交付报告</button>
+            </div>
+            <div class="delivery-report" id="delivery-report" aria-live="polite">
+              <div class="delivery-empty">交付报告尚未刷新</div>
             </div>
           </aside>
         </div>

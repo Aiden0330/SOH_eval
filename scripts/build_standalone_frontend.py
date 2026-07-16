@@ -87,6 +87,96 @@ def collect_data_payload(app_dir: Path = APP_DIR) -> dict[str, object]:
     return payload
 
 
+def collect_native_dashboard(app_dir: Path = APP_DIR) -> tuple[str | None, int]:
+    native_dir = Path(app_dir) / "battery-dashboard"
+    if not native_dir.is_dir():
+        return None, 0
+    generated_entries = [item for item in native_dir.iterdir() if item.name.lower() != "readme.md"]
+    if not generated_entries:
+        return None, 0
+
+    index_path = native_dir / "index.html"
+    data_dir = native_dir / "data"
+    manifest_path = data_dir / "manifest.json"
+    if not index_path.is_file():
+        raise FileNotFoundError(f"Missing native dashboard index.html: {index_path}")
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"Missing native dashboard manifest: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    scenarios = manifest.get("scenarios") if isinstance(manifest, dict) else None
+    if not isinstance(scenarios, list) or not scenarios:
+        raise ValueError("native dashboard manifest has no scenarios")
+
+    required = [data_dir / "overview.json"]
+    for item in scenarios:
+        if not isinstance(item, dict):
+            raise ValueError("native dashboard scenario must be an object")
+        name = item.get("mode") or item.get("id")
+        if not name:
+            raise ValueError("native dashboard scenario has no mode or id")
+        required.append(data_dir / f"{name}.json")
+    for asset in required:
+        if not asset.is_file():
+            raise FileNotFoundError(f"Missing native dashboard asset: {asset}")
+        json.loads(asset.read_text(encoding="utf-8"))
+
+    sync_manifest_path = native_dir / "SYNC_MANIFEST.json"
+    if sync_manifest_path.is_file():
+        sync_manifest = json.loads(sync_manifest_path.read_text(encoding="utf-8"))
+        for filename in sync_manifest.get("copied_files") or []:
+            if "ess_detection" in str(filename):
+                continue
+            asset = data_dir / str(filename)
+            if not asset.is_file():
+                raise FileNotFoundError(f"Missing synced native dashboard asset: {asset}")
+            json.loads(asset.read_text(encoding="utf-8"))
+
+    payload = {
+        "data/" + path.relative_to(data_dir).as_posix(): strip_detection_entries(
+            json.loads(path.read_text(encoding="utf-8"))
+        )
+        for path in sorted(data_dir.rglob("*.json"))
+        if not is_detection_asset(path)
+    }
+    adapter = native_dashboard_fetch_adapter(payload)
+    document = read_text(index_path)
+    injection = f"<script>\n{adapter}\n</script>\n"
+    if "<script" in document:
+        document = document.replace("<script", injection + "<script", 1)
+    elif "</body>" in document:
+        document = document.replace("</body>", injection + "</body>", 1)
+    else:
+        document += injection
+    return document, len(payload)
+
+
+def native_dashboard_fetch_adapter(data_payload: dict[str, object]) -> str:
+    json_payload = json.dumps(data_payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    return f"""
+const SOH_NATIVE_DASHBOARD_DATA = {json_payload};
+window.fetch = async (input, init = {{}}) => {{
+  const method = String(init?.method || "GET").toUpperCase();
+  const rawInput = input && input.url ? input.url : input;
+  let key = String(rawInput || "").split("#", 1)[0].split("?", 1)[0].replace(/\\\\/g, "/");
+  const marker = "/data/";
+  const markerIndex = key.lastIndexOf(marker);
+  if (markerIndex >= 0) key = "data/" + key.slice(markerIndex + marker.length);
+  if (key.startsWith("./")) key = key.slice(2);
+  if (key.startsWith("/")) key = key.slice(1);
+  if (method === "GET" && Object.prototype.hasOwnProperty.call(SOH_NATIVE_DASHBOARD_DATA, key)) {{
+    return new Response(JSON.stringify(SOH_NATIVE_DASHBOARD_DATA[key]), {{
+      status: 200,
+      headers: {{ "Content-Type": "application/json; charset=utf-8" }},
+    }});
+  }}
+  return new Response(JSON.stringify({{ error: "离线原生看板资源不存在" }}), {{
+    status: 404,
+    headers: {{ "Content-Type": "application/json; charset=utf-8" }},
+  }});
+}};
+""".strip()
+
+
 def strip_module_exports(source: str) -> str:
     source = re.sub(r"^\s*export\s+function\s+", "function ", source, flags=re.MULTILINE)
     source = re.sub(r"^\s*export\s+(const|let|var)\s+", r"\1 ", source, flags=re.MULTILINE)
@@ -101,12 +191,14 @@ def strip_app_import(source: str) -> str:
     return stripped
 
 
-def standalone_bootstrap(data_payload: dict[str, object]) -> str:
+def standalone_bootstrap(data_payload: dict[str, object], native_dashboard: str | None = None) -> str:
     json_payload = json.dumps(data_payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    native_payload = "null" if native_dashboard is None else json.dumps(native_dashboard, ensure_ascii=False).replace("</", "<\\/")
     return f"""
 const SOH_STANDALONE_DATA = {json_payload};
 window.__SOH_STANDALONE__ = true;
 window.__SOH_STANDALONE_DATA__ = SOH_STANDALONE_DATA;
+window.__SOH_STANDALONE_NATIVE_DASHBOARD__ = {native_payload};
 
 function standaloneDataKey(input) {{
   const rawInput = input && input.url ? input.url : input;
@@ -160,11 +252,12 @@ def build_standalone_html(app_dir: Path = APP_DIR) -> tuple[str, int]:
     core = strip_module_exports(read_text(app_dir / "dashboard-core.mjs"))
     app = strip_app_import(read_text(app_dir / "app.js"))
     data_payload = collect_data_payload(app_dir)
+    native_dashboard, native_artifact_count = collect_native_dashboard(app_dir)
 
     bundle = "\n\n".join(
         [
             "/* Standalone data and offline fetch adapter. */",
-            standalone_bootstrap(data_payload),
+            standalone_bootstrap(data_payload, native_dashboard),
             "/* dashboard-core.mjs */",
             core,
             "/* app.js */",
@@ -186,9 +279,9 @@ def build_standalone_html(app_dir: Path = APP_DIR) -> tuple[str, int]:
     )
     banner = (
         "<!-- Standalone SOH evaluation bundle: CSS, JS, and "
-        f"{len(data_payload)} JSON artifacts are embedded. -->\n"
+        f"{len(data_payload) + native_artifact_count} JSON artifacts are embedded. -->\n"
     )
-    return banner + html, len(data_payload)
+    return banner + html, len(data_payload) + native_artifact_count
 
 
 def main() -> None:

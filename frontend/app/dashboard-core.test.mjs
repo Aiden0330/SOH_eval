@@ -10,6 +10,7 @@ import {
   bestComparableEntry,
   buildEvaluationPayload,
   buildInferencePayload,
+  canLaunchModeJob,
   catalogOptions,
   evaluationPlanSummary,
   inferenceRows,
@@ -20,6 +21,7 @@ import {
   inferenceLaunchPlan,
   inferenceInsightSummary,
   inferenceSummary,
+  isCurrentModePollResponse,
   isTerminalJobStatus,
   preferredInferenceModels,
   profileOptions,
@@ -39,6 +41,37 @@ import {
   assert.equal(isTerminalJobStatus("succeeded"), true);
   assert.equal(isTerminalJobStatus("partial"), true);
   assert.equal(isTerminalJobStatus("failed"), true);
+}
+
+{
+  const activeJobs = {
+    training: { id: "train-new", status: "running" },
+    inference: { id: "infer-done", status: "succeeded", kind: "inference" },
+  };
+  const pollTokens = { training: 2, inference: 7 };
+  assert.equal(canLaunchModeJob(activeJobs, "training"), false);
+  assert.equal(canLaunchModeJob(activeJobs, "inference"), true);
+  assert.equal(isCurrentModePollResponse({
+    mode: "training",
+    token: 1,
+    pollTokens,
+    activeJobs,
+    response: { id: "train-new", status: "succeeded" },
+  }), false);
+  assert.equal(isCurrentModePollResponse({
+    mode: "training",
+    token: 2,
+    pollTokens,
+    activeJobs,
+    response: { id: "train-old", status: "succeeded" },
+  }), false);
+  assert.equal(isCurrentModePollResponse({
+    mode: "inference",
+    token: 7,
+    pollTokens,
+    activeJobs,
+    response: { id: "infer-done", status: "succeeded" },
+  }), true);
 }
 
 const aggregate = [
@@ -397,6 +430,55 @@ function entry(estimator, featureset, mae, opts = {}) {
 }
 
 {
+  const tied = [
+    { model: "zeta", dataset: "nasa", featureset: "full", estimator: "ridge", status: "succeeded", ms_per_1000_samples: 5, samples_per_second: 200, mae: 0.2 },
+    { model: "alpha", dataset: "rwth", featureset: "full", estimator: "ridge", status: "succeeded", ms_per_1000_samples: 5, samples_per_second: 200, mae: 0.2 },
+    { model: "invalid", dataset: "nasa", status: "succeeded", ms_per_1000_samples: Number.NaN, samples_per_second: Number.POSITIVE_INFINITY, mae: Number.NEGATIVE_INFINITY },
+  ];
+  const forward = inferenceSummary({ records: tied });
+  const reverse = inferenceSummary({ records: [...tied].reverse() });
+  assert.equal(forward.fastest.model, "alpha");
+  assert.equal(forward.bestTransfer.model, "alpha");
+  assert.equal(forward.highestThroughput.model, "alpha");
+  assert.deepEqual(
+    [forward.fastest.model, forward.bestTransfer.model, forward.highestThroughput.model],
+    [reverse.fastest.model, reverse.bestTransfer.model, reverse.highestThroughput.model],
+  );
+
+  const backend = inferenceSummary({
+    records: tied,
+    summary: {
+      fastest_model: "zeta",
+      fastest_ms_per_1000_samples: 5,
+      best_transfer_model: "zeta",
+      best_transfer_mae: 0.2,
+    },
+  });
+  assert.equal(backend.fastest.model, "zeta");
+  assert.equal(backend.bestTransfer.model, "zeta");
+
+  const backendOutsideSelection = inferenceSummary({
+    records: [
+      { model: "visible", dataset: "nasa", status: "succeeded", ms_per_1000_samples: 8, mae: 0.4 },
+    ],
+    summary: {
+      fastest_model: "backend-winner",
+      fastest_ms_per_1000_samples: 3,
+      best_transfer_model: "backend-winner",
+      best_transfer_mae: 0.1,
+    },
+  });
+  assert.deepEqual(backendOutsideSelection.fastest, {
+    model: "backend-winner",
+    ms_per_1000_samples: 3,
+  });
+  assert.deepEqual(backendOutsideSelection.bestTransfer, {
+    model: "backend-winner",
+    mae: 0.1,
+  });
+}
+
+{
   const payload = buildInferencePayload({
     models: ["m1", "m2"],
     datasets: ["nasa"],
@@ -459,15 +541,28 @@ function entry(estimator, featureset, mae, opts = {}) {
   });
   assert.deepEqual(compatibleOnly.payload, {
     models: ["ridge_voltage", "ridge_full"],
-    datasets: ["nasa"],
+    datasets: ["nasa", "calce_cs2"],
+    pairs: [
+      { model: "ridge_voltage", dataset: "nasa" },
+      { model: "ridge_voltage", dataset: "calce_cs2" },
+      { model: "ridge_full", dataset: "nasa" },
+    ],
     launch_strategy: "compatible_only",
     selected_datasets: ["nasa", "calce_cs2", "uconn"],
-    submitted_datasets: ["nasa"],
-    skipped_datasets: ["calce_cs2", "uconn"],
+    submitted_datasets: ["nasa", "calce_cs2"],
+    skipped_datasets: ["uconn"],
   });
-  assert.deepEqual(compatibleOnly.skippedDatasets, ["calce_cs2", "uconn"]);
-  assert.equal(compatibleOnly.skippedCount, 2);
-  assert.match(compatibleOnly.message, /2/);
+  assert.deepEqual(compatibleOnly.skippedDatasets, ["uconn"]);
+  assert.equal(compatibleOnly.skippedCount, 3);
+  assert.deepEqual(
+    compatibleOnly.skippedPairs.map((row) => [row.model, row.dataset]),
+    [
+      ["ridge_voltage", "uconn"],
+      ["ridge_full", "calce_cs2"],
+      ["ridge_full", "uconn"],
+    ],
+  );
+  assert.match(compatibleOnly.message, /3/);
 
   const includeRisk = inferenceLaunchPlan({
     modelNames: ["ridge_voltage", "ridge_full"],
@@ -688,12 +783,17 @@ function entry(estimator, featureset, mae, opts = {}) {
     { model: "gbdt", dataset: "nasa", status: "succeeded", mae: 0.1, ms_per_1000_samples: 6 },
     { model: "ridge", dataset: "nasa", status: "succeeded", mae: 0.2, ms_per_1000_samples: 3 },
     { model: "mlp", dataset: "rwth", status: "failed", error: "missing feature" },
-  ]);
+  ], {
+    best_transfer_model: "ridge",
+    best_transfer_mae: 0.2,
+    fastest_model: "gbdt",
+    fastest_ms_per_1000_samples: 6,
+  });
   assert.equal(insight.succeededCount, 2);
   assert.equal(insight.failedCount, 1);
-  assert.equal(insight.bestTransfer.model, "gbdt");
-  assert.equal(insight.fastest.model, "ridge");
-  assert.match(insight.recommendation, /gbdt/);
+  assert.equal(insight.bestTransfer.model, "ridge");
+  assert.equal(insight.fastest.model, "gbdt");
+  assert.match(insight.recommendation, /ridge/);
   assert.match(insight.risk, /1/);
 }
 

@@ -419,10 +419,18 @@ class EvaluationService:
                 )
                 records = []
                 for model_name in request["models"]:
+                    pair_datasets = self._pair_datasets_for_model(
+                        request, model_name, datasets,
+                    )
+                    if not pair_datasets:
+                        continue
+                    model_table = table[
+                        table["dataset"].astype(str).isin(pair_datasets)
+                    ].copy()
                     try:
                         loaded = model_snapshots[model_name].loaded
                         prepared = self._prepare_inference_table(
-                            model_name, table, meta, loaded_model=loaded,
+                            model_name, model_table, meta, loaded_model=loaded,
                         )
                         records.extend(
                             run_inference_benchmark(
@@ -436,7 +444,7 @@ class EvaluationService:
                     except Exception as exc:
                         records.extend(
                             self._inference_preparation_failures(
-                                model_name, datasets, table, exc,
+                                model_name, pair_datasets, model_table, exc,
                             )
                         )
                 model_catalog = self.model_store.catalog()
@@ -569,7 +577,53 @@ class EvaluationService:
             "submitted_datasets": _string_list(payload.get("submitted_datasets") or datasets),
             "skipped_datasets": _string_list(payload.get("skipped_datasets") or []),
         }
+        if "pairs" in payload:
+            raw_pairs = payload.get("pairs")
+            if not isinstance(raw_pairs, list) or not raw_pairs:
+                raise ValueError("pairs must be a non-empty list")
+            selected_models = set(models)
+            selected_datasets = set(datasets)
+            pairs: list[dict[str, str]] = []
+            seen_pairs: set[tuple[str, str]] = set()
+            for item in raw_pairs:
+                if not isinstance(item, dict):
+                    raise ValueError("each inference pair must be an object")
+                model = str(item.get("model") or "").strip()
+                dataset = str(item.get("dataset") or "").strip()
+                if not model or not dataset:
+                    raise ValueError("each inference pair requires model and dataset")
+                if model not in selected_models:
+                    raise ValueError(f"pair references unselected model: {model}")
+                if "all" not in selected_datasets and dataset not in selected_datasets:
+                    raise ValueError(f"pair references unselected dataset: {dataset}")
+                identity = (model, dataset)
+                if identity in seen_pairs:
+                    continue
+                seen_pairs.add(identity)
+                pairs.append({"model": model, "dataset": dataset})
+            request["pairs"] = pairs
         return request
+
+    def _pair_datasets_for_model(
+        self,
+        request: dict,
+        model_name: str,
+        resolved_datasets: list[str],
+    ) -> list[str]:
+        if "pairs" not in request:
+            return list(resolved_datasets)
+        resolved = set(map(str, resolved_datasets))
+        selected = [
+            str(item["dataset"])
+            for item in request["pairs"]
+            if item.get("model") == model_name
+        ]
+        unknown = [dataset for dataset in selected if dataset not in resolved]
+        if unknown:
+            raise ValueError(
+                f"inference pairs reference unresolved datasets: {unknown}"
+            )
+        return selected
 
     def _build_run_spec(
         self,
@@ -1014,6 +1068,7 @@ class EvaluationService:
             "output": str(output_path),
             "artifact_count": artifact_count,
             "total_bytes": output_path.stat().st_size,
+            "native_dashboard_included": _standalone_native_dashboard_included(html),
             "excluded_detection_assets": not _payload_contains_detection_asset(embedded_payload),
         }
 
@@ -1035,35 +1090,35 @@ class EvaluationService:
         checks = [
             _package_check(
                 "native_dashboard",
-                "SOH ????",
+                "SOH 完整看板",
                 native["present"] and native["scenario_count"] > 0,
-                f"{native['scenario_count']} ??? / {native['file_count']} ???",
+                f"{native['scenario_count']} 个场景 / {native['file_count']} 个文件",
             ),
             _package_check(
                 "native_curves",
-                "SOH ????",
+                "SOH 曲线数据",
                 native["include_soh_curves"],
-                f"{native['curve_file_count']} ?????",
+                f"{native['curve_file_count']} 个曲线文件",
             ),
             _package_check(
                 "portable_package",
-                "???",
+                "便携目录包",
                 portable["present"] and portable["file_count"] > 0 and portable["has_manifest"],
-                f"{portable['file_count']} ??? / {_format_bytes(portable['total_bytes'])}",
+                f"{portable['file_count']} 个文件 / {_format_bytes(portable['total_bytes'])}",
             ),
             _package_check(
                 "standalone_html",
-                "? HTML",
+                "单文件 HTML",
                 standalone["present"] and standalone["standalone"] and standalone["artifact_count"] > 0,
-                f"{standalone['artifact_count']} ??? JSON / {_format_bytes(standalone['total_bytes'])}",
+                f"{standalone['artifact_count']} 个内嵌 JSON / {_format_bytes(standalone['total_bytes'])}",
             ),
             _package_check(
                 "detection_excluded",
-                "????????",
+                "检测数据已排除",
                 not native["detection_assets"]
                 and not portable["detection_assets"]
                 and not standalone["contains_detection_asset"],
-                "??? ess_detection ??",
+                "未包含 ess_detection 资产",
             ),
         ]
         passed = sum(1 for check in checks if check["passed"])
@@ -1299,6 +1354,7 @@ def _package_standalone_info(path: Path) -> dict:
         "standalone": "window.__SOH_STANDALONE__ = true" in text,
         "artifact_count": len(payload),
         "total_bytes": total_bytes,
+        "native_dashboard_included": _standalone_native_dashboard_included(text),
         "contains_detection_asset": _payload_contains_detection_asset(payload),
         "has_package_operations": "package-operations-card" in text,
         "has_package_report": "package-report-card" in text,
@@ -1320,6 +1376,11 @@ def _standalone_data_payload(text: str) -> dict:
     except json.JSONDecodeError:
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _standalone_native_dashboard_included(text: str) -> bool:
+    marker = "window.__SOH_STANDALONE_NATIVE_DASHBOARD__ = "
+    return marker in text and f"{marker}null;" not in text
 
 
 def _payload_contains_detection_asset(value) -> bool:

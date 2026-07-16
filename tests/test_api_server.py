@@ -418,6 +418,7 @@ def test_api_syncs_native_dashboard_and_builds_offline_packages(tmp_path):
         assert standalone["action"] == "package_standalone"
         assert standalone["manifest"]["output"] == str(standalone_output)
         assert standalone["manifest"]["artifact_count"] >= 2
+        assert standalone["manifest"]["native_dashboard_included"] is True
         assert standalone["manifest"]["excluded_detection_assets"] is True
         html = standalone_output.read_text(encoding="utf-8")
         assert "window.__SOH_STANDALONE__ = true" in html
@@ -487,9 +488,12 @@ def test_api_package_status_reports_delivery_readiness(tmp_path):
         assert checks["portable_package"]["passed"] is True
         assert checks["standalone_html"]["passed"] is True
         assert checks["detection_excluded"]["passed"] is True
+        assert all("?" not in check["label"] for check in checks.values())
+        assert all("?" not in check["detail"] for check in checks.values())
         assert report["outputs"]["native_dashboard"]["scenario_count"] == 1
         assert report["outputs"]["portable"]["file_count"] >= 1
         assert report["outputs"]["standalone"]["artifact_count"] >= 2
+        assert report["outputs"]["standalone"]["native_dashboard_included"] is True
         assert report["outputs"]["standalone"]["has_package_operations"] is True
     finally:
         server.shutdown()
