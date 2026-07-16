@@ -4,11 +4,13 @@ import json
 import re
 import sys
 import hashlib
+import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 from types import ModuleType
-from typing import Callable
+from typing import Callable, Iterator
 
 import numpy as np
 import pandas as pd
@@ -54,6 +56,7 @@ class TrustedPluginStore:
         self.estimator_dir = self.base_dir / "estimators"
         self.featureset_dir = self.base_dir / "featuresets"
         self.catalog_path = self.base_dir / "catalog.json"
+        self._lock = threading.RLock()
         self._feature_plugins: dict[str, FeaturePlugin] = {}
 
         self.estimator_dir.mkdir(parents=True, exist_ok=True)
@@ -105,19 +108,20 @@ class TrustedPluginStore:
         *,
         replace: bool = False,
     ) -> dict:
-        _safe_resource_name(name)
-        path = self._write_plugin_file(self.estimator_dir, filename, payload, replace=replace)
-        cls = self._load_estimator_file(path, replace=replace)
-        resource = {
-            "name": cls.name,
-            "kind": "estimator",
-            "path": str(path),
-            "feature_mode": getattr(cls, "feature_mode", "unified"),
-            "backend": getattr(cls, "backend", "external"),
-            "source_filename": filename,
-        }
-        self._upsert_catalog("estimators", resource)
-        return resource
+        with self._lock:
+            _safe_resource_name(name)
+            path = self._write_plugin_file(self.estimator_dir, filename, payload, replace=replace)
+            cls = self._load_estimator_file(path, replace=replace)
+            resource = {
+                "name": cls.name,
+                "kind": "estimator",
+                "path": str(path),
+                "feature_mode": getattr(cls, "feature_mode", "unified"),
+                "backend": getattr(cls, "backend", "external"),
+                "source_filename": filename,
+            }
+            self._upsert_catalog("estimators", resource)
+            return resource
 
     def upload_featureset_plugin(
         self,
@@ -127,19 +131,25 @@ class TrustedPluginStore:
         *,
         replace: bool = False,
     ) -> dict:
-        _safe_resource_name(name)
-        path = self._write_plugin_file(self.featureset_dir, filename, payload, replace=replace)
-        plugin = self._load_featureset_file(path, fallback_name=name, replace=replace)
-        resource = {
-            "name": plugin.name,
-            "kind": "featureset",
-            "path": str(path),
-            "columns": plugin.candidates,
-            "has_transform": plugin.transform is not None,
-            "source_filename": filename,
-        }
-        self._upsert_catalog("featuresets", resource)
-        return resource
+        with self._lock:
+            _safe_resource_name(name)
+            path = self._write_plugin_file(self.featureset_dir, filename, payload, replace=replace)
+            plugin = self._load_featureset_file(path, fallback_name=name, replace=replace)
+            resource = {
+                "name": plugin.name,
+                "kind": "featureset",
+                "path": str(path),
+                "columns": plugin.candidates,
+                "has_transform": plugin.transform is not None,
+                "source_filename": filename,
+            }
+            self._upsert_catalog("featuresets", resource)
+            return resource
+
+    @contextmanager
+    def execution_lease(self) -> Iterator[None]:
+        with self._lock:
+            yield
 
     def apply_feature_transforms(
         self,

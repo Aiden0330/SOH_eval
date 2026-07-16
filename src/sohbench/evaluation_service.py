@@ -20,7 +20,7 @@ from .data import DatasetLoader, normalize_cycle_index
 from .battery_dashboard_import import publish_battery_dashboard_profile
 from .frontend_publish import publish_frontend_profile, sync_frontend_artifacts
 from .inference import run_inference_benchmark
-from .model_store import ModelStore
+from .model_store import LoadedModel, ModelReadSnapshot, ModelStore
 from .protocols import LeaveOneCellOut, LeaveOneChemistryOut, LeaveOneDatasetOut
 from .report import write_artifacts, write_inference_artifacts
 from .runner import BenchmarkRunner
@@ -191,6 +191,10 @@ class EvaluationService:
         return job
 
     def run_job_inline(self, job_id: str) -> dict:
+        with self.store.execution_lease():
+            return self._run_job_inline_leased(job_id)
+
+    def _run_job_inline_leased(self, job_id: str) -> dict:
         job = self.get_job(job_id)
         if not job.get("run_id"):
             job["run_id"] = new_id("RUN")
@@ -378,6 +382,10 @@ class EvaluationService:
         return job
 
     def run_inference_job_inline(self, job_id: str) -> dict:
+        with self.store.execution_lease():
+            return self._run_inference_job_inline_leased(job_id)
+
+    def _run_inference_job_inline_leased(self, job_id: str) -> dict:
         job = self.get_inference_job(job_id)
         if not job.get("run_id"):
             job["run_id"] = new_id("RUN")
@@ -401,53 +409,64 @@ class EvaluationService:
             table, meta, _qc = loader.load(
                 datasets, require_labels=False, qc=False,
             )
-            run_spec = self._build_run_spec(
-                run_type="inference", request=request, datasets=datasets,
-                table=table, qc={},
-            )
-            inferred_featuresets = self._featuresets_for_models(request["models"])
-            records = []
-            for model_name in request["models"]:
-                try:
-                    prepared = self._prepare_inference_table(model_name, table, meta)
-                    records.extend(
-                        run_inference_benchmark(
-                            self.model_store, prepared, meta, [model_name],
-                        )
-                    )
-                except Exception as exc:
-                    records.extend(
-                        self._inference_preparation_failures(
-                            model_name, datasets, table, exc,
-                        )
-                    )
-            raw_run_dir = Path(
-                write_inference_artifacts(
-                    records,
-                    {
-                        **request,
-                        "datasets": datasets,
-                        "job_id": job_id,
-                        "run_id": run_id,
-                        "run_dir": str(self.runs_dir / run_id),
-                        "raw_run_dir": str(self.runs_dir / run_id),
-                        "trusted_local_pickle_models": True,
-                        "applied_featureset_transforms": inferred_featuresets,
-                    },
-                    self.runs_dir,
-                    run_id=run_id,
-                    evidence_context={"run_spec": run_spec},
+            with self.model_store.read_lease(request["models"]) as model_snapshots:
+                run_spec = self._build_run_spec(
+                    run_type="inference", request=request, datasets=datasets,
+                    table=table, qc={}, model_snapshots=model_snapshots,
                 )
-            )
-            (raw_run_dir / "model_catalog.json").write_text(
-                json.dumps(
-                    {"models": self.model_store.catalog()},
-                    indent=2,
-                    ensure_ascii=False,
-                ),
-                encoding="utf-8",
-            )
-            self._rebuild_evidence_pack(raw_run_dir)
+                inferred_featuresets = self._featuresets_for_models(
+                    request["models"], model_snapshots=model_snapshots,
+                )
+                records = []
+                for model_name in request["models"]:
+                    try:
+                        loaded = model_snapshots[model_name].loaded
+                        prepared = self._prepare_inference_table(
+                            model_name, table, meta, loaded_model=loaded,
+                        )
+                        records.extend(
+                            run_inference_benchmark(
+                                self.model_store,
+                                prepared,
+                                meta,
+                                [model_name],
+                                loaded_models={model_name: loaded},
+                            )
+                        )
+                    except Exception as exc:
+                        records.extend(
+                            self._inference_preparation_failures(
+                                model_name, datasets, table, exc,
+                            )
+                        )
+                model_catalog = self.model_store.catalog()
+                raw_run_dir = Path(
+                    write_inference_artifacts(
+                        records,
+                        {
+                            **request,
+                            "datasets": datasets,
+                            "job_id": job_id,
+                            "run_id": run_id,
+                            "run_dir": str(self.runs_dir / run_id),
+                            "raw_run_dir": str(self.runs_dir / run_id),
+                            "trusted_local_pickle_models": True,
+                            "applied_featureset_transforms": inferred_featuresets,
+                        },
+                        self.runs_dir,
+                        run_id=run_id,
+                        evidence_context={"run_spec": run_spec},
+                    )
+                )
+                (raw_run_dir / "model_catalog.json").write_text(
+                    json.dumps(
+                        {"models": model_catalog},
+                        indent=2,
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
+                self._rebuild_evidence_pack(raw_run_dir)
             published_run_dir = self._publish_frontend_artifacts(raw_run_dir)
             outcome = self._inference_outcome(records)
             job.update(
@@ -552,7 +571,16 @@ class EvaluationService:
         }
         return request
 
-    def _build_run_spec(self, *, run_type: str, request: dict, datasets: list[str], table: pd.DataFrame, qc) -> RunSpec:
+    def _build_run_spec(
+        self,
+        *,
+        run_type: str,
+        request: dict,
+        datasets: list[str],
+        table: pd.DataFrame,
+        qc,
+        model_snapshots: dict[str, ModelReadSnapshot] | None = None,
+    ) -> RunSpec:
         task = SOHEstimationTask()
         raw_protocols = request.get("protocols") or ["inference"]
         if isinstance(raw_protocols, str):
@@ -604,6 +632,7 @@ class EvaluationService:
                     run_type=run_type,
                     candidate_name=str(candidate),
                     request=request,
+                    model_snapshot=(model_snapshots or {}).get(str(candidate)),
                 )
                 for candidate in candidates
             ),
@@ -616,7 +645,12 @@ class EvaluationService:
         )
 
     def _candidate_spec(
-        self, *, run_type: str, candidate_name: str, request: dict
+        self,
+        *,
+        run_type: str,
+        candidate_name: str,
+        request: dict,
+        model_snapshot: ModelReadSnapshot | None = None,
     ) -> CandidateSpec | SpecRef:
         if run_type == "training":
             estimator = R.get_estimator(candidate_name)
@@ -646,7 +680,11 @@ class EvaluationService:
                         }
                     ),
                 )
-            digests = self.model_store.content_digests(candidate_name)
+            digests = (
+                model_snapshot.digests
+                if model_snapshot is not None
+                else self.model_store.content_digests(candidate_name)
+            )
             artifacts = [
                 SpecRef(
                     kind="model_pickle",
@@ -661,7 +699,11 @@ class EvaluationService:
                     digest=digests["model_manifest"],
                 ),
             ]
-            manifest = self.model_store.load_model(candidate_name).manifest
+            manifest = (
+                model_snapshot.loaded.manifest
+                if model_snapshot is not None
+                else self.model_store.load_model(candidate_name).manifest
+            )
             featureset_name = str(
                 manifest.get("feature_pipeline")
                 or manifest.get("featureset")
@@ -772,10 +814,25 @@ class EvaluationService:
         write_evidence_pack(run_dir, manifest, artifact_paths)
         return verify_evidence_pack(run_dir / "evidence-pack.json")
 
-    def _featuresets_for_models(self, model_names: list[str]) -> list[str]:
+    def _featuresets_for_models(
+        self,
+        model_names: list[str],
+        *,
+        model_snapshots: dict[str, ModelReadSnapshot] | None = None,
+    ) -> list[str]:
         selected = set(model_names)
         featuresets: list[str] = []
-        for item in self.model_store.catalog():
+        if model_snapshots is not None:
+            items = [
+                {
+                    "name": name,
+                    "featureset": snapshot.loaded.manifest.get("featureset"),
+                }
+                for name, snapshot in model_snapshots.items()
+            ]
+        else:
+            items = self.model_store.catalog()
+        for item in items:
             if item.get("name") not in selected:
                 continue
             name = str(item.get("featureset") or "").strip()
@@ -783,8 +840,15 @@ class EvaluationService:
                 featuresets.append(name)
         return featuresets
 
-    def _prepare_inference_table(self, model_name: str, table, meta):
-        loaded = self.model_store.load_model(model_name)
+    def _prepare_inference_table(
+        self,
+        model_name: str,
+        table,
+        meta,
+        *,
+        loaded_model: LoadedModel | None = None,
+    ):
+        loaded = loaded_model or self.model_store.load_model(model_name)
         pipeline_name = loaded.manifest.get("feature_pipeline")
         state_document = loaded.manifest.get("feature_state")
         if pipeline_name:

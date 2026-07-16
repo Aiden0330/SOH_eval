@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import inspect
 import json
 import os
@@ -10,9 +11,10 @@ import shutil
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import numpy as np
 import pandas as pd
@@ -96,6 +98,12 @@ class LoadedModel:
             raise ModelStoreError(f"missing feature columns for {self.name}: {missing}")
 
 
+@dataclass(frozen=True)
+class ModelReadSnapshot:
+    loaded: LoadedModel
+    digests: dict[str, str]
+
+
 class ModelStore:
     def __init__(self, base_dir: str | Path):
         self.base_dir = Path(base_dir).expanduser().resolve()
@@ -138,21 +146,18 @@ class ModelStore:
 
     def load_model(self, name: str) -> LoadedModel:
         with self._lock:
-            item = dict(self._find(name))
-            start = time.perf_counter()
-            with open(item["model_path"], "rb") as fh:
-                model = pickle.load(fh)
-            load_ms = (time.perf_counter() - start) * 1000.0
-            manifest = json.loads(
-                Path(item["manifest_path"]).read_text(encoding="utf-8")
-            )
-            return LoadedModel(
-                name=item["name"],
-                model=model,
-                manifest=manifest,
-                path=Path(item["path"]),
-                load_ms=load_ms,
-            )
+            return self._read_snapshot(name).loaded
+
+    @contextmanager
+    def read_lease(
+        self, names: list[str] | tuple[str, ...]
+    ) -> Iterator[dict[str, ModelReadSnapshot]]:
+        with self._lock:
+            snapshots = {
+                name: self._read_snapshot(name)
+                for name in dict.fromkeys(map(str, names))
+            }
+            yield snapshots
 
     def catalog(self) -> list[dict]:
         with self._lock:
@@ -175,6 +180,43 @@ class ModelStore:
                         f"model {name!r} {kind} digest mismatch"
                     )
             return values
+
+    def _read_snapshot(self, name: str) -> ModelReadSnapshot:
+        item = dict(self._find(name))
+        start = time.perf_counter()
+        model_payload = Path(item["model_path"]).read_bytes()
+        manifest_payload = Path(item["manifest_path"]).read_bytes()
+        digests = {
+            "model_pickle": hashlib.sha256(model_payload).hexdigest(),
+            "model_manifest": hashlib.sha256(manifest_payload).hexdigest(),
+        }
+        for field, kind in (
+            ("model_sha256", "model_pickle"),
+            ("manifest_sha256", "model_manifest"),
+        ):
+            expected = item.get(field)
+            if expected is not None and expected != digests[kind]:
+                raise ModelStoreError(
+                    f"model {name!r} {kind} digest mismatch"
+                )
+        try:
+            model = pickle.loads(model_payload)
+            manifest = json.loads(manifest_payload.decode("utf-8"))
+        except Exception as exc:
+            raise ModelStoreError(
+                f"model {name!r} snapshot could not be loaded: {exc}"
+            ) from exc
+        load_ms = (time.perf_counter() - start) * 1000.0
+        return ModelReadSnapshot(
+            loaded=LoadedModel(
+                name=item["name"],
+                model=model,
+                manifest=manifest,
+                path=Path(item["path"]),
+                load_ms=load_ms,
+            ),
+            digests=digests,
+        )
 
     def _write_package(
         self,

@@ -14,11 +14,15 @@ def run_inference_benchmark(
     table: pd.DataFrame,
     meta: pd.DataFrame | None,
     model_names: list[str],
+    *,
+    loaded_models: dict[str, object] | None = None,
 ) -> list[dict]:
     records: list[dict] = []
     for model_name in model_names:
         try:
-            loaded = model_store.load_model(model_name)
+            loaded = (loaded_models or {}).get(model_name)
+            if loaded is None:
+                loaded = model_store.load_model(model_name)
         except Exception as exc:
             records.append(_failed_record(model_name, "all", 0, 0.0, str(exc)))
             continue

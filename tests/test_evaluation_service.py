@@ -77,6 +77,22 @@ class Estimator:
 '''
 
 
+REPLACEMENT_ESTIMATOR_PLUGIN = b'''
+import numpy as np
+
+class Estimator:
+    name = "trusted_linear_decay"
+    feature_mode = "unified"
+    backend = "external"
+
+    def fit(self, X, y, meta=None):
+        return self
+
+    def predict(self, X, meta=None):
+        return np.full(len(X), 0.50)
+'''
+
+
 class PickledPredictOnly:
     def fit(self, X, y=None, meta=None):
         raise AssertionError("fit must not be called")
@@ -88,6 +104,11 @@ class PickledPredictOnly:
 class PickledPredictOnlyV2(PickledPredictOnly):
     def predict(self, X, meta=None):
         return np.full(len(X), 0.94)
+
+
+class PickledPredictOnlyReplacement(PickledPredictOnly):
+    def predict(self, X, meta=None):
+        return np.full(len(X), 0.50)
 
 
 def _model_manifest(name="api_model"):
@@ -870,6 +891,172 @@ def test_inference_run_spec_identity_binds_model_and_manifest_bytes(tmp_path):
     assert first.candidates[0].digest != second.candidates[0].digest
     assert first.digest != second.digest
     assert first.comparison_key == second.comparison_key
+
+
+def test_inference_evidence_executes_content_bound_model_snapshot(
+    tmp_path, monkeypatch
+):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset(
+        "plugin_eval_demo", "demo.csv", _dataset_csv()
+    )
+    service.model_store.upload_model(
+        "api_model",
+        "api_model.pkl",
+        pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json",
+        json.dumps(_model_manifest()).encode("utf-8"),
+    )
+    original_build_run_spec = service._build_run_spec
+    replacement_started = threading.Event()
+    replacement_finished = threading.Event()
+    replacement_errors: list[BaseException] = []
+    replacement_threads: list[threading.Thread] = []
+    bound_specs = []
+
+    def replace_model() -> None:
+        replacement_started.set()
+        replacement_manifest = _model_manifest()
+        replacement_manifest["created_by_run"] = "replacement"
+        try:
+            service.model_store.upload_model(
+                "api_model",
+                "api_model.pkl",
+                pickle.dumps(PickledPredictOnlyReplacement()),
+                "model_manifest.json",
+                json.dumps(replacement_manifest).encode("utf-8"),
+                replace=True,
+            )
+        except BaseException as exc:  # pragma: no cover - asserted below
+            replacement_errors.append(exc)
+        finally:
+            replacement_finished.set()
+
+    def build_then_replace(**kwargs):
+        run_spec = original_build_run_spec(**kwargs)
+        bound_specs.append(run_spec)
+        thread = threading.Thread(target=replace_model)
+        replacement_threads.append(thread)
+        thread.start()
+        assert replacement_started.wait(timeout=2)
+        replacement_finished.wait(timeout=1)
+        return run_spec
+
+    monkeypatch.setattr(service, "_build_run_spec", build_then_replace)
+    job = service.create_inference_job(
+        {"datasets": ["plugin_eval_demo"], "models": ["api_model"]},
+        start=False,
+    )
+
+    finished = service.run_inference_job_inline(job["id"])
+    for thread in replacement_threads:
+        thread.join(timeout=5)
+
+    assert replacement_finished.is_set()
+    assert replacement_errors == []
+    assert finished["status"] == "succeeded"
+    benchmark = json.loads(
+        (Path(finished["raw_run_dir"]) / "inference_benchmark.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    expected_mae = float(
+        np.mean(
+            np.abs(
+                pd.read_csv(BytesIO(_dataset_csv()))["soh"].to_numpy()
+                - 0.95
+            )
+        )
+    )
+    assert benchmark["records"][0]["mae"] == pytest.approx(expected_mae)
+    evidence = json.loads(Path(finished["evidence_path"]).read_text(encoding="utf-8"))
+    assert evidence["run_spec_digest"] == bound_specs[0].digest
+    assert (
+        evidence["run_spec"]["candidates"][0]["digest"]
+        == bound_specs[0].candidates[0].digest
+    )
+    assert verify_evidence_pack(finished["evidence_path"])["ok"] is True
+    assert (
+        service.model_store.load_model("api_model").manifest["created_by_run"]
+        == "replacement"
+    )
+
+
+def test_training_evidence_executes_content_bound_trusted_plugin_snapshot(
+    tmp_path, monkeypatch
+):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset(
+        "plugin_eval_demo", "demo.csv", _dataset_csv()
+    )
+    service.store.upload_estimator_plugin(
+        "trusted_linear_decay",
+        "trusted_linear_decay.py",
+        ESTIMATOR_PLUGIN,
+    )
+    original_build_run_spec = service._build_run_spec
+    replacement_started = threading.Event()
+    replacement_finished = threading.Event()
+    replacement_errors: list[BaseException] = []
+    replacement_threads: list[threading.Thread] = []
+
+    def replace_plugin() -> None:
+        replacement_started.set()
+        try:
+            service.store.upload_estimator_plugin(
+                "trusted_linear_decay",
+                "trusted_linear_decay.py",
+                REPLACEMENT_ESTIMATOR_PLUGIN,
+                replace=True,
+            )
+        except BaseException as exc:  # pragma: no cover - asserted below
+            replacement_errors.append(exc)
+        finally:
+            replacement_finished.set()
+
+    def build_then_replace(**kwargs):
+        run_spec = original_build_run_spec(**kwargs)
+        thread = threading.Thread(target=replace_plugin)
+        replacement_threads.append(thread)
+        thread.start()
+        assert replacement_started.wait(timeout=2)
+        replacement_finished.wait(timeout=1)
+        return run_spec
+
+    monkeypatch.setattr(service, "_build_run_spec", build_then_replace)
+    job = service.create_job(
+        {
+            "datasets": ["plugin_eval_demo"],
+            "estimators": ["trusted_linear_decay"],
+            "featuresets": ["full"],
+            "protocols": ["loco"],
+            "seeds": [0],
+        },
+        start=False,
+    )
+
+    finished = service.run_job_inline(job["id"])
+    for thread in replacement_threads:
+        thread.join(timeout=5)
+
+    assert replacement_finished.is_set()
+    assert replacement_errors == []
+    assert finished["status"] == "succeeded"
+    predictions = pd.read_parquet(
+        Path(finished["raw_run_dir"]) / "predictions.parquet"
+    )
+    assert not np.allclose(predictions["y_pred"].to_numpy(), 0.50)
+    assert verify_evidence_pack(finished["evidence_path"])["ok"] is True
 
 
 def test_training_run_spec_identity_binds_estimator_and_feature_plugin_bytes(
