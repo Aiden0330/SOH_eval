@@ -9,7 +9,7 @@ import pytest
 from sohbench import registry as R
 from sohbench.data import DatasetLoader
 from sohbench.registry import get_estimator, get_featureset
-from sohbench.trusted_plugins import TrustedPluginStore, _load_module
+from sohbench.trusted_plugins import TrustedPluginError, TrustedPluginStore, _load_module
 
 
 def _dataset_frame(name="public_demo", cells=("c1", "c2", "c3"), n=8):
@@ -67,6 +67,25 @@ def test_upload_and_catalog_preserve_unlabeled_inference_dataset(tmp_path):
     assert DatasetLoader(tmp_path / "data").discover_datasets(require_labels=False) == [
         "unlabeled_demo"
     ]
+
+
+@pytest.mark.parametrize("bad_cycle", [1.2, np.nan, np.inf, -np.inf])
+def test_upload_dataset_rejects_non_integral_cycle_index(tmp_path, bad_cycle):
+    store = TrustedPluginStore(
+        base_dir=tmp_path / "plugins", data_dir=tmp_path / "data",
+    )
+    frame = _dataset_frame()
+    frame["cycle_index"] = frame["cycle_index"].astype(float)
+    frame.loc[1, "cycle_index"] = bad_cycle
+
+    with pytest.raises(
+        TrustedPluginError, match="cycle_index must contain finite integers",
+    ):
+        store.upload_dataset(
+            "invalid_cycles",
+            "invalid.csv",
+            frame.to_csv(index=False).encode("utf-8"),
+        )
 
 
 def test_upload_estimator_plugin_smoke_tests_and_registers(tmp_path):

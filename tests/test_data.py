@@ -75,3 +75,31 @@ def test_unlabeled_tables_are_discoverable_and_loadable_only_for_inference(tmp_p
     assert "soh" not in table.columns
     assert set(meta["dataset"]) == {"event"}
     assert report.n_in == len(table)
+
+
+@pytest.mark.parametrize("bad_cycle", [1.2, np.nan, np.inf, -np.inf])
+def test_loader_rejects_non_integral_cycle_index(tmp_path, bad_cycle):
+    proc = tmp_path / "processed"
+    proc.mkdir()
+    frame = _feature_frame("invalid")
+    frame["cycle_index"] = frame["cycle_index"].astype(float)
+    frame.loc[1, "cycle_index"] = bad_cycle
+    frame.to_pickle(proc / "invalid_features.pkl")
+
+    with pytest.raises(ValueError, match="cycle_index must contain finite integers"):
+        DatasetLoader(tmp_path).load(["invalid"], qc=False)
+
+
+def test_loader_normalizes_integral_float_cycle_index(tmp_path):
+    proc = tmp_path / "processed"
+    proc.mkdir()
+    frame = _feature_frame("float_cycles")
+    frame["cycle_index"] = frame["cycle_index"].astype(float)
+    frame.to_pickle(proc / "float_cycles_features.pkl")
+
+    table, _meta, _report = DatasetLoader(tmp_path).load(
+        ["float_cycles"], qc=False,
+    )
+
+    assert pd.api.types.is_integer_dtype(table["cycle_index"])
+    assert table["cycle_index"].tolist() == [0, 1, 2, 3]

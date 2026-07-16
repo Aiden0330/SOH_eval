@@ -1,5 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
+import numpy as np
 import pandas as pd
 from .metadata import build_meta
 from .qc import qc_gate
@@ -7,6 +8,34 @@ from .qc import qc_gate
 INFERENCE_REQUIRED_COLUMNS = {"dataset", "cell_id", "cycle_index"}
 REQUIRED_COLUMNS = INFERENCE_REQUIRED_COLUMNS | {"soh"}
 ALL_DATASETS = {"all", "*"}
+
+
+def normalize_cycle_index(table: pd.DataFrame, *, context: str = "dataset") -> pd.DataFrame:
+    if "cycle_index" not in table.columns:
+        raise ValueError(f"{context}: missing required column cycle_index")
+
+    source = table["cycle_index"]
+    numeric = pd.to_numeric(source, errors="coerce")
+    integer_bounds = np.iinfo(np.int64)
+    bool_values = source.map(lambda value: isinstance(value, (bool, np.bool_)))
+    valid = (
+        numeric.notna()
+        & np.isfinite(numeric)
+        & numeric.mod(1).eq(0)
+        & numeric.ge(integer_bounds.min)
+        & numeric.le(integer_bounds.max)
+        & ~bool_values
+    )
+    if not bool(valid.all()):
+        invalid = source.loc[~valid].head(3).tolist()
+        raise ValueError(
+            f"{context}: cycle_index must contain finite integers; "
+            f"invalid values: {invalid}"
+        )
+
+    normalized = table.copy()
+    normalized["cycle_index"] = numeric.astype("int64")
+    return normalized
 
 class DatasetLoader:
     def __init__(self, data_dir):
@@ -55,7 +84,7 @@ class DatasetLoader:
         # of how the pkl stores the dataset identifier (e.g. "NASA" vs "nasa").
         df = df.copy()
         df["dataset"] = name
-        return df
+        return normalize_cycle_index(df, context=name)
 
     def load(self, names, *, qc: bool = True, require_labels: bool = True, **qc_kwargs):
         names = self.resolve_datasets(names, require_labels=require_labels)

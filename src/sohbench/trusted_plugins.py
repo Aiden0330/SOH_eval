@@ -15,7 +15,12 @@ import pandas as pd
 
 from . import registry as R
 from .contracts import feature_columns
-from .data import DatasetLoader, INFERENCE_REQUIRED_COLUMNS, REQUIRED_COLUMNS
+from .data import (
+    DatasetLoader,
+    INFERENCE_REQUIRED_COLUMNS,
+    REQUIRED_COLUMNS,
+    normalize_cycle_index,
+)
 from .featuresets import FeatureSet
 from .fabric import LegacyStatelessPipeline, assert_prefix_invariant
 
@@ -68,6 +73,10 @@ class TrustedPluginStore:
         name = _safe_resource_name(name)
         table = _read_table(filename, payload)
         _validate_dataset_table(table, require_labels=False)
+        try:
+            table = normalize_cycle_index(table, context=name)
+        except ValueError as exc:
+            raise TrustedPluginError(str(exc)) from exc
         table = table.copy()
         table["dataset"] = name
 
@@ -305,6 +314,10 @@ def _validate_dataset_table(table: pd.DataFrame, *, require_labels: bool = True)
         raise TrustedPluginError(f"missing required columns: {sorted(missing)}")
     if table.empty:
         raise TrustedPluginError("dataset table is empty")
+    try:
+        normalize_cycle_index(table)
+    except ValueError as exc:
+        raise TrustedPluginError(str(exc)) from exc
 
 
 def _load_module(path: Path, kind: str) -> ModuleType:

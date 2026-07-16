@@ -355,6 +355,16 @@ def test_prediction_sample_ids_are_intrinsic_and_order_independent(tmp_path):
     assert observed[0] == observed[1]
 
 
+@pytest.mark.parametrize("bad_cycle", [1.2, np.nan, np.inf, -np.inf])
+def test_prediction_identity_rejects_non_integral_cycle_index(bad_cycle):
+    frame = pd.read_csv(BytesIO(_dataset_csv()))
+    frame["cycle_index"] = frame["cycle_index"].astype(float)
+    frame.loc[0, "cycle_index"] = bad_cycle
+
+    with pytest.raises(ValueError, match="cycle_index must contain finite integers"):
+        evaluation_service_module._intrinsic_sample_ids(frame)
+
+
 def test_duplicate_intrinsic_prediction_identity_fails_closed(tmp_path):
     service = EvaluationService(
         data_dir=tmp_path / "data",
@@ -687,6 +697,40 @@ def test_unlabeled_run_spec_digest_is_stable_without_label_qc(tmp_path):
     )
 
     assert first.dataset.digest == second.dataset.digest
+
+
+def test_training_run_spec_canonicalizes_equivalent_protocol_sets(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    table = pd.read_csv(BytesIO(_dataset_csv()))
+    request = {
+        "datasets": ["plugin_eval_demo"],
+        "estimators": ["ridge"],
+        "featuresets": ["full"],
+        "seeds": [0],
+    }
+    specs = [
+        service._build_run_spec(
+            run_type="training",
+            request={**request, "protocols": protocols},
+            datasets=["plugin_eval_demo"],
+            table=table,
+            qc={},
+        )
+        for protocols in (
+            ["loco", "lodo"],
+            ["lodo", "loco"],
+            ["loco", "loco", "lodo"],
+        )
+    ]
+
+    assert {spec.protocol.spec_id for spec in specs} == {"loco,lodo"}
+    assert len({spec.comparison_key for spec in specs}) == 1
+    assert len({spec.idempotency_key for spec in specs}) == 1
 
 
 def test_inference_job_persists_launch_strategy_audit_fields(tmp_path):

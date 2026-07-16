@@ -15,7 +15,7 @@ import pandas as pd
 from . import registry as R
 from .battery_soh_plugins import register_battery_soh_plugins
 from .contracts import feature_columns
-from .data import DatasetLoader
+from .data import DatasetLoader, normalize_cycle_index
 from .battery_dashboard_import import publish_battery_dashboard_profile
 from .frontend_publish import publish_frontend_profile, sync_frontend_artifacts
 from .inference import run_inference_benchmark
@@ -552,6 +552,11 @@ class EvaluationService:
 
     def _build_run_spec(self, *, run_type: str, request: dict, datasets: list[str], table: pd.DataFrame, qc) -> RunSpec:
         task = SOHEstimationTask()
+        raw_protocols = request.get("protocols") or ["inference"]
+        if isinstance(raw_protocols, str):
+            raw_protocols = [raw_protocols]
+        canonical_protocols = sorted(set(map(str, raw_protocols)))
+        canonical_request = {**request, "protocols": canonical_protocols}
         label_digest = (
             frame_digest(table[[task.target]])
             if task.target in table.columns
@@ -580,8 +585,8 @@ class EvaluationService:
                 "label_digest": snapshot.label_digest,
                 "qc": dict(snapshot.qc),
             }),
-            protocol=ref("protocol", ",".join(request.get("protocols", ["inference"])), {
-                "protocols": request.get("protocols", ["inference"]),
+            protocol=ref("protocol", ",".join(canonical_protocols), {
+                "protocols": canonical_protocols,
             }),
             metric=ref("metric", "soh_metrics", {
                 "point": list(task.point_metrics),
@@ -597,7 +602,11 @@ class EvaluationService:
                 for candidate in candidates
             ),
             seeds=tuple(request.get("seeds", [0])),
-            idempotency_key=sha256_json({"run_type": run_type, "request": request, "dataset": snapshot.digest}),
+            idempotency_key=sha256_json({
+                "run_type": run_type,
+                "request": canonical_request,
+                "dataset": snapshot.digest,
+            }),
         )
 
     def _inference_outcome(self, records: list[dict]) -> RunOutcome:
@@ -928,8 +937,9 @@ def _intrinsic_sample_ids(table: pd.DataFrame) -> dict[tuple[str, str, int], str
         raise ValueError(
             f"prediction identity requires columns: {', '.join(missing)}"
         )
+    identity_table = normalize_cycle_index(table, context="prediction identity")
     sample_ids = {}
-    for dataset, cell_id, cycle_index in table[identity_columns].itertuples(
+    for dataset, cell_id, cycle_index in identity_table[identity_columns].itertuples(
         index=False, name=None,
     ):
         key = (str(dataset), str(cell_id), int(cycle_index))

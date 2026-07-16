@@ -72,3 +72,7 @@ def test_standalone_bundle_executes_and_renders_embedded_data(tmp_path):
         result.stdout,
         flags=re.DOTALL,
     )
+    assert re.search(
+        r'id="foot"[^>]*>sohbench 实测运行\s*/',
+        result.stdout,
+    )
