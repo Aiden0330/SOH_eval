@@ -669,6 +669,173 @@ def test_write_inference_artifacts(tmp_path):
     assert payload["records"][0]["model"] == "predict_only"
 
 
+@pytest.mark.parametrize(
+    "filename,reader",
+    [
+        ("inference_results.parquet", pd.read_parquet),
+        ("inference_results.csv", pd.read_csv),
+    ],
+)
+def test_mixed_labeled_unlabeled_inference_persists_sparse_label_metrics(
+    tmp_path, filename, reader
+):
+    records = [
+        {
+            "model": "shared_model",
+            "dataset": "labeled",
+            "n_samples": 2,
+            "mae": 0.01,
+            "rmse": 0.02,
+            "mean_bias_error": 0.0,
+            "monotonicity_violation_rate": 0.0,
+            "value_range_violation": 0.0,
+            "predict_ms": 1.0,
+            "ms_per_1000_samples": 500.0,
+            "samples_per_second": 2000.0,
+            "status": "succeeded",
+            "error": "",
+        },
+        {
+            "model": "shared_model",
+            "dataset": "unlabeled",
+            "n_samples": 2,
+            "monotonicity_violation_rate": 0.0,
+            "value_range_violation": 0.0,
+            "predict_ms": 1.5,
+            "ms_per_1000_samples": 750.0,
+            "samples_per_second": 1333.0,
+            "status": "succeeded",
+            "error": "",
+        },
+    ]
+
+    out = Path(
+        report_module.write_inference_artifacts(
+            records,
+            {"datasets": ["labeled", "unlabeled"]},
+            tmp_path,
+        )
+    )
+    frame = reader(out / filename)
+
+    assert len(frame) == 2
+    assert frame[["model", "dataset", "status"]].to_dict("records") == [
+        {
+            "model": "shared_model",
+            "dataset": "labeled",
+            "status": "succeeded",
+        },
+        {
+            "model": "shared_model",
+            "dataset": "unlabeled",
+            "status": "succeeded",
+        },
+    ]
+    assert {"mae", "rmse", "mean_bias_error"}.isdisjoint(frame.columns)
+    by_dataset = frame.set_index("dataset")
+    assert json.loads(by_dataset.loc["labeled", "label_metrics_json"]) == {
+        "mae": 0.01,
+        "mean_bias_error": 0.0,
+        "rmse": 0.02,
+    }
+    assert json.loads(
+        by_dataset.loc["unlabeled", "label_metrics_json"]
+    ) == {}
+    for metric in (
+        "monotonicity_violation_rate",
+        "value_range_violation",
+        "predict_ms",
+        "ms_per_1000_samples",
+        "samples_per_second",
+    ):
+        assert np.isfinite(by_dataset.loc["unlabeled", metric])
+    payload = json.loads(
+        (out / "inference_benchmark.json").read_text(encoding="utf-8")
+    )
+    json_by_dataset = {
+        record["dataset"]: record for record in payload["records"]
+    }
+    assert json_by_dataset["labeled"]["mae"] == 0.01
+    assert "mae" not in json_by_dataset["unlabeled"]
+    assert verify_evidence_pack(out / "evidence-pack.json")["ok"] is True
+
+
+@pytest.mark.parametrize(
+    "filename,reader",
+    [
+        ("inference_results.parquet", pd.read_parquet),
+        ("inference_results.csv", pd.read_csv),
+    ],
+)
+def test_unlabeled_success_and_failed_record_do_not_widen_label_metrics(
+    tmp_path, filename, reader
+):
+    records = [
+        {
+            "model": "shared_model",
+            "dataset": "unlabeled",
+            "n_samples": 2,
+            "monotonicity_violation_rate": 0.0,
+            "value_range_violation": 0.0,
+            "predict_ms": 1.0,
+            "ms_per_1000_samples": 500.0,
+            "samples_per_second": 2000.0,
+            "status": "succeeded",
+            "error": "",
+        },
+        {
+            "model": "shared_model",
+            "dataset": "failed_dataset",
+            "n_samples": 2,
+            "mae": None,
+            "rmse": None,
+            "mean_bias_error": None,
+            "monotonicity_violation_rate": None,
+            "value_range_violation": None,
+            "predict_ms": None,
+            "ms_per_1000_samples": None,
+            "samples_per_second": None,
+            "status": "failed",
+            "error": "injected failure",
+        },
+    ]
+
+    out = Path(
+        report_module.write_inference_artifacts(
+            records,
+            {"datasets": ["unlabeled", "failed_dataset"]},
+            tmp_path,
+        )
+    )
+    frame = reader(out / filename)
+
+    assert len(frame) == 2
+    assert {"mae", "rmse", "mean_bias_error"}.isdisjoint(frame.columns)
+    by_dataset = frame.set_index("dataset")
+    assert json.loads(
+        by_dataset.loc["unlabeled", "label_metrics_json"]
+    ) == {}
+    assert json.loads(
+        by_dataset.loc["failed_dataset", "label_metrics_json"]
+    ) == {
+        "mae": None,
+        "mean_bias_error": None,
+        "rmse": None,
+    }
+    assert by_dataset.loc["unlabeled", "status"] == "succeeded"
+    assert by_dataset.loc["failed_dataset", "status"] == "failed"
+    assert np.isfinite(
+        by_dataset.loc["unlabeled", "monotonicity_violation_rate"]
+    )
+    payload = json.loads(
+        (out / "inference_benchmark.json").read_text(encoding="utf-8")
+    )
+    assert len(payload["records"]) == 2
+    assert "mae" not in payload["records"][0]
+    assert payload["records"][1]["mae"] is None
+    assert verify_evidence_pack(out / "evidence-pack.json")["ok"] is True
+
+
 def test_inference_summary_ignores_nonfinite_accuracy_and_speed(tmp_path):
     from sohbench.report import write_inference_artifacts
 

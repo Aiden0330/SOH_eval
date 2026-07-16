@@ -27,6 +27,8 @@ _STATISTICS_METRICS = ("mae", "rmse")
 _STATISTICS_CONFIDENCE = 0.95
 _STATISTICS_RESAMPLES = 2000
 _STATISTICS_SEED = 0
+_INFERENCE_LABEL_METRICS = ("mae", "rmse", "mean_bias_error")
+_INFERENCE_LABEL_METRICS_FIELD = "label_metrics_json"
 _STATISTICS_ENTRY_FIELDS = (
     "candidate_id",
     "estimator",
@@ -620,7 +622,7 @@ def write_inference_artifacts(
     manifest = _evidence_manifest(selected_run_id, evidence_context)
     with _run_directory_transaction(out_dir, selected_run_id) as out:
         artifact_paths = []
-        frame = pd.DataFrame.from_records(records)
+        frame = _inference_persistence_frame(records)
         frame.to_parquet(out / "inference_results.parquet")
         artifact_paths.append(out / "inference_results.parquet")
         frame.to_csv(out / "inference_results.csv", index=False)
@@ -637,6 +639,29 @@ def write_inference_artifacts(
         artifact_paths.append(out / "inference_run_config.json")
         write_evidence_pack(out, manifest, artifact_paths)
     return str(out)
+
+
+def _inference_persistence_frame(records: list[dict]) -> pd.DataFrame:
+    persisted = []
+    for record in records:
+        row = {
+            key: value
+            for key, value in record.items()
+            if key not in _INFERENCE_LABEL_METRICS
+        }
+        label_metrics = {
+            name: record[name]
+            for name in _INFERENCE_LABEL_METRICS
+            if name in record
+        }
+        row[_INFERENCE_LABEL_METRICS_FIELD] = json.dumps(
+            label_metrics,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        persisted.append(row)
+    return pd.DataFrame.from_records(persisted)
 
 
 def _inference_rank_key(row: dict, metric: str) -> tuple:
