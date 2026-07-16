@@ -13,6 +13,7 @@ import sohbench.frontend_publish as frontend_publish_module
 import sohbench.runner as runner_module
 from sohbench.evaluation_service import EvaluationService
 from sohbench.fabric.evidence import verify_evidence_pack
+from sohbench.fabric.ids import sha256_file
 
 
 def _dataset_csv(name="plugin_eval_demo"):
@@ -943,9 +944,140 @@ def test_inference_job_keeps_object_pd_na_labels_unscored_and_successful(tmp_pat
 
     assert finished["status"] == "succeeded"
     assert finished["outcome"] == "complete"
-    assert payload["records"][0]["status"] == "succeeded"
-    assert payload["records"][0]["mae"] is None
+    record = payload["records"][0]
+    assert record["status"] == "succeeded"
+    for name in ("mae", "rmse", "mean_bias_error"):
+        assert name not in record
+    for name in (
+        "monotonicity_violation_rate",
+        "value_range_violation",
+        "predict_ms",
+        "ms_per_1000_samples",
+        "samples_per_second",
+    ):
+        value = record[name]
+        assert isinstance(value, (int, float)) and not isinstance(value, bool)
+        assert np.isfinite(value)
+    persisted = pd.read_parquet(
+        Path(finished["raw_run_dir"]) / "inference_results.parquet"
+    )
+    assert {"mae", "rmse", "mean_bias_error"}.isdisjoint(
+        persisted.columns
+    )
     assert verify_evidence_pack(finished["evidence_path"])["ok"] is True
+
+
+def test_inference_dependency_refs_namespace_estimator_and_featureset(
+    tmp_path,
+):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    plugin_name = "shared_identity_plugin"
+    estimator_source = f'''
+import numpy as np
+
+class Estimator:
+    name = "{plugin_name}"
+    feature_mode = "unified"
+    backend = "external"
+
+    def fit(self, X, y, meta=None):
+        return self
+
+    def predict(self, X, meta=None):
+        return np.full(len(X), 0.95)
+'''.encode("utf-8")
+    featureset_source = f'''
+FEATURESET_NAME = "{plugin_name}"
+FEATURE_COLUMNS = ["voltage_mean"]
+
+def transform(table, meta=None):
+    return table.copy()
+'''.encode("utf-8")
+    estimator_dependency = tmp_path / "estimator" / "runtime.py"
+    featureset_dependency = tmp_path / "featureset" / "runtime.py"
+    estimator_dependency.parent.mkdir()
+    featureset_dependency.parent.mkdir()
+    estimator_dependency.write_text("REVISION = 1\n", encoding="utf-8")
+    featureset_dependency.write_text("REVISION = 7\n", encoding="utf-8")
+    service.store.upload_estimator_plugin(
+        plugin_name,
+        f"{plugin_name}.py",
+        estimator_source,
+        replace=True,
+        dependencies={"runtime": estimator_dependency},
+    )
+    service.store.upload_featureset_plugin(
+        plugin_name,
+        f"{plugin_name}.py",
+        featureset_source,
+        replace=True,
+        dependencies={"runtime": featureset_dependency},
+    )
+    manifest = _model_manifest("shared_identity_model")
+    manifest["estimator"] = plugin_name
+    manifest["featureset"] = plugin_name
+    service.model_store.upload_model(
+        "shared_identity_model",
+        "shared_identity_model.pkl",
+        pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json",
+        json.dumps(manifest).encode("utf-8"),
+    )
+    table = pd.read_csv(BytesIO(_dataset_csv("identity_demo")))
+    request = service._normalize_inference_request(
+        {
+            "datasets": ["identity_demo"],
+            "models": ["shared_identity_model"],
+        }
+    )
+
+    def build_spec():
+        with service.model_store.read_lease(
+            ["shared_identity_model"]
+        ) as snapshots:
+            return service._build_run_spec(
+                run_type="inference",
+                request=request,
+                datasets=["identity_demo"],
+                table=table,
+                qc={},
+                model_snapshots=snapshots,
+            )
+
+    first = build_spec()
+    dependency_refs = {
+        item.spec_id: item
+        for item in first.candidates[0].artifacts
+        if item.kind == "executable_dependency_file"
+    }
+    assert set(dependency_refs) == {
+        f"estimators/{plugin_name}/runtime",
+        f"featuresets/{plugin_name}/runtime",
+    }
+    assert dependency_refs[
+        f"estimators/{plugin_name}/runtime"
+    ].digest == sha256_file(estimator_dependency)
+    assert dependency_refs[
+        f"featuresets/{plugin_name}/runtime"
+    ].digest == sha256_file(featureset_dependency)
+
+    estimator_dependency.write_text("REVISION = 2\n", encoding="utf-8")
+    service.store.upload_estimator_plugin(
+        plugin_name,
+        f"{plugin_name}.py",
+        estimator_source,
+        replace=True,
+        dependencies={"runtime": estimator_dependency},
+    )
+    second = build_spec()
+
+    assert first.candidates[0].digest != second.candidates[0].digest
+    assert first.digest != second.digest
 
 
 def test_inference_fails_when_manifest_pipeline_or_state_is_missing(tmp_path):

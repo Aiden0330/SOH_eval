@@ -656,8 +656,8 @@ def test_api_unlabeled_upload_catalog_and_inference_flow(tmp_path):
             (Path(status["raw_run_dir"]) / "inference_benchmark.json").read_text(encoding="utf-8")
         )["records"]
         assert records[0]["status"] == "succeeded"
-        assert records[0]["mae"] is None
-        assert records[0]["rmse"] is None
-        assert records[0]["mean_bias_error"] is None
+        assert "mae" not in records[0]
+        assert "rmse" not in records[0]
+        assert "mean_bias_error" not in records[0]
     finally:
         server.shutdown()

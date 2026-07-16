@@ -824,7 +824,7 @@ class EvaluationService:
         return [
             SpecRef(
                 kind=f"executable_dependency_{item['kind']}",
-                spec_id=f"{plugin_name}/{item['name']}",
+                spec_id=f"{section}/{plugin_name}/{item['name']}",
                 version=(
                     "sha256-tree-v1" if item["kind"] == "tree" else "sha256"
                 ),

@@ -96,10 +96,7 @@ def _metrics(group: pd.DataFrame, pred: np.ndarray) -> dict:
                     "mean_bias_error": M.mean_bias_error(y, pred),
                 }
             )
-    validated = validate_finite_metrics(out)
-    for name in ("mae", "rmse", "mean_bias_error"):
-        validated.setdefault(name, None)
-    return validated
+    return validate_finite_metrics(out)
 
 
 def _validate_optional_intervals(loaded, group, meta) -> None:

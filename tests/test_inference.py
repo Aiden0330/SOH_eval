@@ -1,5 +1,6 @@
 import json
 import pickle
+from numbers import Real
 
 import numpy as np
 import pandas as pd
@@ -137,10 +138,43 @@ def test_inference_benchmark_scores_only_fully_labeled_dataset_groups(tmp_path):
     by_dataset = {record["dataset"]: record for record in records}
 
     assert np.isfinite(by_dataset["new_a"]["mae"])
-    assert by_dataset["new_b"]["mae"] is None
-    assert by_dataset["new_b"]["rmse"] is None
-    assert by_dataset["new_b"]["mean_bias_error"] is None
+    assert "mae" not in by_dataset["new_b"]
+    assert "rmse" not in by_dataset["new_b"]
+    assert "mean_bias_error" not in by_dataset["new_b"]
     assert by_dataset["new_b"]["status"] == "succeeded"
+
+
+def test_successful_unlabeled_inference_omits_unavailable_metrics(tmp_path):
+    store = ModelStore(tmp_path / "models")
+    store.upload_model(
+        "predict_only",
+        "predict_only.pkl",
+        pickle.dumps(PredictOnlyModel()),
+        "model_manifest.json",
+        json.dumps(_manifest()).encode("utf-8"),
+    )
+    table = _table().loc[
+        lambda frame: frame["dataset"].eq("new_a")
+    ].drop(columns=["soh"])
+
+    record = run_inference_benchmark(
+        store, table, pd.DataFrame(), ["predict_only"]
+    )[0]
+
+    assert record["status"] == "succeeded"
+    for name in ("mae", "rmse", "mean_bias_error"):
+        assert name not in record
+    for name in (
+        "monotonicity_violation_rate",
+        "value_range_violation",
+        "predict_ms",
+        "ms_per_1000_samples",
+        "samples_per_second",
+    ):
+        value = record[name]
+        assert isinstance(value, Real)
+        assert not isinstance(value, (bool, np.bool_))
+        assert np.isfinite(value)
 
 
 def test_inference_benchmark_treats_object_pd_na_labels_as_unscored(tmp_path):
@@ -161,9 +195,9 @@ def test_inference_benchmark_treats_object_pd_na_labels_as_unscored(tmp_path):
     )
 
     assert records[0]["status"] == "succeeded"
-    assert records[0]["mae"] is None
-    assert records[0]["rmse"] is None
-    assert records[0]["mean_bias_error"] is None
+    assert "mae" not in records[0]
+    assert "rmse" not in records[0]
+    assert "mean_bias_error" not in records[0]
 
 
 def test_inference_trajectory_metrics_do_not_join_independent_cells(tmp_path):
