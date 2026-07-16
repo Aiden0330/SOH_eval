@@ -4,7 +4,10 @@ import json
 import re
 import sys
 import hashlib
+import os
+import shutil
 import threading
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from io import BytesIO
@@ -16,7 +19,11 @@ import numpy as np
 import pandas as pd
 
 from . import registry as R
-from .contracts import feature_columns, validate_finite_vector
+from .contracts import (
+    feature_columns,
+    validate_finite_vector,
+    validate_interval_bounds,
+)
 from .data import (
     DatasetLoader,
     INFERENCE_REQUIRED_COLUMNS,
@@ -28,6 +35,7 @@ from .fabric import LegacyStatelessPipeline, assert_prefix_invariant
 
 
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*$")
+_MISSING = object()
 
 
 class TrustedPluginError(ValueError):
@@ -55,12 +63,14 @@ class TrustedPluginStore:
         self.data_dir = Path(data_dir).expanduser().resolve()
         self.estimator_dir = self.base_dir / "estimators"
         self.featureset_dir = self.base_dir / "featuresets"
+        self.dependency_dir = self.base_dir / "dependencies"
         self.catalog_path = self.base_dir / "catalog.json"
         self._lock = threading.RLock()
         self._feature_plugins: dict[str, FeaturePlugin] = {}
 
         self.estimator_dir.mkdir(parents=True, exist_ok=True)
         self.featureset_dir.mkdir(parents=True, exist_ok=True)
+        self.dependency_dir.mkdir(parents=True, exist_ok=True)
         (self.data_dir / "processed").mkdir(parents=True, exist_ok=True)
         self._catalog = self._read_catalog()
         self.load_trusted_plugins()
@@ -107,21 +117,55 @@ class TrustedPluginStore:
         payload: bytes,
         *,
         replace: bool = False,
+        dependencies: dict[str, str | Path] | None = None,
     ) -> dict:
         with self._lock:
             _safe_resource_name(name)
-            path = self._write_plugin_file(self.estimator_dir, filename, payload, replace=replace)
-            cls = self._load_estimator_file(path, replace=replace)
-            resource = {
-                "name": cls.name,
-                "kind": "estimator",
-                "path": str(path),
-                "feature_mode": getattr(cls, "feature_mode", "unified"),
-                "backend": getattr(cls, "backend", "external"),
-                "source_filename": filename,
-            }
-            self._upsert_catalog("estimators", resource)
-            return resource
+            dependency_records = _declared_dependency_records(dependencies)
+            path = self._plugin_destination(
+                self.estimator_dir, filename, replace=replace
+            )
+            staged = self._stage_plugin_payload(path, payload)
+            module_name = _trusted_module_name(path, "estimator")
+            previous_module = sys.modules.get(module_name, _MISSING)
+            committed = False
+            try:
+                cls = self._validate_estimator_file(
+                    staged, logical_path=path
+                )
+                self._validate_replacement_identity(
+                    "estimators", path, str(cls.name), replace
+                )
+                if cls.name in R._ESTIMATORS and not replace:
+                    raise TrustedPluginError(
+                        f"estimator already registered: {cls.name}"
+                    )
+                resource = {
+                    "name": cls.name,
+                    "kind": "estimator",
+                    "path": str(path),
+                    "feature_mode": getattr(cls, "feature_mode", "unified"),
+                    "backend": getattr(cls, "backend", "external"),
+                    "source_filename": filename,
+                    "dependencies": dependency_records,
+                }
+                next_catalog = self._catalog_with_upsert(
+                    "estimators", resource
+                )
+                catalog_staging = self._stage_catalog(next_catalog)
+                self._activate_plugin_transaction(
+                    path,
+                    staged,
+                    catalog_staging,
+                    next_catalog,
+                    lambda: R._ESTIMATORS.__setitem__(cls.name, cls),
+                )
+                committed = True
+                return resource
+            finally:
+                staged.unlink(missing_ok=True)
+                if not committed:
+                    _restore_module(module_name, previous_module)
 
     def upload_featureset_plugin(
         self,
@@ -130,21 +174,128 @@ class TrustedPluginStore:
         payload: bytes,
         *,
         replace: bool = False,
+        dependencies: dict[str, str | Path] | None = None,
     ) -> dict:
         with self._lock:
             _safe_resource_name(name)
-            path = self._write_plugin_file(self.featureset_dir, filename, payload, replace=replace)
-            plugin = self._load_featureset_file(path, fallback_name=name, replace=replace)
-            resource = {
-                "name": plugin.name,
-                "kind": "featureset",
-                "path": str(path),
-                "columns": plugin.candidates,
-                "has_transform": plugin.transform is not None,
-                "source_filename": filename,
-            }
-            self._upsert_catalog("featuresets", resource)
-            return resource
+            dependency_records = _declared_dependency_records(dependencies)
+            path = self._plugin_destination(
+                self.featureset_dir, filename, replace=replace
+            )
+            staged = self._stage_plugin_payload(path, payload)
+            module_name = _trusted_module_name(path, "featureset")
+            previous_module = sys.modules.get(module_name, _MISSING)
+            committed = False
+            try:
+                plugin = self._validate_featureset_file(
+                    staged, fallback_name=name, logical_path=path
+                )
+                self._validate_replacement_identity(
+                    "featuresets", path, plugin.name, replace
+                )
+                if plugin.name in R._FEATURESETS and not replace:
+                    raise TrustedPluginError(
+                        f"featureset already registered: {plugin.name}"
+                    )
+                resource = {
+                    "name": plugin.name,
+                    "kind": "featureset",
+                    "path": str(path),
+                    "columns": plugin.candidates,
+                    "has_transform": plugin.transform is not None,
+                    "source_filename": filename,
+                    "dependencies": dependency_records,
+                }
+                next_catalog = self._catalog_with_upsert(
+                    "featuresets", resource
+                )
+                catalog_staging = self._stage_catalog(next_catalog)
+
+                def activate_feature() -> None:
+                    R._FEATURESETS[plugin.name] = FeatureSet(
+                        plugin.name, plugin.candidates
+                    )
+                    self._feature_plugins[plugin.name] = plugin
+
+                self._activate_plugin_transaction(
+                    path,
+                    staged,
+                    catalog_staging,
+                    next_catalog,
+                    activate_feature,
+                )
+                committed = True
+                return resource
+            finally:
+                staged.unlink(missing_ok=True)
+                if not committed:
+                    _restore_module(module_name, previous_module)
+
+    def snapshot_dependency_tree(
+        self, owner: str, source: str | Path
+    ) -> Path:
+        owner_name = _safe_resource_name(owner)
+        source_path = Path(source).expanduser().resolve()
+        if not source_path.is_dir():
+            raise TrustedPluginError(
+                f"declared dependency tree is unavailable: {source_path}"
+            )
+        digest = _dependency_digest(source_path, "tree")
+        owner_root = self.dependency_dir / owner_name
+        generation = owner_root / digest
+        destination = generation / source_path.name
+
+        with self._lock:
+            if destination.is_dir():
+                if _dependency_digest(destination, "tree") != digest:
+                    raise TrustedPluginError(
+                        f"managed dependency snapshot is corrupted: {destination}"
+                    )
+                return generation.resolve()
+
+            owner_root.mkdir(parents=True, exist_ok=True)
+            staging = owner_root / f".{digest}.tmp-{uuid.uuid4().hex}"
+            try:
+                staging.mkdir()
+                shutil.copytree(
+                    source_path,
+                    staging / source_path.name,
+                    ignore=_ignore_generated_dependency_files,
+                )
+                staged_dependency = staging / source_path.name
+                if _dependency_digest(staged_dependency, "tree") != digest:
+                    raise TrustedPluginError(
+                        "managed dependency snapshot digest changed while copying"
+                    )
+                _fsync_tree(staging)
+                try:
+                    os.replace(staging, generation)
+                except FileExistsError:
+                    if not destination.is_dir():
+                        raise
+                _fsync_directory(owner_root)
+            finally:
+                if staging.exists():
+                    shutil.rmtree(staging)
+            return generation.resolve()
+
+    def declared_plugin_dependencies(
+        self, section: str, name: str
+    ) -> list[dict]:
+        with self._lock:
+            item = self._catalog_item(section, str(name))
+            records = list((item or {}).get("dependencies") or [])
+            verified = []
+            for record in sorted(records, key=lambda value: str(value.get("name"))):
+                path = Path(str(record.get("path") or ""))
+                kind = str(record.get("kind") or "")
+                digest = _dependency_digest(path, kind)
+                if digest != record.get("digest"):
+                    raise TrustedPluginError(
+                        f"declared dependency changed after registration: {path}"
+                    )
+                verified.append(dict(record))
+            return verified
 
     @contextmanager
     def execution_lease(self) -> Iterator[None]:
@@ -233,17 +384,122 @@ class TrustedPluginStore:
             if path.exists() and name not in R._FEATURESETS:
                 self._load_featureset_file(path, fallback_name=name, replace=True)
 
-    def _write_plugin_file(self, directory: Path, filename: str, payload: bytes, *, replace: bool) -> Path:
+    def _plugin_destination(
+        self, directory: Path, filename: str, *, replace: bool
+    ) -> Path:
         path = directory / Path(filename).name
         if path.suffix.lower() != ".py":
             raise TrustedPluginError("trusted plugin uploads must be .py files")
         if path.exists() and not replace:
             raise TrustedPluginError(f"plugin file already exists: {path.name}")
-        path.write_bytes(payload)
         return path
 
+    def _stage_plugin_payload(self, path: Path, payload: bytes) -> Path:
+        staged = path.parent / f".{path.name}.tmp-{uuid.uuid4().hex}"
+        try:
+            with staged.open("wb") as stream:
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+            if staged.read_bytes() != payload:
+                raise TrustedPluginError("staged plugin bytes failed validation")
+            return staged
+        except BaseException:
+            staged.unlink(missing_ok=True)
+            raise
+
+    def _validate_replacement_identity(
+        self, section: str, path: Path, candidate_name: str, replace: bool
+    ) -> None:
+        existing = next(
+            (
+                item
+                for item in self._catalog.get(section, [])
+                if Path(str(item.get("path") or "")) == path
+            ),
+            None,
+        )
+        if (
+            replace
+            and existing is not None
+            and str(existing.get("name")) != candidate_name
+        ):
+            raise TrustedPluginError(
+                "replacement plugin must keep its registered name"
+            )
+
+    def _catalog_with_upsert(self, section: str, resource: dict) -> dict:
+        document = json.loads(json.dumps(self._catalog))
+        items = [
+            item
+            for item in document.get(section, [])
+            if item.get("name") != resource["name"]
+        ]
+        items.append(resource)
+        document[section] = sorted(items, key=lambda item: item["name"])
+        return document
+
+    def _stage_catalog(self, document: dict) -> Path:
+        staged = self.base_dir / f".{self.catalog_path.name}.tmp-{uuid.uuid4().hex}"
+        try:
+            staged.write_text(
+                json.dumps(document, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+                newline="\n",
+            )
+            with staged.open("r+b") as stream:
+                os.fsync(stream.fileno())
+            if json.loads(staged.read_text(encoding="utf-8")) != document:
+                raise TrustedPluginError("staged plugin catalog failed validation")
+            return staged
+        except BaseException:
+            staged.unlink(missing_ok=True)
+            raise
+
+    def _activate_plugin_transaction(
+        self,
+        path: Path,
+        staged: Path,
+        catalog_staging: Path,
+        next_catalog: dict,
+        activate_registry: Callable[[], None],
+    ) -> None:
+        previous_payload = path.read_bytes() if path.is_file() else None
+        rollback = path.parent / f".{path.name}.rollback-{uuid.uuid4().hex}"
+        try:
+            if previous_payload is not None:
+                with rollback.open("wb") as stream:
+                    stream.write(previous_payload)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+            os.replace(staged, path)
+            try:
+                os.replace(catalog_staging, self.catalog_path)
+            except BaseException:
+                if previous_payload is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    os.replace(rollback, path)
+                raise
+            activate_registry()
+            self._catalog = next_catalog
+            _fsync_directory(path.parent)
+            _fsync_directory(self.base_dir)
+        finally:
+            rollback.unlink(missing_ok=True)
+            catalog_staging.unlink(missing_ok=True)
+
     def _load_estimator_file(self, path: Path, *, replace: bool) -> type:
-        module = _load_module(path, "estimator")
+        cls = self._validate_estimator_file(path)
+        if cls.name in R._ESTIMATORS and not replace:
+            raise TrustedPluginError(f"estimator already registered: {cls.name}")
+        R._ESTIMATORS[cls.name] = cls
+        return cls
+
+    def _validate_estimator_file(
+        self, path: Path, *, logical_path: Path | None = None
+    ) -> type:
+        module = _load_module(path, "estimator", logical_path=logical_path)
         cls = _extract_estimator_class(module)
         if not hasattr(cls, "name") or not str(cls.name):
             raise TrustedPluginError("estimator plugin must define a non-empty name")
@@ -251,17 +507,26 @@ class TrustedPluginStore:
             cls.feature_mode = "unified"
         if not hasattr(cls, "backend"):
             cls.backend = "external"
-        if cls.name in R._ESTIMATORS and not replace:
-            raise TrustedPluginError(f"estimator already registered: {cls.name}")
         _smoke_estimator(cls)
-        R._ESTIMATORS[cls.name] = cls
         return cls
 
     def _load_featureset_file(self, path: Path, *, fallback_name: str, replace: bool) -> FeaturePlugin:
-        module = _load_module(path, "featureset")
-        plugin = _extract_feature_plugin(module, path, fallback_name)
+        plugin = self._validate_featureset_file(path, fallback_name=fallback_name)
         if plugin.name in R._FEATURESETS and not replace:
             raise TrustedPluginError(f"featureset already registered: {plugin.name}")
+        R._FEATURESETS[plugin.name] = FeatureSet(plugin.name, plugin.candidates)
+        self._feature_plugins[plugin.name] = plugin
+        return plugin
+
+    def _validate_featureset_file(
+        self,
+        path: Path,
+        *,
+        fallback_name: str,
+        logical_path: Path | None = None,
+    ) -> FeaturePlugin:
+        module = _load_module(path, "featureset", logical_path=logical_path)
+        plugin = _extract_feature_plugin(module, path, fallback_name)
         _smoke_featureset_plugin(plugin)
         pipeline = LegacyStatelessPipeline(plugin.name, plugin.candidates, plugin.transform, plugin.path) if plugin.transform else None
         if pipeline is not None:
@@ -269,27 +534,27 @@ class TrustedPluginStore:
                 assert_prefix_invariant(pipeline, _smoke_table(), pd.DataFrame())
             except ValueError as exc:
                 raise TrustedPluginError(str(exc)) from exc
-        R._FEATURESETS[plugin.name] = FeatureSet(plugin.name, plugin.candidates)
-        self._feature_plugins[plugin.name] = plugin
-        return plugin
+        return FeaturePlugin(
+            name=plugin.name,
+            candidates=plugin.candidates,
+            transform=plugin.transform,
+            path=Path(logical_path) if logical_path is not None else path,
+        )
 
     def _read_catalog(self) -> dict:
         if not self.catalog_path.exists():
             return {"datasets": [], "estimators": [], "featuresets": []}
         return json.loads(self.catalog_path.read_text(encoding="utf-8"))
 
-    def _write_catalog(self) -> None:
-        self.base_dir.mkdir(parents=True, exist_ok=True)
-        self.catalog_path.write_text(
-            json.dumps(self._catalog, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-
     def _upsert_catalog(self, section: str, resource: dict) -> None:
-        items = [item for item in self._catalog.get(section, []) if item.get("name") != resource["name"]]
-        items.append(resource)
-        self._catalog[section] = sorted(items, key=lambda item: item["name"])
-        self._write_catalog()
+        document = self._catalog_with_upsert(section, resource)
+        staged = self._stage_catalog(document)
+        try:
+            os.replace(staged, self.catalog_path)
+            _fsync_directory(self.base_dir)
+        finally:
+            staged.unlink(missing_ok=True)
+        self._catalog = document
 
     def _catalog_item(self, section: str, name: str) -> dict | None:
         for item in self._catalog.get(section, []):
@@ -303,6 +568,99 @@ def _safe_resource_name(name: str) -> str:
     if not SAFE_NAME.match(value):
         raise TrustedPluginError(f"invalid resource name: {name!r}")
     return value
+
+
+def _declared_dependency_records(
+    dependencies: dict[str, str | Path] | None,
+) -> list[dict]:
+    if dependencies is None:
+        return []
+    if not isinstance(dependencies, dict):
+        raise TrustedPluginError("plugin dependencies must be a name-to-path mapping")
+    records = []
+    for name, raw_path in sorted(dependencies.items(), key=lambda item: str(item[0])):
+        dependency_name = _safe_resource_name(str(name))
+        path = Path(raw_path).expanduser().resolve()
+        if path.is_file():
+            kind = "file"
+        elif path.is_dir():
+            kind = "tree"
+        else:
+            raise TrustedPluginError(
+                f"declared plugin dependency is unavailable: {path}"
+            )
+        records.append(
+            {
+                "name": dependency_name,
+                "path": str(path),
+                "kind": kind,
+                "digest": _dependency_digest(path, kind),
+            }
+        )
+    return records
+
+
+def _dependency_digest(path: Path, kind: str) -> str:
+    path = Path(path)
+    if kind == "file":
+        if not path.is_file() or path.is_symlink():
+            raise TrustedPluginError(f"declared dependency file is unavailable: {path}")
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    if kind != "tree":
+        raise TrustedPluginError(f"unsupported dependency kind: {kind!r}")
+    if not path.is_dir() or path.is_symlink():
+        raise TrustedPluginError(f"declared dependency tree is unavailable: {path}")
+    hasher = hashlib.sha256()
+    hasher.update(b"sohbench-dependency-tree-v1\0")
+    for item in sorted(path.rglob("*"), key=lambda value: value.relative_to(path).as_posix()):
+        relative_path = item.relative_to(path)
+        if "__pycache__" in relative_path.parts or item.suffix.lower() == ".pyc":
+            continue
+        if item.is_symlink():
+            raise TrustedPluginError(
+                f"declared dependency trees must not contain symlinks: {item}"
+            )
+        if not item.is_file():
+            continue
+        relative = relative_path.as_posix().encode("utf-8")
+        payload_digest = hashlib.sha256(item.read_bytes()).digest()
+        hasher.update(len(relative).to_bytes(8, "big"))
+        hasher.update(relative)
+        hasher.update(payload_digest)
+    return hasher.hexdigest()
+
+
+def _ignore_generated_dependency_files(
+    _directory: str, names: list[str]
+) -> set[str]:
+    return {
+        name
+        for name in names
+        if name == "__pycache__" or Path(name).suffix.lower() == ".pyc"
+    }
+
+
+def _fsync_directory(path: Path) -> None:
+    try:
+        descriptor = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _fsync_tree(path: Path) -> None:
+    for item in path.rglob("*"):
+        if item.is_file():
+            with item.open("r+b") as stream:
+                os.fsync(stream.fileno())
+    for directory in sorted(
+        (item for item in path.rglob("*") if item.is_dir()), reverse=True
+    ):
+        _fsync_directory(directory)
+    _fsync_directory(path)
 
 
 def _read_table(filename: str, payload: bytes) -> pd.DataFrame:
@@ -326,24 +684,35 @@ def _validate_dataset_table(table: pd.DataFrame, *, require_labels: bool = True)
         raise TrustedPluginError("dataset table is empty")
 
 
-def _load_module(path: Path, kind: str) -> ModuleType:
-    module_name = f"sohbench_trusted_{kind}_{path.stem}_{_stable_module_token(path)}"
+def _trusted_module_name(path: Path, kind: str) -> str:
+    return f"sohbench_trusted_{kind}_{path.stem}_{_stable_module_token(path)}"
+
+
+def _restore_module(module_name: str, previous_module: ModuleType | object) -> None:
+    if previous_module is _MISSING:
+        sys.modules.pop(module_name, None)
+    else:
+        sys.modules[module_name] = previous_module
+
+
+def _load_module(
+    path: Path, kind: str, *, logical_path: Path | None = None
+) -> ModuleType:
+    identity_path = Path(logical_path) if logical_path is not None else path
+    module_name = _trusted_module_name(identity_path, kind)
     try:
         source_bytes = path.read_bytes()
     except OSError as exc:
         raise TrustedPluginError(f"cannot load plugin file: {path}") from exc
     module = ModuleType(module_name)
-    module.__file__ = str(path)
-    previous_module = sys.modules.get(module_name)
+    module.__file__ = str(identity_path)
+    previous_module = sys.modules.get(module_name, _MISSING)
     sys.modules[module_name] = module
     try:
-        code = compile(source_bytes, str(path), "exec")
+        code = compile(source_bytes, str(identity_path), "exec")
         exec(code, module.__dict__)
     except Exception as exc:
-        if previous_module is None:
-            sys.modules.pop(module_name, None)
-        else:
-            sys.modules[module_name] = previous_module
+        _restore_module(module_name, previous_module)
         raise TrustedPluginError(f"plugin import failed: {exc}") from exc
     return module
 
@@ -427,12 +796,13 @@ def _smoke_estimator(cls: type) -> None:
         predict_interval = getattr(est, "predict_interval", None)
         if callable(predict_interval):
             low, high = predict_interval(test, pd.DataFrame())
-            validate_finite_vector(
+            low = validate_finite_vector(
                 low, name="interval_low", n_samples=len(test)
             )
-            validate_finite_vector(
+            high = validate_finite_vector(
                 high, name="interval_high", n_samples=len(test)
             )
+            validate_interval_bounds(low, high)
     except (TypeError, ValueError) as exc:
         raise TrustedPluginError(str(exc)) from exc
 

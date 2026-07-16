@@ -30,6 +30,7 @@ import {
   metricMean,
   modelOptions,
   nextDatasetSelection,
+  pollFailureDecision,
   preferredInferenceModels,
   profileOptions,
   scopeSummary,
@@ -158,6 +159,7 @@ let DELIVERY_NOTICE = "";
 let NATIVE_DASHBOARD_AVAILABLE = false;
 let NATIVE_DASHBOARD_REVISION = 0;
 let PROFILE_INDEX = { profiles: [] };
+let ACTIVE_DATA_ROOT = "./data";
 let activeProfile = INITIAL_PROFILE;
 let activeProfileOption = { name: "root", label: "当前根目录", kind: "root", active: true };
 
@@ -189,6 +191,7 @@ function acceptLaunchResponse(mode, token, response) {
 
 async function load(options = {}) {
   const suffix = `?v=${encodeURIComponent(DATA_VERSION)}${options.cacheBust ? `&t=${Date.now()}` : ""}`;
+  ACTIVE_DATA_ROOT = await resolvePublishedBrowserDirectory("./data", suffix);
   PROFILE_INDEX = await loadProfileIndex(suffix);
   activeProfileOption = activeProfileSelection();
   try {
@@ -214,7 +217,7 @@ async function load(options = {}) {
 
 async function loadProfileIndex(suffix = "") {
   try {
-    const response = await fetch("./data/profiles/index.json" + suffix);
+    const response = await fetch(`${ACTIVE_DATA_ROOT}/profiles/index.json${suffix}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.json();
   } catch (_) {
@@ -230,7 +233,20 @@ function activeProfileSelection() {
 }
 
 function profileDataPath(profile = "root") {
-  return profile === "root" ? "./data" : `./data/profiles/${encodeURIComponent(profile)}`;
+  return profile === "root" ? ACTIVE_DATA_ROOT : `${ACTIVE_DATA_ROOT}/profiles/${encodeURIComponent(profile)}`;
+}
+
+async function resolvePublishedBrowserDirectory(root, suffix = "") {
+  if (window.__SOH_STANDALONE__) return root;
+  const response = await fetch(`${root}/CURRENT.json${suffix}`);
+  if (response.status === 404) return root;
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const pointer = await response.json();
+  const generation = String(pointer?.generation || "");
+  if (pointer?.schema_version !== 1 || !/^[0-9a-f]{32}$/.test(generation)) {
+    throw new Error("invalid publication pointer");
+  }
+  return `${root}/.generations/${encodeURIComponent(generation)}`;
 }
 
 async function loadProfileArtifacts(profile, suffix) {
@@ -831,8 +847,12 @@ async function probeNativeDashboard() {
     return true;
   }
   try {
+    const nativeRoot = await resolvePublishedBrowserDirectory(
+      "./battery-dashboard",
+      `?v=${encodeURIComponent(DATA_VERSION)}&sync=${NATIVE_DASHBOARD_REVISION}`,
+    );
     const response = await fetch(
-      `./battery-dashboard/SYNC_MANIFEST.json?v=${encodeURIComponent(DATA_VERSION)}&sync=${NATIVE_DASHBOARD_REVISION}`,
+      `${nativeRoot}/SYNC_MANIFEST.json?v=${encodeURIComponent(DATA_VERSION)}&sync=${NATIVE_DASHBOARD_REVISION}`,
     );
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const manifest = await response.json();
@@ -1539,8 +1559,10 @@ function selectedValues(id) {
 }
 
 async function pollJob(jobId, token) {
+  let delayMs = 1000;
+  let consecutiveErrors = 0;
   while (true) {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
     try {
       const response = await fetch(`${API_BASE}/api/jobs/${encodeURIComponent(jobId)}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -1550,22 +1572,31 @@ async function pollJob(jobId, token) {
         activeJobs: ACTIVE_JOBS, response: job,
       })) return;
       ACTIVE_JOBS.training = { kind: "training", ...job };
+      consecutiveErrors = 0;
+      delayMs = 1000;
       renderWorkbench();
       if (isTerminalJobStatus(job.status)) {
         if (job.status !== "failed") await load({ cacheBust: true });
         return;
       }
     } catch (err) {
-      if (POLL_TOKENS.training !== token) return;
-      setJobMessage(`任务轮询失败：${err.message}`);
-      return;
+      consecutiveErrors += 1;
+      const decision = pollFailureDecision({
+        mode: "training", jobId, token, pollTokens: POLL_TOKENS,
+        activeJobs: ACTIVE_JOBS, consecutiveErrors,
+      });
+      if (!decision.continuePolling) return;
+      delayMs = decision.delayMs;
+      setJobMessage(`任务轮询暂时失败，正在重连：${err.message}`);
     }
   }
 }
 
 async function pollInferenceJob(jobId, token) {
+  let delayMs = 1000;
+  let consecutiveErrors = 0;
   while (true) {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
     try {
       const response = await fetch(`${API_BASE}/api/inference-jobs/${encodeURIComponent(jobId)}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -1575,6 +1606,8 @@ async function pollInferenceJob(jobId, token) {
         activeJobs: ACTIVE_JOBS, response: job,
       })) return;
       ACTIVE_JOBS.inference = job;
+      consecutiveErrors = 0;
+      delayMs = 1000;
       renderInferencePanel(currentInferenceDatasetOptions());
       if (isTerminalJobStatus(job.status)) {
         if (job.status !== "failed") {
@@ -1586,9 +1619,14 @@ async function pollInferenceJob(jobId, token) {
         return;
       }
     } catch (err) {
-      if (POLL_TOKENS.inference !== token) return;
-      setInferenceMessage(`推理任务轮询失败：${err.message}`, "fail");
-      return;
+      consecutiveErrors += 1;
+      const decision = pollFailureDecision({
+        mode: "inference", jobId, token, pollTokens: POLL_TOKENS,
+        activeJobs: ACTIVE_JOBS, consecutiveErrors,
+      });
+      if (!decision.continuePolling) return;
+      delayMs = decision.delayMs;
+      setInferenceMessage(`推理任务轮询暂时失败，正在重连：${err.message}`, "active");
     }
   }
 }

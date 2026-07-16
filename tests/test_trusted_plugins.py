@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from sohbench import registry as R
+import sohbench.trusted_plugins as trusted_plugins_module
 from sohbench.data import DatasetLoader
 from sohbench.registry import get_estimator, get_featureset
 from sohbench.trusted_plugins import TrustedPluginError, TrustedPluginStore, _load_module
@@ -177,6 +178,39 @@ class Estimator:
         )
 
 
+def test_upload_estimator_plugin_rejects_inverted_native_intervals(tmp_path):
+    store = TrustedPluginStore(
+        base_dir=tmp_path / "plugins", data_dir=tmp_path / "data"
+    )
+    code = b'''
+import numpy as np
+
+class Estimator:
+    name = "trusted_inverted_interval"
+
+    def fit(self, X, y, meta=None):
+        return self
+
+    def predict(self, X, meta=None):
+        return np.full(len(X), 0.9)
+
+    def predict_interval(self, X, meta=None):
+        low = np.full(len(X), 0.8)
+        low[-1] = 1.1
+        return low, np.full(len(X), 1.0)
+'''
+
+    with pytest.raises(
+        TrustedPluginError,
+        match="interval_low must not exceed interval_high",
+    ):
+        store.upload_estimator_plugin(
+            name="inverted_interval",
+            filename="inverted_interval.py",
+            payload=code,
+        )
+
+
 def test_upload_featureset_plugin_registers_transforming_feature_set(tmp_path):
     store = TrustedPluginStore(base_dir=tmp_path / "plugins", data_dir=tmp_path / "data")
     code = b'''
@@ -316,3 +350,147 @@ def transform(table, meta=None):
     TrustedPluginStore(base_dir=project / "plugins", data_dir=project / "data")
 
     assert get_featureset("reload_features").candidates == ["reload_cycle"]
+
+
+def test_invalid_estimator_replacement_preserves_last_known_good_state(tmp_path):
+    store = TrustedPluginStore(
+        base_dir=tmp_path / "plugins", data_dir=tmp_path / "data"
+    )
+    valid_source = b'''
+import numpy as np
+
+class Estimator:
+    name = "replacement_safe_estimator"
+    feature_mode = "unified"
+    backend = "external"
+
+    def fit(self, X, y, meta=None):
+        self.value = float(np.mean(y))
+        return self
+
+    def predict(self, X, meta=None):
+        return np.full(len(X), self.value)
+'''
+    resource = store.upload_estimator_plugin(
+        "replacement_safe_estimator",
+        "replacement_safe_estimator.py",
+        valid_source,
+    )
+    path = Path(resource["path"])
+    original_class = R._ESTIMATORS["replacement_safe_estimator"]
+    original_catalog = store.catalog_path.read_bytes()
+
+    with pytest.raises(TrustedPluginError, match="plugin import failed"):
+        store.upload_estimator_plugin(
+            "replacement_safe_estimator",
+            "replacement_safe_estimator.py",
+            b"class Estimator:\n    this is invalid python\n",
+            replace=True,
+        )
+
+    assert path.read_bytes() == valid_source
+    assert R._ESTIMATORS["replacement_safe_estimator"] is original_class
+    assert store.catalog_path.read_bytes() == original_catalog
+    estimator = original_class().fit(
+        _dataset_frame().iloc[:8],
+        _dataset_frame().iloc[:8]["soh"].to_numpy(),
+        pd.DataFrame(),
+    )
+    assert np.isfinite(estimator.predict(_dataset_frame().iloc[8:], None)).all()
+
+
+def test_invalid_feature_replacement_preserves_pipeline_and_catalog(tmp_path):
+    store = TrustedPluginStore(
+        base_dir=tmp_path / "plugins", data_dir=tmp_path / "data"
+    )
+    valid_source = b'''
+FEATURESET_NAME = "replacement_safe_features"
+FEATURE_COLUMNS = ["replacement_cycle"]
+
+def transform(table, meta=None):
+    out = table.copy()
+    out["replacement_cycle"] = out["cycle_index"].astype(float)
+    return out
+'''
+    resource = store.upload_featureset_plugin(
+        "replacement_safe_features",
+        "replacement_safe_features.py",
+        valid_source,
+    )
+    path = Path(resource["path"])
+    original_featureset = R._FEATURESETS["replacement_safe_features"]
+    original_plugin = store._feature_plugins["replacement_safe_features"]
+    original_catalog = store.catalog_path.read_bytes()
+    pipeline = store.feature_pipeline("replacement_safe_features")
+    frame = _dataset_frame().drop(columns=["soh"])
+    state = pipeline.fit(frame, np.empty(len(frame)), pd.DataFrame())
+
+    with pytest.raises(TrustedPluginError, match="did not return a DataFrame"):
+        store.upload_featureset_plugin(
+            "replacement_safe_features",
+            "replacement_safe_features.py",
+            b'''
+FEATURESET_NAME = "replacement_safe_features"
+FEATURE_COLUMNS = ["replacement_cycle"]
+
+def transform(table, meta=None):
+    return table.to_numpy()
+''',
+            replace=True,
+        )
+
+    assert path.read_bytes() == valid_source
+    assert R._FEATURESETS["replacement_safe_features"] is original_featureset
+    assert store._feature_plugins["replacement_safe_features"] is original_plugin
+    assert store.catalog_path.read_bytes() == original_catalog
+    transformed = pipeline.transform(frame, state, pd.DataFrame())
+    assert transformed["replacement_cycle"].equals(
+        transformed["cycle_index"].astype(float)
+    )
+
+
+def test_catalog_activation_failure_rolls_back_plugin_replacement(
+    tmp_path, monkeypatch
+):
+    store = TrustedPluginStore(
+        base_dir=tmp_path / "plugins", data_dir=tmp_path / "data"
+    )
+    original_source = b'''
+import numpy as np
+class Estimator:
+    name = "catalog_safe_estimator"
+    def fit(self, X, y, meta=None):
+        self.value = 0.9
+        return self
+    def predict(self, X, meta=None):
+        return np.full(len(X), self.value)
+'''
+    replacement_source = original_source.replace(b"0.9", b"0.8")
+    resource = store.upload_estimator_plugin(
+        "catalog_safe_estimator", "catalog_safe_estimator.py", original_source
+    )
+    path = Path(resource["path"])
+    original_class = R._ESTIMATORS["catalog_safe_estimator"]
+    original_catalog = store.catalog_path.read_bytes()
+    real_replace = trusted_plugins_module.os.replace
+
+    def fail_catalog_activation(source, destination):
+        if Path(destination) == store.catalog_path:
+            raise OSError("injected catalog activation failure")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(
+        trusted_plugins_module.os, "replace", fail_catalog_activation
+    )
+
+    with pytest.raises(OSError, match="injected catalog activation failure"):
+        store.upload_estimator_plugin(
+            "catalog_safe_estimator",
+            "catalog_safe_estimator.py",
+            replacement_source,
+            replace=True,
+        )
+
+    assert path.read_bytes() == original_source
+    assert R._ESTIMATORS["catalog_safe_estimator"] is original_class
+    assert store.catalog_path.read_bytes() == original_catalog

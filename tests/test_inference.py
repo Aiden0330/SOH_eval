@@ -347,3 +347,36 @@ def test_inference_rejects_invalid_interval_arrays(bound, invalid):
     assert record["status"] == "failed"
     assert record["mae"] is None
     assert bound in record["error"]
+
+
+def test_inference_rejects_inverted_intervals():
+    table = _table().loc[lambda frame: frame["dataset"].eq("new_a")]
+    store = FixedOutputStore(
+        FixedOutputLoadedModel(
+            np.array([0.9, 0.8]),
+            (np.array([0.7, 1.1]), np.array([1.0, 1.0])),
+        )
+    )
+
+    record = run_inference_benchmark(
+        store, table, pd.DataFrame(), ["fixed_output"]
+    )[0]
+
+    assert record["status"] == "failed"
+    assert record["mae"] is None
+    assert "interval_low must not exceed interval_high" in record["error"]
+
+
+def test_inference_rejects_non_finite_point_metrics_from_finite_predictions():
+    table = _table().loc[lambda frame: frame["dataset"].eq("new_a")]
+    store = FixedOutputStore(
+        FixedOutputLoadedModel(np.full(len(table), np.finfo(float).max))
+    )
+
+    record = run_inference_benchmark(
+        store, table, pd.DataFrame(), ["fixed_output"]
+    )[0]
+
+    assert record["status"] == "failed"
+    assert record["mae"] is None
+    assert "metrics must be finite" in record["error"]

@@ -35,7 +35,8 @@ for (const endpoint of [
 }
 assert.match(app, /function renderNativeDashboard/);
 assert.match(app, /function probeNativeDashboard/);
-assert.match(app, /\.\/battery-dashboard\/SYNC_MANIFEST\.json/);
+assert.match(app, /resolvePublishedBrowserDirectory\(\s*"\.\/battery-dashboard"/);
+assert.match(app, /`\$\{nativeRoot\}\/SYNC_MANIFEST\.json/);
 assert.match(app, /function refreshDeliveryReport/);
 assert.match(app, /include_curves:\s*true/);
 assert.match(app, /include_detection:\s*false/);

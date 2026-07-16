@@ -4,7 +4,7 @@ import copy
 import inspect
 import random
 import threading
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -14,7 +14,11 @@ from joblib.externals import cloudpickle
 
 from . import metrics as M
 from .conformal import ConformalWrapper, WeightedConformalWrapper
-from .contracts import validate_finite_vector
+from .contracts import (
+    validate_finite_metrics,
+    validate_finite_vector,
+    validate_interval_bounds,
+)
 from .fabric import FeatureState, IdentityFeaturePipeline, clone_for_fold, scoped_meta_for_frame
 from .fabric.failures import InputContractError, MetricEvaluationError, classify_exception
 from .fabric.views import make_fold_views
@@ -68,19 +72,6 @@ def _instantiate_estimator(factory, seed):
     elif hasattr(estimator, "random_state"):
         estimator.random_state = seed
     return estimator
-
-
-def _supports_private_random_state(factory) -> bool:
-    if isinstance(factory, type):
-        params = inspect.signature(factory).parameters
-        return (
-            "random_state" in params
-            or callable(getattr(factory, "set_seed", None))
-            or hasattr(factory, "random_state")
-        )
-    return callable(getattr(factory, "set_seed", None)) or hasattr(
-        factory, "random_state"
-    )
 
 
 @contextmanager
@@ -238,12 +229,7 @@ class BenchmarkRunner:
                         }
                         snapshot_path, snapshot_error = None, None
                         try:
-                            random_scope = (
-                                nullcontext()
-                                if _supports_private_random_state(est_factory)
-                                else _legacy_random_scope(seed)
-                            )
-                            with random_scope:
+                            with _legacy_random_scope(seed):
                                 if feature_error is not None:
                                     raise feature_error
                                 try:
@@ -272,7 +258,6 @@ class BenchmarkRunner:
                                     name="predictions",
                                     n_samples=len(test_x),
                                 )
-                                row = self._point_metrics(task, test_y, yp)
                                 lo, hi = est.predict_interval(test_x, test_meta)
                                 lo = validate_finite_vector(
                                     lo,
@@ -284,6 +269,8 @@ class BenchmarkRunner:
                                     name="interval_high",
                                     n_samples=len(test_x),
                                 )
+                                validate_interval_bounds(lo, hi)
+                                row = self._point_metrics(task, test_y, yp)
                                 row.update(self._interval_metrics(test_y, lo, hi))
                                 row.update(self._trajectory_metrics(task, test_x, yp))
                         except Exception as exc:
@@ -437,13 +424,18 @@ class BenchmarkRunner:
 
     def _point_metrics(self, task, yt, yp):
         try:
-            return {metric: getattr(M, metric)(yt, yp) for metric in task.point_metrics}
+            return validate_finite_metrics(
+                {
+                    metric: getattr(M, metric)(yt, yp)
+                    for metric in task.point_metrics
+                }
+            )
         except Exception as exc:
             raise MetricEvaluationError(str(exc)) from exc
 
     def _interval_metrics(self, yt, lo, hi):
         try:
-            return {"picp": M.picp(yt, lo, hi)}
+            return validate_finite_metrics({"picp": M.picp(yt, lo, hi)})
         except Exception as exc:
             raise MetricEvaluationError(str(exc)) from exc
 
@@ -467,9 +459,13 @@ class BenchmarkRunner:
                 )
             if not per_asset:
                 raise ValueError("trajectory metrics require an asset with at least two cycles")
-            return {
-                metric: float(np.mean([values[metric] for values in per_asset]))
-                for metric in task.trajectory_metrics
-            }
+            return validate_finite_metrics(
+                {
+                    metric: float(
+                        np.mean([values[metric] for values in per_asset])
+                    )
+                    for metric in task.trajectory_metrics
+                }
+            )
         except Exception as exc:
             raise MetricEvaluationError(str(exc)) from exc

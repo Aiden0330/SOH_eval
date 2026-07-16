@@ -6,7 +6,10 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sohbench.frontend_publish import _publish_directory
+from sohbench.frontend_publish import (
+    _publish_directory,
+    resolve_published_directory,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -162,7 +165,9 @@ def _native_dashboard_is_available(path: Path) -> bool:
 def package_portable_frontend(app_dir: Path = DEFAULT_APP_DIR, output: Path = DEFAULT_OUTPUT) -> dict:
     app_dir = Path(app_dir)
     output = Path(output)
-    native_dashboard = app_dir / "battery-dashboard"
+    native_dashboard = resolve_published_directory(
+        app_dir / "battery-dashboard"
+    )
 
     if not (app_dir / "index.html").is_file():
         raise FileNotFoundError(f"Missing frontend index.html: {app_dir / 'index.html'}")
@@ -180,7 +185,9 @@ def package_portable_frontend(app_dir: Path = DEFAULT_APP_DIR, output: Path = DE
 
         data_source = app_dir / "data"
         if data_source.is_dir():
-            _copy_data_tree_without_detection(data_source, staging / "data")
+            _copy_data_tree_without_detection(
+                resolve_published_directory(data_source), staging / "data"
+            )
             copied_assets.append("data/")
 
         excluded_detection_assets = True

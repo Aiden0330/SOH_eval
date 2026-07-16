@@ -227,7 +227,7 @@ def _smoke_dataset_csv(config: SmokeAcceptanceConfig) -> bytes:
         cell_id = f"smoke_cell_{cell_index + 1:02d}"
         cell_offset = cell_index * 0.0015
         for cycle in range(int(config.cycles)):
-            fade = 0.006 * cycle + cell_offset
+            fade = 0.02 * cycle + cell_offset
             soh = max(0.72, 1.0 - fade)
             voltage_mean = 3.62 - 0.008 * cycle - cell_offset
             voltage_max = 4.10 - 0.004 * cycle

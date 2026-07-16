@@ -120,7 +120,7 @@ export function summarizeBySelection(aggregateRows = [], datasetRows = [], selec
   const selected = normalizeSelection(selectedDatasets, allDatasets);
   const coversAll = all.size > 0 && selected.size === all.size && [...all].every((name) => selected.has(name));
 
-  if (coversAll || !datasetRows.length) {
+  if (coversAll || (!all.size && !selected.size)) {
     return {
       entries: aggregateRows,
       selectedDatasets: [...selected],
@@ -132,10 +132,10 @@ export function summarizeBySelection(aggregateRows = [], datasetRows = [], selec
   const filtered = datasetRows.filter((row) => selected.has(heldOutDatasetName(row.held_out_key)));
   if (!filtered.length) {
     return {
-      entries: aggregateRows,
+      entries: [],
       selectedDatasets: [...selected],
-      usedDatasetLevel: false,
-      scopeLabel: "全部数据集",
+      usedDatasetLevel: true,
+      scopeLabel: [...selected].join(", "),
     };
   }
 
@@ -686,6 +686,32 @@ export function isCurrentModePollResponse({
     && current.id === response.id
     && pollTokens?.[mode] === token,
   );
+}
+
+export function pollFailureDecision({
+  mode,
+  jobId,
+  token,
+  pollTokens = {},
+  activeJobs = {},
+  consecutiveErrors = 1,
+  baseDelayMs = 1000,
+  maxDelayMs = 8000,
+} = {}) {
+  const current = activeJobs?.[mode] || null;
+  if (
+    pollTokens?.[mode] !== token
+    || !current?.id
+    || current.id !== jobId
+  ) {
+    return { continuePolling: false, state: "stale", delayMs: 0 };
+  }
+  const failures = Math.max(1, Math.floor(Number(consecutiveErrors) || 1));
+  const delayMs = Math.min(
+    Math.max(0, Number(maxDelayMs) || 0),
+    Math.max(0, Number(baseDelayMs) || 0) * (2 ** Math.min(failures - 1, 20)),
+  );
+  return { continuePolling: true, state: "reconnecting", delayMs };
 }
 
 function uniqueStrings(values = []) {

@@ -124,6 +124,91 @@ def test_concurrent_legacy_candidates_keep_seeded_random_streams_isolated():
         np.testing.assert_allclose(draws[job]["python"], expected_python)
 
 
+def test_concurrent_private_seed_candidates_still_isolate_global_random_streams():
+    first_drawn = {
+        "seed-111": threading.Event(),
+        "seed-222": threading.Event(),
+    }
+    release_first = threading.Event()
+    draws = {}
+    errors = []
+
+    class PrivateAndGlobalRandomEstimator:
+        name = "private_and_global_random"
+        feature_mode = "unified"
+        backend = "external"
+
+        def __init__(self, random_state=None):
+            self.random_state = random_state
+
+        def fit(self, X, y, meta=None):
+            job = threading.current_thread().name
+            numpy_values = [float(np.random.random())]
+            python_values = [random.random()]
+            first_drawn[job].set()
+            if job == "seed-111" and not release_first.wait(timeout=5):
+                raise TimeoutError("second candidate was not released")
+            numpy_values.append(float(np.random.random()))
+            python_values.append(random.random())
+            draws[job] = {"numpy": numpy_values, "python": python_values}
+            return self
+
+        def predict(self, X, meta=None):
+            return np.full(len(X), 0.9)
+
+        def predict_interval(self, X, meta=None):
+            center = self.predict(X, meta)
+            return center, center
+
+    table = _single_fold_table()
+    original_numpy_state = np.random.get_state()
+    original_python_state = random.getstate()
+
+    def execute(seed):
+        try:
+            BenchmarkRunner(seeds=[seed]).run(
+                SOHEstimationTask(),
+                table=table,
+                meta=pd.DataFrame(),
+                protocols={"demo": _SingleFoldProtocol()},
+                estimators=[PrivateAndGlobalRandomEstimator],
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=execute, args=(111,), name="seed-111")
+    second = threading.Thread(target=execute, args=(222,), name="seed-222")
+    try:
+        first.start()
+        assert first_drawn["seed-111"].wait(timeout=5)
+        second.start()
+        first_drawn["seed-222"].wait(timeout=1)
+        release_first.set()
+        first.join(timeout=5)
+        second.join(timeout=5)
+    finally:
+        release_first.set()
+        first.join(timeout=5)
+        if second.ident is not None:
+            second.join(timeout=5)
+        np.random.set_state(original_numpy_state)
+        random.setstate(original_python_state)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+    for seed in (111, 222):
+        job = f"seed-{seed}"
+        np.testing.assert_allclose(
+            draws[job]["numpy"], np.random.RandomState(seed).random_sample(2)
+        )
+        expected_python = random.Random(seed)
+        np.testing.assert_allclose(
+            draws[job]["python"],
+            [expected_python.random(), expected_python.random()],
+        )
+
+
 @pytest.mark.parametrize(
     "prediction",
     [
@@ -203,9 +288,41 @@ def test_runner_rejects_invalid_interval_arrays(bound, invalid):
     assert results["error_category"].eq("ALGORITHM").all()
     assert results["error_message"].str.contains(bound).all()
 
+
+def test_runner_rejects_inverted_native_intervals():
+    class InvertedIntervalEstimator:
+        name = "inverted_interval"
+        feature_mode = "unified"
+        backend = "external"
+
+        def fit(self, X, y, meta=None):
+            return self
+
+        def predict(self, X, meta=None):
+            return np.full(len(X), 0.9)
+
+        def predict_interval(self, X, meta=None):
+            return np.array([0.8, 1.1]), np.array([1.0, 1.0])
+
+    results = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(),
+        table=_single_fold_table(),
+        meta=pd.DataFrame(),
+        protocols={"demo": _SingleFoldProtocol()},
+        estimators=[InvertedIntervalEstimator],
+    )
+
+    assert results["unit_status"].eq("failed").all()
+    assert results["error_category"].eq("ALGORITHM").all()
+    assert results["error_message"].str.contains(
+        "interval_low must not exceed interval_high"
+    ).all()
+
 def test_runner_produces_results_with_ci_and_seeds():
     from sohbench.metadata import build_meta
-    t = _table(); meta = build_meta(t)
+    t = _table()
+    t["soh"] = 1.0 - 0.02 * t["cycle_index"]
+    meta = build_meta(t)
     runner = BenchmarkRunner(seeds=[0,1,2,3,4])
     rs = runner.run(SOHEstimationTask(), table=t, meta=meta,
                     protocols={"loco": LeaveOneCellOut()},
@@ -297,6 +414,35 @@ def test_metric_value_error_is_a_metric_failure(monkeypatch):
     assert results["error_category"].eq("METRIC").all()
     assert results["error_type"].eq("ValueError").all()
     assert results["error_message"].eq("mae calculation failed").all()
+
+
+def test_non_finite_metric_output_is_a_metric_failure():
+    class FiniteExtremeEstimator:
+        name = "finite_extreme"
+        feature_mode = "unified"
+        backend = "external"
+
+        def fit(self, X, y, meta=None):
+            return self
+
+        def predict(self, X, meta=None):
+            return np.full(len(X), np.finfo(float).max)
+
+        def predict_interval(self, X, meta=None):
+            center = self.predict(X, meta)
+            return center, center
+
+    results = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(),
+        table=_single_fold_table(),
+        meta=pd.DataFrame(),
+        protocols={"demo": _SingleFoldProtocol()},
+        estimators=[FiniteExtremeEstimator],
+    )
+
+    assert results["unit_status"].eq("failed").all()
+    assert results["error_category"].eq("METRIC").all()
+    assert results["error_message"].str.contains("metrics must be finite").all()
 
 
 def test_feature_contract_value_error_is_an_input_contract_failure():
@@ -486,7 +632,7 @@ def test_runner_calls_on_model_fitted_after_successful_fit():
             "dataset": ["demo"] * 5,
             "cell_id": ["c1", "c1", "c1", "c2", "c2"],
             "cycle_index": [0, 1, 2, 3, 4],
-            "soh": [1.0, 0.99, 0.98, 0.97, 0.96],
+            "soh": [1.0, 0.9, 0.8, 0.79, 0.78],
             "voltage_mean": [3.5, 3.49, 3.48, 3.47, 3.46],
         }
     )
@@ -504,5 +650,5 @@ def test_runner_calls_on_model_fitted_after_successful_fit():
 
     assert len(seen) == 1
     assert seen[0]["record"]["estimator"] == "tiny_estimator"
-    assert np.isclose(seen[0]["estimator"].mean_, 0.99)
+    assert np.isclose(seen[0]["estimator"].mean_, 0.9)
     assert list(seen[0]["train_table"]["cycle_index"]) == [0, 1, 2]

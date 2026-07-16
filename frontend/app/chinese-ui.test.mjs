@@ -85,6 +85,8 @@ assert.match(app, /inferenceCompatibilitySummary/);
 assert.match(app, /inferenceLaunchPlan/);
 assert.match(app, /canLaunchModeJob/);
 assert.match(app, /isCurrentModePollResponse/);
+assert.match(app, /pollFailureDecision/);
+assert.equal((app.match(/pollFailureDecision\(\{/g) || []).length, 2);
 assert.match(app, /inferenceAuditSummary/);
 assert.match(app, /inference_run_config\.json/);
 assert.match(app, /renderInferenceAudit/);

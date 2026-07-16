@@ -17,11 +17,17 @@ def register_battery_soh_plugins(
     replace: bool = False,
 ) -> dict:
     root = validate_battery_soh_root(battery_root)
+    dependency_snapshot = store.snapshot_dependency_tree(
+        ESTIMATOR_NAME, root / "soh_core"
+    )
     estimator = store.upload_estimator_plugin(
         ESTIMATOR_NAME,
         f"{ESTIMATOR_NAME}.py",
-        build_battery_soh_estimator_plugin_source(root).encode("utf-8"),
+        build_battery_soh_estimator_plugin_source(dependency_snapshot).encode(
+            "utf-8"
+        ),
         replace=replace,
+        dependencies={"soh_core": dependency_snapshot / "soh_core"},
     )
     featureset = store.upload_featureset_plugin(
         FEATURESET_NAME,
@@ -31,6 +37,7 @@ def register_battery_soh_plugins(
     )
     return {
         "battery_soh_root": str(root),
+        "dependency_snapshot": str(dependency_snapshot),
         "estimator": estimator,
         "featureset": featureset,
     }
@@ -61,7 +68,26 @@ BATTERY_SOH_ROOT = Path({root_literal})
 if str(BATTERY_SOH_ROOT) not in sys.path:
     sys.path.insert(0, str(BATTERY_SOH_ROOT))
 
-from soh_core.models.tabular_ensemble import TabularSOHEnsemble
+for _module_name, _module in list(sys.modules.items()):
+    if _module_name != "soh_core" and not _module_name.startswith("soh_core."):
+        continue
+    _module_file = getattr(_module, "__file__", None)
+    try:
+        _is_current_snapshot = bool(
+            _module_file
+            and Path(_module_file).resolve().is_relative_to(BATTERY_SOH_ROOT)
+        )
+    except OSError:
+        _is_current_snapshot = False
+    if not _is_current_snapshot:
+        sys.modules.pop(_module_name, None)
+
+_previous_dont_write_bytecode = sys.dont_write_bytecode
+sys.dont_write_bytecode = True
+try:
+    from soh_core.models.tabular_ensemble import TabularSOHEnsemble
+finally:
+    sys.dont_write_bytecode = _previous_dont_write_bytecode
 
 
 class Estimator:

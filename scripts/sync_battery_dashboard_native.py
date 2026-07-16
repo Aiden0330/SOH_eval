@@ -5,7 +5,10 @@ import json
 import shutil
 from pathlib import Path
 
-from sohbench.frontend_publish import _publish_directory
+from sohbench.frontend_publish import (
+    _publish_directory,
+    resolve_published_directory,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -306,6 +309,7 @@ def sync_native_dashboard(
 ) -> dict:
     source = Path(source)
     target = Path(target)
+    source = resolve_published_directory(source)
     source_data = source / "data"
 
     if not (source / "index.html").is_file():
@@ -371,7 +375,8 @@ def main(argv: list[str] | None = None) -> None:
         include_curves=not args.no_curves,
         include_detection=args.include_detection,
     )
-    total_bytes = sum((Path(args.target) / "data" / name).stat().st_size for name in manifest["copied_files"])
+    active_target = resolve_published_directory(args.target)
+    total_bytes = sum((active_target / "data" / name).stat().st_size for name in manifest["copied_files"])
     print(
         f"Synced {len(manifest['copied_files'])} files "
         f"({total_bytes / (1024 * 1024):.2f} MiB) to {args.target}"

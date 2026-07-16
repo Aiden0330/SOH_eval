@@ -55,7 +55,7 @@ def _sample_frame():
                     "dataset": "demo",
                     "cell_id": cell,
                     "cycle_index": cycle,
-                    "soh": 1.0 - 0.01 * cycle,
+                    "soh": 1.0 - 0.05 * cycle,
                     "voltage_mean": 3.7 - 0.02 * cycle,
                     "resistance_proxy": 0.02 + 0.001 * cycle,
                 }
@@ -136,10 +136,100 @@ def test_register_battery_soh_plugins_normalizes_relative_root(tmp_path, monkeyp
     ]
 
     assert Path(result["battery_soh_root"]).is_absolute()
-    assert repr(str(Path(result["battery_soh_root"]))) in (tmp_path / "plugins" / "estimators" / "battery_soh_tabular_ensemble.py").read_text(
-        encoding="utf-8"
-    )
+    dependency_root = Path(result["dependency_snapshot"])
+    assert dependency_root.is_absolute()
+    assert dependency_root.is_relative_to(tmp_path / "plugins" / "dependencies")
+    assert repr(str(dependency_root)) in (
+        tmp_path / "plugins" / "estimators" / "battery_soh_tabular_ensemble.py"
+    ).read_text(encoding="utf-8")
     assert Path(estimator_catalog[0]["path"]).is_absolute()
+
+
+def test_battery_dependency_change_updates_candidate_and_run_identity(tmp_path):
+    battery_root = tmp_path / "battery_SOH"
+    _write_fake_battery_soh_root(battery_root)
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.import_battery_soh_plugins(
+        battery_soh_root=battery_root, replace=True
+    )
+    table = _sample_frame()
+    request = service._normalize_request(
+        {
+            "datasets": ["demo"],
+            "estimators": ["battery_soh_tabular_ensemble"],
+            "featuresets": ["battery_soh_operational"],
+            "protocols": ["loco"],
+            "seeds": [0],
+        }
+    )
+    first = service._build_run_spec(
+        run_type="training",
+        request=request,
+        datasets=["demo"],
+        table=table,
+        qc={},
+    )
+
+    dependency_file = (
+        battery_root / "soh_core" / "models" / "tabular_ensemble.py"
+    )
+    dependency_file.write_text(
+        dependency_file.read_text(encoding="utf-8") + "\nDEPENDENCY_REVISION = 2\n",
+        encoding="utf-8",
+    )
+    service.import_battery_soh_plugins(
+        battery_soh_root=battery_root, replace=True
+    )
+    second = service._build_run_spec(
+        run_type="training",
+        request=request,
+        datasets=["demo"],
+        table=table,
+        qc={},
+    )
+
+    first_dependencies = [
+        artifact
+        for artifact in first.candidates[0].artifacts
+        if artifact.kind == "executable_dependency_tree"
+    ]
+    second_dependencies = [
+        artifact
+        for artifact in second.candidates[0].artifacts
+        if artifact.kind == "executable_dependency_tree"
+    ]
+    assert len(first_dependencies) == len(second_dependencies) == 1
+    assert first_dependencies[0].spec_id == second_dependencies[0].spec_id
+    assert first_dependencies[0].digest != second_dependencies[0].digest
+    assert first.candidates[0].digest != second.candidates[0].digest
+    assert first.digest != second.digest
+
+
+def test_battery_dependency_snapshot_excludes_unhashed_bytecode(tmp_path):
+    battery_root = tmp_path / "battery_SOH"
+    _write_fake_battery_soh_root(battery_root)
+    bytecode_dir = battery_root / "soh_core" / "models" / "__pycache__"
+    bytecode_dir.mkdir()
+    (bytecode_dir / "tabular_ensemble.cpython-312.pyc").write_bytes(
+        b"unbound-bytecode"
+    )
+    store = TrustedPluginStore(tmp_path / "plugins", tmp_path / "data")
+
+    result = register_battery_soh_plugins(
+        store, battery_root=battery_root, replace=True
+    )
+
+    snapshot = Path(result["dependency_snapshot"])
+    assert not any(
+        "__pycache__" in item.relative_to(snapshot).parts
+        or item.suffix.lower() == ".pyc"
+        for item in snapshot.rglob("*")
+    )
 
 
 def test_api_import_battery_soh_plugins_registers_resources(tmp_path):

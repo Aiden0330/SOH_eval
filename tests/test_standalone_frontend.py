@@ -11,6 +11,7 @@ import pytest
 
 from scripts.build_standalone_frontend import APP_DIR, build_standalone_html
 from scripts.package_portable_frontend import package_portable_frontend
+from sohbench.evaluation_service import EvaluationService
 
 
 def _write_json(path: Path, payload) -> None:
@@ -120,6 +121,40 @@ def test_real_app_standalone_includes_complete_synced_native_dashboard(tmp_path)
     assert "SOH 完整看板" in standalone
     assert "native-fixture" in standalone
     assert '\\"curve\\":[1,2,3]' in standalone
+
+
+def test_standalone_partial_write_failure_preserves_last_known_good(
+    tmp_path, monkeypatch
+):
+    output = tmp_path / "soh-eval-standalone.html"
+    old_bytes = b"last-known-good-standalone"
+    output.write_bytes(old_bytes)
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    real_write_text = Path.write_text
+
+    def partial_write(path, text, *args, **kwargs):
+        is_owned_temp = (
+            path.parent == output.parent
+            and path.name.startswith(f".{output.name}.tmp-")
+        )
+        if path == output or is_owned_temp:
+            with path.open("wb") as stream:
+                stream.write(str(text).encode("utf-8")[:31])
+            raise OSError("injected standalone partial write")
+        return real_write_text(path, text, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", partial_write)
+
+    with pytest.raises(OSError, match="injected standalone partial write"):
+        service.package_standalone_frontend(app_dir=APP_DIR, output=output)
+
+    assert output.read_bytes() == old_bytes
+    assert not list(output.parent.glob(f".{output.name}.tmp-*"))
 
 
 def test_standalone_bundle_executes_and_renders_embedded_data(tmp_path):

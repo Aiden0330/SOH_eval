@@ -26,6 +26,22 @@ def validate_finite_vector(values, *, name: str, n_samples: int) -> np.ndarray:
         raise ValueError(f"{name} must contain only finite values")
     return array
 
+
+def validate_interval_bounds(low: np.ndarray, high: np.ndarray) -> None:
+    if np.any(low > high):
+        raise ValueError("interval_low must not exceed interval_high")
+
+
+def validate_finite_metrics(metrics: dict) -> dict:
+    invalid = [
+        str(name)
+        for name, value in metrics.items()
+        if value is not None and not np.isfinite(value)
+    ]
+    if invalid:
+        raise ValueError(f"metrics must be finite: {', '.join(sorted(invalid))}")
+    return metrics
+
 @dataclass(frozen=True)
 class CellMeta:
     dataset: str

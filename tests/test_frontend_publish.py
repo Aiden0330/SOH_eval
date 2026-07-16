@@ -30,6 +30,13 @@ def _snapshot(path: Path) -> dict[str, bytes]:
     }
 
 
+def _active_publication(path: Path) -> Path:
+    resolver = getattr(
+        frontend_publish_module, "resolve_published_directory", None
+    )
+    return resolver(path) if resolver is not None else path
+
+
 def _write_native_dashboard(root: Path, *, include_curves: bool = True) -> Path:
     data = root / "data"
     data.mkdir(parents=True)
@@ -219,3 +226,106 @@ def test_composite_root_publication_uses_first_source_and_preserves_profiles(tmp
     assert json.loads((frontend_data / "inference_benchmark.json").read_text(encoding="utf-8"))["run"] == "inference"
     assert not (frontend_data / "recommendation_summary.json").exists()
     assert _snapshot(frontend_data / "profiles") == profile_before
+
+
+def test_directory_publication_keeps_one_complete_generation_visible_to_reader(
+    tmp_path, monkeypatch
+):
+    target = tmp_path / "published"
+
+    def build_version(version):
+        def build(staging):
+            staging.mkdir(parents=True)
+            _write_json(staging / "manifest.json", {"version": version})
+            _write_json(staging / "payload.json", {"version": version})
+
+        return build
+
+    frontend_publish_module._publish_directory(target, build_version("old"))
+    stop = threading.Event()
+    observed = []
+    errors = []
+
+    def read_active_generation():
+        while not stop.is_set():
+            try:
+                active = _active_publication(target)
+                manifest = json.loads(
+                    (active / "manifest.json").read_text(encoding="utf-8")
+                )
+                payload = json.loads(
+                    (active / "payload.json").read_text(encoding="utf-8")
+                )
+                observed.append((manifest["version"], payload["version"]))
+            except BaseException as exc:
+                errors.append(exc)
+                return
+
+    real_replace = frontend_publish_module.os.replace
+
+    def pause_after_pointer_activation(source, destination):
+        result = real_replace(source, destination)
+        if Path(destination) == target / "CURRENT.json":
+            time.sleep(0.25)
+        return result
+
+    monkeypatch.setattr(
+        frontend_publish_module.os, "replace", pause_after_pointer_activation
+    )
+    reader = threading.Thread(target=read_active_generation)
+    reader.start()
+    try:
+        frontend_publish_module._publish_directory(
+            target, build_version("new")
+        )
+    finally:
+        stop.set()
+        reader.join(timeout=5)
+
+    assert not reader.is_alive()
+    assert errors == []
+    assert ("old", "old") in observed
+    assert ("new", "new") in observed
+    assert set(observed) <= {("old", "old"), ("new", "new")}
+
+
+def test_directory_activation_interruption_preserves_last_known_good(
+    tmp_path, monkeypatch
+):
+    target = tmp_path / "published"
+
+    def build(version):
+        def write(staging):
+            staging.mkdir(parents=True)
+            _write_json(staging / "manifest.json", {"version": version})
+            _write_json(staging / "payload.json", {"version": version})
+
+        return write
+
+    frontend_publish_module._publish_directory(target, build("old"))
+    real_replace = frontend_publish_module.os.replace
+
+    def interrupt_activation(source, destination):
+        source_path = Path(source)
+        destination_path = Path(destination)
+        if destination_path.name == "CURRENT.json":
+            raise KeyboardInterrupt("injected pointer interruption")
+        if source_path == target and ".bak-" in destination_path.name:
+            real_replace(source, destination)
+            raise KeyboardInterrupt("injected legacy interruption")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(
+        frontend_publish_module.os, "replace", interrupt_activation
+    )
+
+    with pytest.raises(KeyboardInterrupt, match="injected"):
+        frontend_publish_module._publish_directory(target, build("new"))
+
+    active = _active_publication(target)
+    assert json.loads(
+        (active / "manifest.json").read_text(encoding="utf-8")
+    )["version"] == "old"
+    assert json.loads(
+        (active / "payload.json").read_text(encoding="utf-8")
+    )["version"] == "old"

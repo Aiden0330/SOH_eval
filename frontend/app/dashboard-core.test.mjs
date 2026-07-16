@@ -28,6 +28,7 @@ import {
   leaderboardCoverage,
   modelAssetRows,
   modelOptions,
+  pollFailureDecision,
   scopeSummary,
   stabilityRows,
   taskHistoryRows,
@@ -72,6 +73,43 @@ import {
     activeJobs,
     response: { id: "infer-done", status: "succeeded" },
   }), true);
+}
+
+{
+  const activeJobs = {
+    training: { id: "train-live", status: "running" },
+    inference: { id: "infer-live", status: "queued", kind: "inference" },
+  };
+  const pollTokens = { training: 3, inference: 8 };
+  for (const [mode, jobId, token] of [
+    ["training", "train-live", 3],
+    ["inference", "infer-live", 8],
+  ]) {
+    const decision = pollFailureDecision({
+      mode,
+      jobId,
+      token,
+      pollTokens,
+      activeJobs,
+      consecutiveErrors: 4,
+    });
+    assert.equal(decision.continuePolling, true);
+    assert.equal(decision.state, "reconnecting");
+    assert.ok(decision.delayMs >= 1000 && decision.delayMs <= 8000);
+    assert.equal(activeJobs[mode].id, jobId);
+  }
+  assert.deepEqual(pollFailureDecision({
+    mode: "training",
+    jobId: "train-live",
+    token: 2,
+    pollTokens,
+    activeJobs,
+    consecutiveErrors: 1,
+  }), {
+    continuePolling: false,
+    state: "stale",
+    delayMs: 0,
+  });
 }
 
 const aggregate = [
@@ -427,6 +465,19 @@ function entry(estimator, featureset, mae, opts = {}) {
   assert.equal(summary.fastest.model, "b");
   assert.equal(summary.bestTransfer.model, "a");
   assert.equal(summary.highestThroughput.model, "b");
+}
+
+{
+  const selected = summarizeBySelection(
+    aggregate,
+    byDataset,
+    ["oxford"],
+    ["nasa", "hust", "oxford"],
+  );
+  assert.deepEqual(selected.entries, []);
+  assert.deepEqual(selected.selectedDatasets, ["oxford"]);
+  assert.equal(selected.usedDatasetLevel, true);
+  assert.equal(selected.scopeLabel, "oxford");
 }
 
 {

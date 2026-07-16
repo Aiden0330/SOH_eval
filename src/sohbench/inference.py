@@ -6,7 +6,12 @@ import numpy as np
 import pandas as pd
 
 from . import metrics as M
-from .contracts import validate_finite_vector
+from .contracts import (
+    validate_finite_metrics,
+    validate_finite_vector,
+    validate_interval_bounds,
+)
+from .fabric import scoped_meta_for_frame
 
 
 def run_inference_benchmark(
@@ -37,14 +42,15 @@ def run_inference_benchmark(
                 "load_ms": float(loaded.load_ms),
             }
             try:
+                group_meta = scoped_meta_for_frame(meta, group)
                 start = time.perf_counter()
                 pred = validate_finite_vector(
-                    loaded.predict(group, meta),
+                    loaded.predict(group, group_meta),
                     name="predictions",
                     n_samples=len(group),
                 )
                 predict_ms = (time.perf_counter() - start) * 1000.0
-                _validate_optional_intervals(loaded, group, meta)
+                _validate_optional_intervals(loaded, group, group_meta)
                 records.append(
                     {
                         **base,
@@ -94,7 +100,7 @@ def _metrics(group: pd.DataFrame, pred: np.ndarray) -> dict:
             out.update({"mae": None, "rmse": None, "mean_bias_error": None})
     else:
         out.update({"mae": None, "rmse": None, "mean_bias_error": None})
-    return out
+    return validate_finite_metrics(out)
 
 
 def _validate_optional_intervals(loaded, group, meta) -> None:
@@ -110,8 +116,11 @@ def _validate_optional_intervals(loaded, group, meta) -> None:
         raise ValueError(
             "predict_interval() must return interval_low and interval_high arrays"
         ) from exc
-    validate_finite_vector(low, name="interval_low", n_samples=len(group))
-    validate_finite_vector(high, name="interval_high", n_samples=len(group))
+    low = validate_finite_vector(low, name="interval_low", n_samples=len(group))
+    high = validate_finite_vector(
+        high, name="interval_high", n_samples=len(group)
+    )
+    validate_interval_bounds(low, high)
 
 
 def _trajectory_metrics(group: pd.DataFrame, pred: np.ndarray) -> dict:

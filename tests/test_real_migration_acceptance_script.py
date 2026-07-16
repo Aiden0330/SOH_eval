@@ -22,7 +22,7 @@ def _write_dataset(data_dir: Path, name: str, *, cells: int = 3, cycles: int = 1
                     "dataset": name,
                     "cell_id": f"{name}_cell_{cell + 1}",
                     "cycle_index": cycle,
-                    "soh": 1.0 - 0.01 * cycle - 0.001 * cell,
+                    "soh": 1.0 - 0.025 * cycle - 0.001 * cell,
                     "voltage_mean": 3.65 - 0.05 * norm,
                     "voltage_std": 0.01 + 0.002 * norm,
                     "voltage_min": 3.32 - 0.03 * norm,

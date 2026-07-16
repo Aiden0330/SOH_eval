@@ -18,7 +18,12 @@ from .battery_soh_plugins import register_battery_soh_plugins
 from .contracts import feature_columns
 from .data import DatasetLoader, normalize_cycle_index
 from .battery_dashboard_import import publish_battery_dashboard_profile
-from .frontend_publish import publish_frontend_profile, sync_frontend_artifacts
+from .frontend_publish import (
+    publish_frontend_artifacts,
+    publish_frontend_profile,
+    resolve_published_directory,
+    sync_frontend_artifacts,
+)
 from .inference import run_inference_benchmark
 from .model_store import LoadedModel, ModelReadSnapshot, ModelStore
 from .protocols import LeaveOneCellOut, LeaveOneChemistryOut, LeaveOneDatasetOut
@@ -475,7 +480,12 @@ class EvaluationService:
                     encoding="utf-8",
                 )
                 self._rebuild_evidence_pack(raw_run_dir)
-            published_run_dir = self._publish_frontend_artifacts(raw_run_dir)
+            training_run_dirs = self._training_run_dirs_for_models(
+                model_snapshots
+            )
+            published_run_dir = self._publish_frontend_composite(
+                raw_run_dir, training_run_dirs
+            )
             outcome = self._inference_outcome(records)
             job.update(
                 {
@@ -715,8 +725,16 @@ class EvaluationService:
                     _source_path(estimator),
                 )
             ]
+            artifacts.extend(
+                self._plugin_dependency_refs("estimators", candidate_name)
+            )
             for featureset_name in request.get("featuresets", []):
                 artifacts.append(self._feature_content_ref(featureset_name))
+                artifacts.extend(
+                    self._plugin_dependency_refs(
+                        "featuresets", featureset_name
+                    )
+                )
         else:
             known_models = {
                 item["name"] for item in self.model_store.catalog()
@@ -770,10 +788,32 @@ class EvaluationService:
                         manifest=manifest,
                     )
                 )
+                artifacts.extend(
+                    self._plugin_dependency_refs(
+                        "featuresets", featureset_name
+                    )
+                )
         return CandidateSpec(
             spec_id=candidate_name,
             artifacts=tuple(artifacts),
         )
+
+    def _plugin_dependency_refs(
+        self, section: str, plugin_name: str
+    ) -> list[SpecRef]:
+        return [
+            SpecRef(
+                kind=f"executable_dependency_{item['kind']}",
+                spec_id=f"{plugin_name}/{item['name']}",
+                version=(
+                    "sha256-tree-v1" if item["kind"] == "tree" else "sha256"
+                ),
+                digest=str(item["digest"]),
+            )
+            for item in self.store.declared_plugin_dependencies(
+                section, plugin_name
+            )
+        ]
 
     def _feature_content_ref(
         self, featureset_name: str, *, manifest: dict | None = None
@@ -930,6 +970,30 @@ class EvaluationService:
         sync_frontend_artifacts(raw_run_dir, self.frontend_data_dir)
         return raw_run_dir
 
+    def _publish_frontend_composite(
+        self, inference_run_dir: Path, training_run_dirs: list[Path]
+    ) -> Path:
+        publish_frontend_artifacts(
+            [*training_run_dirs, inference_run_dir], self.frontend_data_dir
+        )
+        return inference_run_dir
+
+    def _training_run_dirs_for_models(
+        self, model_snapshots: dict[str, ModelReadSnapshot]
+    ) -> list[Path]:
+        run_dirs = []
+        seen = set()
+        for snapshot in model_snapshots.values():
+            run_id = str(
+                snapshot.loaded.manifest.get("created_by_run") or ""
+            ).strip()
+            run_dir = self.runs_dir / run_id
+            if not run_id or run_id in seen or not run_dir.is_dir():
+                continue
+            seen.add(run_id)
+            run_dirs.append(run_dir)
+        return run_dirs
+
     def publish_frontend_profile(
         self,
         profile_name: str,
@@ -969,7 +1033,8 @@ class EvaluationService:
         dataset_name = str(dataset or "").strip()
         if not dataset_name:
             raise ValueError("dataset is required")
-        manifest_path = self.frontend_data_dir / "profiles" / profile / "manifest.json"
+        frontend_root = resolve_published_directory(self.frontend_data_dir)
+        manifest_path = frontend_root / "profiles" / profile / "manifest.json"
         if not manifest_path.exists():
             raise KeyError(f"profile not found: {profile}")
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -1054,13 +1119,17 @@ class EvaluationService:
         app_dir: str | Path | None = None,
         output: str | Path | None = None,
     ) -> dict:
-        from scripts.build_standalone_frontend import APP_DIR, DEFAULT_OUTPUT, build_standalone_html
+        from scripts.build_standalone_frontend import (
+            APP_DIR,
+            DEFAULT_OUTPUT,
+            build_standalone_html,
+            publish_standalone_html,
+        )
 
         source_app = Path(app_dir) if app_dir else APP_DIR
         output_path = Path(output) if output else DEFAULT_OUTPUT
         html, artifact_count = build_standalone_html(source_app)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(html, encoding="utf-8", newline="\n")
+        publish_standalone_html(output_path, html)
         embedded_payload = _standalone_data_payload(html)
         return {
             "standalone": True,
@@ -1299,7 +1368,7 @@ def _format_bytes(value: int | float) -> str:
 
 
 def _package_native_dashboard_info(path: Path) -> dict:
-    path = Path(path)
+    path = resolve_published_directory(path)
     data_dir = path / "data"
     manifest = _read_json_if_exists(path / "SYNC_MANIFEST.json")
     source_manifest = _read_json_if_exists(data_dir / "manifest.json")
@@ -1327,7 +1396,7 @@ def _package_native_dashboard_info(path: Path) -> dict:
 
 
 def _package_portable_info(path: Path) -> dict:
-    path = Path(path)
+    path = resolve_published_directory(path)
     manifest = _read_json_if_exists(path / "MANIFEST.json")
     file_count, total_bytes = _directory_file_stats(path)
     detection_assets = [item.relative_to(path).as_posix() for item in path.rglob("*ess_detection*.json") if item.is_file()]

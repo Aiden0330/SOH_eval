@@ -23,7 +23,11 @@ FRONTEND_ARTIFACTS = (
 )
 
 PROFILE_NAME_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*$")
+GENERATION_NAME_RE = re.compile(r"^[0-9a-f]{32}$")
+GENERATIONS_DIRNAME = ".generations"
+CURRENT_POINTER_NAME = "CURRENT.json"
 _PUBLICATION_LOCK = threading.RLock()
+_ATOMIC_REPLACE_TIMEOUT_SECONDS = 5.0
 
 
 def _remove_owned_directory(path: Path) -> None:
@@ -53,12 +57,136 @@ def _fsync_tree(path: Path) -> None:
     _fsync_directory(path)
 
 
+def resolve_published_directory(target: str | Path) -> Path:
+    root = Path(target)
+    pointer = root / CURRENT_POINTER_NAME
+    if not pointer.is_file():
+        return root
+    document = json.loads(pointer.read_text(encoding="utf-8"))
+    generation = str(document.get("generation") or "")
+    if (
+        document.get("schema_version") != 1
+        or not GENERATION_NAME_RE.fullmatch(generation)
+    ):
+        raise ValueError(f"invalid publication pointer: {pointer}")
+    active = root / GENERATIONS_DIRNAME / generation
+    if not active.is_dir():
+        raise FileNotFoundError(
+            f"active publication generation is unavailable: {active}"
+        )
+    return active
+
+
+def _atomic_replace(source: Path, destination: Path) -> None:
+    deadline = time.monotonic() + _ATOMIC_REPLACE_TIMEOUT_SECONDS
+    while True:
+        try:
+            os.replace(source, destination)
+            return
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.01)
+
+
+def publish_text_file_atomic(
+    target: str | Path,
+    text: str,
+    *,
+    validate: Callable[[Path], None] | None = None,
+) -> None:
+    path = Path(target)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.parent / f".{path.name}.tmp-{uuid.uuid4().hex}"
+    try:
+        temporary.write_text(text, encoding="utf-8", newline="\n")
+        with temporary.open("r+b") as stream:
+            os.fsync(stream.fileno())
+        if validate is not None:
+            validate(temporary)
+        _atomic_replace(temporary, path)
+        _fsync_directory(path.parent)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
+def _write_atomic_json(path: Path, document: dict) -> None:
+    payload = json.dumps(document, indent=2, ensure_ascii=False)
+
+    def validate(temporary: Path) -> None:
+        if json.loads(temporary.read_text(encoding="utf-8")) != document:
+            raise ValueError(f"atomic JSON validation failed: {path}")
+
+    publish_text_file_atomic(path, payload, validate=validate)
+
+
+def _write_atomic_bytes(path: Path, payload: bytes) -> None:
+    temporary = path.parent / f".{path.name}.compat-{uuid.uuid4().hex}"
+    try:
+        with temporary.open("wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        _atomic_replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _launcher_html(generation: str) -> bytes:
+    destination = f"./{GENERATIONS_DIRNAME}/{generation}/index.html"
+    script_destination = json.dumps(destination)
+    return (
+        "<!doctype html><meta charset=\"utf-8\">"
+        "<title>SOH</title><script>"
+        f"location.replace({script_destination}+location.search+location.hash);"
+        "</script>"
+    ).encode("utf-8")
+
+
+def _sync_compatibility_view(
+    target: Path, generation: Path, generation_name: str
+) -> None:
+    controls = {GENERATIONS_DIRNAME, CURRENT_POINTER_NAME}
+    desired = {item.name for item in generation.iterdir()}
+    for existing in list(target.iterdir()):
+        if existing.name in controls or existing.name in desired:
+            continue
+        if existing.is_dir():
+            shutil.rmtree(existing)
+        else:
+            existing.unlink(missing_ok=True)
+
+    for source in sorted(generation.iterdir(), key=lambda item: item.name):
+        destination = target / source.name
+        if source.is_file():
+            payload = (
+                _launcher_html(generation_name)
+                if source.name == "index.html"
+                else source.read_bytes()
+            )
+            _write_atomic_bytes(destination, payload)
+            continue
+
+        staging = target / f".{source.name}.compat-{uuid.uuid4().hex}"
+        backup = target / f".{source.name}.backup-{uuid.uuid4().hex}"
+        try:
+            shutil.copytree(source, staging)
+            if destination.exists():
+                os.replace(destination, backup)
+            os.replace(staging, destination)
+        finally:
+            if staging.exists():
+                shutil.rmtree(staging)
+            if backup.exists():
+                shutil.rmtree(backup)
+
+
 def _publish_directory(target: Path, build: Callable[[Path], None]) -> None:
     target = Path(target)
     parent = target.parent
     token = uuid.uuid4().hex
     staging = parent / f".{target.name}.tmp-{token}"
-    backup = parent / f".{target.name}.bak-{token}"
 
     with _PUBLICATION_LOCK:
         parent.mkdir(parents=True, exist_ok=True)
@@ -71,21 +199,47 @@ def _publish_directory(target: Path, build: Callable[[Path], None]) -> None:
             _fsync_tree(staging)
             _fsync_directory(parent)
 
-            had_target = target.exists()
-            if had_target:
-                os.replace(target, backup)
+            target.mkdir(exist_ok=True)
+            generations = target / GENERATIONS_DIRNAME
+            generations.mkdir(exist_ok=True)
+            generation = generations / token
+            os.replace(staging, generation)
+            _fsync_directory(generations)
             try:
-                os.replace(staging, target)
+                _write_atomic_json(
+                    target / CURRENT_POINTER_NAME,
+                    {
+                        "schema_version": 1,
+                        "generation": token,
+                        "path": f"{GENERATIONS_DIRNAME}/{token}",
+                    },
+                )
             except BaseException:
-                if had_target and backup.exists() and not target.exists():
-                    os.replace(backup, target)
+                _remove_owned_directory(generation)
                 raise
-            _fsync_directory(parent)
-            _remove_owned_directory(backup)
+            try:
+                _sync_compatibility_view(target, generation, token)
+            except OSError:
+                pass
         finally:
             _remove_owned_directory(staging)
-            if backup.exists() and target.exists():
-                _remove_owned_directory(backup)
+
+
+def _copy_current_publication(target: Path, staging: Path) -> None:
+    current = resolve_published_directory(target)
+    if not current.is_dir():
+        staging.mkdir(parents=True)
+        return
+    if current == target:
+        shutil.copytree(
+            current,
+            staging,
+            ignore=shutil.ignore_patterns(
+                GENERATIONS_DIRNAME, CURRENT_POINTER_NAME
+            ),
+        )
+        return
+    shutil.copytree(current, staging)
 
 
 def sync_frontend_artifacts(run_dir: str | Path, frontend_data_dir: str | Path) -> list[str]:
@@ -94,10 +248,7 @@ def sync_frontend_artifacts(run_dir: str | Path, frontend_data_dir: str | Path) 
     copied = [filename for filename in FRONTEND_ARTIFACTS if (source_dir / filename).is_file()]
 
     def build(staging: Path) -> None:
-        if target_dir.is_dir():
-            shutil.copytree(target_dir, staging)
-        else:
-            staging.mkdir(parents=True)
+        _copy_current_publication(target_dir, staging)
         for filename in FRONTEND_ARTIFACTS:
             (staging / filename).unlink(missing_ok=True)
         for filename in copied:
@@ -111,7 +262,7 @@ def publish_frontend_artifacts(
     source_dirs: Sequence[str | Path], frontend_data_dir: str | Path
 ) -> list[str]:
     target_dir = Path(frontend_data_dir)
-    sources = [Path(item) for item in source_dirs]
+    sources = [resolve_published_directory(item) for item in source_dirs]
     selected_sources = {
         filename: source
         for filename in FRONTEND_ARTIFACTS
@@ -120,10 +271,7 @@ def publish_frontend_artifacts(
     copied = list(selected_sources)
 
     def build(staging: Path) -> None:
-        if target_dir.is_dir():
-            shutil.copytree(target_dir, staging)
-        else:
-            staging.mkdir(parents=True)
+        _copy_current_publication(target_dir, staging)
         for filename in FRONTEND_ARTIFACTS:
             (staging / filename).unlink(missing_ok=True)
         for filename, source in selected_sources.items():
@@ -143,7 +291,10 @@ def publish_frontend_profile(
 ) -> dict:
     name = _safe_profile_name(profile_name)
     root = Path(frontend_data_dir)
-    sources = [Path(item) for item in source_dirs] or [root]
+    current_root = resolve_published_directory(root)
+    sources = [resolve_published_directory(item) for item in source_dirs] or [
+        current_root
+    ]
     selected_sources = {
         filename: source
         for filename in artifact_files
@@ -163,10 +314,7 @@ def publish_frontend_profile(
     result: dict = {}
 
     def build(staging: Path) -> None:
-        if root.is_dir():
-            shutil.copytree(root, staging)
-        else:
-            staging.mkdir(parents=True)
+        _copy_current_publication(root, staging)
         profile_root = staging / "profiles"
         profile_dir = profile_root / name
         if profile_dir.exists():
@@ -197,7 +345,7 @@ def publish_frontend_profile(
         result["manifest"] = payload
 
     _publish_directory(root, build)
-    profile_dir = root / "profiles" / name
+    profile_dir = resolve_published_directory(root) / "profiles" / name
     manifest_path = profile_dir / "manifest.json"
     return {
         "name": name,

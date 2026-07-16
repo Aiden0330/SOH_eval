@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 import sohbench.evaluation_service as evaluation_service_module
+import sohbench.frontend_publish as frontend_publish_module
 from sohbench.evaluation_service import EvaluationService
 from sohbench.fabric.evidence import verify_evidence_pack
 
@@ -22,7 +23,7 @@ def _dataset_csv(name="plugin_eval_demo"):
                     "dataset": name,
                     "cell_id": cell,
                     "cycle_index": cycle,
-                    "soh": 1.0 - 0.012 * cycle,
+                    "soh": 1.0 - 0.02 * cycle,
                     "voltage_mean": 3.5 - 0.015 * cycle,
                     "resistance_proxy": 0.01 + 0.002 * cycle,
                 }
@@ -109,6 +110,20 @@ class PickledPredictOnlyV2(PickledPredictOnly):
 class PickledPredictOnlyReplacement(PickledPredictOnly):
     def predict(self, X, meta=None):
         return np.full(len(X), 0.50)
+
+
+class PairMetadataPredictor:
+    def fit(self, X, y=None, meta=None):
+        raise AssertionError("fit must not be called")
+
+    def predict(self, X, meta=None):
+        expected_datasets = set(X["dataset"].astype(str))
+        assert isinstance(meta, pd.DataFrame)
+        if meta.empty and "dataset" not in meta.columns:
+            return np.full(len(X), 0.95)
+        assert set(meta["dataset"].astype(str)) == expected_datasets
+        assert set(meta["cell_id"].astype(str)) == set(X["cell_id"].astype(str))
+        return np.full(len(X), 0.95)
 
 
 def _model_manifest(name="api_model"):
@@ -640,6 +655,78 @@ def test_inference_job_runs_uploaded_pickle_model(tmp_path):
     assert (tmp_path / "frontend_data" / "inference_benchmark.json").exists()
 
 
+def test_training_then_inference_publishes_explicit_composite_generation(tmp_path):
+    frontend_data = tmp_path / "frontend_data"
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=frontend_data,
+    )
+    lifecycle_rows = [
+        {
+            "dataset": "lifecycle_demo",
+            "cell_id": cell,
+            "cycle_index": cycle,
+            "soh": 1.0 - 0.012 * cycle,
+            "voltage_mean": 3.6 - 0.01 * cycle,
+            "resistance_proxy": 0.01 + 0.001 * cycle,
+        }
+        for cell in ("c1", "c2", "c3")
+        for cycle in range(30)
+    ]
+    service.store.upload_dataset(
+        "lifecycle_demo",
+        "demo.csv",
+        pd.DataFrame(lifecycle_rows).to_csv(index=False).encode("utf-8"),
+    )
+    training = service.create_job(
+        {
+            "datasets": ["lifecycle_demo"],
+            "estimators": ["ridge"],
+            "featuresets": ["full"],
+            "protocols": ["loco"],
+            "seeds": [0],
+        },
+        start=False,
+    )
+    training = service.run_job_inline(training["id"])
+    assert training["status"] == "succeeded"
+    assert training["saved_models"]
+
+    inference = service.create_inference_job(
+        {
+            "datasets": ["lifecycle_demo"],
+            "models": training["saved_models"],
+        },
+        start=False,
+    )
+    inference = service.run_inference_job_inline(inference["id"])
+    resolver = getattr(
+        frontend_publish_module, "resolve_published_directory", None
+    )
+    active = resolver(frontend_data) if resolver is not None else frontend_data
+
+    assert inference["status"] == "succeeded"
+    assert (active / "leaderboard.json").is_file()
+    assert (active / "run_config.json").is_file()
+    assert (active / "inference_benchmark.json").is_file()
+    assert (active / "inference_run_config.json").is_file()
+    run_config = json.loads(
+        (active / "run_config.json").read_text(encoding="utf-8")
+    )
+    inference_config = json.loads(
+        (active / "inference_run_config.json").read_text(encoding="utf-8")
+    )
+    assert run_config["saved_models"] == training["saved_models"]
+    assert all(
+        model.startswith(training["run_id"])
+        for model in run_config["saved_models"]
+    )
+    assert inference_config["job_id"] == inference["id"]
+    assert inference_config["run_id"] == inference["run_id"]
+
+
 def test_inference_job_executes_only_explicit_model_dataset_pairs(tmp_path):
     service = EvaluationService(
         data_dir=tmp_path / "data",
@@ -689,6 +776,49 @@ def test_inference_job_executes_only_explicit_model_dataset_pairs(tmp_path):
         ("model_left", "pair_left"),
         ("model_right", "pair_right"),
     }
+
+
+def test_explicit_inference_pairs_receive_only_current_dataset_metadata(tmp_path):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    for dataset in ("pair_left", "pair_right"):
+        service.store.upload_dataset(
+            dataset, f"{dataset}.csv", _dataset_csv(dataset)
+        )
+    for model in ("model_left", "model_right"):
+        service.model_store.upload_model(
+            model,
+            f"{model}.pkl",
+            pickle.dumps(PairMetadataPredictor()),
+            "model_manifest.json",
+            json.dumps(_model_manifest(model)).encode("utf-8"),
+        )
+    pairs = [
+        {"model": "model_left", "dataset": "pair_left"},
+        {"model": "model_right", "dataset": "pair_right"},
+    ]
+
+    job = service.create_inference_job(
+        {
+            "datasets": ["pair_left", "pair_right"],
+            "models": ["model_left", "model_right"],
+            "pairs": pairs,
+        },
+        start=False,
+    )
+    finished = service.run_inference_job_inline(job["id"])
+    payload = json.loads(
+        (Path(finished["raw_run_dir"]) / "inference_benchmark.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert finished["status"] == "succeeded"
+    assert all(record["status"] == "succeeded" for record in payload["records"])
 
 
 def test_inference_job_keeps_object_pd_na_labels_unscored_and_successful(tmp_path):

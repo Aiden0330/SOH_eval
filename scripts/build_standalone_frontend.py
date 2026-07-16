@@ -5,6 +5,11 @@ import json
 import re
 from pathlib import Path
 
+from sohbench.frontend_publish import (
+    publish_text_file_atomic,
+    resolve_published_directory,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = ROOT / "frontend" / "app"
@@ -77,18 +82,20 @@ def _strip_detection_text(value: str) -> str:
 
 def collect_data_payload(app_dir: Path = APP_DIR) -> dict[str, object]:
     app_dir = Path(app_dir)
-    data_dir = app_dir / "data"
+    data_dir = resolve_published_directory(app_dir / "data")
     payload: dict[str, object] = {}
     for path in sorted(data_dir.rglob("*.json")):
         if is_detection_asset(path):
             continue
-        key = "./" + path.relative_to(app_dir).as_posix()
+        key = "./data/" + path.relative_to(data_dir).as_posix()
         payload[key] = strip_detection_entries(json.loads(path.read_text(encoding="utf-8")))
     return payload
 
 
 def collect_native_dashboard(app_dir: Path = APP_DIR) -> tuple[str | None, int]:
-    native_dir = Path(app_dir) / "battery-dashboard"
+    native_dir = resolve_published_directory(
+        Path(app_dir) / "battery-dashboard"
+    )
     if not native_dir.is_dir():
         return None, 0
     generated_entries = [item for item in native_dir.iterdir() if item.name.lower() != "readme.md"]
@@ -284,6 +291,19 @@ def build_standalone_html(app_dir: Path = APP_DIR) -> tuple[str, int]:
     return banner + html, len(data_payload) + native_artifact_count
 
 
+def publish_standalone_html(output: Path, html: str) -> None:
+    def validate(path: Path) -> None:
+        staged = path.read_text(encoding="utf-8")
+        if (
+            "window.__SOH_STANDALONE__ = true" not in staged
+            or "<!doctype html" not in staged.lower()
+            or "</html>" not in staged.lower()
+        ):
+            raise ValueError("generated standalone HTML failed validation")
+
+    publish_text_file_atomic(output, html, validate=validate)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build a portable standalone SOH dashboard HTML.")
     parser.add_argument("--app-dir", type=Path, default=APP_DIR, help="Source frontend/app directory.")
@@ -292,8 +312,7 @@ def main() -> None:
 
     html, artifact_count = build_standalone_html(args.app_dir)
     output = args.output
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(html, encoding="utf-8", newline="\n")
+    publish_standalone_html(output, html)
     size_mb = output.stat().st_size / (1024 * 1024)
     print(f"Wrote {output} ({size_mb:.2f} MiB, embedded {artifact_count} JSON artifacts)")
 

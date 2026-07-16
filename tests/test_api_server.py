@@ -27,7 +27,7 @@ def _dataset_bytes():
                     "dataset": "api_demo",
                     "cell_id": cell,
                     "cycle_index": cycle,
-                    "soh": 1.0 - 0.01 * cycle,
+                    "soh": 1.0 - 0.025 * cycle,
                     "voltage_mean": 3.4 - 0.01 * cycle,
                 }
             )
