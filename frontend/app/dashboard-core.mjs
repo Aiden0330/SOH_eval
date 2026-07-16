@@ -253,16 +253,32 @@ export function inferenceSummary(payload = {}) {
 }
 
 function backendInferenceWinner(rows, entry, model, metricValue, metric) {
-  if (entry && typeof entry === "object" && Number.isFinite(entry[metric])) return entry;
-  const name = String(model || "");
-  if (!name) return null;
-  let candidates = rows.filter((row) => row.model === name && Number.isFinite(row[metric]));
-  if (Number.isFinite(metricValue)) {
-    const exact = candidates.filter((row) => row[metric] === metricValue);
-    if (exact.length) return rankInferenceRows(exact, metric, metric === "samples_per_second" ? "desc" : "asc")[0];
-    return { model: name, [metric]: metricValue };
-  }
-  return rankInferenceRows(candidates, metric, metric === "samples_per_second" ? "desc" : "asc")[0] || null;
+  const backendEntry = entry && typeof entry === "object" ? entry : {};
+  const backendMetric = Number.isFinite(backendEntry[metric]) ? backendEntry[metric] : metricValue;
+  if (!Number.isFinite(backendMetric)) return null;
+
+  const identity = {
+    model: hasInferenceIdentity(backendEntry.model) ? backendEntry.model : model,
+    dataset: backendEntry.dataset,
+    featureset: backendEntry.featureset,
+    estimator: backendEntry.estimator,
+  };
+  const identityFields = Object.entries(identity)
+    .filter(([, value]) => hasInferenceIdentity(value));
+  const candidates = rows.filter((row) => (
+    Number.isFinite(row?.[metric])
+    && row[metric] === backendMetric
+    && identityFields.every(([field, value]) => String(row[field]) === String(value))
+  ));
+  return rankInferenceRows(
+    candidates,
+    metric,
+    metric === "samples_per_second" ? "desc" : "asc",
+  )[0] || null;
+}
+
+function hasInferenceIdentity(value) {
+  return value !== undefined && value !== null && String(value) !== "";
 }
 
 function rankInferenceRows(rows, metric, direction) {

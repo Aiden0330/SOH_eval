@@ -457,10 +457,12 @@ function entry(estimator, featureset, mae, opts = {}) {
   assert.equal(backend.fastest.model, "zeta");
   assert.equal(backend.bestTransfer.model, "zeta");
 
+  const visibleRows = [
+    { model: "visible-zeta", dataset: "rwth", featureset: "full", estimator: "ridge", status: "succeeded", ms_per_1000_samples: 8, mae: 0.4 },
+    { model: "visible-alpha", dataset: "nasa", featureset: "full", estimator: "ridge", status: "succeeded", ms_per_1000_samples: 8, mae: 0.4 },
+  ];
   const backendOutsideSelection = inferenceSummary({
-    records: [
-      { model: "visible", dataset: "nasa", status: "succeeded", ms_per_1000_samples: 8, mae: 0.4 },
-    ],
+    records: visibleRows,
     summary: {
       fastest_model: "backend-winner",
       fastest_ms_per_1000_samples: 3,
@@ -468,14 +470,34 @@ function entry(estimator, featureset, mae, opts = {}) {
       best_transfer_mae: 0.1,
     },
   });
-  assert.deepEqual(backendOutsideSelection.fastest, {
-    model: "backend-winner",
-    ms_per_1000_samples: 3,
+  assert.strictEqual(backendOutsideSelection.fastest, visibleRows[1]);
+  assert.strictEqual(backendOutsideSelection.bestTransfer, visibleRows[1]);
+
+  const backendIdentityRows = [
+    { model: "shared", dataset: "nasa", featureset: "full", estimator: "ridge", status: "succeeded", ms_per_1000_samples: 5, mae: 0.2 },
+    { model: "shared", dataset: "rwth", featureset: "ic_dva", estimator: "xgb", status: "succeeded", ms_per_1000_samples: 5, mae: 0.2 },
+  ];
+  const backendIdentity = inferenceSummary({
+    records: backendIdentityRows,
+    summary: {
+      fastest: {
+        model: "shared",
+        dataset: "rwth",
+        featureset: "ic_dva",
+        estimator: "xgb",
+        ms_per_1000_samples: 5,
+      },
+      best_transfer: {
+        model: "shared",
+        dataset: "rwth",
+        featureset: "ic_dva",
+        estimator: "xgb",
+        mae: 0.2,
+      },
+    },
   });
-  assert.deepEqual(backendOutsideSelection.bestTransfer, {
-    model: "backend-winner",
-    mae: 0.1,
-  });
+  assert.strictEqual(backendIdentity.fastest, backendIdentityRows[1]);
+  assert.strictEqual(backendIdentity.bestTransfer, backendIdentityRows[1]);
 }
 
 {
@@ -795,6 +817,22 @@ function entry(estimator, featureset, mae, opts = {}) {
   assert.equal(insight.fastest.model, "gbdt");
   assert.match(insight.recommendation, /ridge/);
   assert.match(insight.risk, /1/);
+}
+
+{
+  const visibleRows = [
+    { model: "visible-zeta", dataset: "rwth", featureset: "full", estimator: "ridge", status: "succeeded", mae: 0.4, ms_per_1000_samples: 8 },
+    { model: "visible-alpha", dataset: "nasa", featureset: "full", estimator: "ridge", status: "succeeded", mae: 0.4, ms_per_1000_samples: 8 },
+  ];
+  const insight = inferenceInsightSummary(visibleRows, {
+    fastest_model: "backend-winner",
+    fastest_ms_per_1000_samples: 3,
+    best_transfer_model: "backend-winner",
+    best_transfer_mae: 0.1,
+  });
+  assert.strictEqual(insight.fastest, visibleRows[1]);
+  assert.strictEqual(insight.bestTransfer, visibleRows[1]);
+  assert.match(insight.recommendation, /visible-alpha/);
 }
 
 {
