@@ -639,6 +639,14 @@ def write_inference_artifacts(
     return str(out)
 
 
+def _inference_rank_key(row: dict, metric: str) -> tuple:
+    identity = tuple(
+        str(row.get(field) or "")
+        for field in ("model", "dataset", "featureset", "estimator")
+    )
+    return (float(row[metric]), *identity)
+
+
 def _inference_summary(records: list[dict]) -> dict:
     succeeded = [row for row in records if row.get("status") == "succeeded"]
     finite_speed = [
@@ -648,12 +656,12 @@ def _inference_summary(records: list[dict]) -> dict:
     ]
     fastest = min(
         finite_speed,
-        key=lambda row: row["ms_per_1000_samples"],
+        key=lambda row: _inference_rank_key(row, "ms_per_1000_samples"),
         default=None,
     )
     best = min(
         [row for row in succeeded if is_finite_real_scalar(row.get("mae"))],
-        key=lambda row: row["mae"],
+        key=lambda row: _inference_rank_key(row, "mae"),
         default=None,
     )
     return {

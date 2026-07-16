@@ -700,6 +700,36 @@ def test_inference_summary_ignores_nonfinite_accuracy_and_speed(tmp_path):
     assert payload["summary"]["fastest_ms_per_1000_samples"] == 12.0
 
 
+def test_inference_summary_breaks_finite_ties_independently_of_record_order():
+    records = [
+        {
+            "model": "beta",
+            "dataset": "z_dataset",
+            "featureset": "full",
+            "estimator": "ridge",
+            "mae": 0.1,
+            "ms_per_1000_samples": 10.0,
+            "status": "succeeded",
+        },
+        {
+            "model": "alpha",
+            "dataset": "a_dataset",
+            "featureset": "full",
+            "estimator": "ridge",
+            "mae": 0.1,
+            "ms_per_1000_samples": 10.0,
+            "status": "succeeded",
+        },
+    ]
+
+    forward = report_module._inference_summary(records)
+    reverse = report_module._inference_summary(list(reversed(records)))
+
+    assert forward == reverse
+    assert forward["best_transfer_model"] == "alpha"
+    assert forward["fastest_model"] == "alpha"
+
+
 def _predictions(run_id="RUN-a"):
     return pd.DataFrame(
         [
