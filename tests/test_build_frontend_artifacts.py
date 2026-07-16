@@ -20,6 +20,7 @@ def _metric_rows(
     mae: float,
     seed: int = 0,
     candidate_id: str | None = None,
+    track: str = "unified",
 ) -> list[dict]:
     rows = []
     for metric, value in [
@@ -40,7 +41,7 @@ def _metric_rows(
                 "metric": metric,
                 "value": value,
                 "featureset": featureset,
-                "track": "unified",
+                "track": track,
                 "ci_source": "weighted_conformal",
         }
         if candidate_id is not None:
@@ -249,6 +250,7 @@ def test_build_frontend_artifacts_normalizes_mixed_legacy_and_candidate_runs(tmp
         "featuresets": ["full"],
         "protocols": ["lodo"],
         "seeds": [0],
+        "configs": [{"estimator": "ridge", "featureset": "full"}],
     }
     _write_run(
         legacy_run,
@@ -261,6 +263,9 @@ def test_build_frontend_artifacts_normalizes_mixed_legacy_and_candidate_runs(tmp
         + _metric_rows("ridge", "full", "nasa", 0.20, candidate_id="candidate-b"),
         config,
     )
+    pd.DataFrame(
+        [{"estimator": "ridge", "featureset": "full", "mae_mean": 0.30}]
+    ).to_csv(legacy_run / "seed_stability_summary.csv", index=False)
 
     for label, source_runs in [
         ("legacy-first", [legacy_run, candidate_run]),
@@ -309,3 +314,49 @@ def test_build_frontend_artifacts_keeps_all_legacy_output_candidate_free(tmp_pat
 
     leaderboard = json.loads((frontend_dir / "leaderboard.json").read_text(encoding="utf-8"))
     assert all("candidate_id" not in entry for entry in leaderboard)
+
+
+def test_stability_replacement_preserves_other_candidate_tracks(tmp_path):
+    old_run = tmp_path / "runs" / "old"
+    new_run = tmp_path / "runs" / "new"
+    frontend_dir = tmp_path / "frontend"
+    config = {
+        "phase": "candidate-tracks",
+        "datasets": ["nasa"],
+        "estimators": ["ridge"],
+        "featuresets": ["full"],
+        "protocols": ["lodo"],
+        "seeds": [0],
+        "configs": [{"estimator": "ridge", "featureset": "full"}],
+    }
+    _write_run(
+        old_run,
+        _metric_rows(
+            "ridge", "full", "nasa", 0.20, candidate_id="candidate-a", track="byo"
+        ),
+        config,
+    )
+    _write_run(
+        new_run,
+        _metric_rows(
+            "ridge", "full", "nasa", 0.10, candidate_id="candidate-a", track="unified"
+        ),
+        config,
+    )
+    pd.DataFrame(
+        [{"estimator": "ridge", "featureset": "full", "mae_mean": 0.10}]
+    ).to_csv(new_run / "seed_stability_summary.csv", index=False)
+
+    build_frontend_artifacts(
+        BuildFrontendArtifactsConfig(
+            source_runs=[old_run, new_run],
+            archive_dir=tmp_path / "archive",
+            frontend_data_dir=frontend_dir,
+        )
+    )
+
+    leaderboard = json.loads((frontend_dir / "leaderboard.json").read_text(encoding="utf-8"))
+    assert {(entry["track"], entry["metrics"]["mae"]["mean"]) for entry in leaderboard} == {
+        ("byo", 0.20),
+        ("unified", 0.10),
+    }

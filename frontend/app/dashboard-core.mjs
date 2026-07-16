@@ -8,14 +8,29 @@ export function metricMean(entry, name) {
 export function evaluationIdentity(entry = {}) {
   const candidate = String(entry?.candidate_id || "").trim();
   const estimator = String(entry?.estimator || "").trim();
-  return JSON.stringify(candidate ? ["candidate", candidate] : ["estimator", estimator]);
+  const protocol = String(entry?.protocol || "").trim();
+  const track = String(entry?.track || "unified").trim() || "unified";
+  return JSON.stringify([
+    candidate ? "candidate" : "estimator",
+    candidate,
+    estimator,
+    protocol,
+    track,
+  ]);
 }
 
 export function evaluationLabel(entry = {}) {
   const candidate = String(entry?.candidate_id || "").trim();
   const estimator = String(entry?.estimator || "").trim();
-  if (!candidate || candidate === estimator) return estimator || candidate;
-  return `${candidate} (${estimator})`;
+  const protocol = String(entry?.protocol || "").trim();
+  const track = String(entry?.track || "unified").trim() || "unified";
+  const base = candidate && estimator && candidate !== estimator
+    ? `${candidate} (${estimator})`
+    : candidate || estimator;
+  const qualifiers = [];
+  if (protocol && protocol !== "lodo") qualifiers.push(protocol);
+  if (track !== "unified") qualifiers.push(track);
+  return qualifiers.length ? `${base} [${qualifiers.join(" / ")}]` : base;
 }
 
 export function evaluationCellKey(entry = {}, featureset = entry?.featureset || "full") {

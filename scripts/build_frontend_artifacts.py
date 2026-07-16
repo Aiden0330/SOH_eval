@@ -113,7 +113,7 @@ def _merge_results(
         if not combined.empty and replacement_cells:
             cells_present = replacement_cells.intersection(_frame_cells(frame))
             if cells_present:
-                combined = _drop_cells(combined, cells_present)
+                combined = _drop_replaced_rows(combined, frame, cells_present, candidate_aware)
 
         combined = pd.concat([combined, frame], ignore_index=True)
         combined = _drop_duplicate_metric_rows(combined)
@@ -249,6 +249,33 @@ def _drop_cells(frame: pd.DataFrame, cells: Iterable[tuple[str, str]]) -> pd.Dat
     for estimator, featureset in cells:
         keep &= ~(frame["estimator"].eq(estimator) & frame["featureset"].eq(featureset))
     return frame.loc[keep].copy()
+
+
+def _drop_replaced_rows(
+    combined: pd.DataFrame,
+    incoming: pd.DataFrame,
+    cells: Iterable[tuple[str, str]],
+    candidate_aware: bool,
+) -> pd.DataFrame:
+    if not candidate_aware:
+        return _drop_cells(combined, cells)
+
+    keep = pd.Series(True, index=combined.index)
+    for estimator, featureset in cells:
+        incoming_cell = incoming[
+            incoming["estimator"].eq(estimator) & incoming["featureset"].eq(featureset)
+        ]
+        identity_columns = [
+            column
+            for column in ["candidate_id", "protocol", "track"]
+            if column in incoming_cell.columns and column in combined.columns
+        ]
+        for identity in incoming_cell[identity_columns].drop_duplicates().to_dict("records"):
+            replaced = combined["estimator"].eq(estimator) & combined["featureset"].eq(featureset)
+            for column, value in identity.items():
+                replaced &= combined[column].eq(value)
+            keep &= ~replaced
+    return combined.loc[keep].copy()
 
 
 def _drop_duplicate_metric_rows(frame: pd.DataFrame) -> pd.DataFrame:

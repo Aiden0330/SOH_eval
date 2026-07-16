@@ -68,7 +68,7 @@ function entry(estimator, featureset, mae, opts = {}) {
     estimator,
     featureset,
     protocol: "lodo",
-    track: "unified",
+    track: opts.track ?? "unified",
     held_out_key: opts.held,
     ...(opts.candidateId ? { candidate_id: opts.candidateId } : {}),
     ci_source: "weighted_conformal",
@@ -100,6 +100,14 @@ function entry(estimator, featureset, mae, opts = {}) {
   assert.deepEqual(
     evaluationMatrixRows(candidateRows, ["full"]).map((row) => [row.label, row.cells[0].value]),
     [["candidate-a (ridge)", 0.10], ["candidate-b (ridge)", 0.20]],
+  );
+  const trackRows = [
+    entry("ridge", "full", 0.10, { candidateId: "candidate-a", track: "unified" }),
+    entry("ridge", "full", 0.20, { candidateId: "candidate-a", track: "byo" }),
+  ];
+  assert.deepEqual(
+    evaluationMatrixRows(trackRows, ["full"]).map((row) => [row.label, row.cells[0].value]),
+    [["candidate-a (ridge)", 0.10], ["candidate-a (ridge) [byo]", 0.20]],
   );
 }
 
