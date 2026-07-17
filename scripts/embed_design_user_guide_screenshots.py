@@ -27,6 +27,7 @@ def _data_uri(path: Path) -> str:
 
 def embed_screenshots(html_path: Path, captures: dict[str, Path]) -> None:
     text = html_path.read_text(encoding="utf-8")
+    replacements = []
     for name, capture in captures.items():
         if not capture.is_file():
             raise FileNotFoundError(capture)
@@ -35,13 +36,13 @@ def embed_screenshots(html_path: Path, captures: dict[str, Path]) -> None:
             rf'(?=[^>]*\bsrc=")[^>]*\bsrc=")[^"]*(")',
             flags=re.IGNORECASE,
         )
-        text, count = pattern.subn(
-            rf"\g<1>{_data_uri(capture)}\2",
-            text,
-            count=1,
-        )
+        count = len(pattern.findall(text))
         if count != 1:
             raise ValueError(f"expected one image marker for {name}, found {count}")
+        replacements.append((pattern, _data_uri(capture)))
+
+    for pattern, data_uri in replacements:
+        text = pattern.sub(rf"\g<1>{data_uri}\2", text, count=1)
 
     fd, staged_name = tempfile.mkstemp(
         prefix=f".{html_path.name}.",

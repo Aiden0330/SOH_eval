@@ -4,6 +4,8 @@ import re
 from html.parser import HTMLParser
 from pathlib import Path
 
+import pytest
+
 from sohbench.api_server import parse_args
 from scripts.validate_design_user_guide import REQUIRED_SECTIONS, validate_document
 
@@ -289,13 +291,139 @@ def test_embed_screenshots_replaces_each_named_capture(tmp_path):
     assert f"data:image/png;base64,{expected}" in rendered
 
 
+def test_embed_screenshots_rejects_missing_marker_without_changing_html(tmp_path):
+    from scripts.embed_design_user_guide_screenshots import embed_screenshots
+
+    html = tmp_path / "guide.html"
+    original = '<img data-shot="models" src="data:image/png;base64,AA==" alt="模型页">'
+    html.write_text(original, encoding="utf-8")
+    capture = tmp_path / "training.png"
+    capture.write_bytes(b"\x89PNG\r\n\x1a\nfixture")
+
+    with pytest.raises(
+        ValueError,
+        match="expected one image marker for training, found 0",
+    ):
+        embed_screenshots(html, {"training": capture})
+
+    assert html.read_text(encoding="utf-8") == original
+
+
+def test_embed_screenshots_rejects_duplicate_marker_without_changing_html(tmp_path):
+    from scripts.embed_design_user_guide_screenshots import embed_screenshots
+
+    html = tmp_path / "guide.html"
+    marker = '<img data-shot="training" src="data:image/png;base64,AA==" alt="训练页">'
+    original = marker + marker
+    html.write_text(original, encoding="utf-8")
+    capture = tmp_path / "training.png"
+    capture.write_bytes(b"\x89PNG\r\n\x1a\nfixture")
+
+    with pytest.raises(
+        ValueError,
+        match="expected one image marker for training, found 2",
+    ):
+        embed_screenshots(html, {"training": capture})
+
+    assert html.read_text(encoding="utf-8") == original
+
+
+def test_embed_screenshots_late_marker_failure_leaves_original_html(tmp_path):
+    from scripts.embed_design_user_guide_screenshots import embed_screenshots
+
+    html = tmp_path / "guide.html"
+    original = '<img data-shot="training" src="old" alt="训练页">'
+    html.write_text(original, encoding="utf-8")
+    training = tmp_path / "training.png"
+    inference = tmp_path / "inference.png"
+    training.write_bytes(b"\x89PNG\r\n\x1a\ntraining")
+    inference.write_bytes(b"\x89PNG\r\n\x1a\ninference")
+
+    with pytest.raises(
+        ValueError,
+        match="expected one image marker for inference, found 0",
+    ):
+        embed_screenshots(
+            html,
+            {"training": training, "inference": inference},
+        )
+
+    assert html.read_text(encoding="utf-8") == original
+
+
+def test_embed_screenshots_rejects_unsupported_suffix_without_changing_html(
+    tmp_path,
+):
+    from scripts.embed_design_user_guide_screenshots import embed_screenshots
+
+    html = tmp_path / "guide.html"
+    original = '<img data-shot="training" src="old" alt="训练页">'
+    html.write_text(original, encoding="utf-8")
+    capture = tmp_path / "training.bmp"
+    capture.write_bytes(b"bitmap fixture")
+
+    with pytest.raises(ValueError, match="unsupported image type: .bmp"):
+        embed_screenshots(html, {"training": capture})
+
+    assert html.read_text(encoding="utf-8") == original
+
+
+def test_embed_screenshots_uses_webp_mime_type(tmp_path):
+    from scripts.embed_design_user_guide_screenshots import embed_screenshots
+
+    html = tmp_path / "guide.html"
+    html.write_text(
+        '<img data-shot="native" src="old" alt="完整看板">',
+        encoding="utf-8",
+    )
+    capture = tmp_path / "native.webp"
+    capture.write_bytes(b"RIFFfixtureWEBP")
+
+    embed_screenshots(html, {"native": capture})
+
+    expected = base64.b64encode(capture.read_bytes()).decode("ascii")
+    assert (
+        f"src=\"data:image/webp;base64,{expected}\""
+        in html.read_text(encoding="utf-8")
+    )
+
+
 def test_design_user_guide_embeds_all_five_frontend_captures():
     text = GUIDE.read_text(encoding="utf-8")
     for shot in ("training", "inference", "models", "native", "diagnostics"):
-        assert f'data-shot="{shot}"' in text
-    payloads = re.findall(r'src="data:image/[^;]+;base64,([^"]+)"', text)
-    assert len(payloads) >= 5
-    assert all(len(base64.b64decode(payload)) >= 10_000 for payload in payloads)
+        assert text.count(f'data-shot="{shot}"') == 1
+        figures = [
+            body
+            for body in re.findall(
+                r'<figure class="product-shot">(.*?)</figure>',
+                text,
+                flags=re.DOTALL,
+            )
+            if f'data-shot="{shot}"' in body
+        ]
+        assert len(figures) == 1
+        structure = re.fullmatch(
+            r'\s*<img (?P<attrs>[^>]*)>\s*'
+            r'<figcaption>(?P<caption>.*?)</figcaption>\s*',
+            figures[0],
+            flags=re.DOTALL,
+        )
+        assert structure is not None
+        attrs = dict(
+            re.findall(r'([\w-]+)="([^"]*)"', structure.group("attrs"))
+        )
+        assert attrs["data-shot"] == shot
+        assert attrs["alt"].strip()
+        assert attrs["src"].startswith("data:image/")
+        mime, payload = attrs["src"].split(";base64,", maxsplit=1)
+        assert mime in {
+            "data:image/png",
+            "data:image/webp",
+            "data:image/jpeg",
+        }
+        assert len(base64.b64decode(payload)) >= 10_000
+        caption = re.sub(r"<[^>]+>", "", structure.group("caption")).strip()
+        assert caption
 
 
 def test_design_user_guide_covers_fabric_and_soh_domain_terms():
