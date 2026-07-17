@@ -66,6 +66,28 @@
     th { color: #344054; background: #f2f4f7; }
     tr:last-child td { border-bottom: 0; }
     code { overflow-wrap: anywhere; font-family: Consolas, "Courier New", monospace; }
+    pre { max-width: 100%; overflow-x: auto; margin: 14px 0; padding: 14px 16px; color: #e4e7ec; background: #101828; border-radius: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    pre code { color: inherit; }
+    .mode-guide { margin: 22px 0; padding: 18px; border: 1px solid #b2ccff; border-left: 5px solid #175cd3; border-radius: 6px; background: #f8faff; break-inside: avoid; }
+    .mode-guide > h3 { margin: 18px 0 6px; color: #1849a9; font-size: 1rem; }
+    .mode-guide > h3:first-of-type { margin-top: 8px; }
+    .mode-guide > p, .mode-guide > ol, .mode-guide > ul { margin-top: 6px; }
+    .mode-title { margin: 0 0 8px; color: #101828; font-size: 1.3rem; }
+    .mode-role { margin: 0; color: #475467; }
+    .step-list li, .check-list li { margin-bottom: 6px; }
+    .resource-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+    .resource-card { padding: 14px; border: 1px solid #d0d5dd; border-radius: 6px; background: #fff; }
+    .resource-card h3 { margin: 0 0 8px; font-size: 1rem; }
+    .resource-card p:last-child { margin-bottom: 0; }
+    .flow-strip { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 16px 0; padding: 14px; background: #f8fafc; border: 1px solid #d0d5dd; border-radius: 6px; break-inside: avoid; }
+    .flow-step { flex: 1 1 120px; min-height: 58px; padding: 9px; background: #fff; border: 1px solid #84adff; border-radius: 4px; }
+    .flow-step strong { display: block; color: #1849a9; }
+    .flow-arrow { color: #667085; font-weight: 700; }
+    .compact-table table { min-width: 560px; }
+    .route-table code { white-space: nowrap; }
+    .signal { color: #067647; font-weight: 700; }
+    .risk { color: #b54708; font-weight: 700; }
+    .command-note { margin-top: -8px; color: #475467; font-size: 0.9rem; }
     .contract-chain { max-width: 100%; overflow-x: auto; padding: 14px; color: #d1e9ff; background: #101828; border-radius: 4px; font-family: Consolas, "Courier New", monospace; white-space: pre-wrap; }
     .references-list li { margin-bottom: 8px; }
     .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
@@ -89,8 +111,10 @@
       h1 { font-size: 1.65rem; }
       .quick-rail { padding: 16px; }
       .status-grid { grid-template-columns: 1fr; }
+      .resource-grid { grid-template-columns: 1fr; }
       .architecture-layer, .state-lane { grid-template-columns: 1fr; }
       .state-lane > strong { padding-top: 0; }
+      .mode-guide { padding: 14px; }
     }
     @media print {
       .guide-nav, .quick-rail, .mobile-toc, .skip-link { display: none; }
@@ -413,18 +437,335 @@
           <article class="status-card status-target"><span class="status-label">目标架构</span><h3>独立审查与签署</h3><p>隔离 Worker 证明、统一 terminal/outcome/verdict 枚举、组织身份签署、完整审计事件和证据查询索引属于规划能力。</p></article>
         </div>
       </section>
-      <section id="frontend" class="chapter"><h2>前端五页签功能说明</h2><p>训练测评、推理测评、模型资产库、SOH 完整看板和全局诊断承担不同职责。</p></section>
-      <section id="setup" class="chapter"><h2>工具安装、启动与配置</h2><p>前端通过静态 HTTP 服务加载，后端 API 默认连接本机 Battery SOH 数据目录。</p></section>
-      <section id="onboarding" class="chapter"><h2>新资源接入</h2><p>数据集、算法、特征方案和冻结模型均先验证，成功后再事务性激活。</p></section>
-      <section id="runs" class="chapter"><h2>训练测评与冻结推理</h2><p>训练页负责产生模型；推理页负责验证已有模型在新数据上的迁移精度和速度。</p></section>
-      <section id="evidence" class="chapter"><h2>结果、排行与证据解释</h2><p>结果文件、质量报告和证据包必须结合覆盖范围、执行结果和验收裁决共同解释。</p></section>
-      <section id="packaging" class="chapter"><h2>数据同步与离线打包</h2><p>同步与打包采用不可变 generation 和 last-known-good 发布语义。</p></section>
-      <section id="troubleshooting" class="chapter"><h2>常见问题、安全边界与排障</h2><p>排障从预检、任务状态、特征兼容性、前端缓存和结构化失败信息逐层定位。</p></section>
+      <section id="frontend" class="chapter">
+        <h2>前端五页签功能说明</h2>
+        <p>五个页签共享同一资源目录和发布数据，但职责不能混用：训练产生模型，冻结推理只消费模型，资产库负责审计，完整看板定位单电芯/周期曲线，全局诊断比较跨组合证据。</p>
+
+        <article class="mode-guide" data-guide-mode="训练测评">
+          <h2 class="mode-title">训练测评</h2>
+          <p class="mode-role">资源上传、实验矩阵编排、模型训练和训练产物发布入口。</p>
+          <h3>适用场景</h3>
+          <p>比较一个或多个算法、特征方案、协议和 seed，并为成功的训练 fold 生成可复用的冻结 Pickle 模型。该页会执行 <code>fit()</code>，不用于证明既有模型在新域上的纯推理能力。</p>
+          <h3>必需输入</h3>
+          <p>至少一个带 <code>soh</code> 标签的数据集、一个算法、一个特征方案、一个协议和一个可解析为整数的 seed。外部算法/特征方案先按受信任源码插件上传；内置或已上传资源从目录勾选。</p>
+          <h3>操作步骤</h3>
+          <ol class="step-list">
+            <li>上传或选择数据集、算法和特征方案，确认资源目录已载入。</li>
+            <li>勾选协议，输入 seed 列表；核对“预计组合数”，并用本章运行公式估算实际 fold 训练次数。</li>
+            <li>启动任务，观察 <code>queued</code>、<code>running</code> 到终态；同一页有活动任务时不能重复启动。</li>
+            <li>终态为 <code>succeeded</code> 或 <code>partial</code> 时刷新发布物，进入模型资产库检查 Pickle、manifest 和训练范围。</li>
+          </ol>
+          <h3>成功信号</h3>
+          <p><span class="signal">任务进入 succeeded 或 partial，且结果目录和模型目录可见。</span> <code>partial</code> 表示至少一个执行单元成功、另有失败，不等于全部组合通过。模型发布警告单独记录在任务的 <code>model_warnings</code>。</p>
+          <h3>常见失败</h3>
+          <p>缺少标签或必需标识列、协议名未知、插件导入/冒烟测试失败、特征列不存在、预测非有限值、模型序列化失败。深度/PINN 组合会在每个 fold 和 seed 内迭代训练，长时间保持 <code>running</code> 本身不是失败。</p>
+          <h3>关联产物</h3>
+          <p><code>results.csv</code>、<code>results.parquet</code>、<code>leaderboard.json</code>、<code>dataset_leaderboard.json</code>、<code>statistics.json</code>、<code>qc_report.json</code>、<code>run_config.json</code>、可选 <code>predictions.parquet</code>、<code>evidence-pack.json</code>、<code>model_catalog.json</code>，以及每个成功 fold 对应的 <code>model.pkl</code> 与 <code>model_manifest.json</code>。</p>
+        </article>
+
+        <article class="mode-guide" data-guide-mode="推理测评">
+          <h2 class="mode-title">推理测评</h2>
+          <p class="mode-role">冻结模型迁移精度、兼容性、延迟和吞吐评测入口。</p>
+          <h3>适用场景</h3>
+          <p>回答“已冻结模型能否直接用于目标数据”。执行路径读取模型快照并调用 <code>predict()</code>，不会调用 <code>fit()</code>、不会重训，也不会覆盖所选模型。</p>
+          <h3>必需输入</h3>
+          <p>至少一个资产库模型和一个目标数据集。目标表只强制 <code>dataset</code>、<code>cell_id</code>、<code>cycle_index</code>；有 <code>soh</code> 时才可计算 MAE/RMSE/偏差等迁移精度。模型 manifest 的 <code>feature_columns</code> 和特征流水线状态必须可满足。</p>
+          <h3>操作步骤</h3>
+          <ol class="step-list">
+            <li>选择模型与目标数据集，阅读兼容性预检中的“可推理 / 缺失列 / 待确认”。</li>
+            <li>默认“仅运行兼容组合”会提交明确的模型-数据集 <code>pairs</code> 并跳过风险目标；“包含风险组合”交给后端逐对验证。</li>
+            <li>启动后按任务 ID 轮询；每个模型使用读取租约固定 Pickle 与 manifest 内容身份。</li>
+            <li>在迁移表中同时检查精度、<code>predict_ms</code>、<code>ms_per_1000_samples</code> 与 <code>samples_per_second</code>，不要只按速度或单一误差排序。</li>
+          </ol>
+          <h3>成功信号</h3>
+          <p><span class="signal">至少一个模型-数据集记录为 succeeded，并生成推理基准文件。</span> 混合成功/失败组合对应任务 <code>partial</code>；全部记录成功才是 <code>succeeded</code>。</p>
+          <h3>常见失败</h3>
+          <p>未选模型/数据、兼容策略跳过全部目标、模型未知、<code>pairs</code> 为空或引用未选资源、Pickle/manifest 摘要不匹配、缺少特征列、无法恢复特征流水线或状态。单对失败会保留结构化失败记录，不应把其他成功对抹掉。</p>
+          <h3>关联产物</h3>
+          <p><code>inference_results.csv</code>、<code>inference_results.parquet</code>、<code>inference_benchmark.json</code>、<code>inference_run_config.json</code>、<code>evidence-pack.json</code> 和当次读取的 <code>model_catalog.json</code>。</p>
+        </article>
+
+        <article class="mode-guide" data-guide-mode="模型资产库">
+          <h2 class="mode-title">模型资产库</h2>
+          <p class="mode-role">训练产出与外部上传模型的目录、契约和推理审计视图。</p>
+          <h3>适用场景</h3>
+          <p>选择可进入冻结推理的模型，区分训练生成与外部上传来源，并追查模型最近一次迁移表现。它是浏览/跳转页，不创建第三种后端任务。</p>
+          <h3>必需输入</h3>
+          <p>由训练成功发布的模型，或已通过模型上传事务的 <code>.pkl</code>/<code>.pickle</code> 与名为 <code>model_manifest.json</code> 的 manifest。</p>
+          <h3>操作步骤</h3>
+          <ol class="step-list">
+            <li>按来源检查 <code>source=training</code> 或 <code>source=upload</code>。</li>
+            <li>核对算法、特征方案、<code>trained_on</code>、held-out 范围、协议、seed、<code>created_by_run</code> 和摘要。</li>
+            <li>检查 <code>feature_columns</code>、特征流水线/状态和 <code>predict_contract</code>，再进入推理页选择目标数据。</li>
+            <li>结合最近推理记录审计兼容性、迁移精度和失败信息；目录摘要不是重新执行证明。</li>
+          </ol>
+          <h3>成功信号</h3>
+          <p><span class="signal">模型在 <code>GET /api/models</code> 与目录中可见，Pickle/manifest SHA-256、来源和特征契约完整。</span></p>
+          <h3>常见失败</h3>
+          <p>模型名不安全或已存在、文件后缀错误、manifest 文件名错误、必需键缺失、<code>model_kind</code> 不是 <code>pickle</code>、<code>feature_columns</code> 为空、模型没有 <code>predict()</code>，或冒烟预测失败。</p>
+          <h3>关联产物</h3>
+          <p>模型目录中的 <code>model.pkl</code>、<code>model_manifest.json</code>，模型存储根目录的 <code>model_catalog.json</code>，以及训练/推理证据包中的模型摘要和内容身份。</p>
+        </article>
+
+        <article class="mode-guide" data-guide-mode="SOH 完整看板">
+          <h2 class="mode-title">SOH 完整看板</h2>
+          <p class="mode-role">已同步 Battery SOH 领域看板的单电芯、单周期和曲线级诊断入口。</p>
+          <h3>适用场景</h3>
+          <p>查看 SOH 轨迹，并从异常周期下钻到充电电压、容量、时间曲线、IC/DVA 及高亮特征段。它负责局部曲线解释，不代替全局算法公平排名。</p>
+          <h3>必需输入</h3>
+          <p>已成功同步到 <code>frontend/app/battery-dashboard</code> 的原生看板，或独立 HTML 中内嵌的有效看板；源侧需要入口页、manifest 和被 manifest 引用的场景 JSON，曲线视图还需要对应 <code>*_curves.json</code>。</p>
+          <h3>操作步骤</h3>
+          <ol class="step-list">
+            <li>先执行原生看板同步并刷新状态；页签在资源有效时加载 iframe 或内嵌副本。</li>
+            <li>选择场景、数据集和电芯，检查完整 SOH 轨迹。</li>
+            <li>点击周期点联动电压-容量-时间曲线，查看 IC/DVA 与特征高亮区段。</li>
+            <li>记录场景、电芯和周期身份，再回到训练/推理证据定位对应组合。</li>
+          </ol>
+          <h3>成功信号</h3>
+          <p><span class="signal">看板入口加载，场景数据可切换，点击周期点后曲线与特征区段同步更新。</span> <code>SYNC_MANIFEST.json</code> 可用于确认复制范围和是否包含曲线。</p>
+          <h3>常见失败</h3>
+          <p>尚未同步、源 manifest 无场景、引用 JSON 缺失/损坏、使用了 <code>--no-curves</code>、缓存仍指向旧 revision，或同步目标未通过发布解析。重新同步前先修复源资产，不要手工拼接缺失 JSON。</p>
+          <h3>关联产物</h3>
+          <p><code>frontend/app/battery-dashboard/index.html</code>、<code>data/manifest.json</code>、场景 JSON、可选曲线 JSON、<code>SYNC_MANIFEST.json</code>，以及可包含该看板的 portable/standalone 包。</p>
+        </article>
+
+        <article class="mode-guide" data-guide-mode="全局诊断">
+          <h2 class="mode-title">全局诊断</h2>
+          <p class="mode-role">从发布的 benchmark artifacts 汇总覆盖、稳定性、矩阵、QC 和失败组合。</p>
+          <h3>适用场景</h3>
+          <p>比较数据覆盖、算法 × 特征矩阵、多 seed 稳定性、排名、校准、QC 和失败组合。它不承担单电芯某周期的曲线诊断，那是 SOH 完整看板的职责。</p>
+          <h3>必需输入</h3>
+          <p>有效发布的 <code>leaderboard.json</code>、<code>dataset_leaderboard.json</code>、<code>qc_report.json</code> 和 <code>run_config.json</code>；推理洞察还需推理 benchmark/config 与模型目录。</p>
+          <h3>操作步骤</h3>
+          <ol class="step-list">
+            <li>确认当前 profile、来源和协议/seed 范围。</li>
+            <li>选择数据集；选择必须触发 dataset-level 过滤和重新聚合，而不只是修改标签。</li>
+            <li>按特征页签比较算法矩阵、排行榜覆盖徽标、置信区间、稳定性与 QC。</li>
+            <li>对缺失单元和失败组合回到任务历史、结果 CSV 和 EvidencePack 查因。</li>
+          </ol>
+          <h3>成功信号</h3>
+          <p><span class="signal">筛选后 KPI、矩阵和排行榜随所选数据集范围一致变化。</span> 局部覆盖结果只在对应范围内排序，不进入全量总榜。</p>
+          <h3>常见失败</h3>
+          <p>只改变标签却未重新聚合、混用不同 comparison key、把 <code>partial</code> 当完整覆盖、用稳定性全量摘要解释局部筛选、缓存读取旧 generation，或把空 verdict 误当作算法失败。</p>
+          <h3>关联产物</h3>
+          <p>训练/推理 JSON 发布物、<code>statistics.json</code>、<code>predictions.parquet</code>（如有）、<code>CURRENT.json</code> 指向的活动 generation，以及任务历史中的运行目录和证据路径。</p>
+        </article>
+      </section>
+
+      <section id="setup" class="chapter">
+        <h2>工具安装、启动与配置</h2>
+        <p>说明书本身可直接通过 <code>file://</code> 阅读；候选工作台使用 ES modules 和 JSON fetch，必须经静态 HTTP 服务打开。以下命令均在仓库根目录执行。</p>
+        <h3>一次性安装</h3>
+        <pre><code>python -m venv .venv
+.venv\Scripts\python.exe -m pip install -e ".[dev]"
+$env:PYTHONPATH = "src"</code></pre>
+        <h3>启动后端</h3>
+        <pre><code>.venv\Scripts\python.exe -m sohbench.api_server --host 127.0.0.1 --port 8001 --data-dir "D:\battery_SOH\data" --work-dir "work\trusted_plugins" --runs-dir "runs" --frontend-data-dir "frontend\app\data"</code></pre>
+        <p>参数与当前 <code>parse_args</code> 一致；默认值就是上述 host、port 和四个目录。服务是本机 <code>ThreadingHTTPServer</code>，插件信任模式为 <code>trusted_local</code>。</p>
+        <h3>启动前端并打开工作台</h3>
+        <p>在第二个终端执行：</p>
+        <pre><code>.venv\Scripts\python.exe -m http.server 8010 --directory frontend/app</code></pre>
+        <p>将下面地址复制到浏览器地址栏；它是文本而不是活动外链：</p>
+        <pre><code>http://127.0.0.1:8010/?api=http://127.0.0.1:8001</code></pre>
+        <h3>健康检查与端口冲突</h3>
+        <pre><code>Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8001/api/health"
+Get-NetTCPConnection -LocalPort 8001,8010 -State Listen -ErrorAction SilentlyContinue |
+  Select-Object LocalAddress,LocalPort,OwningProcess</code></pre>
+        <p>健康响应应包含 <code>ok: true</code> 和 <code>mode: trusted_local</code>。如端口已占用，先核对 <code>OwningProcess</code>，再选择空闲端口并同步修改 URL；不要停止身份不明的进程。</p>
+        <h3>可控后台启动与停止</h3>
+        <pre><code>$api = Start-Process -WindowStyle Hidden -FilePath ".venv\Scripts\python.exe" -ArgumentList @("-m","sohbench.api_server","--host","127.0.0.1","--port","8001","--data-dir","D:\battery_SOH\data","--work-dir","work\trusted_plugins","--runs-dir","runs","--frontend-data-dir","frontend\app\data") -PassThru
+$web = Start-Process -WindowStyle Hidden -FilePath ".venv\Scripts\python.exe" -ArgumentList @("-m","http.server","8010","--directory","frontend/app") -PassThru
+$apiPid = $api.Id
+$webPid = $web.Id
+
+# 只停止本次捕获的进程 ID
+@($apiPid,$webPid) | ForEach-Object {
+  if (Get-Process -Id $_ -ErrorAction SilentlyContinue) { Stop-Process -Id $_ }
+}</code></pre>
+      </section>
+
+      <section id="onboarding" class="chapter">
+        <h2>新资源接入</h2>
+        <p>四类资源均先进入 staging，完成格式、契约和冒烟验证后再激活。<code>replace</code> 缺省为 <code>false</code>；失败事务恢复原文件、目录和目录项，但系统没有面向用户的“撤销任意已成功上传”历史 API。</p>
+        <div class="resource-grid">
+          <article class="resource-card">
+            <h3>1. 数据集表</h3>
+            <p>接受 <code>.csv</code>、<code>.pkl</code>、<code>.pickle</code> 或 <code>.parquet</code>。推理必需列是 <code>dataset</code>、<code>cell_id</code>、<code>cycle_index</code>；训练还必须有 <code>soh</code>。<code>cycle_index</code> 必须是 0 到 int64 上限内的有限整数，表不能为空。</p>
+            <p>上传后 <code>dataset</code> 被规范为逻辑名，文件原子发布到 <code>processed/{name}_features.pkl</code>。先以目标模式验证列，再激活，避免把无标签推理表误用于训练。</p>
+          </article>
+          <article class="resource-card">
+            <h3>2. 算法源码插件</h3>
+            <p>文件必须是 <code>.py</code>，暴露 <code>Estimator</code>、<code>get_estimator()</code> 或 <code>PLUGIN['estimator']</code> 返回的类；类必须实现 <code>fit()</code> 和 <code>predict()</code>。上传时会实例化并做有限预测/区间冒烟测试。</p>
+            <p class="risk">源码插件会被编译并在 API 进程内执行，不受沙箱保护。获得上传权限等价于获得本机代码执行权限，只接入已审查的可信源码。</p>
+          </article>
+          <article class="resource-card">
+            <h3>3. 特征方案源码插件</h3>
+            <p>文件必须是 <code>.py</code>，提供列选择和/或可调用的 <code>transform</code>。变换结果必须仍是 DataFrame、行数不变，声明的候选列必须存在。</p>
+            <p>Runner 为每个 fold 克隆流水线，只在训练视图上 <code>fit</code> FeatureState，再用同一状态变换 held-out 视图。拟合状态不得跨 held-out 边界复用或提前查看测试标签。</p>
+          </article>
+          <article class="resource-card">
+            <h3>4. 冻结模型包</h3>
+            <p>模型是 <code>.pkl</code>/<code>.pickle</code>，manifest 文件名必须为 <code>model_manifest.json</code>。必需键为 <code>model_name</code>、<code>model_kind</code>、<code>feature_columns</code>、<code>target</code>、<code>predict_contract</code>；<code>model_kind</code> 必须为 <code>pickle</code>，特征列不得为空，模型必须有 <code>predict()</code>。</p>
+            <p class="risk">不受信任的 Pickle 在反序列化时可以执行代码。模型上传与源码插件同属 trusted-local 边界，不能作为互联网匿名上传格式。</p>
+          </article>
+        </div>
+        <h3>上传 API 契约</h3>
+        <div class="table-wrap compact-table">
+          <table>
+            <thead><tr><th>资源</th><th>端点</th><th>JSON 请求</th><th>成功后</th></tr></thead>
+            <tbody>
+              <tr><td>数据集</td><td><code>POST /api/upload/dataset</code></td><td><code>{name, filename, contentBase64, replace?}</code></td><td>目录出现数据集并写入规范化 Pickle</td></tr>
+              <tr><td>算法</td><td><code>POST /api/upload/algorithm</code></td><td><code>{name, filename, contentBase64, replace?}</code></td><td>注册实际 estimator 名称</td></tr>
+              <tr><td>特征</td><td><code>POST /api/upload/featureset</code></td><td><code>{name, filename, contentBase64, replace?}</code></td><td>注册列选择或 fold-local pipeline</td></tr>
+              <tr><td>模型</td><td><code>POST /api/upload/model</code></td><td><code>{name, modelFilename, modelContentBase64, manifestFilename, manifestContentBase64, replace?}</code></td><td>Pickle/manifest/目录原子进入资产库</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>API 使用 Base64 字段而不是 multipart。资源名只允许字母、数字、下划线、连字符且首字符不能是连字符；插件目标使用上传文件的 basename。发布和同步资产路径还拒绝绝对路径、<code>..</code>、反斜杠、路径穿越、保留控制名和 Windows 设备别名。</p>
+      </section>
+
+      <section id="runs" class="chapter">
+        <h2>训练测评与冻结推理</h2>
+        <p>训练和推理是两条独立路径：训练读取标签、拟合算法和特征状态并发布模型；推理读取冻结模型快照，可在无标签目标表上运行，且永远不调用训练。</p>
+        <div class="flow-strip" aria-label="端到端运行流程">
+          <div class="flow-step"><strong>1. 资源预检</strong>目录、列、源码或 Pickle 契约</div><span class="flow-arrow">→</span>
+          <div class="flow-step"><strong>2. 创建任务</strong>HTTP 202 与 queued</div><span class="flow-arrow">→</span>
+          <div class="flow-step"><strong>3. 后台执行</strong>daemon thread 与 running</div><span class="flow-arrow">→</span>
+          <div class="flow-step"><strong>4. 原子发布</strong>run、模型、前端 generation</div><span class="flow-arrow">→</span>
+          <div class="flow-step"><strong>5. 终态审计</strong>succeeded / partial / failed</div>
+        </div>
+        <h3>训练矩阵与耗时估算</h3>
+        <p>请求体为 <code>{datasets?, estimators?, featuresets?, protocols?, seeds?}</code>，缺省分别是 <code>all</code>、<code>ridge</code>、<code>full</code>、<code>loco</code>、<code>[0]</code>。实际训练执行单元数不是简单的数据集数量乘法，而是：</p>
+        <pre><code>执行单元数 =
+  所选协议实际生成的 fold 总数
+  × 每个算法的有效特征迭代数
+  × seed 数
+
+普通算法：有效特征迭代数 = 所选 featureset 数
+BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
+        <p>每个执行单元都拟合模型并预测 held-out 数据；LSTM/CNN/Transformer 默认迭代多个 epoch，PINN 默认更多 epoch。因此大量 fold、seed 和深度模型会使任务长时间 <code>running</code>。当前任务没有细粒度进度百分比或取消 API，应通过任务状态、进程资源和最终产物判断，不要重复点击启动。</p>
+        <h3>训练完成与模型发布</h3>
+        <p>每个无执行错误且可快照的 fold 会保存 fitted estimator、特征列与 FeatureState、训练数据范围、held-out key、协议、seed、run ID 和 <code>predict(X, meta=None)</code> 契约。模型包先序列化、重新加载并冒烟预测，再进入资产库；模型发布失败会成为 <code>model_warnings</code>，不会伪装成已发布。</p>
+        <h3>冻结推理请求与部分成功</h3>
+        <p>请求至少需要 <code>models</code>，可带 <code>datasets</code>、审计字段和非空 <code>pairs</code>。后端为每个模型-数据集对恢复 manifest 声明的特征流水线状态，检查缺失列，然后执行预测。模型读取失败或特征不兼容只生成受影响组合的失败记录；有成功也有失败时任务终态为 <code>partial</code>。</p>
+        <h3>任务历史、轮询与重跑</h3>
+        <p>训练历史来自 <code>GET /api/jobs</code>，推理历史来自 <code>GET /api/inference-jobs</code>；详情路由附加任务 ID。前端约每秒轮询，瞬时错误会退避重连，404 会清除活动锁并允许重跑。终态只有 <code>succeeded</code>、<code>partial</code>、<code>failed</code>；重跑创建新任务、新 run ID 和新 generation，不原位改写旧运行。先从历史恢复相同选择，再根据失败列/模型缩小范围重跑。</p>
+      </section>
+
+      <section id="evidence" class="chapter">
+        <h2>结果、排行与证据解释</h2>
+        <p>单个 KPI 不是结论。先核对任务终态和 execution coverage，再核对 comparison key、数据范围、指标、验收 verdict 与证据摘要。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>类别</th><th>文件</th><th>用途</th><th>解释边界</th></tr></thead>
+            <tbody>
+              <tr><td>训练逐单元</td><td><code>results.csv</code>、<code>results.parquet</code></td><td>fold/seed/算法/特征/指标及结构化失败</td><td>先按 <code>unit_status</code> 区分成功与失败</td></tr>
+              <tr><td>训练聚合</td><td><code>leaderboard.json</code>、<code>dataset_leaderboard.json</code></td><td>全局与 held-out 数据集级重聚合</td><td>局部覆盖不能冒充全量总榜</td></tr>
+              <tr><td>统计</td><td><code>statistics.json</code>、可选 <code>predictions.parquet</code></td><td>资产级 bootstrap 区间与逐样本证据</td><td>无逐样本真值时区间可标记不可用</td></tr>
+              <tr><td>质量与配置</td><td><code>qc_report.json</code>、<code>run_config.json</code></td><td>QC 剔除、实际数据/算法/协议/seed、模型警告</td><td>配置范围是复现实验的前提</td></tr>
+              <tr><td>冻结推理</td><td><code>inference_results.csv</code>、<code>inference_results.parquet</code>、<code>inference_benchmark.json</code>、<code>inference_run_config.json</code></td><td>逐对精度、物理、加载/预测时延与请求审计</td><td>无标签数据只支持预测/物理/速度证据</td></tr>
+              <tr><td>模型目录</td><td><code>model_catalog.json</code></td><td>来源、训练范围、特征契约和内容摘要</td><td>目录可见不等于目标数据兼容</td></tr>
+              <tr><td>EvidencePack</td><td><code>evidence-pack.json</code></td><td>run、RunSpec、comparison key、artifact 摘要链</td><td>用于完整性复核，不代替业务签署</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>KPI、覆盖与验收通过</h3>
+        <ul class="check-list">
+          <li><strong>可比最佳 MAE：</strong>只在当前筛选后仍有有限 MAE 且覆盖可比较的条目中选择；数值小不代表覆盖完整。</li>
+          <li><strong>execution coverage：</strong><code>succeeded / attempted</code>；0 表示没有成功执行单元，1 表示执行覆盖完整，但仍不自动代表业务验收通过。</li>
+          <li><strong>验收通过：</strong>前端统计 leaderboard 中现有 verdict 布尔项的通过数/总数。只有 required acceptance metrics 在成功执行单元中完整、有限时才生成 verdict。</li>
+          <li><strong>零可以是有效显示：</strong>若没有可形成终态验收裁决的记录，后端保留空 <code>verdicts</code>，前端可显示 <code>0/0</code>。这表示“无可计数 verdict”，不是“所有算法都失败”。</li>
+        </ul>
+        <h3>数据集筛选语义</h3>
+        <p>全选时使用 aggregate leaderboard；子集选择必须过滤 <code>dataset_leaderboard.json</code> 的 held-out 数据集记录并重新聚合 metrics 与 verdicts。筛选不能只改标题、芯片或样本数。多 seed 稳定性摘要当前仍是全量聚合，不随局部筛选变化，界面会明确提示。</p>
+      </section>
+
+      <section id="packaging" class="chapter">
+        <h2>数据同步与离线打包</h2>
+        <p>发布采用 staging → 校验 → fsync → generation → 原子更新 <code>CURRENT.json</code> 的顺序。读者通过 pointer 解析活动 generation；新构建失败时 pointer 不切换，last-known-good 继续可读。系统不会提供“回滚到任意历史 generation”的用户命令。</p>
+        <h3>合并并发布前端 artifacts</h3>
+        <pre><code>.venv\Scripts\python.exe scripts\build_frontend_artifacts.py --help</code></pre>
+        <p class="command-note">帮助会报告：位置参数 <code>runs</code>、可重复 <code>--source-run</code>、<code>--archive-dir</code>、<code>--frontend-data-dir</code>、<code>--phase</code>、<code>--replace-cell estimator:featureset</code> 和 <code>--no-auto-replace-from-stability</code>。先按运行优先级提供具体源目录；空的 frontend data 参数可跳过同步。</p>
+        <h3>同步原生 Battery SOH 看板</h3>
+        <pre><code>.venv\Scripts\python.exe scripts\sync_battery_dashboard_native.py --help</code></pre>
+        <p class="command-note">帮助会报告 <code>--source</code>、<code>--target</code>、<code>--no-curves</code> 和 <code>--include-detection</code>。默认 source 是 <code>D:\battery_SOH\dashboard</code>，target 是 <code>frontend/app/battery-dashboard</code>；默认包含 SOH 曲线、排除 detection。同步会校验 manifest/JSON，修补嵌入入口，并发布 <code>SYNC_MANIFEST.json</code>。</p>
+        <h3>构建 portable 目录包</h3>
+        <pre><code>.venv\Scripts\python.exe scripts\package_portable_frontend.py --output dist\soh-eval-portable</code></pre>
+        <p>可另传 <code>--app-dir</code>；缺省为 <code>frontend/app</code>。输出是需要静态 HTTP 服务的目录包，写入 <code>MANIFEST.json</code>，可带已同步原生看板，并始终移除 detection 资产与引用。</p>
+        <h3>构建 standalone 单 HTML</h3>
+        <pre><code>.venv\Scripts\python.exe scripts\build_standalone_frontend.py --output dist\soh-eval-standalone.html</code></pre>
+        <p>可另传 <code>--app-dir</code>。构建器内联 CSS、JS、JSON、离线 GET fetch adapter 和有效原生看板 <code>srcdoc</code>，校验独立模式标记与完整 HTML 后原子替换输出；该文件可直接离线打开。</p>
+      </section>
+
+      <section id="troubleshooting" class="chapter">
+        <h2>常见问题、安全边界与排障</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>现象</th><th>先检查</th><th>判定与处理</th></tr></thead>
+            <tbody>
+              <tr><td>找不到数据集</td><td><code>data-dir\processed\*_features.pkl</code> 与必需列</td><td>训练需四列含 <code>soh</code>；推理只需三个身份列。修复文件/列后刷新 catalog。</td></tr>
+              <tr><td>选择数据集后结果不变</td><td>是否使用 dataset-level 记录重新聚合</td><td>确认 KPI/矩阵/排行榜都更新；只有标签变化属于前端筛选错误。</td></tr>
+              <tr><td>训练长时间 running</td><td>fold × 算法 × 有效特征 × seed、CPU/GPU 与深度 epoch</td><td>当前无百分比/取消 API；继续按任务 ID 轮询，不重复启动。必要时下一次缩小矩阵。</td></tr>
+              <tr><td>推理无响应</td><td>API 健康、任务详情、模型快照大小、轮询错误</td><td>瞬时错误让前端重连；404 会解锁。进程失败时保留任务 JSON/traceback 后重启。</td></tr>
+              <tr><td>验收通过为零</td><td><code>verdicts</code>、required metrics、execution coverage</td><td><code>0/0</code> 可表示无终态可验收记录；不要把它解释为全失败。</td></tr>
+              <tr><td>Pickle/特征不匹配</td><td>SHA-256、manifest <code>feature_columns</code>、pipeline/state</td><td>补齐目标列或用正确模型；不要在推理中临时重训来掩盖不兼容。</td></tr>
+              <tr><td>前端仍是旧结果</td><td>活动 <code>CURRENT.json</code>、URL 的 <code>v</code>、任务终态</td><td>成功/部分成功会 cache-bust；确认 pointer 指向完整 generation，再强制刷新。</td></tr>
+              <tr><td>原生看板无数据</td><td><code>SYNC_MANIFEST.json</code>、源 manifest、曲线选项</td><td>修复源 JSON 后重同步；若用了 <code>--no-curves</code>，曲线缺失是预期。</td></tr>
+              <tr><td>布局溢出或乱码</td><td>浏览器缩放、窄屏、UTF-8、U+FFFD</td><td>保持 UTF-8，使用表格自身横向滚动；不要把页面级 overflow 当作解决方案。</td></tr>
+              <tr><td>上传失败后担心半发布</td><td>错误响应、目录项与原文件摘要</td><td>事务会恢复原 payload/catalog；修复验证错误再重传。它不是已成功上传后的历史回滚功能。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>必须保留的安全边界</h3>
+        <ul class="check-list">
+          <li><strong>路径：</strong>运行 ID 和发布资产必须是受限的单段/相对路径；拒绝绝对路径、<code>.</code>/<code>..</code>、反斜杠、路径穿越、软链接/重解析点逃逸和 publication control 碰撞。</li>
+          <li><strong>Windows 设备别名：</strong><code>CON</code>、<code>PRN</code>、<code>AUX</code>、<code>NUL</code>、<code>COM1</code>–<code>COM9</code>、<code>LPT1</code>–<code>LPT9</code> 及带后缀变体不能作为发布路径组件。</li>
+          <li><strong>可信源码：</strong>算法/特征 <code>.py</code> 在 API 进程内执行；不要向不可信用户开放上传端点。</li>
+          <li><strong>Pickle：</strong>上传和推理读取都会反序列化；只接受来源、摘要和依赖均已审查的模型。</li>
+          <li><strong>网络：</strong>API 当前返回宽松 CORS <code>*</code>，设计目标是绑定 <code>127.0.0.1</code> 的本机可信操作。不要未经认证直接暴露到共享网络。</li>
+        </ul>
+      </section>
       <section id="reference" class="chapter">
         <h2>API、命令和目录速查</h2>
-        <p>本章汇总当前代码可核验的入口、命令、目录和产物。</p>
-        <p class="mono">GET /api/health · GET /api/catalog · GET /api/models · GET /api/battery-curves · GET /api/package/status · GET /api/jobs · GET /api/jobs/{job_id} · GET /api/inference-jobs · GET /api/inference-jobs/{job_id}</p>
-        <p class="mono">POST /api/upload/dataset · POST /api/upload/algorithm · POST /api/upload/featureset · POST /api/upload/model · POST /api/jobs · POST /api/inference-jobs · POST /api/import/battery-dashboard · POST /api/import/battery-soh-plugins · POST /api/sync/native-dashboard · POST /api/package/portable · POST /api/package/standalone</p>
+        <p>下表来自当前 <code>api_server.py</code> 路由集。正常 JSON 响应带 CORS；验证错误为 400，未知路由/任务为 404，未捕获异常为 500。</p>
+        <div class="table-wrap route-table">
+          <table>
+            <thead><tr><th>方法与路由</th><th>输入</th><th>用途</th></tr></thead>
+            <tbody>
+              <tr><td><code>GET /api/health</code></td><td>无</td><td>健康与 trusted-local 模式</td></tr>
+              <tr><td><code>GET /api/catalog</code></td><td><code>model_limit</code>、<code>job_limit</code>、<code>compact_jobs</code></td><td>资源、任务和模型总目录</td></tr>
+              <tr><td><code>GET /api/models</code></td><td>无</td><td>模型资产目录</td></tr>
+              <tr><td><code>GET /api/battery-curves</code></td><td><code>profile</code>、必需 <code>dataset</code>、<code>limit</code></td><td>已发布 profile 的曲线数据</td></tr>
+              <tr><td><code>GET /api/package/status</code></td><td><code>native_dashboard</code>、<code>portable_output</code>、<code>standalone_output</code></td><td>三类交付物就绪检查</td></tr>
+              <tr><td><code>GET /api/jobs</code></td><td>无</td><td>训练任务历史</td></tr>
+              <tr><td><code>GET /api/jobs/{job_id}</code></td><td>路径任务 ID</td><td>训练任务详情</td></tr>
+              <tr><td><code>GET /api/inference-jobs</code></td><td>无</td><td>推理任务历史</td></tr>
+              <tr><td><code>GET /api/inference-jobs/{job_id}</code></td><td>路径任务 ID</td><td>推理任务详情</td></tr>
+              <tr><td><code>POST /api/upload/dataset</code></td><td><code>name</code>、<code>filename</code>、<code>contentBase64</code>、可选 <code>replace</code></td><td>验证并上传数据集</td></tr>
+              <tr><td><code>POST /api/upload/algorithm</code></td><td>同通用源码上传</td><td>验证并执行可信 estimator 插件</td></tr>
+              <tr><td><code>POST /api/upload/featureset</code></td><td>同通用源码上传</td><td>验证并执行可信 featureset 插件</td></tr>
+              <tr><td><code>POST /api/upload/model</code></td><td>模型/manifest 文件名与两个 Base64 字段、可选 <code>replace</code></td><td>验证并上传冻结模型包</td></tr>
+              <tr><td><code>POST /api/jobs</code></td><td>数据、算法、特征、协议、seed 选择</td><td>创建训练任务，返回 HTTP 202</td></tr>
+              <tr><td><code>POST /api/inference-jobs</code></td><td>模型、数据、审计字段、可选 <code>pairs</code></td><td>创建冻结推理任务，返回 HTTP 202</td></tr>
+              <tr><td><code>POST /api/import/battery-dashboard</code></td><td><code>source_dir?</code>、<code>profile_name?</code>、<code>include_curves?</code></td><td>导入 dashboard profile</td></tr>
+              <tr><td><code>POST /api/import/battery-soh-plugins</code></td><td><code>battery_soh_root?</code>、<code>replace?</code></td><td>导入 Battery SOH 可信插件</td></tr>
+              <tr><td><code>POST /api/sync/native-dashboard</code></td><td><code>source?</code>、<code>target?</code>、<code>include_curves?</code>、<code>include_detection?</code></td><td>同步原生看板</td></tr>
+              <tr><td><code>POST /api/package/portable</code></td><td><code>app_dir?</code>、<code>output?</code></td><td>构建 portable 目录</td></tr>
+              <tr><td><code>POST /api/package/standalone</code></td><td><code>app_dir?</code>、<code>output?</code></td><td>构建 standalone HTML</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>关键目录</h3>
+        <p class="mono">D:\battery_SOH\data\processed：发现数据集 · work\trusted_plugins：插件、模型与任务历史 · runs：不可复用的运行目录 · frontend\app\data：活动前端 artifacts 与 CURRENT.json · frontend\app\battery-dashboard：已同步原生看板 · dist：portable/standalone 输出</p>
+        <h3>最短验收链</h3>
+        <pre><code>GET /api/health
+GET /api/catalog
+POST /api/jobs
+GET /api/jobs/{job_id}
+GET /api/models
+POST /api/inference-jobs
+GET /api/inference-jobs/{job_id}
+GET /api/package/status</code></pre>
       </section>
     </main>
     <aside class="quick-rail" aria-label="当前章节速查"><h2>本章速查</h2><p>选择章节查看关键输入、命令、产物和风险。</p></aside>
