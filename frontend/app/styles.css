@@ -427,6 +427,7 @@ table.lb tbody tr.best td:first-child .rank{background:var(--primary);color:#fff
 .native-dashboard-state{flex:0 0 auto;border:1px solid var(--line);border-radius:999px;padding:3px 8px;background:#fff}
 .native-dashboard-state.ready{border-color:#B7E4C7;background:var(--passbg);color:var(--pass)}
 .native-dashboard-unsynced{min-height:0;display:grid;place-content:center;justify-items:center;gap:6px;padding:24px;text-align:center;background:#F8FAFC;color:var(--muted)}
+.native-dashboard-unsynced[hidden]{display:none!important}
 .native-dashboard-unsynced strong{color:var(--fg);font-size:16px}
 .native-dashboard-unsynced span{font-size:12px;line-height:1.5}
 .native-dashboard-frame{width:100%;height:100%;min-height:0;border:0;background:#fff}

@@ -56,6 +56,10 @@ assert.match(css, /\.native-dashboard-layout/);
 assert.match(css, /\.native-dashboard-stage/);
 assert.match(css, /\.delivery-operations/);
 assert.match(css, /\.native-dashboard-frame/);
+assert.match(
+  css,
+  /\.native-dashboard-unsynced\[hidden\]\s*\{[^}]*display\s*:\s*none\s*!important[^}]*\}/,
+);
 
 assert.equal(existsSync(metadataPath), true, "native dashboard generation metadata must be committed");
 const metadata = readFileSync(metadataPath, "utf8");
