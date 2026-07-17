@@ -181,6 +181,7 @@ assert.match(css, /\.diagnostics\{[^}]*display:grid/);
 assert.match(css, /\.foot\{[^}]*display:none/);
 assert.match(css, /\.asset-table\{[^}]*max-height/);
 assert.match(css, /\.model-library-main\{[^}]*grid-template-rows:auto auto minmax\(0,1fr\)/);
+assert.match(css, /\.model-library-main\{[^}]*grid-template-columns:minmax\(0,1fr\)/);
 assert.match(css, /\.workbench-grid\{[^}]*grid-template-columns:minmax\(240px,\s*\.9fr\) minmax\(360px,\s*1\.25fr\)/);
 assert.match(css, /\.scope-group\{[^}]*display:flex/);
 assert.match(css, /\.chip\{[^}]*max-width:150px/);

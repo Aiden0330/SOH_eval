@@ -312,7 +312,7 @@ table.lb tbody tr.best td:first-child .rank{background:var(--primary);color:#fff
 .audit-card b{display:block;margin-top:2px;font-family:var(--mono);font-size:13px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .audit-card small{display:block;margin-top:2px;color:var(--muted);font-size:11px;line-height:1.4;overflow-wrap:anywhere}
 .model-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0;min-width:0;padding:14px 14px 0}
-.model-library-main{min-height:0;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:12px;overflow:hidden;border:1px solid var(--line);border-radius:var(--radius);background:#fff}
+.model-library-main{min-height:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr);gap:12px;overflow:hidden;border:1px solid var(--line);border-radius:var(--radius);background:#fff}
 .asset-governance-note{display:grid;gap:5px;border:1px solid #CFE0FF;border-radius:8px;background:#EEF5FF;padding:12px;margin-bottom:10px;box-shadow:inset 4px 0 0 var(--primary)}
 .asset-governance-note.green{border-color:#B7E4C7;background:#F0FDF4;box-shadow:inset 3px 0 0 var(--pass)}
 .asset-governance-note.amber{border-color:#F3D08A;background:var(--warnbg);box-shadow:inset 3px 0 0 var(--warn)}
