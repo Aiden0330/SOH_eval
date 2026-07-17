@@ -181,7 +181,7 @@
       <section id="architecture" class="chapter">
         <h2>总体架构与数据流</h2>
         <p>五层图是职责视图，不代表所有层都已经以独立服务部署。当前已实现的 Phase 0 在同一 Python 进程或受信本机进程内组合控制、执行和证据能力；目标架构再把高风险执行移入隔离 Worker。</p>
-        <div class="diagram" role="img" aria-label="五层可信测评架构">
+        <div class="diagram" role="img" aria-label="五层可信测评架构" aria-describedby="diagram-architecture-fallback">
           <p class="diagram-title">五层可信测评架构</p>
           <div class="architecture-stack" aria-hidden="true">
             <div class="architecture-layer"><strong>体验与入口层</strong><span>当前前端五页签、CLI、HTTP API；V2 控制台属于目标架构。</span></div>
@@ -190,20 +190,20 @@
             <div class="architecture-layer"><strong>证据面</strong><span>PredictionRecord、Metrics、EvidencePack、不可变 generation、排行与发布。</span></div>
             <div class="architecture-layer"><strong>Battery SOH Domain Pack</strong><span>已接入领域能力：数据映射、标签、特征、曲线、协议和场景政策。</span></div>
           </div>
-          <ol class="sr-only">
-            <li>体验与入口层：前端、CLI 和 API。</li>
-            <li>控制面：Registry、RunSpec、预检和任务状态。</li>
-            <li>执行面：数据快照、折内特征、训练和冻结推理。</li>
-            <li>证据面：逐样本预测、指标、EvidencePack、排行和发布。</li>
-            <li>Battery SOH Domain Pack：数据、标签、特征、曲线、协议和场景政策。</li>
-          </ol>
         </div>
+        <ol id="diagram-architecture-fallback" class="diagram-fallback sr-only">
+          <li>体验与入口层：前端、CLI 和 API。</li>
+          <li>控制面：Registry、RunSpec、预检和任务状态。</li>
+          <li>执行面：数据快照、折内特征、训练和冻结推理。</li>
+          <li>证据面：逐样本预测、指标、EvidencePack、排行和发布。</li>
+          <li>Battery SOH Domain Pack：数据、标签、特征、曲线、协议和场景政策。</li>
+        </ol>
         <div class="status-grid" aria-label="架构实施边界">
           <article class="status-card status-current"><span class="status-label">当前已实现</span><h3>本机闭环</h3><p>API 预检、运行规格、进程内执行、折内特征拟合、逐样本/指标校验、证据摘要和原子文件发布已有代码与测试约束。</p></article>
           <article class="status-card status-domain"><span class="status-label">已接入领域能力</span><h3>领域入口</h3><p>候选前端可以发现 Battery SOH 特征表、算法、冻结模型与曲线产物；领域内容通过兼容层接入测评主链。</p></article>
           <article class="status-card status-target"><span class="status-label">目标架构</span><h3>隔离与治理</h3><p>隔离 Worker、独立队列、CPU/内存/时限/网络守卫、外部插件沙箱和 V2 控制台是规划能力。</p></article>
         </div>
-        <div class="diagram" role="img" aria-label="端到端测评流程">
+        <div class="diagram" role="img" aria-label="端到端测评流程" aria-describedby="diagram-workflow-fallback">
           <p class="diagram-title">端到端工作流</p>
           <div class="diagram-grid" aria-hidden="true">
             <div class="diagram-node"><strong>1 资源接入</strong><span>数据、算法、特征或模型</span></div>
@@ -217,14 +217,14 @@
             <div class="diagram-node"><strong>9 排行发布</strong><span>资格、覆盖与原子切换</span></div>
             <div class="diagram-node"><strong>10 前端展示</strong><span>结论下钻到样本</span></div>
           </div>
-          <ol class="sr-only">
-            <li>接入资源。</li><li>计算内容摘要并检查结构。</li><li>固化运行 Spec。</li><li>执行预检。</li><li>由用户确认运行矩阵。</li>
-            <li>执行训练、适配或冻结推理。</li><li>连接内部真值并计算指标。</li><li>验证 EvidencePack。</li><li>按资格原子发布排行。</li><li>在前端展示并支持证据下钻。</li>
-          </ol>
         </div>
+        <ol id="diagram-workflow-fallback" class="diagram-fallback sr-only">
+          <li>接入资源。</li><li>计算内容摘要并检查结构。</li><li>固化运行 Spec。</li><li>执行预检。</li><li>由用户确认运行矩阵。</li>
+          <li>执行训练、适配或冻结推理。</li><li>连接内部真值并计算指标。</li><li>验证 EvidencePack。</li><li>按资格原子发布排行。</li><li>在前端展示并支持证据下钻。</li>
+        </ol>
         <h3>为什么可信</h3>
         <p>可信不来自界面上的“通过”颜色，而来自每一步都绑定前一步摘要。候选源码、模型和数据首先变成内容引用；RunSpec 固化比较口径；PredictionRecord 保留样本身份但不向候选暴露测试真值；Metrics 记录贡献样本和聚合范围；EvidencePack 再对发布所依赖文件逐项登记大小和 SHA-256。</p>
-        <div class="diagram evidence-chain" role="img" aria-label="摘要关联的证据链">
+        <div class="diagram evidence-chain" role="img" aria-label="摘要关联的证据链" aria-describedby="diagram-evidence-fallback">
           <p class="diagram-title">摘要关联证据链</p>
           <div class="diagram-grid" aria-hidden="true">
             <div class="diagram-node"><strong>输入摘要</strong><span>数据/算法/特征/模型字节</span></div>
@@ -234,11 +234,11 @@
             <div class="diagram-node"><strong>EvidencePack</strong><span>manifest、文件大小与摘要</span></div>
             <div class="diagram-node"><strong>发布物</strong><span>不可变 generation 与活动指针</span></div>
           </div>
-          <ol class="sr-only">
-            <li>计算输入内容摘要。</li><li>RunSpec 引用不可变输入并生成比较键。</li><li>PredictionRecord 绑定样本身份和预测。</li>
-            <li>Metrics 绑定贡献样本与统计范围。</li><li>EvidencePack 登记并验证所有证据文件。</li><li>验证后的发布物进入不可变 generation，再原子切换活动指针。</li>
-          </ol>
         </div>
+        <ol id="diagram-evidence-fallback" class="diagram-fallback sr-only">
+          <li>计算输入内容摘要。</li><li>RunSpec 引用不可变输入并生成比较键。</li><li>PredictionRecord 绑定样本身份和预测。</li>
+          <li>Metrics 绑定贡献样本与统计范围。</li><li>EvidencePack 登记并验证所有证据文件。</li><li>验证后的发布物进入不可变 generation，再原子切换活动指针。</li>
+        </ol>
       </section>
       <section id="domain" class="chapter">
         <h2>SOH 数据、特征与算法原理</h2>
@@ -391,19 +391,19 @@
         </dl>
         <h3>状态、结果与裁决必须分离</h3>
         <p><code>execution_state</code> 描述生命周期位置；<code>outcome</code> 描述执行单元完成结果；<code>verdict</code> 描述政策/人工是否接受发布。运行结束、全部算完和可以发布是三个不同事实。</p>
-        <div class="diagram" role="img" aria-label="运行状态、执行结果与裁决三条语义通道">
+        <div class="diagram" role="img" aria-label="运行状态、执行结果与裁决三条语义通道" aria-describedby="diagram-state-fallback">
           <p class="diagram-title">目标架构语义模型</p>
           <div class="state-lanes" aria-hidden="true">
             <div class="state-lane"><strong>生命周期</strong><div class="state-nodes"><span class="state-node">queued</span><span class="state-arrow">→</span><span class="state-node">running</span><span class="state-arrow">→</span><span class="state-node">terminal</span></div></div>
             <div class="state-lane"><strong>terminal outcome</strong><div class="state-nodes"><span class="state-node">succeeded</span><span class="state-node">partially_succeeded</span><span class="state-node">failed</span></div></div>
             <div class="state-lane"><strong>verdict</strong><div class="state-nodes"><span class="state-node">accepted</span><span class="state-node">rejected</span><span class="state-node">not_evaluated</span></div></div>
           </div>
-          <ol class="sr-only">
-            <li>生命周期从 queued 到 running，再到 terminal。</li>
-            <li>终态执行结果为 succeeded、partially_succeeded 或 failed。</li>
-            <li>独立裁决为 accepted、rejected 或 not_evaluated。</li>
-          </ol>
         </div>
+        <ol id="diagram-state-fallback" class="diagram-fallback sr-only">
+          <li>生命周期从 queued 到 running，再到 terminal。</li>
+          <li>终态执行结果为 succeeded、partially_succeeded 或 failed。</li>
+          <li>独立裁决为 accepted、rejected 或 not_evaluated。</li>
+        </ol>
         <p class="callout warning"><strong>当前实现映射：</strong>当前已实现的服务生命周期使用 <code>QUEUED</code>、<code>RUNNING</code>、<code>REVIEW</code>/<code>FAILED</code> 等状态；聚合 <code>outcome</code> 使用 <code>complete</code>、<code>partial</code>、<code>failed</code>；<code>verdict</code> 可见 <code>not_reviewed</code>、<code>pass</code>、<code>warn</code>、<code>fail</code>。上图的 terminal 与 accepted 词组是目标架构的归一化语义，不是当前枚举已替换的声明。</p>
         <h3>失败与不可变性</h3>
         <p>当前结构化失败类别包括 <code>INPUT_CONTRACT</code>、<code>DATA_QC</code>、<code>LEAKAGE</code>、<code>ALGORITHM</code>、<code>RESOURCE</code>、<code>INFRASTRUCTURE</code>、<code>METRIC</code> 和 <code>POLICY</code>。失败记录保留类型、信息和执行单元身份，重试产生新 attempt；发布重建产生新 generation。旧 attempt、已引用证据和历史 generation 不应原位修改或因重试被删除。</p>
