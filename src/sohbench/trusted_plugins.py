@@ -94,10 +94,6 @@ class TrustedPluginStore:
         table["dataset"] = name
 
         out_path = self.data_dir / "processed" / f"{name}_features.pkl"
-        if out_path.exists() and not replace:
-            raise TrustedPluginError(f"dataset already exists: {name}")
-        table.to_pickle(out_path)
-
         resource = {
             "name": name,
             "kind": "dataset",
@@ -107,8 +103,25 @@ class TrustedPluginStore:
             "has_labels": "soh" in table.columns,
             "source_filename": filename,
         }
-        self._upsert_catalog("datasets", resource)
-        return resource
+        with self._lock:
+            if out_path.exists() and not replace:
+                raise TrustedPluginError(f"dataset already exists: {name}")
+            staged = self._stage_dataset_pickle(out_path, table)
+            try:
+                next_catalog = self._catalog_with_upsert(
+                    "datasets", resource
+                )
+                catalog_staging = self._stage_catalog(next_catalog)
+                self._activate_plugin_transaction(
+                    out_path,
+                    staged,
+                    catalog_staging,
+                    next_catalog,
+                    lambda: None,
+                )
+                return resource
+            finally:
+                staged.unlink(missing_ok=True)
 
     def upload_estimator_plugin(
         self,
@@ -403,6 +416,26 @@ class TrustedPluginStore:
                 os.fsync(stream.fileno())
             if staged.read_bytes() != payload:
                 raise TrustedPluginError("staged plugin bytes failed validation")
+            return staged
+        except BaseException:
+            staged.unlink(missing_ok=True)
+            raise
+
+    def _stage_dataset_pickle(
+        self, path: Path, table: pd.DataFrame
+    ) -> Path:
+        staged = path.parent / f".{path.name}.tmp-{uuid.uuid4().hex}"
+        try:
+            table.to_pickle(staged)
+            with staged.open("r+b") as stream:
+                os.fsync(stream.fileno())
+            try:
+                persisted = pd.read_pickle(staged)
+                pd.testing.assert_frame_equal(persisted, table)
+            except Exception as exc:
+                raise TrustedPluginError(
+                    "staged dataset pickle failed validation"
+                ) from exc
             return staged
         except BaseException:
             staged.unlink(missing_ok=True)

@@ -1,9 +1,13 @@
+import json
 import random
 import threading
+import time
+from pathlib import Path
 
 import numpy as np, pandas as pd, pytest
 from sohbench import metrics as M
 from sohbench.contracts import Fold
+from sohbench.fabric import FeatureState
 from sohbench.runner import BenchmarkRunner
 from sohbench.protocols import LeaveOneCellOut, LeaveOneDatasetOut
 from sohbench.tasks import SOHEstimationTask
@@ -207,6 +211,177 @@ def test_concurrent_private_seed_candidates_still_isolate_global_random_streams(
             draws[job]["python"],
             [expected_python.random(), expected_python.random()],
         )
+
+
+def test_concurrent_stochastic_feature_pipelines_are_fully_seed_isolated(
+    tmp_path,
+):
+    class StochasticPipeline:
+        def __init__(self, audit_root):
+            self.audit_root = str(audit_root)
+
+        def _record(self, stage, numpy_value, python_value, **extra):
+            job = threading.current_thread().name
+            path = Path(self.audit_root) / f"{job}.jsonl"
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(
+                    json.dumps(
+                        {
+                            "stage": stage,
+                            "numpy": float(numpy_value),
+                            "python": float(python_value),
+                            **extra,
+                        }
+                    )
+                    + "\n"
+                )
+
+        def clone_for_fold(self):
+            numpy_value = np.random.random()
+            python_value = random.random()
+            self._record("clone", numpy_value, python_value)
+            return type(self)(self.audit_root)
+
+        def fit(self, train_x, train_y, meta):
+            numpy_value = np.random.random()
+            python_value = random.random()
+            job = threading.current_thread().name
+            marker = Path(self.audit_root) / f"{job}.fit-started"
+            marker.write_text("started", encoding="utf-8")
+            saw_peer = False
+            if job == "seed-111":
+                peer = Path(self.audit_root) / "seed-222.fit-started"
+                deadline = time.monotonic() + 0.75
+                while time.monotonic() < deadline:
+                    if peer.exists():
+                        saw_peer = True
+                        break
+                    time.sleep(0.01)
+            self._record(
+                "fit",
+                numpy_value,
+                python_value,
+                saw_peer=saw_peer,
+            )
+            return FeatureState.create({"kind": "stochastic"})
+
+        def transform(self, frame, state, meta):
+            numpy_value = np.random.random()
+            python_value = random.random()
+            self._record("transform", numpy_value, python_value)
+            out = frame.copy()
+            out["stochastic_feature"] = numpy_value + python_value
+            return out
+
+    class PipelineProbeEstimator:
+        name = "pipeline_rng_probe"
+        feature_mode = "unified"
+        backend = "external"
+
+        def fit(self, X, y, meta=None):
+            return self
+
+        def predict(self, X, meta=None):
+            return np.full(len(X), 0.9)
+
+        def predict_interval(self, X, meta=None):
+            center = self.predict(X, meta)
+            return center, center
+
+    def run_round(round_name):
+        audit_root = tmp_path / round_name
+        audit_root.mkdir()
+        table = _single_fold_table()
+        errors = []
+        original_numpy_state = np.random.get_state()
+        original_python_state = random.getstate()
+        np.random.seed(9876)
+        random.seed(5432)
+        caller_numpy_state = np.random.get_state()
+        caller_python_state = random.getstate()
+
+        def execute(seed):
+            try:
+                BenchmarkRunner(seeds=[seed]).run(
+                    SOHEstimationTask(),
+                    table=table,
+                    meta=pd.DataFrame(),
+                    protocols={"demo": _SingleFoldProtocol()},
+                    estimators=[PipelineProbeEstimator],
+                    feature_pipelines={
+                        "full": StochasticPipeline(audit_root)
+                    },
+                )
+            except BaseException as exc:
+                errors.append(exc)
+
+        first = threading.Thread(
+            target=execute, args=(111,), name="seed-111"
+        )
+        second = threading.Thread(
+            target=execute, args=(222,), name="seed-222"
+        )
+        try:
+            first.start()
+            first_marker = audit_root / "seed-111.fit-started"
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline and not first_marker.exists():
+                time.sleep(0.01)
+            assert first_marker.exists()
+            second.start()
+            first.join(timeout=5)
+            second.join(timeout=5)
+            observed_numpy_state = np.random.get_state()
+            observed_python_state = random.getstate()
+        finally:
+            first.join(timeout=5)
+            if second.ident is not None:
+                second.join(timeout=5)
+            np.random.set_state(original_numpy_state)
+            random.setstate(original_python_state)
+
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert errors == []
+        assert observed_numpy_state[0] == caller_numpy_state[0]
+        np.testing.assert_array_equal(
+            observed_numpy_state[1], caller_numpy_state[1]
+        )
+        assert observed_numpy_state[2:] == caller_numpy_state[2:]
+        assert observed_python_state == caller_python_state
+
+        audits = {}
+        for seed in (111, 222):
+            job = f"seed-{seed}"
+            records = [
+                json.loads(line)
+                for line in (audit_root / f"{job}.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ]
+            expected_numpy = np.random.RandomState(seed).random_sample(6)
+            expected_python_rng = random.Random(seed)
+            expected_python = [
+                expected_python_rng.random() for _ in range(6)
+            ]
+            np.testing.assert_allclose(
+                [record["numpy"] for record in records], expected_numpy
+            )
+            np.testing.assert_allclose(
+                [record["python"] for record in records], expected_python
+            )
+            if seed == 111:
+                fit_record = next(
+                    record for record in records if record["stage"] == "fit"
+                )
+                assert fit_record["saw_peer"] is False
+            audits[job] = records
+        return audits
+
+    first_round = run_round("first")
+    second_round = run_round("second")
+
+    assert first_round == second_round
 
 
 @pytest.mark.parametrize(

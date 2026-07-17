@@ -10,7 +10,7 @@ import pytest
 
 import scripts.package_portable_frontend as portable_module
 from scripts.package_portable_frontend import package_portable_frontend
-from scripts.sync_battery_dashboard_native import sync_native_dashboard
+from scripts.sync_battery_dashboard_native import _scenario_names, sync_native_dashboard
 import sohbench.frontend_publish as frontend_publish_module
 from sohbench.frontend_publish import (
     publish_frontend_profile,
@@ -38,7 +38,12 @@ def _active_publication(path: Path) -> Path:
     return resolver(path) if resolver is not None else path
 
 
-def _write_native_dashboard(root: Path, *, include_curves: bool = True) -> Path:
+def _write_native_dashboard(
+    root: Path,
+    *,
+    include_curves: bool = True,
+    include_detection: bool = False,
+) -> Path:
     data = root / "data"
     data.mkdir(parents=True)
     (root / "index.html").write_text(
@@ -55,6 +60,12 @@ def _write_native_dashboard(root: Path, *, include_curves: bool = True) -> Path:
     _write_json(data / "xjtu.json", {"points": []})
     if include_curves:
         _write_json(data / "xjtu_curves.json", {"cell-1|1": {"t_s": [0], "voltage_v": [4.1]}})
+    if include_detection:
+        _write_json(data / "ess_detection.json", {"detections": []})
+        _write_json(
+            data / "ess_detection_curves.json",
+            {"cell-1": {"sample": [0], "dev_mv": {"cell-1": [0.1]}}},
+        )
     return root
 
 
@@ -121,6 +132,48 @@ def test_native_sync_missing_manifest_asset_preserves_last_known_good(tmp_path):
     assert not list(target.parent.glob(f".{target.name}.tmp-*"))
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        pytest.param("", id="empty"),
+        pytest.param(".", id="dot"),
+        pytest.param("..", id="dot-dot"),
+        pytest.param("../escape", id="posix-traversal"),
+        pytest.param(r"..\escape", id="windows-traversal"),
+        pytest.param(r"C:\escape", id="windows-absolute"),
+        pytest.param("C:escape", id="windows-drive-relative"),
+        pytest.param("%2e%2e", id="encoded-traversal"),
+        pytest.param("CuRrEnT", id="control-stem-casefold"),
+        pytest.param("current.JSON", id="control-file-casefold"),
+    ],
+)
+def test_native_sync_rejects_unsafe_scenario_filename_stems(name):
+    with pytest.raises(ValueError, match="invalid scenario name"):
+        _scenario_names({"scenarios": [{"mode": name}]})
+
+
+def test_native_sync_traversal_preserves_active_generation_and_sibling(tmp_path):
+    source = _write_native_dashboard(tmp_path / "source")
+    target = tmp_path / "app" / "battery-dashboard"
+    sync_native_dashboard(source, target, include_curves=True)
+    before = _snapshot(target)
+    sibling = target.parent / "sibling.json"
+    sibling.write_bytes(b"last-known-good-sibling")
+
+    _write_json(
+        source / "data" / "manifest.json",
+        {"scenarios": [{"mode": "../../sibling", "title": "unsafe"}]},
+    )
+    _write_json(tmp_path / "sibling.json", {"version": "attacker"})
+
+    with pytest.raises(ValueError, match="invalid scenario name"):
+        sync_native_dashboard(source, target, include_curves=False)
+
+    assert _snapshot(target) == before
+    assert sibling.read_bytes() == b"last-known-good-sibling"
+    assert not list(target.parent.glob(f".{target.name}.tmp-*"))
+
+
 def test_portable_copy_failure_preserves_last_known_good(tmp_path, monkeypatch):
     app_dir = _write_frontend_app(tmp_path / "frontend" / "app")
     output = tmp_path / "dist" / "soh-eval-portable"
@@ -141,6 +194,52 @@ def test_portable_copy_failure_preserves_last_known_good(tmp_path, monkeypatch):
 
     assert _snapshot(output) == before
     assert not list(output.parent.glob(f".{output.name}.tmp-*"))
+
+
+def test_portable_package_rewrites_detection_enabled_native_sync_manifest(
+    tmp_path,
+):
+    app_dir = _write_frontend_app(tmp_path / "frontend" / "app")
+    native_source = _write_native_dashboard(
+        tmp_path / "native-source", include_detection=True
+    )
+    synced = sync_native_dashboard(
+        native_source,
+        app_dir / "battery-dashboard",
+        include_curves=True,
+        include_detection=True,
+    )
+    assert {
+        "ess_detection.json",
+        "ess_detection_curves.json",
+    } <= set(synced["copied_files"])
+
+    output = tmp_path / "dist" / "soh-eval-portable"
+    package_portable_frontend(app_dir, output)
+    active = frontend_publish_module.resolve_published_directory(output)
+    packaged_dashboard = active / "battery-dashboard"
+    packaged_sync = json.loads(
+        (packaged_dashboard / "SYNC_MANIFEST.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert all(
+        "ess_detection" not in filename
+        for filename in packaged_sync["copied_files"]
+    )
+    assert not list(
+        (packaged_dashboard / "data").glob("*ess_detection*.json")
+    )
+    assert packaged_sync["excluded_detection_assets"] is True
+    for key in (
+        "source",
+        "target",
+        "scenario_count",
+        "include_soh_curves",
+    ):
+        assert packaged_sync[key] == synced[key]
+    portable_module._validate_native_dashboard(packaged_dashboard)
 
 
 def test_concurrent_profile_publication_never_mixes_runs(tmp_path, monkeypatch):

@@ -8,7 +8,9 @@ from pathlib import Path
 
 from sohbench.frontend_publish import (
     _publish_directory,
+    publish_text_file_atomic,
     resolve_published_directory,
+    resolve_safe_publication_asset,
 )
 
 
@@ -115,26 +117,69 @@ def _remove_detection_assets(path: Path) -> None:
             item.unlink()
 
 
+def _rewrite_native_sync_manifest_without_detection(path: Path) -> None:
+    sync_manifest_path = path / "SYNC_MANIFEST.json"
+    if not sync_manifest_path.is_file():
+        return
+    sync_manifest = json.loads(
+        sync_manifest_path.read_text(encoding="utf-8")
+    )
+    if not isinstance(sync_manifest, dict):
+        raise ValueError("native dashboard sync manifest must be an object")
+    copied_files = sync_manifest.get("copied_files")
+    if not isinstance(copied_files, list):
+        raise ValueError("native dashboard sync manifest has no copied_files")
+    rewritten = {
+        **sync_manifest,
+        "copied_files": [
+            filename
+            for filename in copied_files
+            if "ess_detection" not in str(filename)
+        ],
+        "excluded_detection_assets": True,
+    }
+    payload = json.dumps(rewritten, ensure_ascii=False, indent=2)
+
+    def validate(temporary: Path) -> None:
+        if json.loads(temporary.read_text(encoding="utf-8")) != rewritten:
+            raise ValueError("native dashboard sync manifest rewrite failed")
+
+    publish_text_file_atomic(
+        sync_manifest_path, payload, validate=validate
+    )
+
+
 def _validate_native_dashboard(path: Path) -> None:
     index = path / "index.html"
     data = path / "data"
     manifest_path = data / "manifest.json"
     if not index.is_file():
         raise FileNotFoundError(f"Missing native dashboard index.html: {index}")
+    index.read_text(encoding="utf-8")
     if not manifest_path.is_file():
         raise FileNotFoundError(f"Missing native dashboard manifest: {manifest_path}")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     scenarios = manifest.get("scenarios") if isinstance(manifest, dict) else None
     if not isinstance(scenarios, list) or not scenarios:
         raise ValueError("native dashboard manifest has no scenarios")
-    required = [data / "overview.json"]
+    required = [
+        resolve_safe_publication_asset(
+            data, "overview.json", label="native dashboard asset path"
+        )
+    ]
     for item in scenarios:
         if not isinstance(item, dict):
             raise ValueError("native dashboard scenario must be an object")
         name = item.get("mode") or item.get("id")
         if not name:
             raise ValueError("native dashboard scenario has no mode or id")
-        required.append(data / f"{name}.json")
+        required.append(
+            resolve_safe_publication_asset(
+                data,
+                f"{name}.json",
+                label="native dashboard scenario path",
+            )
+        )
     for asset in required:
         if not asset.is_file():
             raise FileNotFoundError(f"Missing native dashboard asset: {asset}")
@@ -143,10 +188,32 @@ def _validate_native_dashboard(path: Path) -> None:
     sync_manifest_path = path / "SYNC_MANIFEST.json"
     if sync_manifest_path.is_file():
         sync_manifest = json.loads(sync_manifest_path.read_text(encoding="utf-8"))
-        for filename in sync_manifest.get("copied_files") or []:
-            if "ess_detection" in str(filename):
-                continue
-            asset = data / str(filename)
+        if not isinstance(sync_manifest, dict):
+            raise ValueError("native dashboard sync manifest must be an object")
+        scenario_count = sync_manifest.get("scenario_count")
+        if (
+            isinstance(scenario_count, bool)
+            or not isinstance(scenario_count, int)
+            or scenario_count <= 0
+        ):
+            raise ValueError(
+                "native dashboard sync manifest has invalid scenario_count"
+            )
+        copied_files = sync_manifest.get("copied_files")
+        if not isinstance(copied_files, list) or not copied_files:
+            raise ValueError(
+                "native dashboard sync manifest has no copied_files"
+            )
+        for filename in copied_files:
+            asset = resolve_safe_publication_asset(
+                data,
+                str(filename),
+                label="synced native dashboard asset path",
+            )
+            if asset.suffix.casefold() != ".json":
+                raise ValueError(
+                    f"Synced native dashboard asset is not JSON: {asset}"
+                )
             if not asset.is_file():
                 raise FileNotFoundError(f"Missing synced native dashboard asset: {asset}")
             json.loads(asset.read_text(encoding="utf-8"))
@@ -196,6 +263,9 @@ def package_portable_frontend(app_dir: Path = DEFAULT_APP_DIR, output: Path = DE
             staged_dashboard = staging / "battery-dashboard"
             _copy_tree(native_dashboard, staged_dashboard)
             _remove_detection_assets(staged_dashboard / "data")
+            _rewrite_native_sync_manifest_without_detection(
+                staged_dashboard
+            )
             copied_assets.append("battery-dashboard/")
             _validate_native_dashboard(staged_dashboard)
 

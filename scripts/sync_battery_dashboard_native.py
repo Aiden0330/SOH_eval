@@ -2,18 +2,24 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 from pathlib import Path
 
 from sohbench.frontend_publish import (
     _publish_directory,
     resolve_published_directory,
+    resolve_safe_publication_asset,
 )
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE = Path(r"D:\battery_SOH\dashboard")
 DEFAULT_TARGET = ROOT / "frontend" / "app" / "battery-dashboard"
+SAFE_SCENARIO_NAME_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*$")
+RESERVED_SCENARIO_NAMES = frozenset(
+    {".generations", "current", "current.json"}
+)
 
 
 def _read_json(path: Path) -> dict:
@@ -23,9 +29,14 @@ def _read_json(path: Path) -> dict:
 def _scenario_names(manifest: dict) -> list[str]:
     names: list[str] = []
     for item in manifest.get("scenarios") or []:
-        name = item.get("mode") or item.get("id")
-        if name:
-            names.append(str(name))
+        raw_name = item.get("mode") or item.get("id")
+        name = "" if raw_name is None else str(raw_name)
+        if (
+            not SAFE_SCENARIO_NAME_RE.fullmatch(name)
+            or name.casefold() in RESERVED_SCENARIO_NAMES
+        ):
+            raise ValueError(f"invalid scenario name: {raw_name!r}")
+        names.append(name)
     return names
 
 
@@ -40,12 +51,17 @@ def _required_assets(scenarios: list[str], *, include_curves: bool, include_dete
     return required
 
 
-def _validate_json_assets(data_dir: Path, filenames: list[str]) -> None:
+def _validate_json_assets(data_dir: Path, filenames: list[str]) -> dict[str, Path]:
+    assets: dict[str, Path] = {}
     for filename in filenames:
-        path = data_dir / filename
+        path = resolve_safe_publication_asset(
+            data_dir, filename, label="dashboard asset path"
+        )
         if not path.is_file():
             raise FileNotFoundError(f"Missing required source dashboard asset: {path}")
         _read_json(path)
+        assets[filename] = path
+    return assets
 
 
 LINKED_CONTROL_CSS = """  .linked-select { max-width:220px; }
@@ -329,7 +345,7 @@ def sync_native_dashboard(
         include_curves=include_curves,
         include_detection=include_detection,
     )
-    _validate_json_assets(source_data, required)
+    source_assets = _validate_json_assets(source_data, required)
 
     manifest_payload = {
         "source": str(source),
@@ -343,9 +359,15 @@ def sync_native_dashboard(
     def build(staging: Path) -> None:
         staging_data = staging / "data"
         staging_data.mkdir(parents=True)
+        destinations = {
+            filename: resolve_safe_publication_asset(
+                staging_data, filename, label="staged dashboard asset path"
+            )
+            for filename in required
+        }
         (staging / "index.html").write_text(html, encoding="utf-8", newline="\n")
         for filename in required:
-            shutil.copy2(source_data / filename, staging_data / filename)
+            shutil.copy2(source_assets[filename], destinations[filename])
         (staging / "SYNC_MANIFEST.json").write_text(
             json.dumps(manifest_payload, ensure_ascii=False, indent=2),
             encoding="utf-8",

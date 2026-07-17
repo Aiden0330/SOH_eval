@@ -151,9 +151,8 @@ class BenchmarkRunner:
             for pname, proto in protocols.items()
             for fi, fold in enumerate(proto.generate(table, meta))
         ]
-        views_cache, raw_prepared_cache, prepared_cache = {}, {}, {}
+        views_cache = {}
         model_events, prediction_events = [], []
-        prepared_callback_snapshots = {}
 
         def views_for(pname, fi, fold):
             key = (pname, fi)
@@ -164,11 +163,7 @@ class BenchmarkRunner:
                     views_cache[key] = (None, _contextual_error(InputContractError, exc))
             return views_cache[key]
 
-        def raw_prepared_for(pname, fi, fold, pipeline_name):
-            key = (pname, fi, pipeline_name)
-            if key in raw_prepared_cache:
-                return raw_prepared_cache[key]
-            views, view_error = views_for(pname, fi, fold)
+        def prepared_candidate_for(views, view_error, fs_name, track, pipeline_name):
             state = FeatureState.create({"kind": "unavailable"})
             try:
                 if view_error is not None:
@@ -179,30 +174,14 @@ class BenchmarkRunner:
                 state = fitting_pipeline.fit(_copy_fold_frame(views.train_x), views.train_y.copy(), train_meta)
                 transformed_train = _transform_fold(clone_for_fold(template), views.train_x, state, meta, task.target)
                 transformed_test = _transform_fold(clone_for_fold(template), views.test_x, state, meta, task.target)
-                value = (transformed_train, transformed_test, state, None)
-            except Exception as exc:
-                value = (None, None, state, _contextual_error(InputContractError, exc))
-            raw_prepared_cache[key] = value
-            return value
-
-        def prepared_for(pname, fi, fold, fs_name, track, pipeline_name):
-            key = (pname, fi, fs_name, track, pipeline_name)
-            if key in prepared_cache:
-                return prepared_cache[key]
-            transformed_train, transformed_test, state, raw_error = raw_prepared_for(pname, fi, fold, pipeline_name)
-            try:
-                if raw_error is not None:
-                    raise raw_error
                 train_x, test_x = (
                     (transformed_train, transformed_test)
                     if track == "byo"
                     else (project(transformed_train, fs_name), project(transformed_test, fs_name))
                 )
-                value = (train_x, test_x, state, None)
+                return train_x, test_x, state, None
             except Exception as exc:
-                value = (None, None, state, _contextual_error(InputContractError, exc))
-            prepared_cache[key] = value
-            return value
+                return None, None, state, _contextual_error(InputContractError, exc)
 
         for pname, cross, fi, fold in folds:
             views, view_error = views_for(pname, fi, fold)
@@ -216,9 +195,8 @@ class BenchmarkRunner:
                     (name, "unified", name if name in feature_pipelines else None) for name in featuresets
                 ]
                 for fs_name, track, pipeline_name in fs_iterations:
-                    prepared_key = (pname, fi, fs_name, track, pipeline_name)
-                    fit_train_x, fit_test_x, feature_state, feature_error = prepared_for(pname, fi, fold, fs_name, track, pipeline_name)
                     for seed in self.seeds:
+                        feature_state = FeatureState.create({"kind": "unavailable"})
                         rec_base = {
                             "estimator": est_name, "protocol": pname, "held_out_key": fold.held_out_key,
                             "fold": fi, "seed": seed, "ci_source": "conformal", "featureset": fs_name,
@@ -228,8 +206,13 @@ class BenchmarkRunner:
                             "error_type": "", "error_message": "",
                         }
                         snapshot_path, snapshot_error = None, None
+                        fit_train_x = fit_test_x = train_x = test_x = None
                         try:
                             with _legacy_random_scope(seed):
+                                fit_train_x, fit_test_x, feature_state, feature_error = prepared_candidate_for(
+                                    views, view_error, fs_name, track, pipeline_name
+                                )
+                                rec_base["feature_state_digest"] = feature_state.digest
                                 if feature_error is not None:
                                     raise feature_error
                                 try:
@@ -294,22 +277,17 @@ class BenchmarkRunner:
                         if "error" not in rec_base and on_model_fitted is not None:
                             prepared_snapshot_path, prepared_snapshot_error = None, None
                             if snapshot_error is None:
-                                if prepared_key not in prepared_callback_snapshots:
-                                    try:
-                                        prepared_callback_snapshots[prepared_key] = (
-                                            callback_spool.dump(
-                                                "prepared",
-                                                {
-                                                    "train_table": fit_train_x,
-                                                    "test_table": fit_test_x,
-                                                    "feature_state": feature_state,
-                                                },
-                                            ),
-                                            None,
-                                        )
-                                    except Exception as exc:
-                                        prepared_callback_snapshots[prepared_key] = (None, str(exc))
-                                prepared_snapshot_path, prepared_snapshot_error = prepared_callback_snapshots[prepared_key]
+                                try:
+                                    prepared_snapshot_path = callback_spool.dump(
+                                        "prepared",
+                                        {
+                                            "train_table": fit_train_x,
+                                            "test_table": fit_test_x,
+                                            "feature_state": feature_state,
+                                        },
+                                    )
+                                except Exception as exc:
+                                    prepared_snapshot_error = str(exc)
                             model_events.append(
                                 {
                                     "snapshot_path": snapshot_path,
@@ -347,10 +325,6 @@ class BenchmarkRunner:
             # The complete fold has run across every estimator. Evidence has
             # been staged, so large transformed views can now be released.
             views_cache.pop((pname, fi), None)
-            for cache in (raw_prepared_cache, prepared_cache):
-                for cache_key in tuple(cache):
-                    if cache_key[:2] == (pname, fi):
-                        cache.pop(cache_key, None)
             views = fit_train_x = fit_test_x = train_x = test_x = None
             train_y = test_y = train_meta = test_meta = est = yp = lo = hi = None
 

@@ -1,5 +1,6 @@
 import json
 import os
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -68,6 +69,239 @@ def test_upload_and_catalog_preserve_unlabeled_inference_dataset(tmp_path):
     assert DatasetLoader(tmp_path / "data").discover_datasets(require_labels=False) == [
         "unlabeled_demo"
     ]
+
+
+def test_dataset_replacement_waits_for_execution_lease(
+    tmp_path, monkeypatch
+):
+    store = TrustedPluginStore(
+        base_dir=tmp_path / "plugins", data_dir=tmp_path / "data"
+    )
+    original = _dataset_frame("lease_demo")
+    replacement = original.copy()
+    replacement["voltage_mean"] = 9.9
+    resource = store.upload_dataset(
+        "lease_demo",
+        "lease.csv",
+        original.to_csv(index=False).encode("utf-8"),
+    )
+    dataset_path = Path(resource["path"])
+    write_entered = threading.Event()
+    release_write = threading.Event()
+    replacement_started = threading.Event()
+    replacement_finished = threading.Event()
+    errors = []
+    real_to_pickle = pd.DataFrame.to_pickle
+
+    def blocking_to_pickle(frame, path, *args, **kwargs):
+        result = real_to_pickle(frame, path, *args, **kwargs)
+        write_entered.set()
+        if not release_write.wait(timeout=5):
+            raise TimeoutError("replacement pickle write was not released")
+        return result
+
+    monkeypatch.setattr(pd.DataFrame, "to_pickle", blocking_to_pickle)
+
+    def replace_dataset():
+        replacement_started.set()
+        try:
+            store.upload_dataset(
+                "lease_demo",
+                "lease.csv",
+                replacement.to_csv(index=False).encode("utf-8"),
+                replace=True,
+            )
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            replacement_finished.set()
+
+    worker = threading.Thread(target=replace_dataset)
+    entered_while_leased = None
+    observed_while_leased = None
+    finished_while_leased = None
+    try:
+        with store.execution_lease():
+            worker.start()
+            assert replacement_started.wait(timeout=5)
+            entered_while_leased = write_entered.wait(timeout=0.4)
+            observed_while_leased = pd.read_pickle(dataset_path)
+            finished_while_leased = replacement_finished.is_set()
+            release_write.set()
+    finally:
+        release_write.set()
+        if worker.ident is not None:
+            worker.join(timeout=5)
+
+    assert not worker.is_alive()
+    assert errors == []
+    assert entered_while_leased is False
+    assert finished_while_leased is False
+    assert observed_while_leased["voltage_mean"].equals(
+        original["voltage_mean"]
+    )
+    saved = pd.read_pickle(dataset_path)
+    assert saved["voltage_mean"].eq(9.9).all()
+
+
+def test_dataset_replacement_publishes_pickle_atomically(tmp_path, monkeypatch):
+    store = TrustedPluginStore(
+        base_dir=tmp_path / "plugins", data_dir=tmp_path / "data"
+    )
+    original = _dataset_frame("atomic_demo")
+    replacement = original.copy()
+    replacement["voltage_mean"] = 8.8
+    resource = store.upload_dataset(
+        "atomic_demo",
+        "atomic.csv",
+        original.to_csv(index=False).encode("utf-8"),
+    )
+    dataset_path = Path(resource["path"])
+    partial_written = threading.Event()
+    release_write = threading.Event()
+    errors = []
+    real_to_pickle = pd.DataFrame.to_pickle
+
+    def partial_then_pickle(frame, path, *args, **kwargs):
+        Path(path).write_bytes(b"partial-pickle")
+        partial_written.set()
+        if not release_write.wait(timeout=5):
+            raise TimeoutError("partial pickle write was not released")
+        return real_to_pickle(frame, path, *args, **kwargs)
+
+    monkeypatch.setattr(pd.DataFrame, "to_pickle", partial_then_pickle)
+
+    def replace_dataset():
+        try:
+            store.upload_dataset(
+                "atomic_demo",
+                "atomic.csv",
+                replacement.to_csv(index=False).encode("utf-8"),
+                replace=True,
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    worker = threading.Thread(target=replace_dataset)
+    try:
+        worker.start()
+        assert partial_written.wait(timeout=5)
+        try:
+            observed = pd.read_pickle(dataset_path)
+        except BaseException as exc:
+            observed = exc
+    finally:
+        release_write.set()
+        worker.join(timeout=5)
+
+    assert not worker.is_alive()
+    assert errors == []
+    assert isinstance(observed, pd.DataFrame)
+    assert observed["voltage_mean"].equals(original["voltage_mean"])
+    saved = pd.read_pickle(dataset_path)
+    assert saved["voltage_mean"].eq(8.8).all()
+
+
+def test_concurrent_dataset_catalog_updates_are_not_lost(
+    tmp_path, monkeypatch
+):
+    store = TrustedPluginStore(
+        base_dir=tmp_path / "plugins", data_dir=tmp_path / "data"
+    )
+    first_staged = threading.Event()
+    second_finished = threading.Event()
+    call_lock = threading.Lock()
+    call_count = 0
+    errors = []
+    real_stage_catalog = store._stage_catalog
+
+    def delayed_stage_catalog(document):
+        nonlocal call_count
+        staged = real_stage_catalog(document)
+        with call_lock:
+            call_count += 1
+            current_call = call_count
+        if current_call == 1:
+            first_staged.set()
+            second_finished.wait(timeout=0.6)
+        return staged
+
+    monkeypatch.setattr(store, "_stage_catalog", delayed_stage_catalog)
+
+    def upload(name):
+        try:
+            store.upload_dataset(
+                name,
+                f"{name}.csv",
+                _dataset_frame(name).to_csv(index=False).encode("utf-8"),
+            )
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            if name == "second_demo":
+                second_finished.set()
+
+    first = threading.Thread(target=upload, args=("first_demo",))
+    second = threading.Thread(target=upload, args=("second_demo",))
+    first.start()
+    assert first_staged.wait(timeout=5)
+    second.start()
+    first.join(timeout=5)
+    second.join(timeout=5)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+    persisted = json.loads(store.catalog_path.read_text(encoding="utf-8"))
+    assert {item["name"] for item in persisted["datasets"]} == {
+        "first_demo",
+        "second_demo",
+    }
+
+
+def test_dataset_catalog_activation_failure_rolls_back_replacement(
+    tmp_path, monkeypatch
+):
+    store = TrustedPluginStore(
+        base_dir=tmp_path / "plugins", data_dir=tmp_path / "data"
+    )
+    original = _dataset_frame("rollback_demo")
+    replacement = original.copy()
+    replacement["voltage_mean"] = 7.7
+    resource = store.upload_dataset(
+        "rollback_demo",
+        "rollback.csv",
+        original.to_csv(index=False).encode("utf-8"),
+    )
+    dataset_path = Path(resource["path"])
+    original_pickle = dataset_path.read_bytes()
+    original_catalog = store.catalog_path.read_bytes()
+    real_replace = trusted_plugins_module.os.replace
+
+    def fail_catalog_activation(source, destination):
+        if Path(destination) == store.catalog_path:
+            raise OSError("injected dataset catalog activation failure")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(
+        trusted_plugins_module.os, "replace", fail_catalog_activation
+    )
+
+    with pytest.raises(
+        OSError, match="injected dataset catalog activation failure"
+    ):
+        store.upload_dataset(
+            "rollback_demo",
+            "rollback.csv",
+            replacement.to_csv(index=False).encode("utf-8"),
+            replace=True,
+        )
+
+    assert dataset_path.read_bytes() == original_pickle
+    assert store.catalog_path.read_bytes() == original_catalog
+    assert pd.read_pickle(dataset_path)["voltage_mean"].equals(
+        original["voltage_mean"]
+    )
 
 
 @pytest.mark.parametrize(

@@ -144,6 +144,156 @@ def _model_manifest(name="api_model"):
     }
 
 
+def _evaluation_service(tmp_path):
+    return EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+
+
+def _publish_curve_profile(
+    frontend_data: Path,
+    artifact: dict,
+    *,
+    copied_payload=...,
+) -> None:
+    def build(staging: Path) -> None:
+        profile_dir = staging / "profiles" / "battery-soh-diagnostics"
+        profile_dir.mkdir(parents=True)
+        (profile_dir / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "profile": "battery-soh-diagnostics",
+                    "curve_artifacts": [artifact],
+                }
+            ),
+            encoding="utf-8",
+        )
+        if copied_payload is ...:
+            return
+        copied_path = profile_dir / str(artifact["filename"])
+        copied_path.parent.mkdir(parents=True, exist_ok=True)
+        if isinstance(copied_payload, bytes):
+            copied_path.write_bytes(copied_payload)
+        else:
+            copied_path.write_text(
+                json.dumps(copied_payload), encoding="utf-8"
+            )
+
+    frontend_publish_module._publish_directory(frontend_data, build)
+
+
+@pytest.mark.parametrize("source_change", ["rewrite", "delete"])
+def test_copied_battery_curve_reads_stay_generation_local(
+    tmp_path, source_change
+):
+    service = _evaluation_service(tmp_path)
+    source_dir = tmp_path / "battery" / "dashboard" / "data"
+    source_dir.mkdir(parents=True)
+    curve_source = source_dir / "xjtu_curves.json"
+    original_curves = {
+        "cell-1|1": {"t_s": [0, 1], "voltage_v": [3.0, 3.1]},
+    }
+    curve_source.write_text(json.dumps(original_curves), encoding="utf-8")
+    service.import_battery_dashboard_profile(
+        source_dir=source_dir,
+        include_curves=True,
+    )
+
+    first = service.battery_curve_dataset(dataset="xjtu")
+    if source_change == "rewrite":
+        curve_source.write_text(
+            json.dumps(
+                {"cell-attacker|1": {"t_s": [0], "voltage_v": [9.9]}}
+            ),
+            encoding="utf-8",
+        )
+    else:
+        curve_source.unlink()
+
+    second = service.battery_curve_dataset(dataset="xjtu")
+    active = frontend_publish_module.resolve_published_directory(
+        service.frontend_data_dir
+    )
+
+    assert first["curves"] == original_curves
+    assert second["curves"] == original_curves
+    assert Path(second["source"]).is_relative_to(
+        active / "profiles" / "battery-soh-diagnostics"
+    )
+
+
+def test_copied_battery_curve_rejects_unsafe_filename_without_source_fallback(
+    tmp_path,
+):
+    service = _evaluation_service(tmp_path)
+    external = tmp_path / "external.json"
+    external.write_text(json.dumps({"external": {}}), encoding="utf-8")
+    _publish_curve_profile(
+        service.frontend_data_dir,
+        {
+            "dataset": "xjtu",
+            "filename": "../external.json",
+            "source": str(external),
+            "copied": True,
+        },
+    )
+
+    with pytest.raises(ValueError, match="invalid copied curve path"):
+        service.battery_curve_dataset(dataset="xjtu")
+
+
+@pytest.mark.parametrize(
+    "copied_payload, error_type",
+    [
+        pytest.param(..., FileNotFoundError, id="missing"),
+        pytest.param(b"not-json", json.JSONDecodeError, id="malformed"),
+    ],
+)
+def test_copied_battery_curve_fails_closed_without_source_fallback(
+    tmp_path, copied_payload, error_type
+):
+    service = _evaluation_service(tmp_path)
+    external = tmp_path / "external.json"
+    external.write_text(json.dumps({"external": {}}), encoding="utf-8")
+    _publish_curve_profile(
+        service.frontend_data_dir,
+        {
+            "dataset": "xjtu",
+            "filename": "battery_dashboard_xjtu_curves.json",
+            "source": str(external),
+            "copied": True,
+        },
+        copied_payload=copied_payload,
+    )
+
+    with pytest.raises(error_type):
+        service.battery_curve_dataset(dataset="xjtu")
+
+
+def test_non_copied_battery_curve_keeps_external_source_compatibility(tmp_path):
+    service = _evaluation_service(tmp_path)
+    external = tmp_path / "external.json"
+    curves = {"external": {"t_s": [0], "voltage_v": [3.7]}}
+    external.write_text(json.dumps(curves), encoding="utf-8")
+    _publish_curve_profile(
+        service.frontend_data_dir,
+        {
+            "dataset": "xjtu",
+            "filename": "../ignored-for-external-source.json",
+            "source": str(external),
+            "copied": False,
+        },
+    )
+
+    payload = service.battery_curve_dataset(dataset="xjtu")
+
+    assert payload["curves"] == curves
+    assert payload["source"] == str(external)
+
+
 def test_inline_job_runs_uploaded_dataset_algorithm_and_featureset(tmp_path):
     service = EvaluationService(
         data_dir=tmp_path / "data",

@@ -299,7 +299,7 @@ def test_runner_fits_feature_pipeline_only_on_fold_training_rows(simple_table, s
     )
 
     seen = [line.split(",") for line in (tmp_path / "fit-assets.txt").read_text(encoding="utf-8").splitlines()]
-    assert len(seen) == 3
+    assert len(seen) == 6
     assert all(len(set(cells)) == 2 for cells in seen)
     assert {frozenset(cells) for cells in seen} == {
         frozenset({"c1", "c2"}),
@@ -547,7 +547,7 @@ def test_runner_scopes_meta_to_each_partition_and_strips_target(simple_table):
     assert "error" not in result.columns
 
 
-def test_runner_fits_pipeline_once_per_fold_across_estimators(simple_table, simple_meta, tmp_path):
+def test_runner_fits_pipeline_once_per_seed_candidate(simple_table, simple_meta, tmp_path):
     event_path = str(tmp_path / "fit-events.txt")
 
     class CountingPipeline:
@@ -566,10 +566,10 @@ def test_runner_fits_pipeline_once_per_fold_across_estimators(simple_table, simp
     )
 
     assert "error" not in result.columns
-    assert len((tmp_path / "fit-events.txt").read_text(encoding="utf-8").splitlines()) == 3
+    assert len((tmp_path / "fit-events.txt").read_text(encoding="utf-8").splitlines()) == 12
 
 
-def test_pipeline_fit_cache_is_shared_between_unified_and_byo_tracks(simple_table, simple_meta, tmp_path):
+def test_pipeline_fit_state_is_not_shared_between_unified_and_byo_candidates(simple_table, simple_meta, tmp_path):
     event_path = str(tmp_path / "mixed-fit-events.txt")
 
     class CountingPipeline:
@@ -592,7 +592,7 @@ def test_pipeline_fit_cache_is_shared_between_unified_and_byo_tracks(simple_tabl
     )
 
     assert "error" not in result.columns
-    assert len((tmp_path / "mixed-fit-events.txt").read_text(encoding="utf-8").splitlines()) == 3
+    assert len((tmp_path / "mixed-fit-events.txt").read_text(encoding="utf-8").splitlines()) == 6
 
 
 def test_pipeline_class_cache_is_isolated_per_fold(simple_table, simple_meta):

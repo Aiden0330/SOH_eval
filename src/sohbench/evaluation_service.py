@@ -22,6 +22,7 @@ from .frontend_publish import (
     publish_frontend_artifacts,
     publish_frontend_profile,
     resolve_published_directory,
+    resolve_safe_publication_asset,
     sync_frontend_artifacts,
 )
 from .inference import run_inference_benchmark
@@ -1172,7 +1173,17 @@ class EvaluationService:
         artifact = next((item for item in artifacts if str(item.get("dataset") or "") == dataset_name), None)
         if artifact is None:
             raise KeyError(f"curve dataset not found: {dataset_name}")
-        source = Path(str(artifact.get("source") or ""))
+        copied = artifact.get("copied")
+        if copied is True:
+            source = resolve_safe_publication_asset(
+                manifest_path.parent,
+                str(artifact.get("filename") or ""),
+                label="copied curve path",
+            )
+        elif copied is False:
+            source = Path(str(artifact.get("source") or ""))
+        else:
+            raise ValueError("curve artifact copied flag must be boolean")
         if not source.exists() or not source.is_file():
             raise FileNotFoundError(f"curve source not found: {source}")
         payload = json.loads(source.read_text(encoding="utf-8"))

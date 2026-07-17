@@ -9,7 +9,7 @@ import threading
 import time
 import uuid
 from contextlib import contextmanager
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Callable, Sequence
 
 if os.name == "nt":
@@ -31,6 +31,7 @@ FRONTEND_ARTIFACTS = (
 
 PROFILE_NAME_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*$")
 GENERATION_NAME_RE = re.compile(r"^[0-9a-f]{32}$")
+PUBLICATION_PATH_PART_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")
 GENERATIONS_DIRNAME = ".generations"
 CURRENT_POINTER_NAME = "CURRENT.json"
 _PUBLICATION_CONTROL_NAMES = frozenset(
@@ -50,6 +51,42 @@ def _remove_owned_directory(path: Path) -> None:
 
 def _is_publication_control_name(name: str) -> bool:
     return str(name).casefold() in _PUBLICATION_CONTROL_NAMES
+
+
+def resolve_safe_publication_asset(
+    root: str | Path,
+    relative_path: str,
+    *,
+    label: str = "publication asset",
+) -> Path:
+    value = str(relative_path or "")
+    pure_path = PurePosixPath(value)
+    parts = pure_path.parts
+    if (
+        not value
+        or value != value.strip()
+        or "\\" in value
+        or pure_path.is_absolute()
+        or pure_path.as_posix() != value
+        or not parts
+        or any(
+            part in ("", ".", "..")
+            or not PUBLICATION_PATH_PART_RE.fullmatch(part)
+            or part.casefold() in {".generations", "current", "current.json"}
+            for part in parts
+        )
+    ):
+        raise ValueError(f"invalid {label}: {relative_path!r}")
+
+    canonical_root = Path(root).resolve()
+    candidate = canonical_root.joinpath(*parts).resolve()
+    try:
+        candidate.relative_to(canonical_root)
+    except ValueError as exc:
+        raise ValueError(
+            f"{label} escapes publication directory: {relative_path!r}"
+        ) from exc
+    return candidate
 
 
 def _validated_compatibility_sources(source_root: Path) -> list[Path]:
