@@ -424,12 +424,15 @@ class BenchmarkRunner:
 
     def _point_metrics(self, task, yt, yp):
         try:
-            return validate_finite_metrics(
-                {
-                    metric: getattr(M, metric)(yt, yp)
-                    for metric in task.point_metrics
-                }
-            )
+            metrics = {}
+            for metric in task.point_metrics:
+                if (
+                    metric == "eol_region_error"
+                    and not np.any(np.asarray(yt, dtype=float) <= M.EOL_THRESHOLD)
+                ):
+                    continue
+                metrics[metric] = getattr(M, metric)(yt, yp)
+            return validate_finite_metrics(metrics)
         except Exception as exc:
             raise MetricEvaluationError(str(exc)) from exc
 

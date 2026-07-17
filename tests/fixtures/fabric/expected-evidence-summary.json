@@ -14,7 +14,7 @@
   "comparison_key": "15972b56bd738a5d4e5344653c183953f46e1d9fb22e8a96569adcb1811c800a",
   "evidence_schema_version": "1.0.0",
   "failure_categories": [],
-  "result_count": 33,
+  "result_count": 30,
   "run_type": "training",
   "seed_count": 1,
   "statistics_schema_version": "1.0.0"

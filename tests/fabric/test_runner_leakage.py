@@ -193,6 +193,72 @@ def test_prediction_callback_has_stable_sample_ids_but_algorithm_never_sees_trut
     assert {"record", "sample_frame", "y_pred", "interval_low", "interval_high"} == set(value)
 
 
+def test_runner_omits_unavailable_eol_metric_and_still_runs_callbacks(
+    simple_table, simple_meta
+):
+    model_records = []
+    prediction_records = []
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), simple_table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+        on_model_fitted=lambda **value: model_records.append(value["record"]),
+        on_predictions=lambda **value: prediction_records.append(value["record"]),
+    )
+
+    expected_metrics = {
+        *SOHEstimationTask().point_metrics,
+        *SOHEstimationTask().interval_metrics,
+        *SOHEstimationTask().trajectory_metrics,
+    } - {"eol_region_error"}
+    assert result["unit_status"].eq("succeeded").all(), result[
+        "error_message"
+    ].unique().tolist()
+    assert set(result["metric"]) == expected_metrics
+    assert np.isfinite(result["value"]).all()
+    assert len(model_records) == len(prediction_records) == 3
+    assert all(record["unit_status"] == "succeeded" for record in model_records)
+    assert all(record["unit_status"] == "succeeded" for record in prediction_records)
+
+
+def test_runner_emits_finite_eol_metric_when_eol_samples_are_present(
+    simple_table, simple_meta
+):
+    table = simple_table.copy()
+    table.loc[table["cycle_index"] == 4, "soh"] = 0.8
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+    )
+
+    eol_records = result.loc[result["metric"] == "eol_region_error"]
+    assert len(eol_records) == 3
+    assert eol_records["unit_status"].eq("succeeded").all()
+    assert np.isfinite(eol_records["value"]).all()
+
+
+def test_runner_rejects_non_finite_eol_metric_when_eol_samples_are_present(
+    simple_table, simple_meta, monkeypatch
+):
+    table = simple_table.copy()
+    table.loc[table["cycle_index"] == 4, "soh"] = 0.8
+    monkeypatch.setattr(
+        runner_module.M,
+        "eol_region_error",
+        lambda _y_true, _y_pred: float("nan"),
+    )
+
+    result = BenchmarkRunner(seeds=[0]).run(
+        SOHEstimationTask(), table, simple_meta,
+        {"loco": LeaveOneCellOut()}, [SpyEstimator],
+    )
+
+    assert result["unit_status"].eq("failed").all()
+    assert result["error_category"].eq("METRIC").all()
+    assert result["error_message"].str.contains("eol_region_error").all()
+
+
 def test_runner_builds_one_safe_view_per_fold_across_seeds(
     simple_table, simple_meta, monkeypatch
 ):

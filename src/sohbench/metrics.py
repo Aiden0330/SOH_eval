@@ -1,6 +1,8 @@
 from __future__ import annotations
 import numpy as np
 
+EOL_THRESHOLD = 0.8
+
 def _arr(*xs): return [np.asarray(x, dtype=float) for x in xs]
 
 def rmse(y_true, y_pred) -> float:
@@ -29,7 +31,7 @@ def alpha_accuracy(y_true, y_pred, alpha: float = 0.15) -> float:
     mask = yt != 0
     return float(np.mean(np.abs((yt[mask] - yp[mask]) / yt[mask]) <= alpha))
 
-def eol_region_error(y_true, y_pred, eol_threshold: float = 0.8) -> float:
+def eol_region_error(y_true, y_pred, eol_threshold: float = EOL_THRESHOLD) -> float:
     yt, yp = _arr(y_true, y_pred)
     sel = yt <= eol_threshold
     if not np.any(sel): return float("nan")
