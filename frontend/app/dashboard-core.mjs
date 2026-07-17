@@ -1,5 +1,31 @@
 "use strict";
 
+export async function resolvePublishedDataDirectory(
+  root,
+  {
+    standalone = false,
+    suffix = "",
+    fetchImpl = globalThis.fetch,
+  } = {},
+) {
+  if (standalone) return root;
+  try {
+    const response = await fetchImpl(`${root}/CURRENT.json${suffix}`);
+    if (!response?.ok) return root;
+    const pointer = await response.json();
+    const generation = String(pointer?.generation || "");
+    if (
+      pointer?.schema_version !== 1
+      || !/^[0-9a-f]{32}$/.test(generation)
+    ) {
+      return root;
+    }
+    return `${root}/.generations/${encodeURIComponent(generation)}`;
+  } catch (_) {
+    return root;
+  }
+}
+
 export function metricMean(entry, name) {
   const value = entry?.metrics?.[name]?.mean;
   return value == null || Number.isNaN(value) ? null : value;

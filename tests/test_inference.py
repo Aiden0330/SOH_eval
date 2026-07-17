@@ -103,6 +103,37 @@ def test_inference_benchmark_predicts_by_dataset_without_fit(tmp_path):
     assert records[0]["mae"] is not None
 
 
+def test_inference_benchmark_emits_each_dataset_when_model_load_fails(
+    tmp_path,
+):
+    store = ModelStore(tmp_path / "models")
+    store.upload_model(
+        "predict_only",
+        "predict_only.pkl",
+        pickle.dumps(PredictOnlyModel()),
+        "model_manifest.json",
+        json.dumps(_manifest()).encode("utf-8"),
+    )
+
+    records = run_inference_benchmark(
+        store,
+        _table(),
+        pd.DataFrame(),
+        ["missing_model", "predict_only"],
+    )
+
+    assert [
+        (record["model"], record["dataset"], record["status"])
+        for record in records
+    ] == [
+        ("missing_model", "new_a", "failed"),
+        ("missing_model", "new_b", "failed"),
+        ("predict_only", "new_a", "succeeded"),
+        ("predict_only", "new_b", "succeeded"),
+    ]
+    assert [record["n_samples"] for record in records[:2]] == [2, 2]
+
+
 def test_inference_benchmark_records_feature_mismatch(tmp_path):
     store = ModelStore(tmp_path / "models")
     manifest = _manifest()

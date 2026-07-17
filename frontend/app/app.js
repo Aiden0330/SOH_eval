@@ -34,6 +34,7 @@ import {
   pollFailureDecision,
   preferredInferenceModels,
   profileOptions,
+  resolvePublishedDataDirectory,
   scopeSummary,
   stabilityRows,
   summarizeBySelection,
@@ -238,16 +239,11 @@ function profileDataPath(profile = "root") {
 }
 
 async function resolvePublishedBrowserDirectory(root, suffix = "") {
-  if (window.__SOH_STANDALONE__) return root;
-  const response = await fetch(`${root}/CURRENT.json${suffix}`);
-  if (response.status === 404) return root;
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const pointer = await response.json();
-  const generation = String(pointer?.generation || "");
-  if (pointer?.schema_version !== 1 || !/^[0-9a-f]{32}$/.test(generation)) {
-    throw new Error("invalid publication pointer");
-  }
-  return `${root}/.generations/${encodeURIComponent(generation)}`;
+  return resolvePublishedDataDirectory(root, {
+    standalone: Boolean(window.__SOH_STANDALONE__),
+    suffix,
+    fetchImpl: fetch,
+  });
 }
 
 async function loadProfileArtifacts(profile, suffix) {

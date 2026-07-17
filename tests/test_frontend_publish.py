@@ -367,6 +367,76 @@ def test_compatibility_view_restores_directory_when_second_replace_fails(
     assert not list(target.glob(".assets.backup-*"))
 
 
+def test_compatibility_view_restores_entire_mirror_after_late_failure(
+    tmp_path, monkeypatch
+):
+    target = tmp_path / "published"
+    generation = tmp_path / "generation"
+    _write_json(target / "a.json", {"version": "old"})
+    (target / "b-assets" / "payload.bin").parent.mkdir(parents=True)
+    (target / "b-assets" / "payload.bin").write_bytes(b"old-assets")
+    (target / "obsolete.txt").write_bytes(b"keep-on-failure")
+    _write_json(
+        target / "CURRENT.json",
+        {"schema_version": 1, "generation": "c" * 32},
+    )
+    (target / ".generations" / ("c" * 32)).mkdir(parents=True)
+    (target / ".generations" / ("c" * 32) / "marker").write_bytes(
+        b"generation-control"
+    )
+    _write_json(generation / "a.json", {"version": "new"})
+    (generation / "b-assets" / "payload.bin").parent.mkdir(parents=True)
+    (generation / "b-assets" / "payload.bin").write_bytes(b"new-assets")
+
+    controls = {".generations", "CURRENT.json"}
+
+    def compatibility_snapshot():
+        return {
+            item.relative_to(target).as_posix(): item.read_bytes()
+            for item in sorted(target.rglob("*"))
+            if item.is_file()
+            and item.relative_to(target).parts[0] not in controls
+        }
+
+    before = compatibility_snapshot()
+    control_before = {
+        item.relative_to(target).as_posix(): item.read_bytes()
+        for item in sorted(target.rglob("*"))
+        if item.is_file()
+        and item.relative_to(target).parts[0] in controls
+    }
+    real_replace = frontend_publish_module.os.replace
+
+    def fail_late_directory_activation(source, destination):
+        source_path = Path(source)
+        destination_path = Path(destination)
+        if (
+            source_path.name.startswith(".b-assets.compat-")
+            and destination_path == target / "b-assets"
+        ):
+            raise OSError("injected late compatibility failure")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(
+        frontend_publish_module.os,
+        "replace",
+        fail_late_directory_activation,
+    )
+
+    with pytest.raises(OSError, match="late compatibility failure"):
+        frontend_publish_module._sync_compatibility_view(
+            target, generation, "d" * 32
+        )
+
+    assert compatibility_snapshot() == before
+    assert {
+        item.relative_to(target).as_posix(): item.read_bytes()
+        for item in sorted(target.rglob("*"))
+        if item.is_file()
+        and item.relative_to(target).parts[0] in controls
+    } == control_before
+
+
 def test_resolve_published_directory_retries_transient_pointer_read_failure(
     tmp_path, monkeypatch
 ):

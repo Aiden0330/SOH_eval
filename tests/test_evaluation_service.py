@@ -1232,6 +1232,64 @@ def test_inference_preparation_failure_isolated_per_model_and_dataset(tmp_path):
     ]
 
 
+def test_inference_model_load_failure_isolated_per_model_and_dataset(
+    tmp_path,
+):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    for dataset in ("load_d1", "load_d2"):
+        service.store.upload_dataset(
+            dataset, f"{dataset}.csv", _dataset_csv(dataset)
+        )
+    for model in ("good_model", "bad_model"):
+        service.model_store.upload_model(
+            model,
+            f"{model}.pkl",
+            pickle.dumps(PickledPredictOnly()),
+            "model_manifest.json",
+            json.dumps(_model_manifest(model)).encode("utf-8"),
+        )
+    bad_model = next(
+        item
+        for item in service.model_store.catalog()
+        if item["name"] == "bad_model"
+    )
+    Path(bad_model["model_path"]).write_bytes(b"corrupt model bytes")
+    job = service.create_inference_job(
+        {
+            "datasets": ["load_d1", "load_d2"],
+            "models": ["good_model", "bad_model"],
+        },
+        start=False,
+    )
+
+    finished = service.run_inference_job_inline(job["id"])
+
+    assert finished["status"] == "partial"
+    assert finished["outcome"] == "partial"
+    assert finished["execution_state"] == "REVIEW"
+    assert verify_evidence_pack(finished["evidence_path"])["ok"] is True
+    records = json.loads(
+        (
+            Path(finished["raw_run_dir"]) / "inference_benchmark.json"
+        ).read_text(encoding="utf-8")
+    )["records"]
+    assert [
+        (row["model"], row["dataset"], row["status"])
+        for row in records
+    ] == [
+        ("good_model", "load_d1", "succeeded"),
+        ("good_model", "load_d2", "succeeded"),
+        ("bad_model", "load_d1", "failed"),
+        ("bad_model", "load_d2", "failed"),
+    ]
+    assert all(row["dataset"] != "all" for row in records)
+
+
 def test_unlabeled_run_spec_digest_is_stable_without_label_qc(tmp_path):
     service = EvaluationService(
         data_dir=tmp_path / "data",

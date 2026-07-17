@@ -26,6 +26,7 @@ import {
   isTerminalJobStatus,
   preferredInferenceModels,
   profileOptions,
+  resolvePublishedDataDirectory,
   leaderboardCoverage,
   modelAssetRows,
   modelOptions,
@@ -36,6 +37,73 @@ import {
   trainingArtifactSummary,
   nextDatasetSelection,
 } from "./dashboard-core.mjs";
+
+{
+  const root = "./data";
+  const generation = "a".repeat(32);
+  const valid = await resolvePublishedDataDirectory(root, {
+    suffix: "?v=test",
+    fetchImpl: async (url) => {
+      assert.equal(url, "./data/CURRENT.json?v=test");
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ schema_version: 1, generation }),
+      };
+    },
+  });
+  assert.equal(valid, `./data/.generations/${generation}`);
+
+  for (const status of [404, 503]) {
+    const fallback = await resolvePublishedDataDirectory(root, {
+      fetchImpl: async () => ({ ok: false, status }),
+    });
+    assert.equal(fallback, root);
+  }
+
+  const rejected = await resolvePublishedDataDirectory(root, {
+    fetchImpl: async () => {
+      throw new TypeError("network unavailable");
+    },
+  });
+  assert.equal(rejected, root);
+
+  const malformed = await resolvePublishedDataDirectory(root, {
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new SyntaxError("malformed JSON");
+      },
+    }),
+  });
+  assert.equal(malformed, root);
+
+  for (const pointer of [
+    { schema_version: 2, generation },
+    { schema_version: 1, generation: "../mutable" },
+  ]) {
+    const invalid = await resolvePublishedDataDirectory(root, {
+      fetchImpl: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => pointer,
+      }),
+    });
+    assert.equal(invalid, root);
+  }
+
+  let standaloneFetches = 0;
+  const standalone = await resolvePublishedDataDirectory(root, {
+    standalone: true,
+    fetchImpl: async () => {
+      standaloneFetches += 1;
+      throw new Error("must not fetch");
+    },
+  });
+  assert.equal(standalone, root);
+  assert.equal(standaloneFetches, 0);
+}
 
 {
   assert.deepEqual(dashboardArtifactPlan({

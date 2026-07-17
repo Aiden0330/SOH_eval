@@ -23,19 +23,32 @@ def run_inference_benchmark(
     loaded_models: dict[str, object] | None = None,
 ) -> list[dict]:
     records: list[dict] = []
+    dataset_groups = [
+        (str(dataset), group)
+        for dataset, group in table.groupby("dataset", sort=True)
+    ]
     for model_name in model_names:
         try:
             loaded = (loaded_models or {}).get(model_name)
             if loaded is None:
                 loaded = model_store.load_model(model_name)
         except Exception as exc:
-            records.append(_failed_record(model_name, "all", 0, 0.0, str(exc)))
+            records.extend(
+                _failed_record(
+                    model_name,
+                    dataset,
+                    int(len(group)),
+                    0.0,
+                    str(exc),
+                )
+                for dataset, group in dataset_groups
+            )
             continue
 
-        for dataset, group in table.groupby("dataset", sort=True):
+        for dataset, group in dataset_groups:
             base = {
                 "model": model_name,
-                "dataset": str(dataset),
+                "dataset": dataset,
                 "featureset": loaded.manifest.get("featureset"),
                 "estimator": loaded.manifest.get("estimator"),
                 "n_samples": int(len(group)),

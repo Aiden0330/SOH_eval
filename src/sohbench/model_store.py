@@ -159,6 +159,22 @@ class ModelStore:
             }
             yield snapshots
 
+    @contextmanager
+    def partitioned_read_lease(
+        self, names: list[str] | tuple[str, ...]
+    ) -> Iterator[
+        tuple[dict[str, ModelReadSnapshot], dict[str, Exception]]
+    ]:
+        with self._lock:
+            snapshots: dict[str, ModelReadSnapshot] = {}
+            failures: dict[str, Exception] = {}
+            for name in dict.fromkeys(map(str, names)):
+                try:
+                    snapshots[name] = self._read_snapshot(name)
+                except Exception as exc:
+                    failures[name] = exc
+            yield snapshots, failures
+
     def catalog(self) -> list[dict]:
         with self._lock:
             return copy.deepcopy(self._catalog.get("models", []))

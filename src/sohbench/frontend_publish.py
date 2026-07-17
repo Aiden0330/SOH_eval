@@ -165,6 +165,60 @@ def _sync_compatibility_view(
     target: Path, generation: Path, generation_name: str
 ) -> None:
     controls = {GENERATIONS_DIRNAME, CURRENT_POINTER_NAME}
+    snapshot = target.parent / (
+        f".{target.name}.compat-snapshot-{uuid.uuid4().hex}"
+    )
+    snapshot_ready = False
+    completed = False
+    restored = False
+    try:
+        snapshot.mkdir()
+        _copy_compatibility_content(target, snapshot, controls)
+        snapshot_ready = True
+        _apply_compatibility_view(target, generation, generation_name, controls)
+        completed = True
+    except BaseException:
+        if snapshot_ready:
+            _restore_compatibility_content(target, snapshot, controls)
+            restored = True
+        raise
+    finally:
+        if completed or restored or not snapshot_ready:
+            _remove_owned_directory(snapshot)
+
+
+def _copy_compatibility_content(
+    source_root: Path, target_root: Path, controls: set[str]
+) -> None:
+    for source in sorted(source_root.iterdir(), key=lambda item: item.name):
+        if source.name in controls:
+            continue
+        destination = target_root / source.name
+        if source.is_dir():
+            shutil.copytree(source, destination)
+        else:
+            shutil.copy2(source, destination)
+
+
+def _restore_compatibility_content(
+    target: Path, snapshot: Path, controls: set[str]
+) -> None:
+    for existing in list(target.iterdir()):
+        if existing.name in controls:
+            continue
+        if existing.is_dir():
+            shutil.rmtree(existing)
+        else:
+            existing.unlink(missing_ok=True)
+    _copy_compatibility_content(snapshot, target, set())
+
+
+def _apply_compatibility_view(
+    target: Path,
+    generation: Path,
+    generation_name: str,
+    controls: set[str],
+) -> None:
     desired = {item.name for item in generation.iterdir()}
     for existing in list(target.iterdir()):
         if existing.name in controls or existing.name in desired:
