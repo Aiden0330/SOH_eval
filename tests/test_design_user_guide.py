@@ -1,4 +1,6 @@
 import ast
+import base64
+import re
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -267,6 +269,33 @@ def test_design_user_guide_contains_every_required_chapter():
     text = GUIDE.read_text(encoding="utf-8")
     for section_id in REQUIRED_SECTIONS:
         assert f'id="{section_id}"' in text
+
+
+def test_embed_screenshots_replaces_each_named_capture(tmp_path):
+    from scripts.embed_design_user_guide_screenshots import embed_screenshots
+
+    html = tmp_path / "guide.html"
+    html.write_text(
+        '<img data-shot="training" src="data:image/png;base64,AA==" alt="训练页">',
+        encoding="utf-8",
+    )
+    capture = tmp_path / "training.png"
+    capture.write_bytes(b"\x89PNG\r\n\x1a\nfixture")
+
+    embed_screenshots(html, {"training": capture})
+
+    rendered = html.read_text(encoding="utf-8")
+    expected = base64.b64encode(capture.read_bytes()).decode("ascii")
+    assert f"data:image/png;base64,{expected}" in rendered
+
+
+def test_design_user_guide_embeds_all_five_frontend_captures():
+    text = GUIDE.read_text(encoding="utf-8")
+    for shot in ("training", "inference", "models", "native", "diagnostics"):
+        assert f'data-shot="{shot}"' in text
+    payloads = re.findall(r'src="data:image/[^;]+;base64,([^"]+)"', text)
+    assert len(payloads) >= 5
+    assert all(len(base64.b64decode(payload)) >= 10_000 for payload in payloads)
 
 
 def test_design_user_guide_covers_fabric_and_soh_domain_terms():
