@@ -16,3 +16,18 @@ def test_design_user_guide_contains_every_required_chapter():
     text = GUIDE.read_text(encoding="utf-8")
     for section_id in REQUIRED_SECTIONS:
         assert f'id="{section_id}"' in text
+
+
+def test_design_user_guide_rejects_multitoken_stylesheet_rel(tmp_path):
+    guide = tmp_path / "guide.html"
+    guide.write_text(
+        GUIDE.read_text(encoding="utf-8").replace(
+            "</head>",
+            '<link rel="alternate stylesheet" href="guide.css">\n</head>',
+        ),
+        encoding="utf-8",
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "external-asset" for issue in issues)

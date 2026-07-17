@@ -52,7 +52,7 @@ class GuideParser(HTMLParser):
             self.anchors.append(href)
         if tag == "img":
             self.images.append(values)
-        if tag == "link" and values.get("rel") == "stylesheet":
+        if tag == "link" and "stylesheet" in values.get("rel", "").lower().split():
             self.stylesheets.append(values.get("href", ""))
         if tag == "script" and values.get("src"):
             self.scripts.append(values["src"])
