@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SOH 算法测评系统设计与工具使用说明书</title>
+  <style>
+    :root { color-scheme: light; }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; color: #101828; background: #f3f4f6; font-family: "Microsoft YaHei UI", system-ui, sans-serif; line-height: 1.6; }
+    a { color: inherit; }
+    .skip-link { position: fixed; top: 8px; left: 8px; z-index: 2; padding: 8px 12px; color: #fff; background: #155eef; transform: translateY(-160%); }
+    .skip-link:focus { transform: translateY(0); }
+    .guide-shell { display: grid; grid-template-columns: 240px minmax(0, 1fr) 260px; min-height: 100vh; }
+    .guide-nav { padding: 24px 16px; color: #fff; background: #111827; }
+    .guide-nav a { display: block; padding: 8px; color: #dbeafe; text-decoration: none; border-radius: 4px; }
+    .guide-nav a:hover, .guide-nav a:focus { color: #fff; background: #1d2939; }
+    .product-name { margin: 0 8px 16px; color: #fff; font-weight: 700; }
+    main { min-width: 0; padding: 32px; background: #fff; }
+    .guide-header, .chapter { max-width: 920px; margin: 0 auto; }
+    .guide-header { padding: 8px 0 24px; }
+    .eyebrow { margin: 0; color: #175cd3; font-weight: 700; }
+    h1 { margin: 8px 0; font-size: 2rem; line-height: 1.25; }
+    h2 { line-height: 1.3; }
+    .chapter { padding: 24px 0; border-bottom: 1px solid #dbe3ee; scroll-margin-top: 16px; }
+    .chapter:last-child { border-bottom: 0; }
+    .status-list { padding-left: 20px; }
+    .status-list strong { color: #175cd3; }
+    .quick-rail { padding: 24px 16px; background: #f8fafc; }
+    .quick-rail h2 { margin-top: 0; font-size: 1rem; }
+    .quick-rail p { margin: 0; color: #344054; }
+    .mono { overflow-wrap: anywhere; color: #344054; font-family: Consolas, "Courier New", monospace; font-size: 0.9rem; }
+    .mobile-toc { display: none; }
+    @media (max-width: 1040px) {
+      .guide-shell { grid-template-columns: 240px minmax(0, 1fr); }
+      .quick-rail { grid-column: 2; border-top: 1px solid #dbe3ee; }
+    }
+    @media (max-width: 720px) {
+      .guide-shell { display: block; }
+      .guide-nav { display: none; }
+      main { padding: 16px; }
+      .mobile-toc { display: block; max-width: 920px; margin: 0 auto 16px; }
+      .mobile-toc summary { cursor: pointer; color: #175cd3; font-weight: 700; }
+      .mobile-toc nav { display: grid; gap: 4px; margin-top: 8px; }
+      .mobile-toc a { padding: 4px 0; color: #344054; }
+      h1 { font-size: 1.65rem; }
+      .quick-rail { padding: 16px; }
+    }
+    @media print {
+      .guide-nav, .quick-rail, .mobile-toc, .skip-link { display: none; }
+      body, main { background: #fff; }
+      main { padding: 0; }
+      .guide-shell { display: block; }
+      .chapter, .guide-header { max-width: none; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="guide-shell">
+    <aside class="guide-nav" aria-label="说明书目录">
+      <p class="product-name">SOH Evaluation Fabric</p>
+      <nav>
+        <a href="#overview">项目概览</a>
+        <a href="#architecture">总体架构与数据流</a>
+        <a href="#domain">SOH 数据、特征与算法原理</a>
+        <a href="#evaluation">公平测评协议与指标</a>
+        <a href="#contracts">核心契约与证据对象</a>
+        <a href="#frontend">前端五页签功能说明</a>
+        <a href="#setup">工具安装、启动与配置</a>
+        <a href="#onboarding">新资源接入</a>
+        <a href="#runs">训练测评与冻结推理</a>
+        <a href="#evidence">结果、排行与证据解释</a>
+        <a href="#packaging">数据同步与离线打包</a>
+        <a href="#troubleshooting">常见问题、安全边界与排障</a>
+        <a href="#reference">API、命令和目录速查</a>
+      </nav>
+    </aside>
+    <main id="main-content">
+      <header class="guide-header">
+        <p class="eyebrow">算法测评优先 · 多场景能力演进</p>
+        <h1>SOH 算法测评系统设计与工具使用说明书</h1>
+        <p>统一说明可信测评架构、Battery SOH 领域能力和本机工作台操作方法。</p>
+      </header>
+      <details class="mobile-toc">
+        <summary>章节目录</summary>
+        <nav aria-label="移动端说明书目录">
+          <a href="#overview">项目概览</a><a href="#architecture">总体架构与数据流</a><a href="#domain">SOH 数据、特征与算法原理</a>
+          <a href="#evaluation">公平测评协议与指标</a><a href="#contracts">核心契约与证据对象</a><a href="#frontend">前端五页签功能说明</a>
+          <a href="#setup">工具安装、启动与配置</a><a href="#onboarding">新资源接入</a><a href="#runs">训练测评与冻结推理</a>
+          <a href="#evidence">结果、排行与证据解释</a><a href="#packaging">数据同步与离线打包</a><a href="#troubleshooting">常见问题、安全边界与排障</a><a href="#reference">API、命令和目录速查</a>
+        </nav>
+      </details>
+      <section id="overview" class="chapter">
+        <h2>项目概览</h2>
+        <p>系统以可比较、可追溯、可复核的算法测评为第一目标，并以跨数据集、跨电芯和跨化学体系的多场景算法建设为第二目标。</p>
+        <ul class="status-list">
+          <li><strong>当前已实现</strong>：本机资源目录、训练与推理任务、结果发布和证据基础。</li>
+          <li><strong>已接入领域能力</strong>：Battery SOH 曲线、特征、算法和完整看板。</li>
+          <li><strong>目标架构</strong>：隔离 Worker、前端 V2 和更强的外部插件治理。</li>
+        </ul>
+      </section>
+      <section id="architecture" class="chapter"><h2>总体架构与数据流</h2><p>当前代码提供本机控制面、训练与推理执行、结果发布和证据对象；隔离 Worker 属于目标架构。</p></section>
+      <section id="domain" class="chapter"><h2>SOH 数据、特征与算法原理</h2><p>领域能力围绕 SOH 标签、充电曲线、IC/DVA、健康指标和多类回归估计器组织。</p></section>
+      <section id="evaluation" class="chapter"><h2>公平测评协议与指标</h2><p>公平比较必须锁定数据快照、协议、随机种子、留出覆盖和统计单位。</p></section>
+      <section id="contracts" class="chapter"><h2>核心契约与证据对象</h2><p>RunSpec、DatasetSnapshot、PredictionRecord 和 EvidencePack 共同形成可复核证据链。</p></section>
+      <section id="frontend" class="chapter"><h2>前端五页签功能说明</h2><p>训练测评、推理测评、模型资产库、SOH 完整看板和全局诊断承担不同职责。</p></section>
+      <section id="setup" class="chapter"><h2>工具安装、启动与配置</h2><p>前端通过静态 HTTP 服务加载，后端 API 默认连接本机 Battery SOH 数据目录。</p></section>
+      <section id="onboarding" class="chapter"><h2>新资源接入</h2><p>数据集、算法、特征方案和冻结模型均先验证，成功后再事务性激活。</p></section>
+      <section id="runs" class="chapter"><h2>训练测评与冻结推理</h2><p>训练页负责产生模型；推理页负责验证已有模型在新数据上的迁移精度和速度。</p></section>
+      <section id="evidence" class="chapter"><h2>结果、排行与证据解释</h2><p>结果文件、质量报告和证据包必须结合覆盖范围、执行结果和验收裁决共同解释。</p></section>
+      <section id="packaging" class="chapter"><h2>数据同步与离线打包</h2><p>同步与打包采用不可变 generation 和 last-known-good 发布语义。</p></section>
+      <section id="troubleshooting" class="chapter"><h2>常见问题、安全边界与排障</h2><p>排障从预检、任务状态、特征兼容性、前端缓存和结构化失败信息逐层定位。</p></section>
+      <section id="reference" class="chapter">
+        <h2>API、命令和目录速查</h2>
+        <p>本章汇总当前代码可核验的入口、命令、目录和产物。</p>
+        <p class="mono">GET /api/health · GET /api/catalog · GET /api/models · GET /api/battery-curves · GET /api/package/status · GET /api/jobs · GET /api/jobs/{job_id} · GET /api/inference-jobs · GET /api/inference-jobs/{job_id}</p>
+        <p class="mono">POST /api/upload/dataset · POST /api/upload/algorithm · POST /api/upload/featureset · POST /api/upload/model · POST /api/jobs · POST /api/inference-jobs · POST /api/import/battery-dashboard · POST /api/import/battery-soh-plugins · POST /api/sync/native-dashboard · POST /api/package/portable · POST /api/package/standalone</p>
+      </section>
+    </main>
+    <aside class="quick-rail" aria-label="当前章节速查"><h2>本章速查</h2><p>选择章节查看关键输入、命令、产物和风险。</p></aside>
+  </div>
+</body>
+</html>
