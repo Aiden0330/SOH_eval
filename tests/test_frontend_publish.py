@@ -66,6 +66,24 @@ def _write_native_dashboard(
             data / "ess_detection_curves.json",
             {"cell-1": {"sample": [0], "dev_mv": {"cell-1": [0.1]}}},
         )
+    copied_files = ["manifest.json", "overview.json", "xjtu.json"]
+    if include_curves:
+        copied_files.append("xjtu_curves.json")
+    if include_detection:
+        copied_files.extend(
+            ["ess_detection.json", "ess_detection_curves.json"]
+        )
+    _write_json(
+        root / "SYNC_MANIFEST.json",
+        {
+            "source": str(root),
+            "target": str(root),
+            "scenario_count": 1,
+            "include_soh_curves": include_curves,
+            "excluded_detection_assets": not include_detection,
+            "copied_files": copied_files,
+        },
+    )
     return root
 
 
@@ -145,6 +163,9 @@ def test_native_sync_missing_manifest_asset_preserves_last_known_good(tmp_path):
         pytest.param("%2e%2e", id="encoded-traversal"),
         pytest.param("CuRrEnT", id="control-stem-casefold"),
         pytest.param("current.JSON", id="control-file-casefold"),
+        pytest.param("CON", id="windows-device-con"),
+        pytest.param("cOm1", id="windows-device-com-mixed-case"),
+        pytest.param("LpT9", id="windows-device-lpt-mixed-case"),
     ],
 )
 def test_native_sync_rejects_unsafe_scenario_filename_stems(name):
@@ -240,6 +261,22 @@ def test_portable_package_rewrites_detection_enabled_native_sync_manifest(
     ):
         assert packaged_sync[key] == synced[key]
     portable_module._validate_native_dashboard(packaged_dashboard)
+
+
+def test_portable_missing_native_sync_manifest_preserves_last_known_good(
+    tmp_path,
+):
+    app_dir = _write_frontend_app(tmp_path / "frontend" / "app")
+    output = tmp_path / "dist" / "soh-eval-portable"
+    package_portable_frontend(app_dir, output)
+    before = _snapshot(output)
+    (app_dir / "battery-dashboard" / "SYNC_MANIFEST.json").unlink()
+
+    with pytest.raises(FileNotFoundError, match="SYNC_MANIFEST.json"):
+        package_portable_frontend(app_dir, output)
+
+    assert _snapshot(output) == before
+    assert not list(output.parent.glob(f".{output.name}.tmp-*"))
 
 
 def test_concurrent_profile_publication_never_mixes_runs(tmp_path, monkeypatch):

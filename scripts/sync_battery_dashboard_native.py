@@ -8,6 +8,7 @@ from pathlib import Path
 
 from sohbench.frontend_publish import (
     _publish_directory,
+    is_unsafe_windows_path_component,
     resolve_published_directory,
     resolve_safe_publication_asset,
 )
@@ -33,6 +34,7 @@ def _scenario_names(manifest: dict) -> list[str]:
         name = "" if raw_name is None else str(raw_name)
         if (
             not SAFE_SCENARIO_NAME_RE.fullmatch(name)
+            or is_unsafe_windows_path_component(name)
             or name.casefold() in RESERVED_SCENARIO_NAMES
         ):
             raise ValueError(f"invalid scenario name: {raw_name!r}")

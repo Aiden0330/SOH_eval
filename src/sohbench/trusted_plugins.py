@@ -511,6 +511,8 @@ class TrustedPluginStore:
         )
         committed = False
         restored = False
+        payload_replaced = False
+        catalog_replaced = False
         try:
             if previous_payload is not None:
                 with rollback.open("wb") as stream:
@@ -523,41 +525,41 @@ class TrustedPluginStore:
                     stream.flush()
                     os.fsync(stream.fileno())
             os.replace(staged, path)
-            try:
-                os.replace(catalog_staging, self.catalog_path)
-            except BaseException:
-                if previous_payload is None:
-                    path.unlink(missing_ok=True)
-                else:
-                    os.replace(rollback, path)
-                restored = True
-                raise
-            try:
-                activate_registry()
-            except BaseException:
-                R._ESTIMATORS.clear()
-                R._ESTIMATORS.update(estimator_registry)
-                R._FEATURESETS.clear()
-                R._FEATURESETS.update(featureset_registry)
-                self._feature_plugins.clear()
-                self._feature_plugins.update(feature_plugins)
-                self._catalog = previous_catalog
-                if previous_catalog_payload is None:
-                    self.catalog_path.unlink(missing_ok=True)
-                else:
-                    os.replace(catalog_rollback, self.catalog_path)
-                if previous_payload is None:
-                    path.unlink(missing_ok=True)
-                else:
-                    os.replace(rollback, path)
-                restored = True
-                raise
+            payload_replaced = True
+            os.replace(catalog_staging, self.catalog_path)
+            catalog_replaced = True
+            activate_registry()
             self._catalog = next_catalog
             _fsync_directory(path.parent)
             _fsync_directory(self.base_dir)
             committed = True
+        except BaseException:
+            R._ESTIMATORS.clear()
+            R._ESTIMATORS.update(estimator_registry)
+            R._FEATURESETS.clear()
+            R._FEATURESETS.update(featureset_registry)
+            self._feature_plugins.clear()
+            self._feature_plugins.update(feature_plugins)
+            self._catalog = previous_catalog
+            if catalog_replaced:
+                if previous_catalog_payload is None:
+                    self.catalog_path.unlink(missing_ok=True)
+                else:
+                    os.replace(catalog_rollback, self.catalog_path)
+            if payload_replaced:
+                if previous_payload is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    os.replace(rollback, path)
+            restored = True
+            raise
         finally:
-            if committed or restored:
+            if (
+                committed
+                or restored
+                or not payload_replaced
+                and not catalog_replaced
+            ):
                 rollback.unlink(missing_ok=True)
                 catalog_rollback.unlink(missing_ok=True)
             catalog_staging.unlink(missing_ok=True)

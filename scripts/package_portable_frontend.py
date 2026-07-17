@@ -120,7 +120,9 @@ def _remove_detection_assets(path: Path) -> None:
 def _rewrite_native_sync_manifest_without_detection(path: Path) -> None:
     sync_manifest_path = path / "SYNC_MANIFEST.json"
     if not sync_manifest_path.is_file():
-        return
+        raise FileNotFoundError(
+            f"Missing native dashboard sync manifest: {sync_manifest_path}"
+        )
     sync_manifest = json.loads(
         sync_manifest_path.read_text(encoding="utf-8")
     )
@@ -153,11 +155,16 @@ def _validate_native_dashboard(path: Path) -> None:
     index = path / "index.html"
     data = path / "data"
     manifest_path = data / "manifest.json"
+    sync_manifest_path = path / "SYNC_MANIFEST.json"
     if not index.is_file():
         raise FileNotFoundError(f"Missing native dashboard index.html: {index}")
     index.read_text(encoding="utf-8")
     if not manifest_path.is_file():
         raise FileNotFoundError(f"Missing native dashboard manifest: {manifest_path}")
+    if not sync_manifest_path.is_file():
+        raise FileNotFoundError(
+            f"Missing native dashboard sync manifest: {sync_manifest_path}"
+        )
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     scenarios = manifest.get("scenarios") if isinstance(manifest, dict) else None
     if not isinstance(scenarios, list) or not scenarios:
@@ -185,38 +192,36 @@ def _validate_native_dashboard(path: Path) -> None:
             raise FileNotFoundError(f"Missing native dashboard asset: {asset}")
         json.loads(asset.read_text(encoding="utf-8"))
 
-    sync_manifest_path = path / "SYNC_MANIFEST.json"
-    if sync_manifest_path.is_file():
-        sync_manifest = json.loads(sync_manifest_path.read_text(encoding="utf-8"))
-        if not isinstance(sync_manifest, dict):
-            raise ValueError("native dashboard sync manifest must be an object")
-        scenario_count = sync_manifest.get("scenario_count")
-        if (
-            isinstance(scenario_count, bool)
-            or not isinstance(scenario_count, int)
-            or scenario_count <= 0
-        ):
+    sync_manifest = json.loads(sync_manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(sync_manifest, dict):
+        raise ValueError("native dashboard sync manifest must be an object")
+    scenario_count = sync_manifest.get("scenario_count")
+    if (
+        isinstance(scenario_count, bool)
+        or not isinstance(scenario_count, int)
+        or scenario_count <= 0
+    ):
+        raise ValueError(
+            "native dashboard sync manifest has invalid scenario_count"
+        )
+    copied_files = sync_manifest.get("copied_files")
+    if not isinstance(copied_files, list) or not copied_files:
+        raise ValueError(
+            "native dashboard sync manifest has no copied_files"
+        )
+    for filename in copied_files:
+        asset = resolve_safe_publication_asset(
+            data,
+            str(filename),
+            label="synced native dashboard asset path",
+        )
+        if asset.suffix.casefold() != ".json":
             raise ValueError(
-                "native dashboard sync manifest has invalid scenario_count"
+                f"Synced native dashboard asset is not JSON: {asset}"
             )
-        copied_files = sync_manifest.get("copied_files")
-        if not isinstance(copied_files, list) or not copied_files:
-            raise ValueError(
-                "native dashboard sync manifest has no copied_files"
-            )
-        for filename in copied_files:
-            asset = resolve_safe_publication_asset(
-                data,
-                str(filename),
-                label="synced native dashboard asset path",
-            )
-            if asset.suffix.casefold() != ".json":
-                raise ValueError(
-                    f"Synced native dashboard asset is not JSON: {asset}"
-                )
-            if not asset.is_file():
-                raise FileNotFoundError(f"Missing synced native dashboard asset: {asset}")
-            json.loads(asset.read_text(encoding="utf-8"))
+        if not asset.is_file():
+            raise FileNotFoundError(f"Missing synced native dashboard asset: {asset}")
+        json.loads(asset.read_text(encoding="utf-8"))
 
 
 def _native_dashboard_is_available(path: Path) -> bool:

@@ -305,6 +305,89 @@ def test_dataset_catalog_activation_failure_rolls_back_replacement(
 
 
 @pytest.mark.parametrize(
+    "failure_location",
+    [
+        pytest.param("dataset_directory", id="dataset-directory-fsync"),
+        pytest.param("catalog_directory", id="catalog-directory-fsync"),
+    ],
+)
+def test_dataset_directory_fsync_failure_rolls_back_complete_transaction(
+    tmp_path, monkeypatch, failure_location
+):
+    store = TrustedPluginStore(
+        base_dir=tmp_path / "plugins", data_dir=tmp_path / "data"
+    )
+    original = _dataset_frame("durability_demo")
+    replacement = original.copy()
+    replacement["voltage_mean"] = 6.6
+    resource = store.upload_dataset(
+        "durability_demo",
+        "durability.csv",
+        original.to_csv(index=False).encode("utf-8"),
+    )
+    dataset_path = Path(resource["path"])
+    original_pickle = dataset_path.read_bytes()
+    original_catalog_bytes = store.catalog_path.read_bytes()
+    original_catalog = json.loads(json.dumps(store._catalog))
+    original_estimators = dict(R._ESTIMATORS)
+    original_featuresets = dict(R._FEATURESETS)
+    original_feature_plugins = dict(store._feature_plugins)
+    failure_target = (
+        dataset_path.parent
+        if failure_location == "dataset_directory"
+        else store.base_dir
+    )
+    fsync_calls = []
+
+    def fail_selected_directory(path):
+        canonical = Path(path)
+        fsync_calls.append(canonical)
+        if canonical == failure_target:
+            raise OSError(
+                "injected post-replacement directory fsync failure"
+            )
+
+    monkeypatch.setattr(
+        trusted_plugins_module,
+        "_fsync_directory",
+        fail_selected_directory,
+    )
+
+    with pytest.raises(
+        OSError, match="post-replacement directory fsync failure"
+    ):
+        store.upload_dataset(
+            "durability_demo",
+            "durability.csv",
+            replacement.to_csv(index=False).encode("utf-8"),
+            replace=True,
+        )
+
+    assert failure_target in fsync_calls
+    assert dataset_path.read_bytes() == original_pickle
+    assert store.catalog_path.read_bytes() == original_catalog_bytes
+    assert store._catalog == original_catalog
+    assert R._ESTIMATORS == original_estimators
+    assert R._FEATURESETS == original_featuresets
+    assert store._feature_plugins == original_feature_plugins
+    assert pd.read_pickle(dataset_path)["voltage_mean"].equals(
+        original["voltage_mean"]
+    )
+    assert not list(
+        dataset_path.parent.glob(f".{dataset_path.name}.rollback-*")
+    )
+    assert not list(
+        store.base_dir.glob(f".{store.catalog_path.name}.rollback-*")
+    )
+    assert not list(
+        dataset_path.parent.glob(f".{dataset_path.name}.tmp-*")
+    )
+    assert not list(
+        store.base_dir.glob(f".{store.catalog_path.name}.tmp-*")
+    )
+
+
+@pytest.mark.parametrize(
     "bad_cycle",
     [1.2, np.nan, np.inf, -np.inf, True, -1, 2**63, float(2**63)],
 )

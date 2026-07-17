@@ -32,6 +32,9 @@ FRONTEND_ARTIFACTS = (
 PROFILE_NAME_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*$")
 GENERATION_NAME_RE = re.compile(r"^[0-9a-f]{32}$")
 PUBLICATION_PATH_PART_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")
+WINDOWS_DEVICE_NAME_RE = re.compile(
+    r"^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$", re.IGNORECASE
+)
 GENERATIONS_DIRNAME = ".generations"
 CURRENT_POINTER_NAME = "CURRENT.json"
 _PUBLICATION_CONTROL_NAMES = frozenset(
@@ -53,6 +56,14 @@ def _is_publication_control_name(name: str) -> bool:
     return str(name).casefold() in _PUBLICATION_CONTROL_NAMES
 
 
+def is_unsafe_windows_path_component(name: str) -> bool:
+    value = str(name)
+    device_stem = value.split(".", 1)[0]
+    return value.endswith((".", " ")) or bool(
+        WINDOWS_DEVICE_NAME_RE.fullmatch(device_stem)
+    )
+
+
 def resolve_safe_publication_asset(
     root: str | Path,
     relative_path: str,
@@ -72,6 +83,7 @@ def resolve_safe_publication_asset(
         or any(
             part in ("", ".", "..")
             or not PUBLICATION_PATH_PART_RE.fullmatch(part)
+            or is_unsafe_windows_path_component(part)
             or part.casefold() in {".generations", "current", "current.json"}
             for part in parts
         )

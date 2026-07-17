@@ -225,8 +225,19 @@ def test_copied_battery_curve_reads_stay_generation_local(
     )
 
 
+@pytest.mark.parametrize(
+    "filename",
+    [
+        pytest.param("../external.json", id="traversal"),
+        pytest.param("CON.json", id="device-with-extension"),
+        pytest.param("pRn.curves.json", id="mixed-case-device-extension"),
+        pytest.param("nested/aUx.json", id="nested-device-component"),
+        pytest.param("manifest.json.", id="trailing-dot-alias"),
+        pytest.param("curve.json ", id="trailing-space-alias"),
+    ],
+)
 def test_copied_battery_curve_rejects_unsafe_filename_without_source_fallback(
-    tmp_path,
+    tmp_path, filename
 ):
     service = _evaluation_service(tmp_path)
     external = tmp_path / "external.json"
@@ -235,7 +246,7 @@ def test_copied_battery_curve_rejects_unsafe_filename_without_source_fallback(
         service.frontend_data_dir,
         {
             "dataset": "xjtu",
-            "filename": "../external.json",
+            "filename": filename,
             "source": str(external),
             "copied": True,
         },
