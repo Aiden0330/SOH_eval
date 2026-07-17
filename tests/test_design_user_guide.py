@@ -160,10 +160,56 @@ class SectionTextParser(HTMLParser):
         return " ".join("".join(self.parts).split())
 
 
+class SectionCodeBlockParser(HTMLParser):
+    def __init__(self, section_id):
+        super().__init__(convert_charrefs=True)
+        self.section_id = section_id
+        self.depth = 0
+        self.in_pre = False
+        self.in_code = False
+        self.parts = []
+        self.blocks = []
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        if not self.depth and tag == "section" and values.get("id") == self.section_id:
+            self.depth = 1
+            return
+        if not self.depth:
+            return
+        self.depth += 1
+        if tag == "pre":
+            self.in_pre = True
+        elif tag == "code" and self.in_pre:
+            self.in_code = True
+            self.parts = []
+
+    def handle_data(self, data):
+        if self.in_code:
+            self.parts.append(data)
+
+    def handle_endtag(self, tag):
+        if not self.depth:
+            return
+        if tag == "code" and self.in_code:
+            self.blocks.append("".join(self.parts).strip())
+            self.in_code = False
+            self.parts = []
+        elif tag == "pre":
+            self.in_pre = False
+        self.depth -= 1
+
+
 def _guide_section_text(section_id):
     parser = SectionTextParser(section_id)
     parser.feed(GUIDE.read_text(encoding="utf-8"))
     return parser.text()
+
+
+def _guide_section_code_blocks(section_id):
+    parser = SectionCodeBlockParser(section_id)
+    parser.feed(GUIDE.read_text(encoding="utf-8"))
+    return parser.blocks
 
 
 def _source_method_routes():
@@ -332,11 +378,58 @@ def test_each_frontend_mode_has_exactly_the_six_required_subsections():
 
 
 def test_design_user_guide_has_verified_start_and_package_commands():
-    text = GUIDE.read_text(encoding="utf-8")
-    assert "python.exe -m sohbench.api_server" in text
-    assert "python.exe -m http.server 8010 --directory frontend/app" in text
-    assert "scripts\\package_portable_frontend.py" in text
-    assert "scripts\\build_standalone_frontend.py" in text
+    assert _guide_section_code_blocks("packaging") == [
+        r".venv\Scripts\python.exe scripts\build_frontend_artifacts.py --help",
+        r".venv\Scripts\python.exe scripts\sync_battery_dashboard_native.py --help",
+        (
+            r".venv\Scripts\python.exe scripts\package_portable_frontend.py "
+            r"--output dist\soh-eval-portable"
+        ),
+        (
+            r".venv\Scripts\python.exe scripts\build_standalone_frontend.py "
+            r"--output dist\soh-eval-standalone.html"
+        ),
+    ]
+
+
+def test_setup_has_exact_health_and_port_conflict_command_blocks():
+    setup_blocks = _guide_section_code_blocks("setup")
+
+    assert setup_blocks[-4:-2] == [
+        'Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8001/api/health"',
+        (
+            "Get-NetTCPConnection -LocalPort 8001,8010 -State Listen "
+            "-ErrorAction SilentlyContinue |\n"
+            "  Select-Object LocalAddress,LocalPort,OwningProcess"
+        ),
+    ]
+
+
+def test_setup_has_exact_captured_pid_start_and_stop_blocks():
+    setup_blocks = _guide_section_code_blocks("setup")
+
+    assert setup_blocks[-2:] == [
+        (
+            '$api = Start-Process -WindowStyle Hidden -FilePath '
+            '".venv\\Scripts\\python.exe" -ArgumentList '
+            '@("-m","sohbench.api_server","--host","127.0.0.1","--port","8001",'
+            '"--data-dir","D:\\battery_SOH\\data","--work-dir",'
+            '"work\\trusted_plugins","--runs-dir","runs","--frontend-data-dir",'
+            '"frontend\\app\\data") -PassThru\n'
+            '$web = Start-Process -WindowStyle Hidden -FilePath '
+            '".venv\\Scripts\\python.exe" -ArgumentList '
+            '@("-m","http.server","8010","--directory","frontend/app") -PassThru\n'
+            "$apiPid = $api.Id\n"
+            "$webPid = $web.Id"
+        ),
+        (
+            "# 只停止本次捕获的进程 ID\n"
+            "@($apiPid,$webPid) | ForEach-Object {\n"
+            "  if (Get-Process -Id $_ -ErrorAction SilentlyContinue) "
+            "{ Stop-Process -Id $_ }\n"
+            "}"
+        ),
+    ]
 
 
 def test_design_user_guide_covers_operational_contracts_and_security_boundaries():

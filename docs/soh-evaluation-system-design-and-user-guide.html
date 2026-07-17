@@ -568,17 +568,16 @@ $env:PYTHONPATH = "src"</code></pre>
         <p>将下面地址复制到浏览器地址栏；它是文本而不是活动外链：</p>
         <pre><code>http://127.0.0.1:8010/?api=http://127.0.0.1:8001</code></pre>
         <h3>健康检查与端口冲突</h3>
-        <pre><code>Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8001/api/health"
-Get-NetTCPConnection -LocalPort 8001,8010 -State Listen -ErrorAction SilentlyContinue |
+        <pre><code>Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8001/api/health"</code></pre>
+        <pre><code>Get-NetTCPConnection -LocalPort 8001,8010 -State Listen -ErrorAction SilentlyContinue |
   Select-Object LocalAddress,LocalPort,OwningProcess</code></pre>
         <p>健康响应应包含 <code>ok: true</code> 和 <code>mode: trusted_local</code>。如端口已占用，先核对 <code>OwningProcess</code>，再选择空闲端口并同步修改 URL；不要停止身份不明的进程。</p>
         <h3>可控后台启动与停止</h3>
         <pre><code>$api = Start-Process -WindowStyle Hidden -FilePath ".venv\Scripts\python.exe" -ArgumentList @("-m","sohbench.api_server","--host","127.0.0.1","--port","8001","--data-dir","D:\battery_SOH\data","--work-dir","work\trusted_plugins","--runs-dir","runs","--frontend-data-dir","frontend\app\data") -PassThru
 $web = Start-Process -WindowStyle Hidden -FilePath ".venv\Scripts\python.exe" -ArgumentList @("-m","http.server","8010","--directory","frontend/app") -PassThru
 $apiPid = $api.Id
-$webPid = $web.Id
-
-# 只停止本次捕获的进程 ID
+$webPid = $web.Id</code></pre>
+        <pre><code># 只停止本次捕获的进程 ID
 @($apiPid,$webPid) | ForEach-Object {
   if (Get-Process -Id $_ -ErrorAction SilentlyContinue) { Stop-Process -Id $_ }
 }</code></pre>
