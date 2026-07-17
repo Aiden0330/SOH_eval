@@ -465,11 +465,28 @@ class TrustedPluginStore:
         activate_registry: Callable[[], None],
     ) -> None:
         previous_payload = path.read_bytes() if path.is_file() else None
+        previous_catalog_payload = (
+            self.catalog_path.read_bytes() if self.catalog_path.is_file() else None
+        )
+        previous_catalog = json.loads(json.dumps(self._catalog))
+        estimator_registry = dict(R._ESTIMATORS)
+        featureset_registry = dict(R._FEATURESETS)
+        feature_plugins = dict(self._feature_plugins)
         rollback = path.parent / f".{path.name}.rollback-{uuid.uuid4().hex}"
+        catalog_rollback = self.base_dir / (
+            f".{self.catalog_path.name}.rollback-{uuid.uuid4().hex}"
+        )
+        committed = False
+        restored = False
         try:
             if previous_payload is not None:
                 with rollback.open("wb") as stream:
                     stream.write(previous_payload)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+            if previous_catalog_payload is not None:
+                with catalog_rollback.open("wb") as stream:
+                    stream.write(previous_catalog_payload)
                     stream.flush()
                     os.fsync(stream.fileno())
             os.replace(staged, path)
@@ -480,13 +497,36 @@ class TrustedPluginStore:
                     path.unlink(missing_ok=True)
                 else:
                     os.replace(rollback, path)
+                restored = True
                 raise
-            activate_registry()
+            try:
+                activate_registry()
+            except BaseException:
+                R._ESTIMATORS.clear()
+                R._ESTIMATORS.update(estimator_registry)
+                R._FEATURESETS.clear()
+                R._FEATURESETS.update(featureset_registry)
+                self._feature_plugins.clear()
+                self._feature_plugins.update(feature_plugins)
+                self._catalog = previous_catalog
+                if previous_catalog_payload is None:
+                    self.catalog_path.unlink(missing_ok=True)
+                else:
+                    os.replace(catalog_rollback, self.catalog_path)
+                if previous_payload is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    os.replace(rollback, path)
+                restored = True
+                raise
             self._catalog = next_catalog
             _fsync_directory(path.parent)
             _fsync_directory(self.base_dir)
+            committed = True
         finally:
-            rollback.unlink(missing_ok=True)
+            if committed or restored:
+                rollback.unlink(missing_ok=True)
+                catalog_rollback.unlink(missing_ok=True)
             catalog_staging.unlink(missing_ok=True)
 
     def _load_estimator_file(self, path: Path, *, replace: bool) -> type:

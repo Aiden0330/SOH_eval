@@ -685,10 +685,16 @@ def test_inference_job_runs_uploaded_pickle_model(tmp_path):
         start=False,
     )
     finished = service.run_inference_job_inline(job["id"])
+    active = frontend_publish_module.resolve_published_directory(
+        tmp_path / "frontend_data"
+    )
 
     assert finished["status"] == "succeeded"
     assert (Path(finished["run_dir"]) / "inference_benchmark.json").exists()
-    assert (tmp_path / "frontend_data" / "inference_benchmark.json").exists()
+    assert (active / "inference_benchmark.json").exists()
+    assert (active / "inference_run_config.json").exists()
+    assert not (active / "leaderboard.json").exists()
+    assert not (active / "run_config.json").exists()
 
 
 def test_training_then_inference_publishes_explicit_composite_generation(tmp_path):
@@ -972,7 +978,11 @@ def test_inference_job_keeps_object_pd_na_labels_unscored_and_successful(tmp_pat
         "ms_per_1000_samples",
         "samples_per_second",
     }
-    assert metric_names.isdisjoint(persisted.columns)
+    assert metric_names <= set(persisted.columns)
+    for name in ("mae", "rmse", "mean_bias_error"):
+        assert pd.isna(persisted.loc[0, name])
+    for name in metric_names - {"mae", "rmse", "mean_bias_error"}:
+        assert np.isfinite(persisted.loc[0, name])
     persisted_metrics = json.loads(persisted.loc[0, "metrics_json"])
     assert {"mae", "rmse", "mean_bias_error"}.isdisjoint(
         persisted_metrics

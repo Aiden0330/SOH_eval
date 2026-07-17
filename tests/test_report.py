@@ -424,7 +424,7 @@ def test_leaderboard_uses_only_finite_evidence_from_successful_units(tmp_path):
                      metric=metric, value=bad, featureset="full", unit_status="failed"),
                 dict(estimator="ridge", feature_mode="unified", backend="sklearn",
                      protocol="loco", held_out_key="c1", fold=0, seed=2,
-                     metric=metric, value=np.inf, featureset="full", unit_status="succeeded"),
+                     metric=metric, value=np.inf, featureset="full", unit_status="failed"),
             ]
         )
     rows.extend(
@@ -445,32 +445,53 @@ def test_leaderboard_uses_only_finite_evidence_from_successful_units(tmp_path):
 
     assert entry["metrics"]["mae"] == {"mean": 0.01, "std": 0.0}
     assert entry["metrics"]["picp"] == {"mean": 0.92, "std": 0.0}
-    assert entry["verdicts"] == {}
-    assert entry["coverage"] == 0.5
+    assert entry["verdicts"] == {
+        "generalization": True,
+        "calibration": True,
+        "physical_consistency": True,
+    }
+    assert entry["coverage"] == 0.25
     assert entry["execution"] == {
-        "outcome": "partial", "attempted": 4, "succeeded": 2, "failed": 2,
+        "outcome": "partial", "attempted": 4, "succeeded": 1, "failed": 3,
     }
 
 
-def test_succeeded_non_finite_evidence_has_no_acceptance_verdicts(tmp_path):
-    values = [np.nan, np.inf, -np.inf, np.nan]
+@pytest.mark.parametrize(
+    "invalid_value",
+    [pytest.param(np.nan, id="nan"), pytest.param(np.inf, id="infinity")],
+)
+def test_write_artifacts_rejects_succeeded_non_finite_evidence_before_commit(
+    tmp_path, invalid_value
+):
     rows = [
-        dict(estimator="ridge", feature_mode="unified", backend="sklearn",
-             protocol="loco", held_out_key="c1", fold=0, seed=0,
-             metric=metric, value=value, featureset="full", unit_status="succeeded")
-        for metric, value in zip(
-            ("mae", "picp", "monotonicity_violation_rate", "value_range_violation"),
-            values,
+        dict(
+            estimator="ridge",
+            feature_mode="unified",
+            backend="sklearn",
+            protocol="loco",
+            held_out_key="c1",
+            fold=0,
+            seed=0,
+            metric="mae",
+            value=invalid_value,
+            featureset="full",
+            unit_status="succeeded",
         )
     ]
+    run_id = "RUN-invalid-success-evidence"
 
-    out = write_artifacts(pd.DataFrame(rows), qc_report=None, task=SOHEstimationTask(),
-                          config={}, out_dir=tmp_path)
-    entry = json.loads((Path(out) / "leaderboard.json").read_text())[0]
+    with pytest.raises(ValueError, match="successful result metrics must be finite"):
+        write_artifacts(
+            pd.DataFrame(rows),
+            qc_report=None,
+            task=SOHEstimationTask(),
+            config={},
+            out_dir=tmp_path,
+            run_id=run_id,
+        )
 
-    assert all(metric["mean"] is None for metric in entry["metrics"].values())
-    assert entry["verdicts"] == {}
-    assert entry["coverage"] == 1.0
+    assert not (tmp_path / run_id).exists()
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_partial_finite_metrics_do_not_produce_acceptance_verdicts(tmp_path):
@@ -704,6 +725,44 @@ def _valid_inference_record():
 
 
 @pytest.mark.parametrize(
+    "filename,reader",
+    [
+        ("inference_results.parquet", pd.read_parquet),
+        ("inference_results.csv", pd.read_csv),
+    ],
+)
+def test_inference_tabular_persistence_dual_writes_nullable_legacy_metric_columns(
+    tmp_path, filename, reader
+):
+    complete = _valid_inference_record()
+    sparse = _valid_inference_record()
+    complete["dataset"] = "complete"
+    sparse["dataset"] = "unlabeled"
+    for metric_name in ("mae", "rmse", "mean_bias_error"):
+        sparse.pop(metric_name)
+
+    out = Path(
+        report_module.write_inference_artifacts(
+            [complete, sparse], {}, tmp_path
+        )
+    )
+    frame = reader(out / filename)
+    legacy = frame[
+        ["model", "dataset", "mae", "rmse", "predict_ms"]
+    ].set_index("dataset")
+
+    assert legacy.loc["complete", "mae"] == pytest.approx(0.01)
+    assert legacy.loc["complete", "rmse"] == pytest.approx(0.02)
+    assert legacy.loc["complete", "predict_ms"] == pytest.approx(1.2)
+    assert pd.isna(legacy.loc["unlabeled", "mae"])
+    assert pd.isna(legacy.loc["unlabeled", "rmse"])
+    assert legacy.loc["unlabeled", "predict_ms"] == pytest.approx(1.2)
+    canonical = frame.set_index("dataset")["metrics_json"]
+    assert "mae" not in json.loads(canonical.loc["unlabeled"])
+    assert verify_evidence_pack(out / "evidence-pack.json")["ok"] is True
+
+
+@pytest.mark.parametrize(
     "metric_name",
     [
         "mae",
@@ -802,7 +861,9 @@ def test_inference_writer_normalizes_finite_numpy_metric_scalars(
         assert payload["records"][0][metric_name] == expected
         assert isinstance(payload["records"][0][metric_name], float)
     frame = pd.read_parquet(out / "inference_results.parquet")
-    assert set(_INFERENCE_METRIC_NAMES).isdisjoint(frame.columns)
+    assert set(_INFERENCE_METRIC_NAMES) <= set(frame.columns)
+    for metric_name in _INFERENCE_METRIC_NAMES:
+        assert frame.loc[0, metric_name] == pytest.approx(expected)
     metrics = json.loads(frame.loc[0, "metrics_json"])
     assert metrics == {
         metric_name: expected for metric_name in _INFERENCE_METRIC_NAMES
@@ -844,11 +905,7 @@ def test_inference_tabular_persistence_keeps_each_missing_metric_sparse(
             tmp_path,
         )
     )
-    frame = (
-        reader(out / filename, keep_default_na=False)
-        if filename.endswith(".csv")
-        else reader(out / filename)
-    )
+    frame = reader(out / filename)
 
     non_metric_columns = [
         "model",
@@ -859,7 +916,9 @@ def test_inference_tabular_persistence_keeps_each_missing_metric_sparse(
         "status",
         "error",
     ]
-    assert frame[non_metric_columns].to_dict("records") == [
+    non_metrics = frame[non_metric_columns].copy()
+    non_metrics["error"] = non_metrics["error"].fillna("")
+    assert non_metrics.to_dict("records") == [
         {
             "model": "predict_only",
             "dataset": "complete",
@@ -879,7 +938,7 @@ def test_inference_tabular_persistence_keeps_each_missing_metric_sparse(
             "error": "",
         },
     ]
-    assert set(_INFERENCE_METRIC_NAMES).isdisjoint(frame.columns)
+    assert set(_INFERENCE_METRIC_NAMES) <= set(frame.columns)
     by_dataset = frame.set_index("dataset")
     complete_metrics = {
         name: complete[name] for name in _INFERENCE_METRIC_NAMES
@@ -901,6 +960,7 @@ def test_inference_tabular_persistence_keeps_each_missing_metric_sparse(
     )
     assert persisted_sparse == sparse_metrics
     assert missing_metric not in persisted_sparse
+    assert pd.isna(by_dataset.loc[f"missing_{missing_metric}", missing_metric])
 
     payload = json.loads(
         (out / "inference_benchmark.json").read_text(encoding="utf-8")
@@ -973,7 +1033,7 @@ def test_mixed_labeled_unlabeled_inference_persists_sparse_label_metrics(
             "status": "succeeded",
         },
     ]
-    assert set(_INFERENCE_METRIC_NAMES).isdisjoint(frame.columns)
+    assert set(_INFERENCE_METRIC_NAMES) <= set(frame.columns)
     by_dataset = frame.set_index("dataset")
     assert json.loads(by_dataset.loc["labeled", "metrics_json"]) == {
         "mae": 0.01,
@@ -996,6 +1056,9 @@ def test_mixed_labeled_unlabeled_inference_persists_sparse_label_metrics(
         "value_range_violation": 0.0,
     }
     assert all(np.isfinite(value) for value in unlabeled_metrics.values())
+    assert pd.isna(by_dataset.loc["unlabeled", "mae"])
+    assert pd.isna(by_dataset.loc["unlabeled", "rmse"])
+    assert pd.isna(by_dataset.loc["unlabeled", "mean_bias_error"])
     payload = json.loads(
         (out / "inference_benchmark.json").read_text(encoding="utf-8")
     )
@@ -1057,7 +1120,7 @@ def test_unlabeled_success_and_failed_record_do_not_widen_label_metrics(
     frame = reader(out / filename)
 
     assert len(frame) == 2
-    assert set(_INFERENCE_METRIC_NAMES).isdisjoint(frame.columns)
+    assert set(_INFERENCE_METRIC_NAMES) <= set(frame.columns)
     by_dataset = frame.set_index("dataset")
     assert json.loads(by_dataset.loc["unlabeled", "metrics_json"]) == {
         "monotonicity_violation_rate": 0.0,
@@ -1080,6 +1143,8 @@ def test_unlabeled_success_and_failed_record_do_not_widen_label_metrics(
     }
     assert by_dataset.loc["unlabeled", "status"] == "succeeded"
     assert by_dataset.loc["failed_dataset", "status"] == "failed"
+    assert pd.isna(by_dataset.loc["unlabeled", "mae"])
+    assert pd.isna(by_dataset.loc["failed_dataset", "mae"])
     payload = json.loads(
         (out / "inference_benchmark.json").read_text(encoding="utf-8")
     )

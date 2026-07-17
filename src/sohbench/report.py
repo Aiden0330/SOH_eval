@@ -290,6 +290,29 @@ def _validate_result_candidate_ids(results: pd.DataFrame) -> None:
         raise ValueError("results candidate_id values must be non-empty strings")
 
 
+def _validate_successful_result_metrics(results: pd.DataFrame) -> None:
+    successful = successful_result_rows(results)
+    if successful.empty:
+        return
+    if "value" not in successful.columns:
+        raise ValueError("successful result metrics require a value column")
+    invalid = successful.loc[
+        ~successful["value"].map(is_finite_real_scalar), [
+            column for column in ("metric", "value") if column in successful.columns
+        ],
+    ]
+    if not invalid.empty:
+        names = (
+            ", ".join(map(str, invalid["metric"].dropna().unique()))
+            if "metric" in invalid.columns
+            else "unknown"
+        )
+        raise ValueError(
+            "successful result metrics must be finite non-boolean real scalars: "
+            + names
+        )
+
+
 def _evidence_manifest(run_id, evidence_context):
     if evidence_context is None:
         context = {}
@@ -560,6 +583,7 @@ def write_artifacts(
     selected_run_id = _run_identity(run_id)
     manifest = _evidence_manifest(selected_run_id, evidence_context)
     _validate_result_candidate_ids(results)
+    _validate_successful_result_metrics(results)
     if predictions is not None:
         validate_prediction_records(predictions)
         if not predictions["run_id"].eq(selected_run_id).all():
@@ -724,8 +748,14 @@ def _inference_persistence_frame(records: list[dict]) -> pd.DataFrame:
             separators=(",", ":"),
             default=_strict_inference_json_default,
         )
+        for name in _INFERENCE_METRICS:
+            value = record.get(name)
+            row[name] = float(value) if is_finite_real_scalar(value) else pd.NA
         persisted.append(row)
-    return pd.DataFrame.from_records(persisted)
+    frame = pd.DataFrame.from_records(persisted)
+    for name in _INFERENCE_METRICS:
+        frame[name] = pd.array(frame[name], dtype="Float64")
+    return frame
 
 
 def _inference_rank_key(row: dict, metric: str) -> tuple:

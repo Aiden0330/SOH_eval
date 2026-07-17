@@ -187,15 +187,26 @@ def _sync_compatibility_view(
 
         staging = target / f".{source.name}.compat-{uuid.uuid4().hex}"
         backup = target / f".{source.name}.backup-{uuid.uuid4().hex}"
+        backup_created = False
+        activated = False
+        restored = False
         try:
             shutil.copytree(source, staging)
             if destination.exists():
                 os.replace(destination, backup)
-            os.replace(staging, destination)
+                backup_created = True
+            try:
+                os.replace(staging, destination)
+                activated = True
+            except BaseException:
+                if backup_created:
+                    os.replace(backup, destination)
+                    restored = True
+                raise
         finally:
             if staging.exists():
                 shutil.rmtree(staging)
-            if backup.exists():
+            if backup.exists() and (activated or restored):
                 shutil.rmtree(backup)
 
 

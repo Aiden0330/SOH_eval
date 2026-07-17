@@ -494,3 +494,64 @@ class Estimator:
     assert path.read_bytes() == original_source
     assert R._ESTIMATORS["catalog_safe_estimator"] is original_class
     assert store.catalog_path.read_bytes() == original_catalog
+
+
+def test_registry_activation_failure_rolls_back_file_catalog_and_runtime(
+    tmp_path,
+):
+    store = TrustedPluginStore(
+        base_dir=tmp_path / "plugins", data_dir=tmp_path / "data"
+    )
+    name = "callback_safe_estimator"
+    original_source = b"original plugin bytes"
+    replacement_source = b"replacement plugin bytes"
+    path = store.estimator_dir / f"{name}.py"
+    path.write_bytes(original_source)
+    original_class = type("OriginalEstimator", (), {})
+    replacement_class = type("ReplacementEstimator", (), {})
+    original_resource = {
+        "name": name,
+        "kind": "estimator",
+        "path": str(path),
+        "backend": "original",
+    }
+    store._catalog = store._catalog_with_upsert(
+        "estimators", original_resource
+    )
+    store.catalog_path.write_text(
+        json.dumps(store._catalog, indent=2), encoding="utf-8"
+    )
+    original_catalog_bytes = store.catalog_path.read_bytes()
+    previous_registry_value = R._ESTIMATORS.get(name)
+    R._ESTIMATORS[name] = original_class
+    original_catalog_document = store.catalog()
+    staged = store._stage_plugin_payload(path, replacement_source)
+    next_catalog = store._catalog_with_upsert(
+        "estimators", {**original_resource, "backend": "replacement"}
+    )
+    catalog_staging = store._stage_catalog(next_catalog)
+
+    def fail_after_runtime_mutation():
+        R._ESTIMATORS[name] = replacement_class
+        raise RuntimeError("injected registry activation failure")
+
+    try:
+        with pytest.raises(RuntimeError, match="registry activation failure"):
+            store._activate_plugin_transaction(
+                path,
+                staged,
+                catalog_staging,
+                next_catalog,
+                fail_after_runtime_mutation,
+            )
+
+        assert path.read_bytes() == original_source
+        assert store.catalog_path.read_bytes() == original_catalog_bytes
+        assert store.catalog() == original_catalog_document
+        assert R._ESTIMATORS[name] is original_class
+        assert not list(store.estimator_dir.glob(f".{path.name}.rollback-*"))
+    finally:
+        if previous_registry_value is None:
+            R._ESTIMATORS.pop(name, None)
+        else:
+            R._ESTIMATORS[name] = previous_registry_value

@@ -331,6 +331,42 @@ def test_directory_activation_interruption_preserves_last_known_good(
     )["version"] == "old"
 
 
+def test_compatibility_view_restores_directory_when_second_replace_fails(
+    tmp_path, monkeypatch
+):
+    target = tmp_path / "published"
+    generation = tmp_path / "generation"
+    _write_json(target / "assets" / "manifest.json", {"version": "old"})
+    (target / "assets" / "payload.bin").write_bytes(b"last-known-good")
+    _write_json(generation / "assets" / "manifest.json", {"version": "new"})
+    (generation / "assets" / "payload.bin").write_bytes(b"replacement")
+    before = _snapshot(target / "assets")
+    real_replace = frontend_publish_module.os.replace
+
+    def fail_second_replace(source, destination):
+        source_path = Path(source)
+        destination_path = Path(destination)
+        if (
+            source_path.name.startswith(".assets.compat-")
+            and destination_path == target / "assets"
+        ):
+            raise OSError("injected compatibility activation failure")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(
+        frontend_publish_module.os, "replace", fail_second_replace
+    )
+
+    with pytest.raises(OSError, match="compatibility activation failure"):
+        frontend_publish_module._sync_compatibility_view(
+            target, generation, "a" * 32
+        )
+
+    assert _snapshot(target / "assets") == before
+    assert not list(target.glob(".assets.compat-*"))
+    assert not list(target.glob(".assets.backup-*"))
+
+
 def test_resolve_published_directory_retries_transient_pointer_read_failure(
     tmp_path, monkeypatch
 ):

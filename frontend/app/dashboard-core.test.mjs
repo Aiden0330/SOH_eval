@@ -12,6 +12,7 @@ import {
   buildInferencePayload,
   canLaunchModeJob,
   catalogOptions,
+  dashboardArtifactPlan,
   evaluationPlanSummary,
   inferenceRows,
   inferenceAuditSummary,
@@ -35,6 +36,17 @@ import {
   trainingArtifactSummary,
   nextDatasetSelection,
 } from "./dashboard-core.mjs";
+
+{
+  assert.deepEqual(dashboardArtifactPlan({
+    leaderboard: [],
+    inference: { records: [{ model: "uploaded", dataset: "new-data" }] },
+  }), {
+    hasTraining: false,
+    hasInference: true,
+    canRender: true,
+  });
+}
 
 {
   assert.equal(isTerminalJobStatus("queued"), false);
@@ -110,6 +122,43 @@ import {
     state: "stale",
     delayMs: 0,
   });
+
+  for (const [mode, jobId, token] of [
+    ["training", "train-live", 3],
+    ["inference", "infer-live", 8],
+  ]) {
+    for (const httpStatus of [404, 410]) {
+      assert.deepEqual(pollFailureDecision({
+        mode,
+        jobId,
+        token,
+        pollTokens,
+        activeJobs,
+        consecutiveErrors: 1,
+        httpStatus,
+      }), {
+        continuePolling: false,
+        state: "missing",
+        delayMs: 0,
+        clearActiveJob: true,
+        httpStatus,
+      });
+    }
+  }
+
+  for (const httpStatus of [429, 500, 503]) {
+    const decision = pollFailureDecision({
+      mode: "training",
+      jobId: "train-live",
+      token: 3,
+      pollTokens,
+      activeJobs,
+      consecutiveErrors: 2,
+      httpStatus,
+    });
+    assert.equal(decision.continuePolling, true);
+    assert.equal(decision.state, "reconnecting");
+  }
 }
 
 const aggregate = [

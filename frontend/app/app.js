@@ -10,6 +10,7 @@ import {
   buildEvaluationPayload,
   canLaunchModeJob,
   catalogOptions,
+  dashboardArtifactPlan,
   evaluationPlanSummary,
   evaluationIdentity,
   evaluationLabel,
@@ -252,7 +253,7 @@ async function resolvePublishedBrowserDirectory(root, suffix = "") {
 async function loadProfileArtifacts(profile, suffix) {
   const base = profileDataPath(profile);
   const [lb, qc, cfg, byDataset, inference, inferenceConfig, modelCatalog, manifest] = await Promise.all([
-    fetchJson(`${base}/leaderboard.json${suffix}`),
+    fetchJson(`${base}/leaderboard.json${suffix}`, []),
     fetchJson(`${base}/qc_report.json${suffix}`, null),
     fetchJson(`${base}/run_config.json${suffix}`, {}),
     fetchJson(`${base}/dataset_leaderboard.json${suffix}`, []),
@@ -337,12 +338,8 @@ function seedResourceSelection() {
 }
 
 function render() {
+  const artifactPlan = dashboardArtifactPlan(DATA);
   const aggregate = DATA.leaderboard || [];
-  if (!aggregate.length) {
-    $("leaderboard").innerHTML = '<div class="state">暂无数据。</div>';
-    return;
-  }
-
   const dsOptions = currentDatasetOptions();
   const inferenceDsOptions = currentInferenceDatasetOptions(dsOptions);
   const allDatasets = dsOptions.map((item) => item.name);
@@ -351,7 +348,8 @@ function render() {
 
   const lb = scoped.entries || [];
   const sets = fsOrder(uniq(lb.map((x) => x.featureset || "full")));
-  if (!activeFs || !sets.includes(activeFs)) activeFs = sets.includes("ic_dva") ? "ic_dva" : sets[0];
+  if (!artifactPlan.hasTraining) activeFs = "";
+  else if (!activeFs || !sets.includes(activeFs)) activeFs = sets.includes("ic_dva") ? "ic_dva" : sets[0];
 
   renderRunMeta();
   renderKpis(lb, dsOptions);
@@ -1563,8 +1561,10 @@ async function pollJob(jobId, token) {
   let consecutiveErrors = 0;
   while (true) {
     await new Promise((resolve) => setTimeout(resolve, delayMs));
+    let responseStatus = null;
     try {
       const response = await fetch(`${API_BASE}/api/jobs/${encodeURIComponent(jobId)}`);
+      responseStatus = response.status;
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const job = await response.json();
       if (!isCurrentModePollResponse({
@@ -1583,8 +1583,14 @@ async function pollJob(jobId, token) {
       consecutiveErrors += 1;
       const decision = pollFailureDecision({
         mode: "training", jobId, token, pollTokens: POLL_TOKENS,
-        activeJobs: ACTIVE_JOBS, consecutiveErrors,
+        activeJobs: ACTIVE_JOBS, consecutiveErrors, httpStatus: responseStatus,
       });
+      if (decision.clearActiveJob) {
+        ACTIVE_JOBS.training = null;
+        renderWorkbench();
+        setJobMessage(`任务记录已不存在（HTTP ${decision.httpStatus}），已解锁，可重新启动。`);
+        return;
+      }
       if (!decision.continuePolling) return;
       delayMs = decision.delayMs;
       setJobMessage(`任务轮询暂时失败，正在重连：${err.message}`);
@@ -1597,8 +1603,10 @@ async function pollInferenceJob(jobId, token) {
   let consecutiveErrors = 0;
   while (true) {
     await new Promise((resolve) => setTimeout(resolve, delayMs));
+    let responseStatus = null;
     try {
       const response = await fetch(`${API_BASE}/api/inference-jobs/${encodeURIComponent(jobId)}`);
+      responseStatus = response.status;
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const job = { kind: "inference", ...(await response.json()) };
       if (!isCurrentModePollResponse({
@@ -1622,8 +1630,17 @@ async function pollInferenceJob(jobId, token) {
       consecutiveErrors += 1;
       const decision = pollFailureDecision({
         mode: "inference", jobId, token, pollTokens: POLL_TOKENS,
-        activeJobs: ACTIVE_JOBS, consecutiveErrors,
+        activeJobs: ACTIVE_JOBS, consecutiveErrors, httpStatus: responseStatus,
       });
+      if (decision.clearActiveJob) {
+        ACTIVE_JOBS.inference = null;
+        renderInferencePanel(currentInferenceDatasetOptions());
+        setInferenceMessage(
+          `推理任务记录已不存在（HTTP ${decision.httpStatus}），已解锁，可重新启动。`,
+          "fail",
+        );
+        return;
+      }
       if (!decision.continuePolling) return;
       delayMs = decision.delayMs;
       setInferenceMessage(`推理任务轮询暂时失败，正在重连：${err.message}`, "active");
@@ -1756,6 +1773,10 @@ function renderStabilityPanel() {
 function renderMatrix(lb, sets) {
   const rows = evaluationMatrixRows(lb, sets);
   const vals = rows.flatMap((row) => row.cells.map((cell) => cell.value)).filter((v) => v != null);
+  if (!rows.length || !vals.length) {
+    $("matrix").innerHTML = '<div class="state">暂无训练评测数据。</div>';
+    return;
+  }
   const lo = Math.min(...vals), hi = Math.max(...vals);
   const best = Math.min(...vals);
   let h = "<table class='matrix'><thead><tr><th>算法</th>" +

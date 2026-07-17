@@ -695,6 +695,7 @@ export function pollFailureDecision({
   pollTokens = {},
   activeJobs = {},
   consecutiveErrors = 1,
+  httpStatus = null,
   baseDelayMs = 1000,
   maxDelayMs = 8000,
 } = {}) {
@@ -705,6 +706,16 @@ export function pollFailureDecision({
     || current.id !== jobId
   ) {
     return { continuePolling: false, state: "stale", delayMs: 0 };
+  }
+  const status = Number(httpStatus);
+  if (status === 404 || status === 410) {
+    return {
+      continuePolling: false,
+      state: "missing",
+      delayMs: 0,
+      clearActiveJob: true,
+      httpStatus: status,
+    };
   }
   const failures = Math.max(1, Math.floor(Number(consecutiveErrors) || 1));
   const delayMs = Math.min(
@@ -1126,4 +1137,9 @@ function stddev(values) {
   const mean = average(values);
   const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
   return Math.sqrt(variance);
+}
+export function dashboardArtifactPlan({ leaderboard = [], inference = {} } = {}) {
+  const hasTraining = Array.isArray(leaderboard) && leaderboard.length > 0;
+  const hasInference = Array.isArray(inference?.records) && inference.records.length > 0;
+  return { hasTraining, hasInference, canRender: hasTraining || hasInference };
 }
