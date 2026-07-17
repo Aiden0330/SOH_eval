@@ -631,7 +631,7 @@ $webPid = $web.Id
           <div class="flow-step"><strong>1. 资源预检</strong>目录、列、源码或 Pickle 契约</div><span class="flow-arrow">→</span>
           <div class="flow-step"><strong>2. 创建任务</strong>HTTP 202 与 queued</div><span class="flow-arrow">→</span>
           <div class="flow-step"><strong>3. 后台执行</strong>daemon thread 与 running</div><span class="flow-arrow">→</span>
-          <div class="flow-step"><strong>4. 原子发布</strong>run、模型、前端 generation</div><span class="flow-arrow">→</span>
+          <div class="flow-step"><strong>4. 分层发布</strong>原始 run/模型事务；成功后前端目录 generation</div><span class="flow-arrow">→</span>
           <div class="flow-step"><strong>5. 终态审计</strong>succeeded / partial / failed</div>
         </div>
         <h3>训练矩阵与耗时估算</h3>
@@ -649,12 +649,13 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
         <h3>冻结推理请求与部分成功</h3>
         <p>请求至少需要 <code>models</code>，可带 <code>datasets</code>、审计字段和非空 <code>pairs</code>。后端为每个模型-数据集对恢复 manifest 声明的特征流水线状态，检查缺失列，然后执行预测。模型读取失败或特征不兼容只生成受影响组合的失败记录；有成功也有失败时任务终态为 <code>partial</code>。</p>
         <h3>任务历史、轮询与重跑</h3>
-        <p>训练历史来自 <code>GET /api/jobs</code>，推理历史来自 <code>GET /api/inference-jobs</code>；详情路由附加任务 ID。前端约每秒轮询，瞬时错误会退避重连，404 会清除活动锁并允许重跑。终态只有 <code>succeeded</code>、<code>partial</code>、<code>failed</code>；重跑创建新任务、新 run ID 和新 generation，不原位改写旧运行。先从历史恢复相同选择，再根据失败列/模型缩小范围重跑。</p>
+        <p>训练历史来自 <code>GET /api/jobs</code>，推理历史来自 <code>GET /api/inference-jobs</code>；详情路由附加任务 ID。前端约每秒轮询，瞬时错误会退避重连，404 会清除活动锁并允许重跑。终态只有 <code>succeeded</code>、<code>partial</code>、<code>failed</code>。重跑总是创建新任务和新 run ID，不原位改写旧运行；只有后续目录发布成功才创建不可变 generation 并推进 <code>CURRENT.json</code>，目录发布前失败不创建 generation。先从历史恢复相同选择，再根据失败列/模型缩小范围重跑。</p>
       </section>
 
       <section id="evidence" class="chapter">
         <h2>结果、排行与证据解释</h2>
         <p>单个 KPI 不是结论。先核对任务终态和 execution coverage，再核对 comparison key、数据范围、指标、验收 verdict 与证据摘要。</p>
+        <p class="callout"><strong>对象边界：</strong>原始运行目录与前端 publication generation 是两类对象。原始运行目录按 run ID 独占创建，保存本次训练/推理证据，可作为后续合并来源；原始运行目录不是前端 generation，原始运行目录不会推进 <code>CURRENT.json</code>。只有验证后的目录发布成功，活动前端数据才切换到新的 generation。</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>类别</th><th>文件</th><th>用途</th><th>解释边界</th></tr></thead>
@@ -682,7 +683,7 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
 
       <section id="packaging" class="chapter">
         <h2>数据同步与离线打包</h2>
-        <p>发布采用 staging → 校验 → fsync → generation → 原子更新 <code>CURRENT.json</code> 的顺序。读者通过 pointer 解析活动 generation；新构建失败时 pointer 不切换，last-known-good 继续可读。系统不会提供“回滚到任意历史 generation”的用户命令。</p>
+        <p><strong>generation 和 <code>CURRENT.json</code> 只属于目录发布。</strong>前端 artifacts、原生看板同步和 portable 目录使用 staging → 校验 → fsync → generation → 原子更新 pointer 的顺序；只有 staging 构建和校验成功后才创建不可变 generation。失败在激活前不创建 generation，也不改变 <code>CURRENT.json</code>，last-known-good 目录继续可读。系统没有“回滚到任意历史 generation”的用户命令。</p>
         <h3>合并并发布前端 artifacts</h3>
         <pre><code>.venv\Scripts\python.exe scripts\build_frontend_artifacts.py --help</code></pre>
         <p class="command-note">帮助会报告：位置参数 <code>runs</code>、可重复 <code>--source-run</code>、<code>--archive-dir</code>、<code>--frontend-data-dir</code>、<code>--phase</code>、<code>--replace-cell estimator:featureset</code> 和 <code>--no-auto-replace-from-stability</code>。先按运行优先级提供具体源目录；空的 frontend data 参数可跳过同步。</p>
@@ -694,7 +695,7 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
         <p>可另传 <code>--app-dir</code>；缺省为 <code>frontend/app</code>。输出是需要静态 HTTP 服务的目录包，写入 <code>MANIFEST.json</code>，可带已同步原生看板，并始终移除 detection 资产与引用。</p>
         <h3>构建 standalone 单 HTML</h3>
         <pre><code>.venv\Scripts\python.exe scripts\build_standalone_frontend.py --output dist\soh-eval-standalone.html</code></pre>
-        <p>可另传 <code>--app-dir</code>。构建器内联 CSS、JS、JSON、离线 GET fetch adapter 和有效原生看板 <code>srcdoc</code>，校验独立模式标记与完整 HTML 后原子替换输出；该文件可直接离线打开。</p>
+        <p>可另传 <code>--app-dir</code>。构建器内联 CSS、JS、JSON、离线 GET fetch adapter 和有效原生看板 <code>srcdoc</code>。Standalone 不创建 generation，也不读写 <code>CURRENT.json</code>；它先验证临时 HTML，再原子替换一个输出文件，失败时保留原有 standalone 文件。生成的 HTML 可直接离线打开。</p>
       </section>
 
       <section id="troubleshooting" class="chapter">
@@ -756,7 +757,7 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
           </table>
         </div>
         <h3>关键目录</h3>
-        <p class="mono">D:\battery_SOH\data\processed：发现数据集 · work\trusted_plugins：插件、模型与任务历史 · runs：不可复用的运行目录 · frontend\app\data：活动前端 artifacts 与 CURRENT.json · frontend\app\battery-dashboard：已同步原生看板 · dist：portable/standalone 输出</p>
+        <p class="mono">D:\battery_SOH\data\processed：发现数据集 · work\trusted_plugins：插件、模型与任务历史 · runs：不可变的原始运行目录，可作为后续合并来源 · frontend\app\data：活动前端 artifacts 与 CURRENT.json · frontend\app\battery-dashboard：已同步原生看板 · dist：portable/standalone 输出</p>
         <h3>最短验收链</h3>
         <pre><code>GET /api/health
 GET /api/catalog

@@ -1,6 +1,8 @@
+import ast
 from html.parser import HTMLParser
 from pathlib import Path
 
+from sohbench.api_server import parse_args
 from scripts.validate_design_user_guide import REQUIRED_SECTIONS, validate_document
 
 
@@ -89,6 +91,125 @@ class ModeGuideParser(HTMLParser):
         self.article_depth -= 1
         if self.article_depth == 0:
             self.current_mode = None
+
+
+class ApiRouteTableParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.in_route_container = False
+        self.in_table = False
+        self.cell_index = -1
+        self.in_route_code = False
+        self.route_parts = []
+        self.routes = set()
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        classes = set(values.get("class", "").split())
+        if tag == "div" and "route-table" in classes:
+            self.in_route_container = True
+        elif tag == "table" and self.in_route_container:
+            self.in_table = True
+        elif self.in_table and tag == "tr":
+            self.cell_index = -1
+        elif self.in_table and tag == "td":
+            self.cell_index += 1
+        elif self.in_table and tag == "code" and self.cell_index == 0:
+            self.in_route_code = True
+            self.route_parts = []
+
+    def handle_data(self, data):
+        if self.in_route_code:
+            self.route_parts.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "code" and self.in_route_code:
+            method, route = "".join(self.route_parts).strip().split(maxsplit=1)
+            self.routes.add((method, route))
+            self.in_route_code = False
+            self.route_parts = []
+        elif tag == "table" and self.in_table:
+            self.in_table = False
+        elif tag == "div" and self.in_route_container:
+            self.in_route_container = False
+
+
+class SectionTextParser(HTMLParser):
+    def __init__(self, section_id):
+        super().__init__(convert_charrefs=True)
+        self.section_id = section_id
+        self.depth = 0
+        self.parts = []
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        if not self.depth and tag == "section" and values.get("id") == self.section_id:
+            self.depth = 1
+        elif self.depth:
+            self.depth += 1
+
+    def handle_data(self, data):
+        if self.depth:
+            self.parts.append(data)
+
+    def handle_endtag(self, tag):
+        if self.depth:
+            self.depth -= 1
+
+    def text(self):
+        return " ".join("".join(self.parts).split())
+
+
+def _guide_section_text(section_id):
+    parser = SectionTextParser(section_id)
+    parser.feed(GUIDE.read_text(encoding="utf-8"))
+    return parser.text()
+
+
+def _source_method_routes():
+    source = (ROOT / "src" / "sohbench" / "api_server.py").read_text(
+        encoding="utf-8"
+    )
+    tree = ast.parse(source)
+    routes = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef) or node.name not in {
+            "do_GET",
+            "do_POST",
+        }:
+            continue
+        method = node.name.removeprefix("do_")
+        for candidate in ast.walk(node):
+            if (
+                isinstance(candidate, ast.Compare)
+                and isinstance(candidate.left, ast.Name)
+                and candidate.left.id == "path"
+                and len(candidate.ops) == 1
+                and isinstance(candidate.ops[0], ast.Eq)
+                and len(candidate.comparators) == 1
+                and isinstance(candidate.comparators[0], ast.Constant)
+                and isinstance(candidate.comparators[0].value, str)
+                and candidate.comparators[0].value.startswith("/api/")
+            ):
+                routes.add((method, candidate.comparators[0].value))
+            if (
+                isinstance(candidate, ast.Call)
+                and isinstance(candidate.func, ast.Attribute)
+                and isinstance(candidate.func.value, ast.Name)
+                and candidate.func.value.id == "path"
+                and candidate.func.attr == "startswith"
+                and len(candidate.args) == 1
+                and isinstance(candidate.args[0], ast.Constant)
+                and isinstance(candidate.args[0].value, str)
+                and candidate.args[0].value.startswith("/api/")
+            ):
+                routes.add(
+                    (
+                        method,
+                        f"{candidate.args[0].value.rstrip('/')}/{{job_id}}",
+                    )
+                )
+    return routes
 
 
 def test_design_user_guide_satisfies_offline_structure_contract():
@@ -236,3 +357,65 @@ def test_design_user_guide_covers_operational_contracts_and_security_boundaries(
         "不受信任的 Pickle",
     }
     assert expected <= {term for term in expected if term in text}
+
+
+def test_api_reference_exactly_matches_source_get_and_post_routes():
+    parser = ApiRouteTableParser()
+    parser.feed(GUIDE.read_text(encoding="utf-8"))
+
+    assert parser.routes == _source_method_routes()
+
+
+def test_setup_documents_exact_backend_defaults_and_frontend_startup_command():
+    defaults = parse_args([])
+    assert vars(defaults) == {
+        "host": "127.0.0.1",
+        "port": 8001,
+        "data_dir": r"D:\battery_SOH\data",
+        "work_dir": "work/trusted_plugins",
+        "runs_dir": "runs",
+        "frontend_data_dir": "frontend/app/data",
+    }
+
+    setup = _guide_section_text("setup")
+    backend = (
+        ".venv\\Scripts\\python.exe -m sohbench.api_server "
+        f"--host {defaults.host} --port {defaults.port} "
+        f'--data-dir "{defaults.data_dir}" '
+        f'--work-dir "{defaults.work_dir.replace("/", chr(92))}" '
+        f'--runs-dir "{defaults.runs_dir}" '
+        f'--frontend-data-dir "{defaults.frontend_data_dir.replace("/", chr(92))}"'
+    )
+    assert backend in setup
+    assert (
+        ".venv\\Scripts\\python.exe -m http.server 8010 "
+        "--directory frontend/app"
+    ) in setup
+    assert (
+        "http://127.0.0.1:8010/?api=http://127.0.0.1:8001"
+    ) in setup
+
+
+def test_publication_claims_are_scoped_by_artifact_kind_and_success():
+    runs = _guide_section_text("runs")
+    evidence = _guide_section_text("evidence")
+    packaging = _guide_section_text("packaging")
+
+    assert "重跑总是创建新任务和新 run ID" in runs
+    assert "只有后续目录发布成功才创建不可变 generation 并推进 CURRENT.json" in runs
+    assert "目录发布前失败不创建 generation" in runs
+
+    assert "原始运行目录与前端 publication generation 是两类对象" in evidence
+    assert "原始运行目录不会推进 CURRENT.json" in evidence
+
+    assert "generation 和 CURRENT.json 只属于目录发布" in packaging
+    assert "只有 staging 构建和校验成功后才创建不可变 generation" in packaging
+    assert "失败在激活前不创建 generation，也不改变 CURRENT.json" in packaging
+    assert "Standalone 不创建 generation，也不读写 CURRENT.json" in packaging
+    assert "先验证临时 HTML，再原子替换一个输出文件" in packaging
+    assert "失败时保留原有 standalone 文件" in packaging
+
+
+def test_reference_precisely_describes_raw_run_directories():
+    reference = _guide_section_text("reference")
+    assert "不可变的原始运行目录，可作为后续合并来源" in reference
