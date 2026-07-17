@@ -43,6 +43,8 @@ class GuideParser(HTMLParser):
         self.stylesheets: list[str] = []
         self.scripts: list[str] = []
         self.buttons: list[dict[str, str]] = []
+        self.inline_styles: list[str] = []
+        self._in_style = False
 
     def handle_starttag(self, tag: str, attrs) -> None:
         values = dict(attrs)
@@ -58,6 +60,16 @@ class GuideParser(HTMLParser):
             self.scripts.append(values["src"])
         if tag == "button":
             self.buttons.append(values)
+        if tag == "style":
+            self._in_style = True
+
+    def handle_data(self, data: str) -> None:
+        if self._in_style:
+            self.inline_styles.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "style":
+            self._in_style = False
 
 
 def _source_routes(source_root: Path) -> set[str]:
@@ -93,6 +105,27 @@ def validate_document(path: Path, *, source_root: Path = ROOT) -> list[Validatio
             issues.append(ValidationIssue("image", f"image is not embedded: {image.get('id', '<unknown>')}"))
         if not image.get("alt", "").strip():
             issues.append(ValidationIssue("image-alt", f"image has no alt text: {image.get('id', '<unknown>')}"))
+    for button in parser.buttons:
+        if (
+            button.get("data-icon-only", "").lower() == "true"
+            and not button.get("aria-label", "").strip()
+        ):
+            issues.append(
+                ValidationIssue("button-name", "icon-only button has no aria-label")
+            )
+    inline_css = "\n".join(parser.inline_styles)
+    required_media_rules = (
+        "@media (max-width: 1100px)",
+        "@media (max-width: 720px)",
+        "@media print",
+    )
+    if any(rule not in inline_css for rule in required_media_rules):
+        issues.append(
+            ValidationIssue(
+                "responsive",
+                "1100px, mobile, or print responsive rules missing",
+            )
+        )
     for marker in MOJIBAKE_MARKERS:
         if marker in text:
             issues.append(ValidationIssue("mojibake", f"found marker {marker!r}"))

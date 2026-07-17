@@ -5,31 +5,62 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SOH 算法测评系统设计与工具使用说明书</title>
   <style>
-    :root { color-scheme: light; }
+    :root {
+      color-scheme: light;
+      --nav: #111827;
+      --nav-soft: #1f2937;
+      --canvas: #f3f4f6;
+      --surface: #ffffff;
+      --line: #dbe3ee;
+      --text: #101828;
+      --muted: #667085;
+      --blue: #315ee7;
+      --green: #2f7d4a;
+      --amber: #a15c00;
+      --red: #b42318;
+      --radius: 8px;
+      --shadow: 0 8px 24px rgba(16, 24, 40, 0.08);
+    }
     *, *::before, *::after { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
-    body { margin: 0; color: #101828; background: #f3f4f6; font-family: "Microsoft YaHei UI", system-ui, sans-serif; line-height: 1.6; }
+    body { margin: 0; color: var(--text); background: var(--canvas); font-family: "Microsoft YaHei UI", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif; line-height: 1.6; }
     a { color: inherit; }
-    .skip-link { position: fixed; top: 8px; left: 8px; z-index: 2; padding: 8px 12px; color: #fff; background: #155eef; transform: translateY(-160%); }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #84adff; outline-offset: 2px; }
+    .skip-link { position: fixed; top: 8px; left: 8px; z-index: 40; padding: 8px 12px; color: #fff; background: #155eef; transform: translateY(-160%); }
     .skip-link:focus { transform: translateY(0); }
-    .guide-shell { display: grid; grid-template-columns: 240px minmax(0, 1fr) 260px; min-height: 100vh; }
-    .guide-nav { padding: 24px 16px; color: #fff; background: #111827; }
-    .guide-nav a { display: block; padding: 8px; color: #dbeafe; text-decoration: none; border-radius: 4px; }
-    .guide-nav a:hover, .guide-nav a:focus { color: #fff; background: #1d2939; }
+    .guide-shell { display: grid; grid-template-columns: 240px minmax(0, 1fr) 260px; height: 100vh; overflow: hidden; }
+    .guide-nav, .quick-rail { height: 100vh; overflow: auto; }
+    .guide-nav { padding: 24px 16px; color: #fff; background: var(--nav); }
+    .guide-nav a { display: block; padding: 8px; color: #dbeafe; text-decoration: none; border-left: 3px solid transparent; border-radius: 4px; }
+    .guide-nav a:hover, .guide-nav a:focus { color: #fff; background: var(--nav-soft); }
+    .guide-nav a.on-path { border-left-color: #84adff; color: #fff; }
+    .guide-nav a.active { border-left-color: #75e0a7; color: #fff; background: #344054; }
     .product-name { margin: 0 8px 16px; color: #fff; font-weight: 700; }
-    main { min-width: 0; padding: 32px; background: #fff; }
+    .nav-toggle { display: none; width: 100%; min-height: 44px; align-items: center; justify-content: space-between; padding: 8px 12px; color: #fff; background: var(--nav-soft); border: 1px solid #475467; border-radius: 4px; cursor: pointer; }
+    .nav-toggle-symbol { font-size: 1.25rem; line-height: 1; }
+    main { min-width: 0; width: min(100%, 1040px); height: 100vh; margin: 0 auto; padding: 32px; overflow: auto; scroll-behavior: smooth; background: var(--surface); }
     .guide-header, .chapter { max-width: 920px; margin: 0 auto; }
     .guide-header { padding: 8px 0 24px; }
     .eyebrow { margin: 0; color: #175cd3; font-weight: 700; }
     h1 { margin: 8px 0; font-size: 2rem; line-height: 1.25; }
     h2 { line-height: 1.3; }
-    .chapter { padding: 24px 0; border-bottom: 1px solid #dbe3ee; scroll-margin-top: 16px; }
+    .chapter { min-width: 0; padding: 24px 0; border-bottom: 1px solid var(--line); scroll-margin-top: 16px; }
+    .chapter[hidden] { display: none; }
     .chapter:last-child { border-bottom: 0; }
+    .chapter-details > summary { width: max-content; max-width: 100%; margin: 0 0 12px; color: #175cd3; font-weight: 700; cursor: pointer; }
+    .chapter-body { min-width: 0; }
     .status-list { padding-left: 20px; }
     .status-list strong { color: #175cd3; }
+    .search-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; margin: 20px 0 8px; }
+    .search-field { display: grid; gap: 6px; color: #344054; font-weight: 700; }
+    .search-field input { width: 100%; min-height: 42px; padding: 8px 10px; color: var(--text); background: #fff; border: 1px solid #98a2b3; border-radius: 4px; }
+    .clear-search { min-height: 42px; padding: 8px 12px; color: #344054; background: #fff; border: 1px solid #98a2b3; border-radius: 4px; cursor: pointer; }
+    .search-empty { margin: 8px 0 16px; padding: 12px; color: #7a2e0e; background: #fffaeb; border-left: 4px solid var(--amber); }
     .audience-paths { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; }
     .audience-paths button { min-height: 40px; padding: 8px 14px; color: #344054; background: #fff; border: 1px solid #98a2b3; border-radius: 4px; font: inherit; font-weight: 700; cursor: pointer; }
     .audience-paths button:hover, .audience-paths button:focus { color: #175cd3; border-color: #175cd3; outline: 2px solid #d1e9ff; outline-offset: 1px; }
+    .audience-paths button[aria-pressed="true"] { color: #fff; background: #1849a9; border-color: #1849a9; }
     .status-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }
     .status-card { padding: 16px; border: 1px solid #d0d5dd; border-top-width: 4px; border-radius: 6px; }
     .status-card h3 { margin: 0 0 8px; font-size: 1rem; }
@@ -43,7 +74,7 @@
     .status-target .status-label { color: #b54708; }
     .callout { margin: 20px 0; padding: 14px 16px; border-left: 4px solid #175cd3; background: #f5f8ff; }
     .callout.warning { border-left-color: #b54708; background: #fffaeb; }
-    .diagram { margin: 20px 0; padding: 16px; border: 1px solid #d0d5dd; border-radius: 6px; background: #f8fafc; break-inside: avoid; }
+    .diagram { min-width: 0; margin: 20px 0; padding: 16px; border: 1px solid #d0d5dd; border-radius: 6px; background: #f8fafc; break-inside: avoid; }
     .diagram-title { margin: 0 0 12px; font-weight: 700; }
     .architecture-stack { display: grid; gap: 8px; }
     .architecture-layer { display: grid; grid-template-columns: minmax(150px, 0.7fr) minmax(0, 2fr); gap: 12px; align-items: center; padding: 12px; color: #101828; background: #fff; border: 1px solid #b2ccff; border-left: 5px solid #175cd3; border-radius: 4px; }
@@ -66,15 +97,18 @@
     th { color: #344054; background: #f2f4f7; }
     tr:last-child td { border-bottom: 0; }
     code { overflow-wrap: anywhere; font-family: Consolas, "Courier New", monospace; }
-    pre { max-width: 100%; overflow-x: auto; margin: 14px 0; padding: 14px 16px; color: #e4e7ec; background: #101828; border-radius: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    pre { max-width: 100%; overflow-x: auto; margin: 0; padding: 14px 16px; color: #e4e7ec; background: #101828; border-radius: 0 0 4px 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
     pre code { color: inherit; }
+    .code-block { min-width: 0; margin: 14px 0; overflow: hidden; border-radius: 4px; background: #101828; }
+    .code-toolbar { display: flex; min-height: 38px; align-items: center; justify-content: flex-end; padding: 4px 6px; background: #1d2939; border-bottom: 1px solid #344054; }
+    .copy-button { min-height: 30px; padding: 3px 10px; color: #fff; background: #344054; border: 1px solid #667085; border-radius: 4px; cursor: pointer; }
     .mode-guide { margin: 22px 0; padding: 18px; border: 1px solid #b2ccff; border-left: 5px solid #175cd3; border-radius: 6px; background: #f8faff; break-inside: avoid; }
     .mode-guide > h3 { margin: 18px 0 6px; color: #1849a9; font-size: 1rem; }
     .mode-guide > h3:first-of-type { margin-top: 8px; }
     .mode-guide > p, .mode-guide > ol, .mode-guide > ul { margin-top: 6px; }
     .mode-title { margin: 0 0 8px; color: #101828; font-size: 1.3rem; }
     .mode-role { margin: 0; color: #475467; }
-    .product-shot { margin: 16px 0 18px; overflow: hidden; border: 1px solid #d0d5dd; border-radius: 6px; background: #fff; break-inside: avoid; }
+    .product-shot { min-width: 0; margin: 16px 0 18px; overflow: hidden; border: 1px solid #d0d5dd; border-radius: 6px; background: #fff; break-inside: avoid; }
     .product-shot img { display: block; width: 100%; height: auto; border-bottom: 1px solid #d0d5dd; }
     .product-shot figcaption { display: flex; gap: 10px; align-items: baseline; padding: 10px 12px; color: #475467; font-size: 0.9rem; }
     .product-shot figcaption strong { flex: 0 0 auto; color: #101828; }
@@ -95,39 +129,68 @@
     .contract-chain { max-width: 100%; overflow-x: auto; padding: 14px; color: #d1e9ff; background: #101828; border-radius: 4px; font-family: Consolas, "Courier New", monospace; white-space: pre-wrap; }
     .references-list li { margin-bottom: 8px; }
     .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
-    .quick-rail { padding: 24px 16px; background: #f8fafc; }
+    .quick-rail { padding: 24px 16px; background: #f8fafc; border-left: 1px solid var(--line); }
     .quick-rail h2 { margin-top: 0; font-size: 1rem; }
-    .quick-rail p { margin: 0; color: #344054; }
+    .quick-rail h3 { margin: 16px 0 8px; font-size: 0.95rem; }
+    .quick-rail p { color: #344054; }
+    .quick-source { display: none; margin: 18px 0; padding: 14px; border: 1px solid #b2ccff; border-radius: 6px; background: #f8faff; }
+    .quick-source h3 { margin: 0 0 8px; font-size: 1rem; }
+    .quick-source dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 10px; margin: 0; }
+    .quick-source dt { color: #344054; font-weight: 700; }
+    .quick-source dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
     .mono { overflow-wrap: anywhere; color: #344054; font-family: Consolas, "Courier New", monospace; font-size: 0.9rem; }
     .mobile-toc { display: none; }
-    @media (max-width: 1040px) {
-      .guide-shell { grid-template-columns: 240px minmax(0, 1fr); }
-      .quick-rail { grid-column: 2; border-top: 1px solid #dbe3ee; }
+    .back-to-top { display: none; position: fixed; right: 20px; bottom: 20px; z-index: 30; width: 44px; height: 44px; place-items: center; color: #fff; background: #1849a9; border: 1px solid #fff; border-radius: 50%; box-shadow: var(--shadow); cursor: pointer; }
+    .js .back-to-top { display: grid; }
+    @media (max-width: 1100px) {
+      .guide-shell { grid-template-columns: 220px minmax(0, 1fr); }
+      .quick-rail { display: none; }
+      .quick-source { display: block; }
     }
     @media (max-width: 720px) {
-      .guide-shell { display: block; }
-      .guide-nav { display: none; }
-      main { padding: 16px; }
+      html { scroll-padding-top: 60px; }
+      .guide-shell { display: block; height: auto; overflow: visible; }
+      .guide-nav { position: sticky; top: 0; z-index: 20; width: 100%; height: auto; max-height: 100vh; padding: 8px; overflow: auto; }
+      html:not(.js) .guide-nav { display: none; }
+      .guide-nav .product-name { display: none; }
+      .js .nav-toggle { display: flex; }
+      .js .guide-nav:not(.is-open) nav { display: none; }
+      .guide-nav nav { margin-top: 8px; }
+      main { width: 100%; height: auto; padding: 16px; overflow: visible; }
       .mobile-toc { display: block; max-width: 920px; margin: 0 auto 16px; }
+      .js .mobile-toc { display: none; }
       .mobile-toc summary { cursor: pointer; color: #175cd3; font-weight: 700; }
       .mobile-toc nav { display: grid; gap: 4px; margin-top: 8px; }
       .mobile-toc a { padding: 4px 0; color: #344054; }
       h1 { font-size: 1.65rem; }
-      .quick-rail { padding: 16px; }
+      .search-tools { grid-template-columns: 1fr; align-items: stretch; }
+      .clear-search { width: 100%; }
       .status-grid { grid-template-columns: 1fr; }
       .resource-grid { grid-template-columns: 1fr; }
       .architecture-layer, .state-lane { grid-template-columns: 1fr; }
       .state-lane > strong { padding-top: 0; }
       .mode-guide { padding: 14px; }
       .product-shot figcaption { display: grid; gap: 4px; }
+      .quick-source dl { grid-template-columns: 1fr; gap: 2px; }
+      .quick-source dd { margin-bottom: 6px; }
+      .back-to-top { right: 12px; bottom: 12px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html, main { scroll-behavior: auto !important; }
+      *, *::before, *::after { transition: none !important; animation: none !important; }
     }
     @media print {
-      .guide-nav, .quick-rail, .mobile-toc, .skip-link { display: none; }
+      .guide-nav, .quick-rail, .mobile-toc, .skip-link, .search-tools, .search-empty, .audience-switcher, .copy-button, .code-toolbar, .back-to-top, .chapter-details > summary, .quick-source { display: none !important; }
       body, main { background: #fff; }
-      main { padding: 0; }
+      main { width: auto; max-width: none; height: auto; padding: 0; overflow: visible; }
       .guide-shell { display: block; }
       .chapter, .guide-header { max-width: none; }
-      .diagram, .status-card, .table-wrap, .product-shot, h2, h3 { break-inside: avoid; }
+      .chapter[hidden], details:not([open]) > .chapter-body { display: block !important; }
+      .code-block { overflow: visible; background: transparent; }
+      pre { overflow: visible; white-space: pre-wrap; word-break: break-word; }
+      .diagram, figure, table, pre, .status-card, .table-wrap, .product-shot { break-inside: avoid; page-break-inside: avoid; }
+      h2, h3 { break-after: avoid; page-break-after: avoid; }
+      thead { display: table-header-group; }
     }
   </style>
 </head>
@@ -136,7 +199,10 @@
   <div class="guide-shell">
     <aside class="guide-nav" aria-label="说明书目录">
       <p class="product-name">SOH Evaluation Fabric</p>
-      <nav>
+      <button id="nav-toggle" class="nav-toggle" type="button" aria-expanded="false" aria-controls="guide-navigation">
+        <span>章节目录</span><span class="nav-toggle-symbol" aria-hidden="true">≡</span>
+      </button>
+      <nav id="guide-navigation">
         <a href="#overview">项目概览</a>
         <a href="#architecture">总体架构与数据流</a>
         <a href="#domain">SOH 数据、特征与算法原理</a>
@@ -157,8 +223,16 @@
         <p class="eyebrow">算法测评优先 · 多场景能力演进</p>
         <h1>SOH 算法测评系统设计与工具使用说明书</h1>
         <p>统一说明可信测评架构、Battery SOH 领域能力和本机工作台操作方法。</p>
+        <div class="search-tools">
+          <label class="search-field" for="guide-search">
+            <span>全文搜索</span>
+            <input id="guide-search" type="search" placeholder="搜索章节、命令或关键词" autocomplete="off">
+          </label>
+          <button id="clear-search" class="clear-search" type="button">清除搜索</button>
+        </div>
+        <p id="search-empty" role="status" class="search-empty" hidden>没有匹配章节。请缩短关键词或清除搜索。</p>
       </header>
-      <details class="mobile-toc">
+      <details class="mobile-toc" open>
         <summary>章节目录</summary>
         <nav aria-label="移动端说明书目录">
           <a href="#overview">项目概览</a><a href="#architecture">总体架构与数据流</a><a href="#domain">SOH 数据、特征与算法原理</a>
@@ -167,13 +241,15 @@
           <a href="#evidence">结果、排行与证据解释</a><a href="#packaging">数据同步与离线打包</a><a href="#troubleshooting">常见问题、安全边界与排障</a><a href="#reference">API、命令和目录速查</a>
         </nav>
       </details>
-      <section id="overview" class="chapter">
+      <section id="overview" class="chapter" data-paths="manager developer operator">
         <h2>项目概览</h2>
+        <div class="quick-source" aria-label="项目概览速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>项目目标、能力边界、受众</dd><dt>输出</dt><dd>可信测评定位与阅读入口</dd><dt>检查</dt><dd>当前、领域接入、目标架构明确分层</dd><dt>风险</dt><dd>不要把规划能力写成已上线能力</dd></dl></div>
         <p>系统以可比较、可追溯、可复核的算法测评为第一目标，并以跨数据集、跨电芯和跨化学体系的多场景算法建设为第二目标。它不是只展示一个误差数字的看板，而是把输入、协议、执行覆盖、逐样本预测、指标和发布物连成可验证证据链。</p>
-        <div class="audience-paths" aria-label="选择阅读路径">
-          <button type="button" data-audience="manager">管理者路径</button>
-          <button type="button" data-audience="developer">研发路径</button>
-          <button type="button" data-audience="operator">工具使用者路径</button>
+        <div class="audience-paths audience-switcher" aria-label="选择阅读路径">
+          <button type="button" data-audience="all" aria-pressed="true">全部</button>
+          <button type="button" data-audience="manager" aria-pressed="false">管理者路径</button>
+          <button type="button" data-audience="developer" aria-pressed="false">研发路径</button>
+          <button type="button" data-audience="operator" aria-pressed="false">工具使用者路径</button>
         </div>
         <p>阅读路径只用于突出推荐章节，不会隐藏任何正文。管理者可优先阅读概览、架构、公平测评和证据结论；研发人员可继续阅读领域方法与核心契约；工具使用者可从前端、资源接入和运行章节开始。</p>
         <div class="status-grid" aria-label="能力状态总览">
@@ -207,8 +283,9 @@
         </div>
         <p class="callout warning"><strong>边界：</strong>隔离 Worker、V2 控制台和组织级签名仍是规划能力。本文出现这些组件时均以“目标架构”标记，不应据此判断其已经上线。</p>
       </section>
-      <section id="architecture" class="chapter">
+      <section id="architecture" class="chapter" data-paths="manager developer">
         <h2>总体架构与数据流</h2>
+        <div class="quick-source" aria-label="总体架构速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>RunSpec、数据快照、领域能力</dd><dt>输出</dt><dd>五层架构、运行流与证据链</dd><dt>检查</dt><dd>摘要关系可追溯，职责边界清楚</dd><dt>风险</dt><dd>隔离 Worker 仍属目标架构</dd></dl></div>
         <p>五层图是职责视图，不代表所有层都已经以独立服务部署。当前已实现的 Phase 0 在同一 Python 进程或受信本机进程内组合控制、执行和证据能力；目标架构再把高风险执行移入隔离 Worker。</p>
         <div class="diagram" role="img" aria-label="五层可信测评架构" aria-describedby="diagram-architecture-fallback">
           <p class="diagram-title">五层可信测评架构</p>
@@ -269,8 +346,9 @@
           <li>Metrics 绑定贡献样本与统计范围。</li><li>EvidencePack 登记并验证所有证据文件。</li><li>验证后的发布物进入不可变 generation，再原子切换活动指针。</li>
         </ol>
       </section>
-      <section id="domain" class="chapter">
+      <section id="domain" class="chapter" data-paths="developer">
         <h2>SOH 数据、特征与算法原理</h2>
+        <div class="quick-source" aria-label="领域能力速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>处理后特征表、曲线与 SOH 标签</dd><dt>输出</dt><dd>特征谱系、算法族与物理约束</dd><dt>检查</dt><dd>身份列、标签与 held-out 边界</dd><dt>风险</dt><dd>缺失谱系和跨域泄漏</dd></dl></div>
         <h3>发现契约与结构语义</h3>
         <p>已接入领域能力从 <code>D:\battery_SOH\data\processed\*_features.pkl</code> 发现处理后特征表。Pickle 只在受信本机环境读取，本文不嵌入其内容。当前发现数量必须以 <code>GET /api/catalog</code> 和前端目录的实时结果为准，不在说明书中固定。</p>
         <div class="table-wrap">
@@ -331,8 +409,9 @@
           <article class="status-card status-target"><span class="status-label">目标架构</span><h3>仍需建设</h3><p>统一数据卡与许可/标签谱系、跨化学体系正式覆盖、冻结模型迁移的独立赛道、轨迹/曲线/特征/样本证据联动，以及资产 bootstrap、配对效应量和统计置信证据仍需完善。</p></article>
         </div>
       </section>
-      <section id="evaluation" class="chapter">
+      <section id="evaluation" class="chapter" data-paths="manager developer">
         <h2>公平测评协议与指标</h2>
+        <div class="quick-source" aria-label="公平测评速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>数据快照、协议、seed、统计单位</dd><dt>输出</dt><dd>LOCO/LODO/LCHO 指标与覆盖结论</dd><dt>检查</dt><dd>comparison key 与 held-out 范围一致</dd><dt>风险</dt><dd>局部覆盖不得冒充全量结论</dd></dl></div>
         <h3>协议定义</h3>
         <div class="table-wrap">
           <table>
@@ -394,8 +473,9 @@
           <article class="status-card status-target"><span class="status-label">目标架构</span><h3>正式统计证据</h3><p>统一资产 bootstrap、配对检验、效应量、最差域统计、完整签署政策和跨化学正式矩阵仍是建设目标。</p></article>
         </div>
       </section>
-      <section id="contracts" class="chapter">
+      <section id="contracts" class="chapter" data-paths="developer">
         <h2>核心契约与证据对象</h2>
+        <div class="quick-source" aria-label="核心契约速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>RunSpec、DatasetSnapshot、PredictionRecord</dd><dt>输出</dt><dd>Metrics、EvidencePack、结构化状态</dd><dt>检查</dt><dd>摘要、有限值与不可变发布</dd><dt>风险</dt><dd>不要混淆 execution、outcome、verdict</dd></dl></div>
         <p class="contract-chain">RunSpec -&gt; DatasetSnapshot -&gt; target-stripped fold view
         -&gt; fitted FeatureState -&gt; ModelArtifact
         -&gt; PredictionRecord -&gt; Metrics -&gt; EvidencePack -&gt; Publication</p>
@@ -442,8 +522,9 @@
           <article class="status-card status-target"><span class="status-label">目标架构</span><h3>独立审查与签署</h3><p>隔离 Worker 证明、统一 terminal/outcome/verdict 枚举、组织身份签署、完整审计事件和证据查询索引属于规划能力。</p></article>
         </div>
       </section>
-      <section id="frontend" class="chapter">
+      <section id="frontend" class="chapter" data-paths="manager operator">
         <h2>前端五页签功能说明</h2>
+        <div class="quick-source" aria-label="前端页签速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>训练、推理、模型、曲线和诊断产物</dd><dt>输出</dt><dd>五页签代表状态与操作边界</dd><dt>检查</dt><dd>页面选择与 KPI 范围同步</dd><dt>风险</dt><dd>截图只代表当前候选前端状态</dd></dl></div>
         <p>五个页签共享同一资源目录和发布数据，但职责不能混用：训练产生模型，冻结推理只消费模型，资产库负责审计，完整看板定位单电芯/周期曲线，全局诊断比较跨组合证据。</p>
 
         <article class="mode-guide" data-guide-mode="训练测评">
@@ -577,8 +658,9 @@
         </article>
       </section>
 
-      <section id="setup" class="chapter">
+      <section id="setup" class="chapter" data-paths="developer operator">
         <h2>工具安装、启动与配置</h2>
+        <div class="quick-source" aria-label="启动配置速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>Python 环境、本机数据目录、空闲端口</dd><dt>命令</dt><dd>API 8001、静态前端 8010、健康检查</dd><dt>检查</dt><dd><code>ok: true</code> 与 <code>trusted_local</code></dd><dt>风险</dt><dd>只停止本次捕获的进程 ID</dd></dl></div>
         <p>说明书本身可直接通过 <code>file://</code> 阅读；候选工作台使用 ES modules 和 JSON fetch，必须经静态 HTTP 服务打开。以下命令均在仓库根目录执行。</p>
         <h3>一次性安装</h3>
         <pre><code>python -m venv .venv
@@ -608,8 +690,9 @@ $webPid = $web.Id</code></pre>
 }</code></pre>
       </section>
 
-      <section id="onboarding" class="chapter">
+      <section id="onboarding" class="chapter" data-paths="developer operator">
         <h2>新资源接入</h2>
+        <div class="quick-source" aria-label="资源接入速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>数据、算法、特征或冻结模型包</dd><dt>输出</dt><dd>验证后事务激活的目录项</dd><dt>检查</dt><dd>格式、契约、摘要与冒烟预测</dd><dt>风险</dt><dd>源码和 Pickle 仅限 trusted-local</dd></dl></div>
         <p>四类资源均先进入 staging，完成格式、契约和冒烟验证后再激活。<code>replace</code> 缺省为 <code>false</code>；失败事务恢复原文件、目录和目录项，但系统没有面向用户的“撤销任意已成功上传”历史 API。</p>
         <div class="resource-grid">
           <article class="resource-card">
@@ -648,8 +731,9 @@ $webPid = $web.Id</code></pre>
         <p>API 使用 Base64 字段而不是 multipart。资源名只允许字母、数字、下划线、连字符且首字符不能是连字符；插件目标使用上传文件的 basename。发布和同步资产路径还拒绝绝对路径、<code>..</code>、反斜杠、路径穿越、保留控制名和 Windows 设备别名。</p>
       </section>
 
-      <section id="runs" class="chapter">
+      <section id="runs" class="chapter" data-paths="developer operator">
         <h2>训练测评与冻结推理</h2>
+        <div class="quick-source" aria-label="运行流程速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>训练矩阵或模型-数据集推理对</dd><dt>输出</dt><dd>新 run ID、模型资产与终态记录</dd><dt>检查</dt><dd>succeeded / partial / failed 覆盖</dd><dt>风险</dt><dd>推理不得隐式重训</dd></dl></div>
         <p>训练和推理是两条独立路径：训练读取标签、拟合算法和特征状态并发布模型；推理读取冻结模型快照，可在无标签目标表上运行，且永远不调用训练。</p>
         <div class="flow-strip" aria-label="端到端运行流程">
           <div class="flow-step"><strong>1. 资源预检</strong>目录、列、源码或 Pickle 契约</div><span class="flow-arrow">→</span>
@@ -676,8 +760,9 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
         <p>训练历史来自 <code>GET /api/jobs</code>，推理历史来自 <code>GET /api/inference-jobs</code>；详情路由附加任务 ID。前端约每秒轮询，瞬时错误会退避重连，404 会清除活动锁并允许重跑。终态只有 <code>succeeded</code>、<code>partial</code>、<code>failed</code>。重跑总是创建新任务和新 run ID，不原位改写旧运行；只有后续目录发布成功才创建不可变 generation 并推进 <code>CURRENT.json</code>，目录发布前失败不创建 generation。先从历史恢复相同选择，再根据失败列/模型缩小范围重跑。</p>
       </section>
 
-      <section id="evidence" class="chapter">
+      <section id="evidence" class="chapter" data-paths="manager developer operator">
         <h2>结果、排行与证据解释</h2>
+        <div class="quick-source" aria-label="证据解释速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>结果表、排行榜、QC、配置与 EvidencePack</dd><dt>输出</dt><dd>带覆盖范围的可复核结论</dd><dt>检查</dt><dd>comparison key、verdict 与摘要链</dd><dt>风险</dt><dd>0/0 不等于全部失败</dd></dl></div>
         <p>单个 KPI 不是结论。先核对任务终态和 execution coverage，再核对 comparison key、数据范围、指标、验收 verdict 与证据摘要。</p>
         <p class="callout"><strong>对象边界：</strong>原始运行目录与前端 publication generation 是两类对象。原始运行目录按 run ID 独占创建，保存本次训练/推理证据，可作为后续合并来源；原始运行目录不是前端 generation，原始运行目录不会推进 <code>CURRENT.json</code>。只有验证后的目录发布成功，活动前端数据才切换到新的 generation。</p>
         <div class="table-wrap">
@@ -705,8 +790,9 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
         <p>全选时使用 aggregate leaderboard；子集选择必须过滤 <code>dataset_leaderboard.json</code> 的 held-out 数据集记录并重新聚合 metrics 与 verdicts。筛选不能只改标题、芯片或样本数。多 seed 稳定性摘要当前仍是全量聚合，不随局部筛选变化，界面会明确提示。</p>
       </section>
 
-      <section id="packaging" class="chapter">
+      <section id="packaging" class="chapter" data-paths="developer operator">
         <h2>数据同步与离线打包</h2>
+        <div class="quick-source" aria-label="同步打包速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>运行源、前端数据与原生看板</dd><dt>命令</dt><dd>build artifacts、sync、portable、standalone</dd><dt>检查</dt><dd>staging 校验后再激活</dd><dt>风险</dt><dd>失败不得推进 CURRENT.json</dd></dl></div>
         <p><strong>generation 和 <code>CURRENT.json</code> 只属于目录发布。</strong>前端 artifacts、原生看板同步和 portable 目录使用 staging → 校验 → fsync → generation → 原子更新 pointer 的顺序；只有 staging 构建和校验成功后才创建不可变 generation。失败在激活前不创建 generation，也不改变 <code>CURRENT.json</code>，last-known-good 目录继续可读。系统没有“回滚到任意历史 generation”的用户命令。</p>
         <h3>合并并发布前端 artifacts</h3>
         <pre><code>.venv\Scripts\python.exe scripts\build_frontend_artifacts.py --help</code></pre>
@@ -722,8 +808,9 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
         <p>可另传 <code>--app-dir</code>。构建器内联 CSS、JS、JSON、离线 GET fetch adapter 和有效原生看板 <code>srcdoc</code>。Standalone 不创建 generation，也不读写 <code>CURRENT.json</code>；它先验证临时 HTML，再原子替换一个输出文件，失败时保留原有 standalone 文件。生成的 HTML 可直接离线打开。</p>
       </section>
 
-      <section id="troubleshooting" class="chapter">
+      <section id="troubleshooting" class="chapter" data-paths="developer operator">
         <h2>常见问题、安全边界与排障</h2>
+        <div class="quick-source" aria-label="排障安全速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>任务状态、目录、manifest、结构化失败</dd><dt>输出</dt><dd>按层定位的处理动作</dd><dt>检查</dt><dd>路径、设备别名、缓存与兼容性</dd><dt>风险</dt><dd>不可信源码、Pickle 与网络暴露</dd></dl></div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>现象</th><th>先检查</th><th>判定与处理</th></tr></thead>
@@ -750,8 +837,9 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
           <li><strong>网络：</strong>API 当前返回宽松 CORS <code>*</code>，设计目标是绑定 <code>127.0.0.1</code> 的本机可信操作。不要未经认证直接暴露到共享网络。</li>
         </ul>
       </section>
-      <section id="reference" class="chapter">
+      <section id="reference" class="chapter" data-paths="developer operator">
         <h2>API、命令和目录速查</h2>
+        <div class="quick-source" aria-label="API 与目录速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>当前 API 路由、命令和关键目录</dd><dt>输出</dt><dd>可复制的最短验收链</dd><dt>检查</dt><dd>路由与 <code>api_server.py</code> 一致</dd><dt>风险</dt><dd>文本 URL 不是外部活动链接</dd></dl></div>
         <p>下表来自当前 <code>api_server.py</code> 路由集。正常 JSON 响应带 CORS；验证错误为 400，未知路由/任务为 404，未捕获异常为 500。</p>
         <div class="table-wrap route-table">
           <table>
@@ -793,7 +881,289 @@ GET /api/inference-jobs/{job_id}
 GET /api/package/status</code></pre>
       </section>
     </main>
-    <aside class="quick-rail" aria-label="当前章节速查"><h2>本章速查</h2><p>选择章节查看关键输入、命令、产物和风险。</p></aside>
+    <aside class="quick-rail" aria-label="当前章节速查">
+      <h2>本章速查</h2>
+      <div id="quick-content"><p>选择章节查看关键输入、命令、产物和风险。</p></div>
+    </aside>
   </div>
+  <button class="back-to-top" type="button" data-icon-only="true" aria-label="返回顶部" title="返回顶部"><span aria-hidden="true">↑</span></button>
+  <div id="copy-status" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <script>
+  (() => {
+    "use strict";
+
+    document.documentElement.classList.add("js");
+    const chapters = [...document.querySelectorAll(".chapter")];
+    const navLinks = [...document.querySelectorAll('.guide-nav a[href^="#"], .mobile-toc a[href^="#"]')];
+    const main = document.querySelector("main");
+    const search = document.querySelector("#guide-search");
+    const clearSearch = document.querySelector("#clear-search");
+    const empty = document.querySelector("#search-empty");
+    const nav = document.querySelector(".guide-nav");
+    const navToggle = document.querySelector("#nav-toggle");
+    const backToTop = document.querySelector(".back-to-top");
+    const copyStatus = document.querySelector("#copy-status");
+    const mobileQuery = window.matchMedia("(max-width: 720px)");
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let chapterObserver = null;
+    let copyStatusTimer = 0;
+    let activeSyncFrame = 0;
+
+    function setAudience(audience) {
+      const allowed = new Set(["all", "manager", "developer", "operator"]);
+      const selected = allowed.has(audience) ? audience : "all";
+      document.documentElement.dataset.audience = selected;
+      document.querySelectorAll("[data-audience]").forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.audience === selected));
+      });
+      navLinks.forEach((link) => {
+        const href = link.getAttribute("href");
+        const chapter = href?.startsWith("#") ? document.getElementById(href.slice(1)) : null;
+        const onPath = selected !== "all" && chapter?.dataset.paths?.split(" ").includes(selected);
+        link.classList.toggle("on-path", Boolean(onPath));
+      });
+    }
+
+    function activateSection(sectionId) {
+      if (!sectionId) return;
+      navLinks.forEach((link) => {
+        link.classList.toggle("active", link.getAttribute("href") === `#${sectionId}`);
+      });
+      updateQuickRail(sectionId);
+    }
+
+    function filterGuide(query) {
+      const needle = String(query ?? "").trim().toLocaleLowerCase("zh-CN");
+      let visible = 0;
+      chapters.forEach((chapter) => {
+        const haystack = chapter.textContent?.toLocaleLowerCase("zh-CN") ?? "";
+        const match = !needle || haystack.includes(needle);
+        chapter.hidden = !match;
+        visible += Number(match);
+      });
+      if (empty) empty.hidden = visible !== 0;
+      if (clearSearch) clearSearch.disabled = !needle && visible === chapters.length;
+      const firstVisible = chapters.find((chapter) => !chapter.hidden);
+      if (firstVisible) activateSection(firstVisible.id);
+      rebuildScrollSpy();
+    }
+
+    function announceCopy(message) {
+      if (!copyStatus) return;
+      window.clearTimeout(copyStatusTimer);
+      copyStatus.textContent = "";
+      window.requestAnimationFrame(() => {
+        copyStatus.textContent = message;
+      });
+      copyStatusTimer = window.setTimeout(() => {
+        copyStatus.textContent = "";
+      }, 5000);
+    }
+
+    function selectCode(code) {
+      if (!document.createRange || !window.getSelection) return false;
+      const selection = window.getSelection();
+      if (!selection) return false;
+      const range = document.createRange();
+      range.selectNodeContents(code);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return true;
+    }
+
+    async function copyCode(button) {
+      const code = button?.closest(".code-block")?.querySelector("code");
+      if (!code) return;
+      const value = code.textContent ?? "";
+      let copied = false;
+
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        try {
+          await navigator.clipboard.writeText(value);
+          copied = true;
+        } catch {
+          copied = false;
+        }
+      }
+
+      if (!copied && document.body) {
+        const fallback = document.createElement("textarea");
+        fallback.value = value;
+        fallback.setAttribute("readonly", "");
+        fallback.style.position = "fixed";
+        fallback.style.opacity = "0";
+        fallback.style.pointerEvents = "none";
+        document.body.append(fallback);
+        fallback.focus();
+        fallback.select();
+        try {
+          copied = document.execCommand("copy");
+        } catch {
+          copied = false;
+        }
+        fallback.remove();
+      }
+
+      window.clearTimeout(Number(button.dataset.resetTimer ?? 0));
+      if (copied) {
+        button.textContent = "已复制";
+        announceCopy("已复制");
+        button.dataset.resetTimer = String(window.setTimeout(() => {
+          button.textContent = "复制";
+        }, 1400));
+        return;
+      }
+
+      if (selectCode(code)) {
+        button.textContent = "已选中";
+        announceCopy("已选中，请按 Ctrl+C");
+      } else {
+        announceCopy("无法自动复制，请手动选择代码");
+      }
+    }
+
+    function updateQuickRail(sectionId) {
+      const chapter = sectionId ? document.getElementById(sectionId) : null;
+      const source = chapter?.querySelector(".quick-source");
+      const target = document.querySelector("#quick-content");
+      if (source && target) target.innerHTML = source.innerHTML;
+    }
+
+    function syncActiveSection() {
+      const visibleChapters = chapters.filter((chapter) => !chapter.hidden);
+      if (!visibleChapters.length || !main) return;
+      const rootRect = mobileQuery.matches
+        ? { top: 0, height: window.innerHeight }
+        : main.getBoundingClientRect();
+      const markerLine = rootRect.top + Math.min(160, rootRect.height * 0.25);
+      let current = visibleChapters[0];
+      for (const chapter of visibleChapters) {
+        const rect = chapter.getBoundingClientRect();
+        if (rect.top <= markerLine) current = chapter;
+        if (rect.top <= markerLine && rect.bottom > markerLine) {
+          current = chapter;
+          break;
+        }
+        if (rect.top > markerLine) break;
+      }
+      activateSection(current.id);
+    }
+
+    function scheduleActiveSync() {
+      if (activeSyncFrame) return;
+      activeSyncFrame = window.requestAnimationFrame(() => {
+        activeSyncFrame = 0;
+        syncActiveSection();
+      });
+    }
+
+    function rebuildScrollSpy() {
+      if (chapterObserver) chapterObserver.disconnect();
+      chapterObserver = null;
+      if (!("IntersectionObserver" in window) || !main) return;
+
+      chapterObserver = new IntersectionObserver(() => {
+        scheduleActiveSync();
+      }, {
+        root: mobileQuery.matches ? null : main,
+        rootMargin: "0px",
+        threshold: [0],
+      });
+      chapters.filter((chapter) => !chapter.hidden).forEach((chapter) => chapterObserver.observe(chapter));
+      scheduleActiveSync();
+    }
+
+    function enhanceCodeBlocks() {
+      document.querySelectorAll("pre").forEach((pre) => {
+        if (pre.closest(".code-block") || !pre.parentNode) return;
+        const wrapper = document.createElement("div");
+        wrapper.className = "code-block";
+        const toolbar = document.createElement("div");
+        toolbar.className = "code-toolbar";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-button";
+        button.textContent = "复制";
+        button.addEventListener("click", () => copyCode(button));
+        toolbar.append(button);
+        pre.parentNode.insertBefore(wrapper, pre);
+        wrapper.append(toolbar, pre);
+      });
+    }
+
+    function enhanceChapterDetails() {
+      chapters.forEach((chapter) => {
+        const heading = chapter.querySelector(":scope > h2");
+        if (!heading || heading.nextElementSibling?.classList.contains("chapter-details")) return;
+        const details = document.createElement("details");
+        details.className = "chapter-details";
+        details.open = true;
+        const summary = document.createElement("summary");
+        summary.textContent = "展开或折叠本章内容";
+        const body = document.createElement("div");
+        body.className = "chapter-body";
+        while (heading.nextSibling) body.append(heading.nextSibling);
+        details.append(summary, body);
+        chapter.append(details);
+      });
+    }
+
+    function closeMobileNavigation() {
+      if (!nav || !navToggle || !mobileQuery.matches) return;
+      nav.classList.remove("is-open");
+      navToggle.setAttribute("aria-expanded", "false");
+    }
+
+    search?.addEventListener("input", (event) => filterGuide(event.target.value));
+    clearSearch?.addEventListener("click", () => {
+      if (search) {
+        search.value = "";
+        filterGuide("");
+        search.focus();
+      }
+    });
+    document.querySelectorAll("[data-audience]").forEach((button) => {
+      button.addEventListener("click", () => setAudience(button.dataset.audience ?? "all"));
+    });
+    navToggle?.addEventListener("click", () => {
+      if (!nav) return;
+      const open = nav.classList.toggle("is-open");
+      navToggle.setAttribute("aria-expanded", String(open));
+    });
+    navLinks.forEach((link) => {
+      link.addEventListener("click", () => {
+        const href = link.getAttribute("href");
+        const targetChapter = href?.startsWith("#") ? document.getElementById(href.slice(1)) : null;
+        if (targetChapter?.classList.contains("chapter") && targetChapter.hidden) {
+          if (search) search.value = "";
+          filterGuide("");
+        }
+        closeMobileNavigation();
+      });
+    });
+    backToTop?.addEventListener("click", () => {
+      const scroller = mobileQuery.matches ? window : main;
+      scroller?.scrollTo({ top: 0, behavior: reducedMotion.matches ? "auto" : "smooth" });
+    });
+    main?.addEventListener("scroll", scheduleActiveSync, { passive: true });
+    window.addEventListener("scroll", scheduleActiveSync, { passive: true });
+
+    const handleBreakpointChange = () => {
+      closeMobileNavigation();
+      rebuildScrollSpy();
+    };
+    if (typeof mobileQuery.addEventListener === "function") {
+      mobileQuery.addEventListener("change", handleBreakpointChange);
+    } else if (typeof mobileQuery.addListener === "function") {
+      mobileQuery.addListener(handleBreakpointChange);
+    }
+
+    enhanceChapterDetails();
+    enhanceCodeBlocks();
+    setAudience("all");
+    filterGuide("");
+    activateSection(location.hash.slice(1) || "overview");
+  })();
+  </script>
 </body>
 </html>

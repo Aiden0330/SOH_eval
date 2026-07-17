@@ -273,6 +273,159 @@ def test_design_user_guide_contains_every_required_chapter():
         assert f'id="{section_id}"' in text
 
 
+def _inline_guide_script():
+    text = GUIDE.read_text(encoding="utf-8")
+    scripts = re.findall(r"<script>(.*?)</script>", text, flags=re.DOTALL | re.IGNORECASE)
+    return "\n".join(scripts)
+
+
+def _guide_function_source(name):
+    script = _inline_guide_script()
+    start = script.index(f"function {name}(")
+    next_function = re.search(r"\n\s+function \w+\(", script[start + 1 :])
+    if next_function is None:
+        return script[start:]
+    end = start + 1 + next_function.start()
+    return script[start:end]
+
+
+def test_design_user_guide_has_progressive_interactions_and_print_rules():
+    text = GUIDE.read_text(encoding="utf-8")
+    for token in (
+        'id="guide-search"',
+        'id="clear-search"',
+        'id="search-empty" role="status"',
+        'id="copy-status"',
+        'id="nav-toggle"',
+        'id="quick-content"',
+        'data-audience="all"',
+        'data-audience="manager"',
+        'data-audience="developer"',
+        'data-audience="operator"',
+        'data-icon-only="true"',
+        "function setAudience(",
+        "function filterGuide(",
+        "function copyCode(",
+        "function updateQuickRail(",
+        "function rebuildScrollSpy(",
+        "IntersectionObserver",
+        "@media (max-width: 1100px)",
+        "@media (max-width: 720px)",
+        "@media (prefers-reduced-motion: reduce)",
+        "@media print",
+    ):
+        assert token in text
+
+
+def test_every_chapter_has_audience_paths_and_inline_quick_source():
+    text = GUIDE.read_text(encoding="utf-8")
+    chapter_tags = re.findall(
+        r'<section id="[^"]+" class="chapter" data-paths="[^"]+">',
+        text,
+    )
+    assert len(chapter_tags) == len(REQUIRED_SECTIONS)
+    assert text.count('class="quick-source"') == len(REQUIRED_SECTIONS)
+
+
+def test_reading_paths_only_change_navigation_emphasis():
+    source = _guide_function_source("setAudience")
+    assert 'setAttribute("aria-pressed"' in source
+    assert 'classList.toggle("on-path"' in source
+    for forbidden in (".hidden", ".style", "display"):
+        assert forbidden not in source
+
+
+def test_search_restores_chapters_before_filtered_anchor_navigation():
+    text = GUIDE.read_text(encoding="utf-8")
+    source = _guide_function_source("filterGuide")
+    assert "chapter.hidden = !match" in source
+    assert "filterGuide(\"\")" in text
+    assert "targetChapter.hidden" in text
+    assert "chapters.length" in text
+
+
+def test_copy_fallback_never_claims_success_for_selection_only():
+    source = _guide_function_source("copyCode")
+    assert "navigator.clipboard" in source
+    assert 'document.execCommand("copy")' in source
+    assert "已选中，请按 Ctrl+C" in source
+    assert "已复制" in source
+    assert source.index("已选中，请按 Ctrl+C") != source.index("已复制")
+
+
+def test_scroll_spy_rebuilds_with_the_correct_scroll_root():
+    source = _guide_function_source("rebuildScrollSpy")
+    assert "root: mobileQuery.matches ? null : main" in source
+    assert "chapterObserver.disconnect()" in source
+    assert "mobileQuery.addEventListener" in _inline_guide_script()
+
+
+def test_scroll_spy_selects_by_root_relative_geometry_not_cached_ratios():
+    source = _guide_function_source("syncActiveSection")
+    assert "getBoundingClientRect()" in source
+    assert "markerLine" in source
+    assert "intersectionRatio" not in _inline_guide_script()
+
+
+def test_print_restores_filtered_content_and_reduced_motion_disables_motion():
+    text = GUIDE.read_text(encoding="utf-8")
+    print_css = text[text.index("@media print") :]
+    assert ".chapter[hidden]" in print_css
+    assert "display: block !important" in print_css
+    assert "thead" in print_css
+    assert "table-header-group" in print_css
+
+    reduced_css = text[text.index("@media (prefers-reduced-motion: reduce)") :]
+    assert "scroll-behavior: auto !important" in reduced_css
+    assert "transition: none !important" in reduced_css
+
+
+def test_all_icon_only_buttons_have_accessible_names():
+    issues = validate_document(GUIDE, source_root=ROOT)
+    assert not [issue for issue in issues if issue.code == "button-name"]
+
+
+def test_validator_rejects_icon_only_button_without_aria_label(tmp_path):
+    guide = tmp_path / "guide.html"
+    guide.write_text(
+        GUIDE.read_text(encoding="utf-8").replace(
+            "</body>",
+            '<button type="button" data-icon-only="true"></button></body>',
+        ),
+        encoding="utf-8",
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "button-name" for issue in issues)
+
+
+def test_validator_rejects_missing_mobile_or_print_rules(tmp_path):
+    guide = tmp_path / "guide.html"
+    guide.write_text(
+        GUIDE.read_text(encoding="utf-8")
+        .replace("@media (max-width: 720px)", "@media screen")
+        .replace("@media print", "@media screen"),
+        encoding="utf-8",
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "responsive" for issue in issues)
+
+
+def test_validator_rejects_known_mojibake_marker(tmp_path):
+    guide = tmp_path / "guide.html"
+    guide.write_text(
+        GUIDE.read_text(encoding="utf-8").replace("</body>", "锟斤拷</body>"),
+        encoding="utf-8",
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "mojibake" for issue in issues)
+
+
 def test_embed_screenshots_replaces_each_named_capture(tmp_path):
     from scripts.embed_design_user_guide_screenshots import embed_screenshots
 
