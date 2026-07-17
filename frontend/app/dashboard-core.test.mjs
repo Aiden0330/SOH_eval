@@ -41,8 +41,10 @@ import {
 {
   const root = "./data";
   const generation = "a".repeat(32);
+  const remembered = [];
   const valid = await resolvePublishedDataDirectory(root, {
     suffix: "?v=test",
+    rememberGeneration: (value) => remembered.push(value),
     fetchImpl: async (url) => {
       assert.equal(url, "./data/CURRENT.json?v=test");
       return {
@@ -53,22 +55,27 @@ import {
     },
   });
   assert.equal(valid, `./data/.generations/${generation}`);
+  assert.deepEqual(remembered, [generation]);
 
-  for (const status of [404, 503]) {
-    const fallback = await resolvePublishedDataDirectory(root, {
-      fetchImpl: async () => ({ ok: false, status }),
-    });
-    assert.equal(fallback, root);
-  }
+  const cachedGeneration = "b".repeat(32);
+  const transientHttp = await resolvePublishedDataDirectory(root, {
+    rememberedGeneration: cachedGeneration,
+    fetchImpl: async () => ({ ok: false, status: 503 }),
+  });
+  assert.equal(
+    transientHttp,
+    `./data/.generations/${cachedGeneration}`,
+  );
 
-  const rejected = await resolvePublishedDataDirectory(root, {
+  const noCachedGeneration = await resolvePublishedDataDirectory(root, {
     fetchImpl: async () => {
       throw new TypeError("network unavailable");
     },
   });
-  assert.equal(rejected, root);
+  assert.equal(noCachedGeneration, null);
 
   const malformed = await resolvePublishedDataDirectory(root, {
+    rememberedGeneration: cachedGeneration,
     fetchImpl: async () => ({
       ok: true,
       status: 200,
@@ -77,21 +84,34 @@ import {
       },
     }),
   });
-  assert.equal(malformed, root);
+  assert.equal(
+    malformed,
+    `./data/.generations/${cachedGeneration}`,
+  );
 
   for (const pointer of [
     { schema_version: 2, generation },
     { schema_version: 1, generation: "../mutable" },
   ]) {
     const invalid = await resolvePublishedDataDirectory(root, {
+      rememberedGeneration: cachedGeneration,
       fetchImpl: async () => ({
         ok: true,
         status: 200,
         json: async () => pointer,
       }),
     });
-    assert.equal(invalid, root);
+    assert.equal(
+      invalid,
+      `./data/.generations/${cachedGeneration}`,
+    );
   }
+
+  const legacy = await resolvePublishedDataDirectory(root, {
+    rememberedGeneration: cachedGeneration,
+    fetchImpl: async () => ({ ok: false, status: 404 }),
+  });
+  assert.equal(legacy, root);
 
   let standaloneFetches = 0;
   const standalone = await resolvePublishedDataDirectory(root, {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import json
 import os
 import re
@@ -7,8 +8,14 @@ import shutil
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, Sequence
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 
 FRONTEND_ARTIFACTS = (
@@ -26,6 +33,10 @@ PROFILE_NAME_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*$")
 GENERATION_NAME_RE = re.compile(r"^[0-9a-f]{32}$")
 GENERATIONS_DIRNAME = ".generations"
 CURRENT_POINTER_NAME = "CURRENT.json"
+_PUBLICATION_CONTROL_NAMES = frozenset(
+    name.casefold()
+    for name in (GENERATIONS_DIRNAME, CURRENT_POINTER_NAME)
+)
 _PUBLICATION_LOCK = threading.RLock()
 _ATOMIC_REPLACE_TIMEOUT_SECONDS = 5.0
 _POINTER_READ_ATTEMPTS = 5
@@ -35,6 +46,79 @@ _POINTER_READ_DELAY_SECONDS = 0.01
 def _remove_owned_directory(path: Path) -> None:
     if path.exists():
         shutil.rmtree(path)
+
+
+def _is_publication_control_name(name: str) -> bool:
+    return str(name).casefold() in _PUBLICATION_CONTROL_NAMES
+
+
+def _validated_compatibility_sources(source_root: Path) -> list[Path]:
+    sources = sorted(
+        source_root.iterdir(), key=lambda item: item.name
+    )
+    collisions = [
+        source.name
+        for source in sources
+        if _is_publication_control_name(source.name)
+    ]
+    if collisions:
+        raise ValueError(
+            "generation contains a reserved publication control: "
+            + ", ".join(collisions)
+        )
+    return sources
+
+
+def _ignore_publication_controls(
+    _directory: str, names: list[str]
+) -> list[str]:
+    return [
+        name for name in names if _is_publication_control_name(name)
+    ]
+
+
+def _lock_publication_file(stream) -> None:
+    stream.seek(0)
+    if os.name == "nt":
+        while True:
+            try:
+                msvcrt.locking(
+                    stream.fileno(), msvcrt.LK_NBLCK, 1
+                )
+                return
+            except OSError as exc:
+                if exc.errno not in (
+                    errno.EACCES,
+                    errno.EAGAIN,
+                    errno.EDEADLK,
+                ):
+                    raise
+                time.sleep(0.01)
+    else:
+        fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+
+
+def _unlock_publication_file(stream) -> None:
+    stream.seek(0)
+    if os.name == "nt":
+        msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+    else:
+        fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+
+
+@contextmanager
+def _interprocess_publication_lock(target: Path):
+    lock_path = target.parent / f".{target.name}.publish.lock"
+    with lock_path.open("a+b") as stream:
+        if os.fstat(stream.fileno()).st_size == 0:
+            stream.write(b"\0")
+            stream.flush()
+            os.fsync(stream.fileno())
+        _lock_publication_file(stream)
+        try:
+            yield
+        finally:
+            _unlock_publication_file(stream)
 
 
 def _fsync_directory(path: Path) -> None:
@@ -164,7 +248,6 @@ def _launcher_html(generation: str) -> bytes:
 def _sync_compatibility_view(
     target: Path, generation: Path, generation_name: str
 ) -> None:
-    controls = {GENERATIONS_DIRNAME, CURRENT_POINTER_NAME}
     snapshot = target.parent / (
         f".{target.name}.compat-snapshot-{uuid.uuid4().hex}"
     )
@@ -173,13 +256,13 @@ def _sync_compatibility_view(
     restored = False
     try:
         snapshot.mkdir()
-        _copy_compatibility_content(target, snapshot, controls)
+        _copy_compatibility_content(target, snapshot)
         snapshot_ready = True
-        _apply_compatibility_view(target, generation, generation_name, controls)
+        _apply_compatibility_view(target, generation, generation_name)
         completed = True
     except BaseException:
         if snapshot_ready:
-            _restore_compatibility_content(target, snapshot, controls)
+            _restore_compatibility_content(target, snapshot)
             restored = True
         raise
     finally:
@@ -188,10 +271,10 @@ def _sync_compatibility_view(
 
 
 def _copy_compatibility_content(
-    source_root: Path, target_root: Path, controls: set[str]
+    source_root: Path, target_root: Path
 ) -> None:
     for source in sorted(source_root.iterdir(), key=lambda item: item.name):
-        if source.name in controls:
+        if _is_publication_control_name(source.name):
             continue
         destination = target_root / source.name
         if source.is_dir():
@@ -201,34 +284,37 @@ def _copy_compatibility_content(
 
 
 def _restore_compatibility_content(
-    target: Path, snapshot: Path, controls: set[str]
+    target: Path, snapshot: Path
 ) -> None:
     for existing in list(target.iterdir()):
-        if existing.name in controls:
+        if _is_publication_control_name(existing.name):
             continue
         if existing.is_dir():
             shutil.rmtree(existing)
         else:
             existing.unlink(missing_ok=True)
-    _copy_compatibility_content(snapshot, target, set())
+    _copy_compatibility_content(snapshot, target)
 
 
 def _apply_compatibility_view(
     target: Path,
     generation: Path,
     generation_name: str,
-    controls: set[str],
 ) -> None:
-    desired = {item.name for item in generation.iterdir()}
+    sources = _validated_compatibility_sources(generation)
+    desired = {item.name for item in sources}
     for existing in list(target.iterdir()):
-        if existing.name in controls or existing.name in desired:
+        if (
+            _is_publication_control_name(existing.name)
+            or existing.name in desired
+        ):
             continue
         if existing.is_dir():
             shutil.rmtree(existing)
         else:
             existing.unlink(missing_ok=True)
 
-    for source in sorted(generation.iterdir(), key=lambda item: item.name):
+    for source in sources:
         destination = target / source.name
         if source.is_file():
             payload = (
@@ -265,47 +351,57 @@ def _apply_compatibility_view(
 
 
 def _publish_directory(target: Path, build: Callable[[Path], None]) -> None:
-    target = Path(target)
+    target = Path(target).expanduser().resolve()
     parent = target.parent
     token = uuid.uuid4().hex
     staging = parent / f".{target.name}.tmp-{token}"
 
     with _PUBLICATION_LOCK:
         parent.mkdir(parents=True, exist_ok=True)
-        if target.exists() and not target.is_dir():
-            raise NotADirectoryError(f"publication target is not a directory: {target}")
-        try:
-            build(staging)
-            if not staging.is_dir():
-                raise RuntimeError(f"publication did not build a directory: {staging}")
-            _fsync_tree(staging)
-            _fsync_directory(parent)
-
-            target.mkdir(exist_ok=True)
-            generations = target / GENERATIONS_DIRNAME
-            generations.mkdir(exist_ok=True)
-            generation = generations / token
-            os.replace(staging, generation)
-            _fsync_directory(generations)
-            try:
-                _write_atomic_json(
-                    target / CURRENT_POINTER_NAME,
-                    {
-                        "schema_version": 1,
-                        "generation": token,
-                        "path": f"{GENERATIONS_DIRNAME}/{token}",
-                    },
+        with _interprocess_publication_lock(target):
+            if target.exists() and not target.is_dir():
+                raise NotADirectoryError(
+                    f"publication target is not a directory: {target}"
                 )
-            except BaseException:
-                if _generation_is_definitely_unreferenced(target, generation):
-                    _remove_owned_directory(generation)
-                raise
             try:
-                _sync_compatibility_view(target, generation, token)
-            except OSError:
-                pass
-        finally:
-            _remove_owned_directory(staging)
+                build(staging)
+                if not staging.is_dir():
+                    raise RuntimeError(
+                        f"publication did not build a directory: {staging}"
+                    )
+                _validated_compatibility_sources(staging)
+                _fsync_tree(staging)
+                _fsync_directory(parent)
+
+                target.mkdir(exist_ok=True)
+                generations = target / GENERATIONS_DIRNAME
+                generations.mkdir(exist_ok=True)
+                generation = generations / token
+                os.replace(staging, generation)
+                _fsync_directory(generations)
+                try:
+                    _write_atomic_json(
+                        target / CURRENT_POINTER_NAME,
+                        {
+                            "schema_version": 1,
+                            "generation": token,
+                            "path": f"{GENERATIONS_DIRNAME}/{token}",
+                        },
+                    )
+                except BaseException:
+                    if _generation_is_definitely_unreferenced(
+                        target, generation
+                    ):
+                        _remove_owned_directory(generation)
+                    raise
+                try:
+                    _sync_compatibility_view(
+                        target, generation, token
+                    )
+                except OSError:
+                    pass
+            finally:
+                _remove_owned_directory(staging)
 
 
 def _generation_is_definitely_unreferenced(
@@ -326,9 +422,7 @@ def _copy_current_publication(target: Path, staging: Path) -> None:
         shutil.copytree(
             current,
             staging,
-            ignore=shutil.ignore_patterns(
-                GENERATIONS_DIRNAME, CURRENT_POINTER_NAME
-            ),
+            ignore=_ignore_publication_controls,
         )
         return
     shutil.copytree(current, staging)

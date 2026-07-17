@@ -25,7 +25,12 @@ from .frontend_publish import (
     sync_frontend_artifacts,
 )
 from .inference import run_inference_benchmark
-from .model_store import LoadedModel, ModelReadSnapshot, ModelStore
+from .model_store import (
+    LoadedModel,
+    ModelReadFailure,
+    ModelReadSnapshot,
+    ModelStore,
+)
 from .protocols import LeaveOneCellOut, LeaveOneChemistryOut, LeaveOneDatasetOut
 from .report import write_artifacts, write_inference_artifacts
 from .runner import BenchmarkRunner
@@ -420,7 +425,7 @@ class EvaluationService:
                 run_spec = self._build_run_spec(
                     run_type="inference", request=request, datasets=datasets,
                     table=table, qc={}, model_snapshots=model_snapshots,
-                    unavailable_models=set(model_failures),
+                    model_failures=model_failures,
                 )
                 inferred_featuresets = self._featuresets_for_models(
                     request["models"], model_snapshots=model_snapshots,
@@ -441,7 +446,7 @@ class EvaluationService:
                                 model_name,
                                 pair_datasets,
                                 model_table,
-                                model_failures[model_name],
+                                model_failures[model_name].error,
                             )
                         )
                         continue
@@ -657,7 +662,7 @@ class EvaluationService:
         table: pd.DataFrame,
         qc,
         model_snapshots: dict[str, ModelReadSnapshot] | None = None,
-        unavailable_models: set[str] | None = None,
+        model_failures: dict[str, ModelReadFailure] | None = None,
     ) -> RunSpec:
         task = SOHEstimationTask()
         raw_protocols = request.get("protocols") or ["inference"]
@@ -711,9 +716,7 @@ class EvaluationService:
                     candidate_name=str(candidate),
                     request=request,
                     model_snapshot=(model_snapshots or {}).get(str(candidate)),
-                    model_unavailable=(
-                        str(candidate) in (unavailable_models or set())
-                    ),
+                    model_failure=(model_failures or {}).get(str(candidate)),
                 )
                 for candidate in candidates
             ),
@@ -732,7 +735,7 @@ class EvaluationService:
         candidate_name: str,
         request: dict,
         model_snapshot: ModelReadSnapshot | None = None,
-        model_unavailable: bool = False,
+        model_failure: ModelReadFailure | None = None,
     ) -> CandidateSpec | SpecRef:
         if run_type == "training":
             estimator = R.get_estimator(candidate_name)
@@ -754,10 +757,17 @@ class EvaluationService:
                     )
                 )
         else:
+            if model_failure is not None:
+                return SpecRef(
+                    kind="candidate_unavailable",
+                    spec_id=candidate_name,
+                    version="content-identity-v1",
+                    digest=sha256_json(model_failure.content_identity),
+                )
             known_models = {
                 item["name"] for item in self.model_store.catalog()
             }
-            if model_unavailable or candidate_name not in known_models:
+            if candidate_name not in known_models:
                 return SpecRef(
                     kind="candidate",
                     spec_id=candidate_name,

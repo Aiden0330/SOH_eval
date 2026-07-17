@@ -12,6 +12,7 @@ import sohbench.evaluation_service as evaluation_service_module
 import sohbench.frontend_publish as frontend_publish_module
 import sohbench.runner as runner_module
 from sohbench.evaluation_service import EvaluationService
+from sohbench.fabric import validate_run_spec_document
 from sohbench.fabric.evidence import verify_evidence_pack
 from sohbench.fabric.ids import sha256_file
 
@@ -1288,6 +1289,60 @@ def test_inference_model_load_failure_isolated_per_model_and_dataset(
         ("bad_model", "load_d2", "failed"),
     ]
     assert all(row["dataset"] != "all" for row in records)
+
+
+def test_failed_model_run_spec_binds_corrupt_content_deterministically(
+    tmp_path,
+):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.model_store.upload_model(
+        "bad_model",
+        "bad_model.pkl",
+        pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json",
+        json.dumps(_model_manifest("bad_model")).encode("utf-8"),
+    )
+    table = pd.read_csv(BytesIO(_dataset_csv("identity_dataset")))
+    request = service._normalize_inference_request(
+        {
+            "datasets": ["identity_dataset"],
+            "models": ["bad_model"],
+        }
+    )
+    model_path = Path(service.model_store.catalog()[0]["model_path"])
+
+    def failed_spec(payload):
+        model_path.write_bytes(payload)
+        with service.model_store.partitioned_read_lease(
+            ["bad_model"]
+        ) as (snapshots, failures):
+            assert snapshots == {}
+            return service._build_run_spec(
+                run_type="inference",
+                request=request,
+                datasets=["identity_dataset"],
+                table=table,
+                qc={},
+                model_snapshots=snapshots,
+                model_failures=failures,
+            )
+
+    corrupt_a = failed_spec(b"corrupt-A")
+    repeated_a = failed_spec(b"corrupt-A")
+    corrupt_b = failed_spec(b"corrupt-B")
+
+    assert corrupt_a.candidates[0].kind == "candidate_unavailable"
+    assert corrupt_a.candidates[0].digest == repeated_a.candidates[0].digest
+    assert corrupt_a.digest == repeated_a.digest
+    assert corrupt_a.candidates[0].digest != corrupt_b.candidates[0].digest
+    assert corrupt_a.digest != corrupt_b.digest
+    validate_run_spec_document(corrupt_a.to_dict())
+    validate_run_spec_document(corrupt_b.to_dict())
 
 
 def test_unlabeled_run_spec_digest_is_stable_without_label_qc(tmp_path):

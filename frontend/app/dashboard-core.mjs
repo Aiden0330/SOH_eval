@@ -6,23 +6,37 @@ export async function resolvePublishedDataDirectory(
     standalone = false,
     suffix = "",
     fetchImpl = globalThis.fetch,
+    rememberedGeneration = null,
+    rememberGeneration = () => {},
   } = {},
 ) {
   if (standalone) return root;
+  const rememberedDirectory = () => {
+    const generation = String(rememberedGeneration || "");
+    return /^[0-9a-f]{32}$/.test(generation)
+      ? `${root}/.generations/${encodeURIComponent(generation)}`
+      : null;
+  };
   try {
     const response = await fetchImpl(`${root}/CURRENT.json${suffix}`);
-    if (!response?.ok) return root;
+    if (response?.status === 404) return root;
+    if (!response?.ok) return rememberedDirectory();
     const pointer = await response.json();
     const generation = String(pointer?.generation || "");
     if (
       pointer?.schema_version !== 1
       || !/^[0-9a-f]{32}$/.test(generation)
     ) {
-      return root;
+      return rememberedDirectory();
+    }
+    try {
+      await rememberGeneration(generation);
+    } catch (_) {
+      // A storage failure must not invalidate an already verified pointer.
     }
     return `${root}/.generations/${encodeURIComponent(generation)}`;
   } catch (_) {
-    return root;
+    return rememberedDirectory();
   }
 }
 

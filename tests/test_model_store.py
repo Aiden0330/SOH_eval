@@ -1,3 +1,4 @@
+import hashlib
 import json
 import pickle
 
@@ -186,3 +187,40 @@ def test_loaded_model_rejects_missing_manifest_features(tmp_path):
 
     with pytest.raises(ModelStoreError, match="missing feature columns"):
         loaded.predict(_table(), pd.DataFrame())
+
+
+def test_failed_read_lease_binds_expected_and_observed_content(tmp_path):
+    store = ModelStore(tmp_path / "models")
+    store.save_training_model(
+        "demo_model", PredictOnlyModel(), _manifest()
+    )
+    catalog_item = store.catalog()[0]
+    model_path = tmp_path / "models" / "demo_model" / "model.pkl"
+
+    def failed_identity(payload):
+        model_path.write_bytes(payload)
+        with store.partitioned_read_lease(["demo_model"]) as (
+            snapshots,
+            failures,
+        ):
+            assert snapshots == {}
+            return failures["demo_model"].content_identity
+
+    corrupt_a = b"corrupt model A"
+    first = failed_identity(corrupt_a)
+    repeated = failed_identity(corrupt_a)
+    second = failed_identity(b"corrupt model B")
+
+    assert first == repeated
+    assert first != second
+    assert first["artifacts"]["model_pickle"] == {
+        "expected": {"sha256": catalog_item["model_sha256"]},
+        "observed": {
+            "sha256": hashlib.sha256(corrupt_a).hexdigest()
+        },
+    }
+    assert first["artifacts"]["model_manifest"] == {
+        "expected": {"sha256": catalog_item["manifest_sha256"]},
+        "observed": {"sha256": catalog_item["manifest_sha256"]},
+    }
+    assert str(tmp_path) not in json.dumps(first, sort_keys=True)

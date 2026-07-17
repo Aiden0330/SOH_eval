@@ -104,6 +104,12 @@ class ModelReadSnapshot:
     digests: dict[str, str]
 
 
+@dataclass(frozen=True)
+class ModelReadFailure:
+    error: Exception
+    content_identity: dict[str, Any]
+
+
 class ModelStore:
     def __init__(self, base_dir: str | Path):
         self.base_dir = Path(base_dir).expanduser().resolve()
@@ -163,16 +169,19 @@ class ModelStore:
     def partitioned_read_lease(
         self, names: list[str] | tuple[str, ...]
     ) -> Iterator[
-        tuple[dict[str, ModelReadSnapshot], dict[str, Exception]]
+        tuple[dict[str, ModelReadSnapshot], dict[str, ModelReadFailure]]
     ]:
         with self._lock:
             snapshots: dict[str, ModelReadSnapshot] = {}
-            failures: dict[str, Exception] = {}
+            failures: dict[str, ModelReadFailure] = {}
             for name in dict.fromkeys(map(str, names)):
                 try:
                     snapshots[name] = self._read_snapshot(name)
                 except Exception as exc:
-                    failures[name] = exc
+                    failures[name] = ModelReadFailure(
+                        error=exc,
+                        content_identity=self._failed_content_identity(name),
+                    )
             yield snapshots, failures
 
     def catalog(self) -> list[dict]:
@@ -233,6 +242,43 @@ class ModelStore:
             ),
             digests=digests,
         )
+
+    def _failed_content_identity(self, name: str) -> dict[str, Any]:
+        try:
+            item = dict(self._find(name))
+        except ModelStoreError:
+            item = {}
+
+        def expected(field: str) -> dict[str, str]:
+            digest = item.get(field)
+            if isinstance(digest, str) and digest:
+                return {"sha256": digest}
+            return {"state": "not_recorded"}
+
+        def observed(field: str) -> dict[str, str]:
+            raw_path = item.get(field)
+            if not raw_path:
+                return {"state": "unreadable"}
+            try:
+                return {"sha256": sha256_file(Path(raw_path))}
+            except OSError:
+                return {"state": "unreadable"}
+
+        return {
+            "schema_version": 1,
+            "model_name": str(name),
+            "state": "load_failed",
+            "artifacts": {
+                "model_pickle": {
+                    "expected": expected("model_sha256"),
+                    "observed": observed("model_path"),
+                },
+                "model_manifest": {
+                    "expected": expected("manifest_sha256"),
+                    "observed": observed("manifest_path"),
+                },
+            },
+        }
 
     def _write_package(
         self,

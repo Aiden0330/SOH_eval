@@ -218,6 +218,7 @@ async function load(options = {}) {
 }
 
 async function loadProfileIndex(suffix = "") {
+  if (!ACTIVE_DATA_ROOT) return { profiles: [] };
   try {
     const response = await fetch(`${ACTIVE_DATA_ROOT}/profiles/index.json${suffix}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -235,19 +236,32 @@ function activeProfileSelection() {
 }
 
 function profileDataPath(profile = "root") {
+  if (!ACTIVE_DATA_ROOT) return null;
   return profile === "root" ? ACTIVE_DATA_ROOT : `${ACTIVE_DATA_ROOT}/profiles/${encodeURIComponent(profile)}`;
 }
 
 async function resolvePublishedBrowserDirectory(root, suffix = "") {
+  const storageKey = `sohbench.publication-generation:${root}`;
+  let rememberedGeneration = null;
+  try {
+    rememberedGeneration = localStorage.getItem(storageKey);
+  } catch (_) {
+    rememberedGeneration = null;
+  }
   return resolvePublishedDataDirectory(root, {
     standalone: Boolean(window.__SOH_STANDALONE__),
     suffix,
     fetchImpl: fetch,
+    rememberedGeneration,
+    rememberGeneration: (generation) => {
+      localStorage.setItem(storageKey, generation);
+    },
   });
 }
 
 async function loadProfileArtifacts(profile, suffix) {
   const base = profileDataPath(profile);
+  if (!base) throw new Error("no immutable publication is available");
   const [lb, qc, cfg, byDataset, inference, inferenceConfig, modelCatalog, manifest] = await Promise.all([
     fetchJson(`${base}/leaderboard.json${suffix}`, []),
     fetchJson(`${base}/qc_report.json${suffix}`, null),
@@ -845,6 +859,10 @@ async function probeNativeDashboard() {
       "./battery-dashboard",
       `?v=${encodeURIComponent(DATA_VERSION)}&sync=${NATIVE_DASHBOARD_REVISION}`,
     );
+    if (!nativeRoot) {
+      NATIVE_DASHBOARD_AVAILABLE = false;
+      return false;
+    }
     const response = await fetch(
       `${nativeRoot}/SYNC_MANIFEST.json?v=${encodeURIComponent(DATA_VERSION)}&sync=${NATIVE_DASHBOARD_REVISION}`,
     );

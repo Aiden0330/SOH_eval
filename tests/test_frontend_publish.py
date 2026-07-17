@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import multiprocessing
 import threading
 import time
 from pathlib import Path
@@ -69,6 +70,41 @@ def _write_frontend_app(root: Path) -> Path:
     _write_json(root / "data" / "leaderboard.json", [{"model": "demo"}])
     _write_native_dashboard(root / "battery-dashboard")
     return root
+
+
+def _multiprocess_publish_worker(
+    target_value,
+    version,
+    pointer_ready,
+    result_queue,
+):
+    target = Path(target_value)
+    real_sync = frontend_publish_module._sync_compatibility_view
+
+    if version == "A":
+        def delayed_sync(target_dir, generation, generation_name):
+            pointer_ready.set()
+            time.sleep(2.0)
+            return real_sync(target_dir, generation, generation_name)
+
+        frontend_publish_module._sync_compatibility_view = delayed_sync
+
+    def build(staging):
+        staging.mkdir(parents=True)
+        _write_json(staging / "manifest.json", {"version": version})
+        _write_json(staging / "payload.json", {"version": version})
+
+    try:
+        frontend_publish_module._publish_directory(target, build)
+        result_queue.put({"version": version, "status": "succeeded"})
+    except BaseException as exc:
+        result_queue.put(
+            {
+                "version": version,
+                "status": "failed",
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+        )
 
 
 def test_native_sync_missing_manifest_asset_preserves_last_known_good(tmp_path):
@@ -158,6 +194,56 @@ def test_concurrent_profile_publication_never_mixes_runs(tmp_path, monkeypatch):
         json.loads((profile / "manifest.json").read_text(encoding="utf-8"))["run"],
     }
     assert len(runs) == 1
+
+
+def test_publishers_are_serialized_across_real_processes(tmp_path):
+    target = tmp_path / "published"
+    context = multiprocessing.get_context("spawn")
+    pointer_ready = context.Event()
+    results = context.Queue()
+    first = context.Process(
+        target=_multiprocess_publish_worker,
+        args=(str(target), "A", pointer_ready, results),
+    )
+    second = context.Process(
+        target=_multiprocess_publish_worker,
+        args=(str(target), "B", pointer_ready, results),
+    )
+
+    first.start()
+    assert pointer_ready.wait(timeout=15)
+    second.start()
+    first.join(timeout=20)
+    second.join(timeout=20)
+
+    assert not first.is_alive() and not second.is_alive()
+    assert first.exitcode == 0 and second.exitcode == 0
+    messages = sorted(
+        [results.get(timeout=2), results.get(timeout=2)],
+        key=lambda item: item["version"],
+    )
+    assert messages == [
+        {"version": "A", "status": "succeeded"},
+        {"version": "B", "status": "succeeded"},
+    ]
+    pointer = json.loads(
+        (target / "CURRENT.json").read_text(encoding="utf-8")
+    )
+    active = target / ".generations" / pointer["generation"]
+    active_versions = {
+        json.loads((active / name).read_text(encoding="utf-8"))["version"]
+        for name in ("manifest.json", "payload.json")
+    }
+    compatibility_versions = {
+        json.loads((target / name).read_text(encoding="utf-8"))["version"]
+        for name in ("manifest.json", "payload.json")
+    }
+
+    assert len(active_versions) == 1
+    assert compatibility_versions == active_versions
+    lock_path = target.parent / f".{target.name}.publish.lock"
+    assert lock_path.is_file()
+    assert lock_path.parent == target.parent
 
 
 def test_root_publication_removes_omitted_artifacts_but_preserves_profiles(
@@ -435,6 +521,190 @@ def test_compatibility_view_restores_entire_mirror_after_late_failure(
         if item.is_file()
         and item.relative_to(target).parts[0] in controls
     } == control_before
+
+
+def test_recovery_snapshot_is_preserved_when_restoration_fails(
+    tmp_path, monkeypatch
+):
+    target = tmp_path / "published"
+    generation = tmp_path / "generation"
+    _write_json(target / "payload.json", {"version": "old"})
+    (target / "obsolete.bin").write_bytes(b"old-only")
+    pointer = target / "CURRENT.json"
+    pointer.write_bytes(b"pointer-control")
+    marker = target / ".generations" / ("a" * 32) / "marker.bin"
+    marker.parent.mkdir(parents=True)
+    marker.write_bytes(b"generation-control")
+    _write_json(generation / "payload.json", {"version": "new"})
+    old_compatibility = {
+        "obsolete.bin": b"old-only",
+        "payload.json": (target / "payload.json").read_bytes(),
+    }
+    real_apply = frontend_publish_module._apply_compatibility_view
+
+    def fail_sync_after_mutation(target_dir, generation_dir, name):
+        real_apply(target_dir, generation_dir, name)
+        raise OSError("injected sync failure")
+
+    def fail_restoration(target_dir, snapshot):
+        raise OSError("injected restoration failure")
+
+    monkeypatch.setattr(
+        frontend_publish_module,
+        "_apply_compatibility_view",
+        fail_sync_after_mutation,
+    )
+    monkeypatch.setattr(
+        frontend_publish_module,
+        "_restore_compatibility_content",
+        fail_restoration,
+    )
+
+    with pytest.raises(OSError, match="restoration failure"):
+        frontend_publish_module._sync_compatibility_view(
+            target, generation, "b" * 32
+        )
+
+    snapshots = list(
+        target.parent.glob(f".{target.name}.compat-snapshot-*")
+    )
+    assert len(snapshots) == 1
+    assert _snapshot(snapshots[0]) == old_compatibility
+    assert pointer.read_bytes() == b"pointer-control"
+    assert marker.read_bytes() == b"generation-control"
+
+
+def test_casefolded_publication_controls_survive_compatibility_sync(
+    tmp_path,
+):
+    target = tmp_path / "published"
+    generation = tmp_path / "generation"
+    active_marker = (
+        target / ".Generations" / ("a" * 32) / "marker.bin"
+    )
+    active_marker.parent.mkdir(parents=True)
+    active_marker.write_bytes(b"active-generation")
+    pointer = target / "current.JSON"
+    pointer.write_bytes(b"active-pointer")
+    _write_json(generation / "payload.json", {"version": "new"})
+
+    frontend_publish_module._sync_compatibility_view(
+        target, generation, "b" * 32
+    )
+
+    assert active_marker.read_bytes() == b"active-generation"
+    assert pointer.read_bytes() == b"active-pointer"
+    assert json.loads(
+        (target / "payload.json").read_text(encoding="utf-8")
+    ) == {"version": "new"}
+
+
+def test_casefolded_controls_are_never_mutated_during_failed_sync(
+    tmp_path, monkeypatch
+):
+    target = tmp_path / "published"
+    generation = tmp_path / "generation"
+    active_marker = (
+        target / ".GENERATIONS" / ("a" * 32) / "marker.bin"
+    )
+    active_marker.parent.mkdir(parents=True)
+    active_marker.write_bytes(b"active-generation")
+    pointer = target / "Current.Json"
+    pointer.write_bytes(b"active-pointer")
+    _write_json(target / "a.json", {"version": "old"})
+    _write_json(generation / "a.json", {"version": "new"})
+    (generation / "b-assets" / "payload.bin").parent.mkdir(parents=True)
+    (generation / "b-assets" / "payload.bin").write_bytes(b"new-assets")
+    control_mutations = []
+    real_rmtree = frontend_publish_module.shutil.rmtree
+    real_unlink = Path.unlink
+    real_replace = frontend_publish_module.os.replace
+
+    def track_rmtree(path, *args, **kwargs):
+        if Path(path).name.casefold() == ".generations":
+            control_mutations.append(Path(path).name)
+        return real_rmtree(path, *args, **kwargs)
+
+    def track_unlink(path, *args, **kwargs):
+        if (
+            path.parent == target
+            and path.name.casefold() == "current.json"
+        ):
+            control_mutations.append(path.name)
+        return real_unlink(path, *args, **kwargs)
+
+    def fail_late_activation(source, destination):
+        if (
+            Path(source).name.startswith(".b-assets.compat-")
+            and Path(destination) == target / "b-assets"
+        ):
+            raise OSError("injected casefold sync failure")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(
+        frontend_publish_module.shutil, "rmtree", track_rmtree
+    )
+    monkeypatch.setattr(Path, "unlink", track_unlink)
+    monkeypatch.setattr(
+        frontend_publish_module.os, "replace", fail_late_activation
+    )
+
+    with pytest.raises(OSError, match="casefold sync failure"):
+        frontend_publish_module._sync_compatibility_view(
+            target, generation, "b" * 32
+        )
+
+    assert control_mutations == []
+    assert active_marker.read_bytes() == b"active-generation"
+    assert pointer.read_bytes() == b"active-pointer"
+
+
+def test_generation_source_case_collision_with_control_is_rejected(
+    tmp_path,
+):
+    target = tmp_path / "published"
+    generation = tmp_path / "generation"
+    pointer = target / "CURRENT.json"
+    pointer.parent.mkdir(parents=True)
+    pointer.write_bytes(b"active-pointer")
+    (generation / "Current.JSON").parent.mkdir(parents=True)
+    (generation / "Current.JSON").write_bytes(b"collision")
+
+    with pytest.raises(ValueError, match="publication control"):
+        frontend_publish_module._sync_compatibility_view(
+            target, generation, "b" * 32
+        )
+
+    assert pointer.read_bytes() == b"active-pointer"
+
+
+def test_publication_rejects_control_collision_before_pointer_activation(
+    tmp_path,
+):
+    target = tmp_path / "published"
+
+    def build_old(staging):
+        staging.mkdir(parents=True)
+        _write_json(staging / "payload.json", {"version": "old"})
+
+    frontend_publish_module._publish_directory(target, build_old)
+    pointer_before = (target / "CURRENT.json").read_bytes()
+
+    def build_collision(staging):
+        staging.mkdir(parents=True)
+        _write_json(staging / "payload.json", {"version": "new"})
+        (staging / "Current.Json").write_bytes(b"collision")
+
+    with pytest.raises(ValueError, match="publication control"):
+        frontend_publish_module._publish_directory(
+            target, build_collision
+        )
+
+    assert (target / "CURRENT.json").read_bytes() == pointer_before
+    active = frontend_publish_module.resolve_published_directory(target)
+    assert json.loads(
+        (active / "payload.json").read_text(encoding="utf-8")
+    ) == {"version": "old"}
 
 
 def test_resolve_published_directory_retries_transient_pointer_read_failure(
