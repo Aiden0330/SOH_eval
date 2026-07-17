@@ -185,7 +185,12 @@ window.fetch = async (input, init = {{}}) => {{
 
 
 def strip_module_exports(source: str) -> str:
-    source = re.sub(r"^\s*export\s+function\s+", "function ", source, flags=re.MULTILINE)
+    source = re.sub(
+        r"^\s*export\s+((?:async\s+)?function\s+)",
+        r"\1",
+        source,
+        flags=re.MULTILINE,
+    )
     source = re.sub(r"^\s*export\s+(const|let|var)\s+", r"\1 ", source, flags=re.MULTILINE)
     source = re.sub(r"^\s*export\s+\{[^}]+\};?\s*$", "", source, flags=re.MULTILINE)
     return source

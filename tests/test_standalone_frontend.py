@@ -9,7 +9,11 @@ from pathlib import Path
 
 import pytest
 
-from scripts.build_standalone_frontend import APP_DIR, build_standalone_html
+from scripts.build_standalone_frontend import (
+    APP_DIR,
+    build_standalone_html,
+    strip_module_exports,
+)
 from scripts.package_portable_frontend import package_portable_frontend
 from sohbench.evaluation_service import EvaluationService
 
@@ -92,6 +96,21 @@ def test_real_app_standalone_is_deterministic_without_native_dashboard():
     assert artifact_count > 0
     assert "window.__SOH_STANDALONE_NATIVE_DASHBOARD__ = null;" in standalone
     assert "尚未同步原生看板" in standalone
+
+
+def test_standalone_module_transform_removes_sync_and_async_exports():
+    source = (
+        "export async function loadData() {}\n"
+        "export function render() {}\n"
+        "export const status = 'ready';\n"
+    )
+
+    transformed = strip_module_exports(source)
+
+    assert "export " not in transformed
+    assert "async function loadData() {}" in transformed
+    assert "function render() {}" in transformed
+    assert "const status = 'ready';" in transformed
 
 
 def test_real_app_portable_package_includes_complete_synced_native_dashboard(tmp_path):
