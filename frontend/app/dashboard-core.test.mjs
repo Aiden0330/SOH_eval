@@ -37,6 +37,7 @@ import {
   trainingArtifactSummary,
   nextDatasetSelection,
   validateJsonArtifactSets,
+  validateNativeDashboardArtifacts,
 } from "./dashboard-core.mjs";
 
 {
@@ -176,6 +177,28 @@ import {
   });
   assert.equal(legacy, root);
 
+  const validatedLegacy = [];
+  assert.equal(
+    await resolvePublishedDataDirectory(root, {
+      fetchImpl: async () => ({ ok: false, status: 404 }),
+      validateLegacyGeneration: true,
+      validateGeneration: async (directory) => {
+        validatedLegacy.push(directory);
+        return true;
+      },
+    }),
+    root,
+  );
+  assert.deepEqual(validatedLegacy, [root]);
+  assert.equal(
+    await resolvePublishedDataDirectory(root, {
+      fetchImpl: async () => ({ ok: false, status: 404 }),
+      validateLegacyGeneration: true,
+      validateGeneration: async () => false,
+    }),
+    null,
+  );
+
   let standaloneFetches = 0;
   const standalone = await resolvePublishedDataDirectory(root, {
     standalone: true,
@@ -190,61 +213,223 @@ import {
 
 {
   const directory = `./data/.generations/${"d".repeat(32)}`;
-  const trainingUrls = [];
-  const trainingValid = await validateJsonArtifactSets(
+  const artifacts = [
+    "leaderboard.json",
+    "qc_report.json",
+    "run_config.json",
+    "dataset_leaderboard.json",
+    "inference_benchmark.json",
+    "inference_run_config.json",
+    "model_catalog.json",
+    "recommendation_summary.json",
+    "manifest.json",
+  ];
+  const requiredAny = [
+    "leaderboard.json",
+    "inference_benchmark.json",
+  ];
+  const makeArtifactFetch = (entries, calls = []) => async (url) => {
+    calls.push(url);
+    const name = url
+      .slice(`${directory}/`.length)
+      .split("?")[0];
+    const entry = entries[name];
+    if (!entry) {
+      return {
+        ok: false,
+        status: 404,
+        json: async () => {
+          throw new Error("absent artifacts must not be parsed");
+        },
+      };
+    }
+    const status = entry.status ?? 200;
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => {
+        if (entry.malformed) throw new SyntaxError("malformed JSON");
+        return entry.value ?? {};
+      },
+    };
+  };
+  const validate = (entries, calls = []) => validateJsonArtifactSets(
     directory,
-    [
-      ["leaderboard.json", "run_config.json"],
-      ["inference_benchmark.json", "inference_run_config.json"],
-    ],
+    artifacts,
     {
+      requiredAny,
+      suffix: "?v=test",
+      fetchImpl: makeArtifactFetch(entries, calls),
+    },
+  );
+
+  const sparseTrainingCalls = [];
+  assert.equal(
+    await validate({
+      "leaderboard.json": { value: [] },
+    }, sparseTrainingCalls),
+    true,
+  );
+  assert.deepEqual(
+    sparseTrainingCalls,
+    artifacts.map((name) => `${directory}/${name}?v=test`),
+  );
+  assert.equal(
+    await validate({
+      "inference_benchmark.json": { value: { records: [] } },
+    }),
+    true,
+  );
+  assert.equal(
+    await validate({
+      "run_config.json": { value: {} },
+    }),
+    false,
+  );
+  assert.equal(
+    await validate({
+      "leaderboard.json": { value: [] },
+      "inference_benchmark.json": { malformed: true },
+    }),
+    false,
+  );
+  assert.equal(
+    await validate({
+      "leaderboard.json": { value: [] },
+      "model_catalog.json": { status: 500 },
+    }),
+    false,
+  );
+
+  const completeComposite = {
+    "leaderboard.json": { value: [] },
+    "run_config.json": { value: {} },
+    "inference_benchmark.json": { value: { records: [] } },
+    "inference_run_config.json": { value: {} },
+  };
+  assert.equal(await validate(completeComposite), true);
+
+  const root = "./data";
+  const cachedGeneration = "b".repeat(32);
+  const candidateGeneration = "c".repeat(32);
+  const candidateDirectory =
+    `${root}/.generations/${candidateGeneration}`;
+  const pointerFetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      schema_version: 1,
+      generation: candidateGeneration,
+    }),
+  });
+  const rejectedWrites = [];
+  const corruptComposite = {
+    "leaderboard.json": { value: [] },
+    "run_config.json": { value: {} },
+    "inference_benchmark.json": { malformed: true },
+  };
+  const corruptValidator = (candidate) => {
+    assert.equal(candidate, candidateDirectory);
+    return validate(corruptComposite);
+  };
+  assert.equal(
+    await resolvePublishedDataDirectory(root, {
+      rememberedGeneration: cachedGeneration,
+      fetchImpl: pointerFetch,
+      validateGeneration: corruptValidator,
+      rememberGeneration: (value) => rejectedWrites.push(value),
+    }),
+    `${root}/.generations/${cachedGeneration}`,
+  );
+  assert.deepEqual(rejectedWrites, []);
+  assert.equal(
+    await resolvePublishedDataDirectory(root, {
+      fetchImpl: pointerFetch,
+      validateGeneration: corruptValidator,
+      rememberGeneration: (value) => rejectedWrites.push(value),
+    }),
+    null,
+  );
+  assert.deepEqual(rejectedWrites, []);
+
+  const remembered = [];
+  assert.equal(
+    await resolvePublishedDataDirectory(root, {
+      fetchImpl: pointerFetch,
+      validateGeneration: () => validate(completeComposite),
+      rememberGeneration: (value) => remembered.push(value),
+    }),
+    candidateDirectory,
+  );
+  assert.deepEqual(remembered, [candidateGeneration]);
+}
+
+{
+  const directory = "./battery-dashboard/.generations/native";
+  const validManifest = {
+    scenario_count: 1,
+    copied_files: ["manifest.json", "scenario/demo.json"],
+  };
+  const validate = (overrides = {}) => {
+    const manifest = overrides.manifest ?? validManifest;
+    const missing = new Set(overrides.missing || []);
+    const malformed = new Set(overrides.malformed || []);
+    return validateNativeDashboardArtifacts(directory, {
       suffix: "?v=test",
       fetchImpl: async (url) => {
-        trainingUrls.push(url);
+        const path = url
+          .slice(`${directory}/`.length)
+          .split("?")[0];
+        if (missing.has(path)) {
+          return {
+            ok: false,
+            status: 404,
+            json: async () => {
+              throw new Error("missing");
+            },
+            text: async () => {
+              throw new Error("missing");
+            },
+          };
+        }
         return {
           ok: true,
-          json: async () => ({ artifact: url }),
+          status: 200,
+          json: async () => {
+            if (malformed.has(path)) throw new SyntaxError("malformed");
+            return path === "SYNC_MANIFEST.json" ? manifest : {};
+          },
+          text: async () => "<!doctype html>",
         };
       },
-    },
-  );
-  assert.equal(trainingValid, true);
-  assert.deepEqual(trainingUrls, [
-    `${directory}/leaderboard.json?v=test`,
-    `${directory}/run_config.json?v=test`,
-  ]);
+    });
+  };
 
-  const malformedValid = await validateJsonArtifactSets(
-    directory,
-    [
-      ["leaderboard.json", "run_config.json"],
-      ["inference_benchmark.json", "inference_run_config.json"],
-    ],
-    {
-      fetchImpl: async (url) => ({
-        ok: !url.endsWith("inference_benchmark.json"),
-        json: async () => {
-          if (url.endsWith("run_config.json")) {
-            throw new SyntaxError("malformed JSON");
-          }
-          return {};
-        },
-      }),
-    },
+  assert.equal(await validate(), true);
+  assert.equal(await validate({
+    manifest: { ...validManifest, scenario_count: 0 },
+  }), false);
+  assert.equal(await validate({ missing: ["index.html"] }), false);
+  assert.equal(
+    await validate({ missing: ["data/scenario/demo.json"] }),
+    false,
   );
-  assert.equal(malformedValid, false);
-
-  const nativeManifestValid = await validateJsonArtifactSets(
-    "./battery-dashboard/.generations/native",
-    [["SYNC_MANIFEST.json"]],
-    {
-      fetchImpl: async () => ({
-        ok: true,
-        json: async () => ({ scenario_count: 1 }),
-      }),
-    },
+  assert.equal(
+    await validate({ malformed: ["data/manifest.json"] }),
+    false,
   );
-  assert.equal(nativeManifestValid, true);
+  for (const unsafe of [
+    "../escape.json",
+    "/absolute.json",
+    "C:/drive.json",
+    "nested\\windows.json",
+    "nested//empty.json",
+    "%2e%2e/encoded.json",
+  ]) {
+    assert.equal(await validate({
+      manifest: { scenario_count: 1, copied_files: [unsafe] },
+    }), false);
+  }
 }
 
 {

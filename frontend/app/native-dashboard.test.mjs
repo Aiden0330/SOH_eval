@@ -36,12 +36,18 @@ for (const endpoint of [
 assert.match(app, /function renderNativeDashboard/);
 assert.match(app, /function probeNativeDashboard/);
 assert.match(app, /function validateNativeDashboardGeneration/);
+assert.match(app, /validateLegacyGeneration:\s*true/);
 assert.match(app, /resolvePublishedBrowserDirectory\(\s*"\.\/battery-dashboard"/);
 assert.match(
   app,
   /resolvePublishedBrowserDirectory\(\s*"\.\/battery-dashboard",[\s\S]*?validateNativeDashboardGeneration/,
 );
-assert.match(app, /`\$\{nativeRoot\}\/SYNC_MANIFEST\.json/);
+assert.match(app, /NATIVE_DASHBOARD_ROOT\s*=\s*nativeRoot/);
+assert.match(app, /frame\.src\s*=\s*`\$\{NATIVE_DASHBOARD_ROOT\}\/index\.html/);
+assert.doesNotMatch(
+  app,
+  /NATIVE_DASHBOARD_AVAILABLE\s*\|\|\s*nativeOutput\.present/,
+);
 assert.match(app, /function refreshDeliveryReport/);
 assert.match(app, /include_curves:\s*true/);
 assert.match(app, /include_detection:\s*false/);

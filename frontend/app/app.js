@@ -41,6 +41,7 @@ import {
   taskHistoryRows,
   trainingArtifactSummary,
   validateJsonArtifactSets,
+  validateNativeDashboardArtifacts,
 } from "./dashboard-core.mjs?v=task-history-20260630";
 
 const FALLBACK = {
@@ -100,6 +101,21 @@ const API_BASE = URL_PARAMS.get("api") || "http://localhost:8001";
 const DATA_VERSION = URL_PARAMS.get("v") || "live";
 const INITIAL_PROFILE = safeProfileName(URL_PARAMS.get("profile") || localStorage.getItem("sohbench.profile") || "root");
 const FS_ORDER = ["full", "voltage", "ic_dva", "partial_window", "capacity_time", "(byo)"];
+const DASHBOARD_JSON_ARTIFACTS = [
+  "leaderboard.json",
+  "qc_report.json",
+  "run_config.json",
+  "dataset_leaderboard.json",
+  "inference_benchmark.json",
+  "inference_run_config.json",
+  "model_catalog.json",
+  "recommendation_summary.json",
+  "manifest.json",
+];
+const DASHBOARD_CORE_JSON_ARTIFACTS = [
+  "leaderboard.json",
+  "inference_benchmark.json",
+];
 const fmt = (v, d = 3, sign = false) =>
   v == null ? "无" : (sign && v >= 0 ? "+" : "") + v.toFixed(d);
 const uniq = (a) => [...new Set(a)];
@@ -160,6 +176,7 @@ let DELIVERY_BUSY = "";
 let DELIVERY_ERROR = "";
 let DELIVERY_NOTICE = "";
 let NATIVE_DASHBOARD_AVAILABLE = false;
+let NATIVE_DASHBOARD_ROOT = null;
 let NATIVE_DASHBOARD_REVISION = 0;
 let PROFILE_INDEX = { profiles: [] };
 let ACTIVE_DATA_ROOT = "./data";
@@ -244,20 +261,20 @@ function profileDataPath(profile = "root") {
 async function validateDashboardGeneration(directory, suffix = "") {
   return validateJsonArtifactSets(
     directory,
-    [
-      ["leaderboard.json", "run_config.json"],
-      ["inference_benchmark.json", "inference_run_config.json"],
-    ],
-    { suffix, fetchImpl: fetch },
+    DASHBOARD_JSON_ARTIFACTS,
+    {
+      requiredAny: DASHBOARD_CORE_JSON_ARTIFACTS,
+      suffix,
+      fetchImpl: fetch,
+    },
   );
 }
 
 async function validateNativeDashboardGeneration(directory, suffix = "") {
-  return validateJsonArtifactSets(
-    directory,
-    [["SYNC_MANIFEST.json"]],
-    { suffix, fetchImpl: fetch },
-  );
+  return validateNativeDashboardArtifacts(directory, {
+    suffix,
+    fetchImpl: fetch,
+  });
 }
 
 async function resolvePublishedBrowserDirectory(
@@ -277,6 +294,7 @@ async function resolvePublishedBrowserDirectory(
     suffix,
     fetchImpl: fetch,
     rememberedGeneration,
+    validateLegacyGeneration: true,
     validateGeneration: (directory) => (
       validateGeneration(directory, suffix)
     ),
@@ -770,8 +788,9 @@ function renderNativeDashboard() {
   const embedded = typeof window.__SOH_STANDALONE_NATIVE_DASHBOARD__ === "string"
     ? window.__SOH_STANDALONE_NATIVE_DASHBOARD__
     : "";
-  const nativeOutput = DELIVERY_REPORT?.outputs?.native_dashboard || {};
-  const ready = Boolean(embedded || NATIVE_DASHBOARD_AVAILABLE || nativeOutput.present);
+  const ready = Boolean(
+    embedded || (NATIVE_DASHBOARD_AVAILABLE && NATIVE_DASHBOARD_ROOT),
+  );
   frame.hidden = !ready;
   unsynced.hidden = ready;
   state.textContent = ready ? (embedded ? "已内嵌" : "已同步") : "等待同步";
@@ -781,10 +800,14 @@ function renderNativeDashboard() {
     frame.removeAttribute("src");
     frame.srcdoc = embedded;
     frame.dataset.source = "standalone";
-  } else if (ready && !embedded && frame.dataset.source !== `sync-${NATIVE_DASHBOARD_REVISION}`) {
-    frame.removeAttribute("srcdoc");
-    frame.src = `./battery-dashboard/index.html?v=${encodeURIComponent(DATA_VERSION)}&sync=${NATIVE_DASHBOARD_REVISION}`;
-    frame.dataset.source = `sync-${NATIVE_DASHBOARD_REVISION}`;
+  } else if (ready && !embedded) {
+    const sourceKey =
+      `native:${NATIVE_DASHBOARD_ROOT}:${NATIVE_DASHBOARD_REVISION}`;
+    if (frame.dataset.source !== sourceKey) {
+      frame.removeAttribute("srcdoc");
+      frame.src = `${NATIVE_DASHBOARD_ROOT}/index.html?v=${encodeURIComponent(DATA_VERSION)}&sync=${NATIVE_DASHBOARD_REVISION}`;
+      frame.dataset.source = sourceKey;
+    }
   } else if (!ready) {
     frame.removeAttribute("src");
     frame.removeAttribute("srcdoc");
@@ -879,6 +902,7 @@ async function runDeliveryAction(action, endpoint, payload) {
 async function probeNativeDashboard() {
   if (typeof window.__SOH_STANDALONE_NATIVE_DASHBOARD__ === "string") {
     NATIVE_DASHBOARD_AVAILABLE = true;
+    NATIVE_DASHBOARD_ROOT = null;
     return true;
   }
   try {
@@ -889,16 +913,14 @@ async function probeNativeDashboard() {
     );
     if (!nativeRoot) {
       NATIVE_DASHBOARD_AVAILABLE = false;
+      NATIVE_DASHBOARD_ROOT = null;
       return false;
     }
-    const response = await fetch(
-      `${nativeRoot}/SYNC_MANIFEST.json?v=${encodeURIComponent(DATA_VERSION)}&sync=${NATIVE_DASHBOARD_REVISION}`,
-    );
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const manifest = await response.json();
-    NATIVE_DASHBOARD_AVAILABLE = Number(manifest?.scenario_count || 0) > 0;
+    NATIVE_DASHBOARD_ROOT = nativeRoot;
+    NATIVE_DASHBOARD_AVAILABLE = true;
   } catch (_) {
     NATIVE_DASHBOARD_AVAILABLE = false;
+    NATIVE_DASHBOARD_ROOT = null;
   }
   return NATIVE_DASHBOARD_AVAILABLE;
 }

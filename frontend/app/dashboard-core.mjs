@@ -9,6 +9,7 @@ export async function resolvePublishedDataDirectory(
     rememberedGeneration = null,
     rememberGeneration = () => {},
     validateGeneration = async () => false,
+    validateLegacyGeneration = false,
   } = {},
 ) {
   if (standalone) return root;
@@ -20,7 +21,12 @@ export async function resolvePublishedDataDirectory(
   };
   try {
     const response = await fetchImpl(`${root}/CURRENT.json${suffix}`);
-    if (response?.status === 404) return root;
+    if (response?.status === 404) {
+      if (!validateLegacyGeneration) return root;
+      return await validateGeneration(root) === true
+        ? root
+        : rememberedDirectory();
+    }
     if (!response?.ok) return rememberedDirectory();
     const pointer = await response.json();
     const generation = String(pointer?.generation || "");
@@ -48,26 +54,97 @@ export async function resolvePublishedDataDirectory(
 
 export async function validateJsonArtifactSets(
   directory,
-  artifactSets,
+  artifactNames,
+  {
+    requiredAny = [],
+    suffix = "",
+    fetchImpl = globalThis.fetch,
+  } = {},
+) {
+  const base = String(directory || "").replace(/\/+$/, "");
+  const names = [...new Set(
+    (artifactNames || []).map((name) => String(name)),
+  )];
+  if (!names.length) return false;
+  try {
+    const responses = await Promise.all(
+      names.map((name) => fetchImpl(`${base}/${name}${suffix}`)),
+    );
+    const present = [];
+    for (let index = 0; index < responses.length; index += 1) {
+      const response = responses[index];
+      if (response?.status === 404) continue;
+      if (!response?.ok) return false;
+      present.push([names[index], response]);
+    }
+    await Promise.all(
+      present.map(([, response]) => response.json()),
+    );
+    const required = new Set(requiredAny || []);
+    return required.size
+      ? present.some(([name]) => required.has(name))
+      : present.length > 0;
+  } catch (_) {
+    return false;
+  }
+}
+
+export async function validateNativeDashboardArtifacts(
+  directory,
   {
     suffix = "",
     fetchImpl = globalThis.fetch,
   } = {},
 ) {
   const base = String(directory || "").replace(/\/+$/, "");
-  for (const artifacts of artifactSets || []) {
-    try {
-      const responses = await Promise.all(
-        artifacts.map((name) => fetchImpl(`${base}/${name}${suffix}`)),
-      );
-      if (responses.some((response) => !response?.ok)) continue;
-      await Promise.all(responses.map((response) => response.json()));
-      return true;
-    } catch (_) {
-      // Try the next supported artifact set.
+  const safeAssetName = (value) => {
+    if (
+      typeof value !== "string"
+      || !value
+      || !/^[A-Za-z0-9._/-]+$/.test(value)
+    ) {
+      return false;
     }
+    if (/^[A-Za-z]:/.test(value) || value.startsWith("/")) return false;
+    const segments = value.split("/");
+    return segments.every(
+      (segment) => segment && segment !== "." && segment !== "..",
+    );
+  };
+  try {
+    const manifestResponse = await fetchImpl(
+      `${base}/SYNC_MANIFEST.json${suffix}`,
+    );
+    if (!manifestResponse?.ok) return false;
+    const manifest = await manifestResponse.json();
+    if (
+      !manifest
+      || typeof manifest !== "object"
+      || Array.isArray(manifest)
+      || !Number.isInteger(manifest.scenario_count)
+      || manifest.scenario_count <= 0
+      || !Array.isArray(manifest.copied_files)
+      || !manifest.copied_files.length
+      || !manifest.copied_files.every(safeAssetName)
+    ) {
+      return false;
+    }
+
+    const indexResponse = await fetchImpl(`${base}/index.html${suffix}`);
+    if (!indexResponse?.ok) return false;
+    await indexResponse.text();
+
+    const assetResponses = await Promise.all(
+      manifest.copied_files.map(
+        (name) => fetchImpl(`${base}/data/${name}${suffix}`),
+      ),
+    );
+    if (assetResponses.some((response) => !response?.ok)) return false;
+    await Promise.all(assetResponses.map((response) => response.json()));
+    return true;
+  } catch (_) {
+    return false;
   }
-  return false;
 }
 
 export function metricMean(entry, name) {
