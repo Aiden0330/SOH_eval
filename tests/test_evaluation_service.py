@@ -1,3 +1,4 @@
+import hashlib
 import json
 import pickle
 import threading
@@ -1343,6 +1344,77 @@ def test_failed_model_run_spec_binds_corrupt_content_deterministically(
     assert corrupt_a.digest != corrupt_b.digest
     validate_run_spec_document(corrupt_a.to_dict())
     validate_run_spec_document(corrupt_b.to_dict())
+
+
+def test_failed_model_run_spec_binds_bytes_from_failing_read(
+    tmp_path, monkeypatch
+):
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.model_store.upload_model(
+        "bad_model",
+        "bad_model.pkl",
+        pickle.dumps(PickledPredictOnly()),
+        "model_manifest.json",
+        json.dumps(_model_manifest("bad_model")).encode("utf-8"),
+    )
+    table = pd.read_csv(BytesIO(_dataset_csv("identity_dataset")))
+    request = service._normalize_inference_request(
+        {
+            "datasets": ["identity_dataset"],
+            "models": ["bad_model"],
+        }
+    )
+    model_path = Path(service.model_store.catalog()[0]["model_path"])
+    corrupt_a = b"corrupt-content-A"
+    corrupt_b = b"corrupt-content-B"
+    model_path.write_bytes(corrupt_a)
+    real_read_bytes = Path.read_bytes
+    replaced = False
+
+    def replace_after_failing_read(path):
+        nonlocal replaced
+        payload = real_read_bytes(path)
+        if path == model_path and not replaced:
+            replaced = True
+            model_path.write_bytes(corrupt_b)
+        return payload
+
+    monkeypatch.setattr(Path, "read_bytes", replace_after_failing_read)
+
+    def failed_spec():
+        with service.model_store.partitioned_read_lease(
+            ["bad_model"]
+        ) as (snapshots, failures):
+            failure = failures["bad_model"]
+            spec = service._build_run_spec(
+                run_type="inference",
+                request=request,
+                datasets=["identity_dataset"],
+                table=table,
+                qc={},
+                model_snapshots=snapshots,
+                model_failures=failures,
+            )
+            return failure.content_identity, spec
+
+    first_identity, first_spec = failed_spec()
+    second_identity, second_spec = failed_spec()
+
+    assert first_identity["artifacts"]["model_pickle"]["observed"] == {
+        "sha256": hashlib.sha256(corrupt_a).hexdigest()
+    }
+    assert second_identity["artifacts"]["model_pickle"]["observed"] == {
+        "sha256": hashlib.sha256(corrupt_b).hexdigest()
+    }
+    assert first_spec.candidates[0].digest != (
+        second_spec.candidates[0].digest
+    )
+    assert first_spec.digest != second_spec.digest
 
 
 def test_unlabeled_run_spec_digest_is_stable_without_label_qc(tmp_path):

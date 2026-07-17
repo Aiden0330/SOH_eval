@@ -30,6 +30,12 @@ class ModelStoreError(ValueError):
     """Raised for invalid trusted local model packages."""
 
 
+class _ModelSnapshotFailure(ModelStoreError):
+    def __init__(self, message: str, content_identity: dict[str, Any]):
+        super().__init__(message)
+        self.content_identity = content_identity
+
+
 @dataclass
 class LoadedModel:
     name: str
@@ -177,10 +183,17 @@ class ModelStore:
             for name in dict.fromkeys(map(str, names)):
                 try:
                     snapshots[name] = self._read_snapshot(name)
+                except _ModelSnapshotFailure as exc:
+                    failures[name] = ModelReadFailure(
+                        error=exc,
+                        content_identity=exc.content_identity,
+                    )
                 except Exception as exc:
                     failures[name] = ModelReadFailure(
                         error=exc,
-                        content_identity=self._failed_content_identity(name),
+                        content_identity=(
+                            self._uncaptured_content_identity(name)
+                        ),
                     )
             yield snapshots, failures
 
@@ -207,10 +220,36 @@ class ModelStore:
             return values
 
     def _read_snapshot(self, name: str) -> ModelReadSnapshot:
-        item = dict(self._find(name))
+        try:
+            item = dict(self._find(name))
+        except ModelStoreError as exc:
+            raise _ModelSnapshotFailure(
+                str(exc), self._content_identity(name, {}, {}, {})
+            ) from exc
         start = time.perf_counter()
-        model_payload = Path(item["model_path"]).read_bytes()
-        manifest_payload = Path(item["manifest_path"]).read_bytes()
+        payloads: dict[str, bytes] = {}
+        states: dict[str, str] = {}
+        read_errors: dict[str, OSError] = {}
+        for kind, path_field in (
+            ("model_pickle", "model_path"),
+            ("model_manifest", "manifest_path"),
+        ):
+            try:
+                payloads[kind] = Path(item[path_field]).read_bytes()
+            except OSError as exc:
+                states[kind] = "unreadable"
+                read_errors[kind] = exc
+        content_identity = self._content_identity(
+            name, item, payloads, states
+        )
+        if read_errors:
+            kind, exc = next(iter(read_errors.items()))
+            raise _ModelSnapshotFailure(
+                f"model {name!r} {kind} could not be read: {exc}",
+                content_identity,
+            ) from exc
+        model_payload = payloads["model_pickle"]
+        manifest_payload = payloads["model_manifest"]
         digests = {
             "model_pickle": hashlib.sha256(model_payload).hexdigest(),
             "model_manifest": hashlib.sha256(manifest_payload).hexdigest(),
@@ -221,15 +260,17 @@ class ModelStore:
         ):
             expected = item.get(field)
             if expected is not None and expected != digests[kind]:
-                raise ModelStoreError(
-                    f"model {name!r} {kind} digest mismatch"
+                raise _ModelSnapshotFailure(
+                    f"model {name!r} {kind} digest mismatch",
+                    content_identity,
                 )
         try:
             model = pickle.loads(model_payload)
             manifest = json.loads(manifest_payload.decode("utf-8"))
         except Exception as exc:
-            raise ModelStoreError(
-                f"model {name!r} snapshot could not be loaded: {exc}"
+            raise _ModelSnapshotFailure(
+                f"model {name!r} snapshot could not be loaded: {exc}",
+                content_identity,
             ) from exc
         load_ms = (time.perf_counter() - start) * 1000.0
         return ModelReadSnapshot(
@@ -243,26 +284,35 @@ class ModelStore:
             digests=digests,
         )
 
-    def _failed_content_identity(self, name: str) -> dict[str, Any]:
+    def _uncaptured_content_identity(
+        self, name: str
+    ) -> dict[str, Any]:
         try:
             item = dict(self._find(name))
         except ModelStoreError:
             item = {}
+        return self._content_identity(name, item, {}, {})
 
+    def _content_identity(
+        self,
+        name: str,
+        item: dict,
+        payloads: dict[str, bytes],
+        states: dict[str, str],
+    ) -> dict[str, Any]:
         def expected(field: str) -> dict[str, str]:
             digest = item.get(field)
             if isinstance(digest, str) and digest:
                 return {"sha256": digest}
             return {"state": "not_recorded"}
 
-        def observed(field: str) -> dict[str, str]:
-            raw_path = item.get(field)
-            if not raw_path:
-                return {"state": "unreadable"}
-            try:
-                return {"sha256": sha256_file(Path(raw_path))}
-            except OSError:
-                return {"state": "unreadable"}
+        def observed(kind: str) -> dict[str, str]:
+            payload = payloads.get(kind)
+            if payload is not None:
+                return {
+                    "sha256": hashlib.sha256(payload).hexdigest()
+                }
+            return {"state": states.get(kind, "not_captured")}
 
         return {
             "schema_version": 1,
@@ -271,11 +321,11 @@ class ModelStore:
             "artifacts": {
                 "model_pickle": {
                     "expected": expected("model_sha256"),
-                    "observed": observed("model_path"),
+                    "observed": observed("model_pickle"),
                 },
                 "model_manifest": {
                     "expected": expected("manifest_sha256"),
-                    "observed": observed("manifest_path"),
+                    "observed": observed("model_manifest"),
                 },
             },
         }

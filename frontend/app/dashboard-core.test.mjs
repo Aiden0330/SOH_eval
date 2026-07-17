@@ -36,15 +36,21 @@ import {
   taskHistoryRows,
   trainingArtifactSummary,
   nextDatasetSelection,
+  validateJsonArtifactSets,
 } from "./dashboard-core.mjs";
 
 {
   const root = "./data";
   const generation = "a".repeat(32);
   const remembered = [];
+  const validated = [];
   const valid = await resolvePublishedDataDirectory(root, {
     suffix: "?v=test",
     rememberGeneration: (value) => remembered.push(value),
+    validateGeneration: async (directory) => {
+      validated.push(directory);
+      return true;
+    },
     fetchImpl: async (url) => {
       assert.equal(url, "./data/CURRENT.json?v=test");
       return {
@@ -55,6 +61,7 @@ import {
     },
   });
   assert.equal(valid, `./data/.generations/${generation}`);
+  assert.deepEqual(validated, [`./data/.generations/${generation}`]);
   assert.deepEqual(remembered, [generation]);
 
   const cachedGeneration = "b".repeat(32);
@@ -73,6 +80,62 @@ import {
     },
   });
   assert.equal(noCachedGeneration, null);
+
+  const candidateGeneration = "c".repeat(32);
+  const pointerResponse = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      schema_version: 1,
+      generation: candidateGeneration,
+    }),
+  });
+  const rejectedWrites = [];
+  const missingCandidate = await resolvePublishedDataDirectory(root, {
+    rememberedGeneration: cachedGeneration,
+    fetchImpl: pointerResponse,
+    validateGeneration: async () => false,
+    rememberGeneration: (value) => rejectedWrites.push(value),
+  });
+  assert.equal(
+    missingCandidate,
+    `./data/.generations/${cachedGeneration}`,
+  );
+  assert.deepEqual(rejectedWrites, []);
+
+  const malformedCandidate = await resolvePublishedDataDirectory(root, {
+    rememberedGeneration: cachedGeneration,
+    fetchImpl: pointerResponse,
+    validateGeneration: async () => {
+      throw new SyntaxError("malformed generation artifact");
+    },
+    rememberGeneration: (value) => rejectedWrites.push(value),
+  });
+  assert.equal(
+    malformedCandidate,
+    `./data/.generations/${cachedGeneration}`,
+  );
+  assert.deepEqual(rejectedWrites, []);
+
+  const incompleteWithoutCache = await resolvePublishedDataDirectory(root, {
+    fetchImpl: pointerResponse,
+    validateGeneration: async () => false,
+    rememberGeneration: (value) => rejectedWrites.push(value),
+  });
+  assert.equal(incompleteWithoutCache, null);
+  assert.deepEqual(rejectedWrites, []);
+
+  const validDespiteStorageFailure = await resolvePublishedDataDirectory(root, {
+    fetchImpl: pointerResponse,
+    validateGeneration: async () => true,
+    rememberGeneration: () => {
+      throw new Error("storage unavailable");
+    },
+  });
+  assert.equal(
+    validDespiteStorageFailure,
+    `./data/.generations/${candidateGeneration}`,
+  );
 
   const malformed = await resolvePublishedDataDirectory(root, {
     rememberedGeneration: cachedGeneration,
@@ -123,6 +186,65 @@ import {
   });
   assert.equal(standalone, root);
   assert.equal(standaloneFetches, 0);
+}
+
+{
+  const directory = `./data/.generations/${"d".repeat(32)}`;
+  const trainingUrls = [];
+  const trainingValid = await validateJsonArtifactSets(
+    directory,
+    [
+      ["leaderboard.json", "run_config.json"],
+      ["inference_benchmark.json", "inference_run_config.json"],
+    ],
+    {
+      suffix: "?v=test",
+      fetchImpl: async (url) => {
+        trainingUrls.push(url);
+        return {
+          ok: true,
+          json: async () => ({ artifact: url }),
+        };
+      },
+    },
+  );
+  assert.equal(trainingValid, true);
+  assert.deepEqual(trainingUrls, [
+    `${directory}/leaderboard.json?v=test`,
+    `${directory}/run_config.json?v=test`,
+  ]);
+
+  const malformedValid = await validateJsonArtifactSets(
+    directory,
+    [
+      ["leaderboard.json", "run_config.json"],
+      ["inference_benchmark.json", "inference_run_config.json"],
+    ],
+    {
+      fetchImpl: async (url) => ({
+        ok: !url.endsWith("inference_benchmark.json"),
+        json: async () => {
+          if (url.endsWith("run_config.json")) {
+            throw new SyntaxError("malformed JSON");
+          }
+          return {};
+        },
+      }),
+    },
+  );
+  assert.equal(malformedValid, false);
+
+  const nativeManifestValid = await validateJsonArtifactSets(
+    "./battery-dashboard/.generations/native",
+    [["SYNC_MANIFEST.json"]],
+    {
+      fetchImpl: async () => ({
+        ok: true,
+        json: async () => ({ scenario_count: 1 }),
+      }),
+    },
+  );
+  assert.equal(nativeManifestValid, true);
 }
 
 {

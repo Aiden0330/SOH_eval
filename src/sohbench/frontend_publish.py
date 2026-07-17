@@ -69,12 +69,19 @@ def _validated_compatibility_sources(source_root: Path) -> list[Path]:
     return sources
 
 
-def _ignore_publication_controls(
-    _directory: str, names: list[str]
-) -> list[str]:
-    return [
-        name for name in names if _is_publication_control_name(name)
-    ]
+def _ignore_publication_controls_at_root(source_root: Path):
+    canonical_root = source_root.resolve()
+
+    def ignore(directory: str, names: list[str]) -> list[str]:
+        if Path(directory).resolve() != canonical_root:
+            return []
+        return [
+            name
+            for name in names
+            if _is_publication_control_name(name)
+        ]
+
+    return ignore
 
 
 def _lock_publication_file(stream) -> None:
@@ -422,7 +429,7 @@ def _copy_current_publication(target: Path, staging: Path) -> None:
         shutil.copytree(
             current,
             staging,
-            ignore=_ignore_publication_controls,
+            ignore=_ignore_publication_controls_at_root(current),
         )
         return
     shutil.copytree(current, staging)

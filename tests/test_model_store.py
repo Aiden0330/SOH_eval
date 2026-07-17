@@ -1,6 +1,7 @@
 import hashlib
 import json
 import pickle
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -224,3 +225,40 @@ def test_failed_read_lease_binds_expected_and_observed_content(tmp_path):
         "observed": {"sha256": catalog_item["manifest_sha256"]},
     }
     assert str(tmp_path) not in json.dumps(first, sort_keys=True)
+
+
+def test_failed_read_lease_does_not_reread_unreadable_artifact(
+    tmp_path, monkeypatch
+):
+    store = ModelStore(tmp_path / "models")
+    store.save_training_model(
+        "demo_model", PredictOnlyModel(), _manifest()
+    )
+    catalog_item = store.catalog()[0]
+    model_path = Path(catalog_item["model_path"])
+    real_read_bytes = Path.read_bytes
+    model_read_attempts = 0
+
+    def fail_model_read(path):
+        nonlocal model_read_attempts
+        if path == model_path:
+            model_read_attempts += 1
+            raise PermissionError("injected model read failure")
+        return real_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", fail_model_read)
+
+    with store.partitioned_read_lease(["demo_model"]) as (
+        snapshots,
+        failures,
+    ):
+        assert snapshots == {}
+        identity = failures["demo_model"].content_identity
+
+    assert model_read_attempts == 1
+    assert identity["artifacts"]["model_pickle"]["observed"] == {
+        "state": "unreadable"
+    }
+    assert identity["artifacts"]["model_manifest"]["observed"] == {
+        "sha256": catalog_item["manifest_sha256"]
+    }

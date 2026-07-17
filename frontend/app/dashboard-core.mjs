@@ -8,6 +8,7 @@ export async function resolvePublishedDataDirectory(
     fetchImpl = globalThis.fetch,
     rememberedGeneration = null,
     rememberGeneration = () => {},
+    validateGeneration = async () => false,
   } = {},
 ) {
   if (standalone) return root;
@@ -29,15 +30,44 @@ export async function resolvePublishedDataDirectory(
     ) {
       return rememberedDirectory();
     }
+    const candidateDirectory =
+      `${root}/.generations/${encodeURIComponent(generation)}`;
+    if (await validateGeneration(candidateDirectory) !== true) {
+      return rememberedDirectory();
+    }
     try {
       await rememberGeneration(generation);
     } catch (_) {
-      // A storage failure must not invalidate an already verified pointer.
+      // A storage failure must not invalidate an already verified generation.
     }
-    return `${root}/.generations/${encodeURIComponent(generation)}`;
+    return candidateDirectory;
   } catch (_) {
     return rememberedDirectory();
   }
+}
+
+export async function validateJsonArtifactSets(
+  directory,
+  artifactSets,
+  {
+    suffix = "",
+    fetchImpl = globalThis.fetch,
+  } = {},
+) {
+  const base = String(directory || "").replace(/\/+$/, "");
+  for (const artifacts of artifactSets || []) {
+    try {
+      const responses = await Promise.all(
+        artifacts.map((name) => fetchImpl(`${base}/${name}${suffix}`)),
+      );
+      if (responses.some((response) => !response?.ok)) continue;
+      await Promise.all(responses.map((response) => response.json()));
+      return true;
+    } catch (_) {
+      // Try the next supported artifact set.
+    }
+  }
+  return false;
 }
 
 export function metricMean(entry, name) {

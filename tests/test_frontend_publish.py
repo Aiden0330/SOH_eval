@@ -279,6 +279,35 @@ def test_root_publication_removes_omitted_artifacts_but_preserves_profiles(
     assert _snapshot(frontend_data / "profiles") == profile_before
 
 
+def test_legacy_root_migration_preserves_nested_control_named_business_files(
+    tmp_path,
+):
+    frontend_data = tmp_path / "frontend" / "data"
+    run_dir = tmp_path / "run"
+    nested_pointer = frontend_data / "assets" / "CURRENT.json"
+    nested_generation = (
+        frontend_data / "assets" / ".generations" / "payload.bin"
+    )
+    nested_pointer.parent.mkdir(parents=True)
+    nested_pointer.write_bytes(b"nested-business-pointer")
+    nested_generation.parent.mkdir(parents=True)
+    nested_generation.write_bytes(b"nested-business-generation")
+    _write_json(run_dir / "leaderboard.json", {"run": "migration"})
+
+    sync_frontend_artifacts(run_dir, frontend_data)
+
+    active = frontend_publish_module.resolve_published_directory(
+        frontend_data
+    )
+    for base in (active, frontend_data):
+        assert (
+            base / "assets" / "CURRENT.json"
+        ).read_bytes() == b"nested-business-pointer"
+        assert (
+            base / "assets" / ".generations" / "payload.bin"
+        ).read_bytes() == b"nested-business-generation"
+
+
 def test_composite_root_publication_uses_first_source_and_preserves_profiles(tmp_path):
     frontend_data = tmp_path / "frontend" / "data"
     training_dir = tmp_path / "training"

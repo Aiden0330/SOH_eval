@@ -40,6 +40,7 @@ import {
   summarizeBySelection,
   taskHistoryRows,
   trainingArtifactSummary,
+  validateJsonArtifactSets,
 } from "./dashboard-core.mjs?v=task-history-20260630";
 
 const FALLBACK = {
@@ -240,7 +241,30 @@ function profileDataPath(profile = "root") {
   return profile === "root" ? ACTIVE_DATA_ROOT : `${ACTIVE_DATA_ROOT}/profiles/${encodeURIComponent(profile)}`;
 }
 
-async function resolvePublishedBrowserDirectory(root, suffix = "") {
+async function validateDashboardGeneration(directory, suffix = "") {
+  return validateJsonArtifactSets(
+    directory,
+    [
+      ["leaderboard.json", "run_config.json"],
+      ["inference_benchmark.json", "inference_run_config.json"],
+    ],
+    { suffix, fetchImpl: fetch },
+  );
+}
+
+async function validateNativeDashboardGeneration(directory, suffix = "") {
+  return validateJsonArtifactSets(
+    directory,
+    [["SYNC_MANIFEST.json"]],
+    { suffix, fetchImpl: fetch },
+  );
+}
+
+async function resolvePublishedBrowserDirectory(
+  root,
+  suffix = "",
+  validateGeneration = validateDashboardGeneration,
+) {
   const storageKey = `sohbench.publication-generation:${root}`;
   let rememberedGeneration = null;
   try {
@@ -253,6 +277,9 @@ async function resolvePublishedBrowserDirectory(root, suffix = "") {
     suffix,
     fetchImpl: fetch,
     rememberedGeneration,
+    validateGeneration: (directory) => (
+      validateGeneration(directory, suffix)
+    ),
     rememberGeneration: (generation) => {
       localStorage.setItem(storageKey, generation);
     },
@@ -858,6 +885,7 @@ async function probeNativeDashboard() {
     const nativeRoot = await resolvePublishedBrowserDirectory(
       "./battery-dashboard",
       `?v=${encodeURIComponent(DATA_VERSION)}&sync=${NATIVE_DASHBOARD_REVISION}`,
+      validateNativeDashboardGeneration,
     );
     if (!nativeRoot) {
       NATIVE_DASHBOARD_AVAILABLE = false;
