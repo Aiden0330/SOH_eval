@@ -27,6 +27,48 @@
     .chapter:last-child { border-bottom: 0; }
     .status-list { padding-left: 20px; }
     .status-list strong { color: #175cd3; }
+    .audience-paths { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; }
+    .audience-paths button { min-height: 40px; padding: 8px 14px; color: #344054; background: #fff; border: 1px solid #98a2b3; border-radius: 4px; font: inherit; font-weight: 700; cursor: pointer; }
+    .audience-paths button:hover, .audience-paths button:focus { color: #175cd3; border-color: #175cd3; outline: 2px solid #d1e9ff; outline-offset: 1px; }
+    .status-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }
+    .status-card { padding: 16px; border: 1px solid #d0d5dd; border-top-width: 4px; border-radius: 6px; }
+    .status-card h3 { margin: 0 0 8px; font-size: 1rem; }
+    .status-card p, .status-card ul { margin-bottom: 0; }
+    .status-current { border-top-color: #067647; background: #f6fef9; }
+    .status-domain { border-top-color: #175cd3; background: #f5f8ff; }
+    .status-target { border-top-color: #b54708; background: #fffaeb; }
+    .status-label { display: inline-block; margin-bottom: 8px; padding: 2px 8px; border: 1px solid currentColor; border-radius: 999px; font-size: 0.78rem; font-weight: 700; }
+    .status-current .status-label { color: #067647; }
+    .status-domain .status-label { color: #175cd3; }
+    .status-target .status-label { color: #b54708; }
+    .callout { margin: 20px 0; padding: 14px 16px; border-left: 4px solid #175cd3; background: #f5f8ff; }
+    .callout.warning { border-left-color: #b54708; background: #fffaeb; }
+    .diagram { margin: 20px 0; padding: 16px; border: 1px solid #d0d5dd; border-radius: 6px; background: #f8fafc; break-inside: avoid; }
+    .diagram-title { margin: 0 0 12px; font-weight: 700; }
+    .architecture-stack { display: grid; gap: 8px; }
+    .architecture-layer { display: grid; grid-template-columns: minmax(150px, 0.7fr) minmax(0, 2fr); gap: 12px; align-items: center; padding: 12px; color: #101828; background: #fff; border: 1px solid #b2ccff; border-left: 5px solid #175cd3; border-radius: 4px; }
+    .architecture-layer strong { color: #1849a9; }
+    .diagram-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr)); gap: 10px; }
+    .diagram-node { position: relative; min-height: 76px; padding: 12px; background: #fff; border: 1px solid #84adff; border-radius: 4px; }
+    .diagram-node strong { display: block; color: #1849a9; }
+    .diagram-node .node-status { display: block; margin-top: 4px; color: #475467; font-size: 0.78rem; }
+    .evidence-chain .diagram-node { border-color: #75e0a7; }
+    .evidence-chain .diagram-node strong { color: #067647; }
+    .state-lanes { display: grid; gap: 14px; }
+    .state-lane { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; align-items: start; }
+    .state-lane > strong { padding-top: 10px; }
+    .state-nodes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .state-node { padding: 8px 10px; background: #fff; border: 1px solid #84adff; border-radius: 4px; }
+    .state-arrow { color: #667085; font-weight: 700; }
+    .table-wrap { max-width: 100%; overflow-x: auto; margin: 16px 0; border: 1px solid #d0d5dd; }
+    table { width: 100%; min-width: 680px; border-collapse: collapse; background: #fff; }
+    th, td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid #eaecf0; }
+    th { color: #344054; background: #f2f4f7; }
+    tr:last-child td { border-bottom: 0; }
+    code { overflow-wrap: anywhere; font-family: Consolas, "Courier New", monospace; }
+    .contract-chain { max-width: 100%; overflow-x: auto; padding: 14px; color: #d1e9ff; background: #101828; border-radius: 4px; font-family: Consolas, "Courier New", monospace; white-space: pre-wrap; }
+    .references-list li { margin-bottom: 8px; }
+    .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
     .quick-rail { padding: 24px 16px; background: #f8fafc; }
     .quick-rail h2 { margin-top: 0; font-size: 1rem; }
     .quick-rail p { margin: 0; color: #344054; }
@@ -46,13 +88,17 @@
       .mobile-toc a { padding: 4px 0; color: #344054; }
       h1 { font-size: 1.65rem; }
       .quick-rail { padding: 16px; }
+      .status-grid { grid-template-columns: 1fr; }
+      .architecture-layer, .state-lane { grid-template-columns: 1fr; }
+      .state-lane > strong { padding-top: 0; }
     }
     @media print {
       .guide-nav, .quick-rail, .mobile-toc, .skip-link { display: none; }
       body, main { background: #fff; }
       main { padding: 0; }
       .guide-shell { display: block; }
-      .chapter, .guide-header { max-width: none; break-inside: avoid; }
+      .chapter, .guide-header { max-width: none; }
+      .diagram, .status-card, .table-wrap, h2, h3 { break-inside: avoid; }
     }
   </style>
 </head>
@@ -94,17 +140,279 @@
       </details>
       <section id="overview" class="chapter">
         <h2>项目概览</h2>
-        <p>系统以可比较、可追溯、可复核的算法测评为第一目标，并以跨数据集、跨电芯和跨化学体系的多场景算法建设为第二目标。</p>
-        <ul class="status-list">
-          <li><strong>当前已实现</strong>：本机资源目录、训练与推理任务、结果发布和证据基础。</li>
-          <li><strong>已接入领域能力</strong>：Battery SOH 曲线、特征、算法和完整看板。</li>
-          <li><strong>目标架构</strong>：隔离 Worker、前端 V2 和更强的外部插件治理。</li>
-        </ul>
+        <p>系统以可比较、可追溯、可复核的算法测评为第一目标，并以跨数据集、跨电芯和跨化学体系的多场景算法建设为第二目标。它不是只展示一个误差数字的看板，而是把输入、协议、执行覆盖、逐样本预测、指标和发布物连成可验证证据链。</p>
+        <div class="audience-paths" aria-label="选择阅读路径">
+          <button type="button" data-audience="manager">管理者路径</button>
+          <button type="button" data-audience="developer">研发路径</button>
+          <button type="button" data-audience="operator">工具使用者路径</button>
+        </div>
+        <p>阅读路径只用于突出推荐章节，不会隐藏任何正文。管理者可优先阅读概览、架构、公平测评和证据结论；研发人员可继续阅读领域方法与核心契约；工具使用者可从前端、资源接入和运行章节开始。</p>
+        <div class="status-grid" aria-label="能力状态总览">
+          <article class="status-card status-current">
+            <span class="status-label">当前已实现</span>
+            <h3>Phase 0 可信基础</h3>
+            <ul>
+              <li>本机目录发现、内存/本机进程执行与任务 API。</li>
+              <li>不可变 RunSpec、数据快照、折内特征状态和目标剥离视图。</li>
+              <li>结构化失败、覆盖计数、PredictionRecord、Metrics 与可校验 EvidencePack。</li>
+            </ul>
+          </article>
+          <article class="status-card status-domain">
+            <span class="status-label">已接入领域能力</span>
+            <h3>Battery SOH 能力</h3>
+            <ul>
+              <li>处理后特征表发现、SOH 标签、充电曲线和 IC/DVA。</li>
+              <li>经典回归、深度/PINN 候选、共形区间与物理后处理。</li>
+              <li>训练、冻结推理、模型资产和完整看板。</li>
+            </ul>
+          </article>
+          <article class="status-card status-target">
+            <span class="status-label">目标架构</span>
+            <h3>后续治理能力</h3>
+            <ul>
+              <li>独立隔离 Worker、资源守卫和执行网络边界。</li>
+              <li>V2 控制台、统计比较引擎和签署审查流程。</li>
+              <li>更强的外部插件治理、内容寻址存储和组织级身份。</li>
+            </ul>
+          </article>
+        </div>
+        <p class="callout warning"><strong>边界：</strong>隔离 Worker、V2 控制台和组织级签名仍是规划能力。本文出现这些组件时均以“目标架构”标记，不应据此判断其已经上线。</p>
       </section>
-      <section id="architecture" class="chapter"><h2>总体架构与数据流</h2><p>当前代码提供本机控制面、训练与推理执行、结果发布和证据对象；隔离 Worker 属于目标架构。</p></section>
-      <section id="domain" class="chapter"><h2>SOH 数据、特征与算法原理</h2><p>领域能力围绕 SOH 标签、充电曲线、IC/DVA、健康指标和多类回归估计器组织。</p></section>
-      <section id="evaluation" class="chapter"><h2>公平测评协议与指标</h2><p>公平比较必须锁定数据快照、协议、随机种子、留出覆盖和统计单位。</p></section>
-      <section id="contracts" class="chapter"><h2>核心契约与证据对象</h2><p>RunSpec、DatasetSnapshot、PredictionRecord 和 EvidencePack 共同形成可复核证据链。</p></section>
+      <section id="architecture" class="chapter">
+        <h2>总体架构与数据流</h2>
+        <p>五层图是职责视图，不代表所有层都已经以独立服务部署。当前已实现的 Phase 0 在同一 Python 进程或受信本机进程内组合控制、执行和证据能力；目标架构再把高风险执行移入隔离 Worker。</p>
+        <div class="diagram" role="img" aria-label="五层可信测评架构">
+          <p class="diagram-title">五层可信测评架构</p>
+          <div class="architecture-stack" aria-hidden="true">
+            <div class="architecture-layer"><strong>体验与入口层</strong><span>当前前端五页签、CLI、HTTP API；V2 控制台属于目标架构。</span></div>
+            <div class="architecture-layer"><strong>控制面</strong><span>Registry、RunSpec、comparison key、预检、用户确认和任务状态。</span></div>
+            <div class="architecture-layer"><strong>执行面</strong><span>当前本机/内存执行、DatasetSnapshot、折内特征与训练/推理；隔离 Worker 与资源守卫属于目标架构。</span></div>
+            <div class="architecture-layer"><strong>证据面</strong><span>PredictionRecord、Metrics、EvidencePack、不可变 generation、排行与发布。</span></div>
+            <div class="architecture-layer"><strong>Battery SOH Domain Pack</strong><span>已接入领域能力：数据映射、标签、特征、曲线、协议和场景政策。</span></div>
+          </div>
+          <ol class="sr-only">
+            <li>体验与入口层：前端、CLI 和 API。</li>
+            <li>控制面：Registry、RunSpec、预检和任务状态。</li>
+            <li>执行面：数据快照、折内特征、训练和冻结推理。</li>
+            <li>证据面：逐样本预测、指标、EvidencePack、排行和发布。</li>
+            <li>Battery SOH Domain Pack：数据、标签、特征、曲线、协议和场景政策。</li>
+          </ol>
+        </div>
+        <div class="status-grid" aria-label="架构实施边界">
+          <article class="status-card status-current"><span class="status-label">当前已实现</span><h3>本机闭环</h3><p>API 预检、运行规格、进程内执行、折内特征拟合、逐样本/指标校验、证据摘要和原子文件发布已有代码与测试约束。</p></article>
+          <article class="status-card status-domain"><span class="status-label">已接入领域能力</span><h3>领域入口</h3><p>候选前端可以发现 Battery SOH 特征表、算法、冻结模型与曲线产物；领域内容通过兼容层接入测评主链。</p></article>
+          <article class="status-card status-target"><span class="status-label">目标架构</span><h3>隔离与治理</h3><p>隔离 Worker、独立队列、CPU/内存/时限/网络守卫、外部插件沙箱和 V2 控制台是规划能力。</p></article>
+        </div>
+        <div class="diagram" role="img" aria-label="端到端测评流程">
+          <p class="diagram-title">端到端工作流</p>
+          <div class="diagram-grid" aria-hidden="true">
+            <div class="diagram-node"><strong>1 资源接入</strong><span>数据、算法、特征或模型</span></div>
+            <div class="diagram-node"><strong>2 内容摘要</strong><span>字节摘要、schema 与来源</span></div>
+            <div class="diagram-node"><strong>3 Spec 固化</strong><span>不可变引用与比较键</span></div>
+            <div class="diagram-node"><strong>4 预检</strong><span>兼容性、泄漏和资源估算</span></div>
+            <div class="diagram-node"><strong>5 用户确认</strong><span>冻结运行矩阵</span></div>
+            <div class="diagram-node"><strong>6 执行</strong><span>训练、适配或冻结推理</span></div>
+            <div class="diagram-node"><strong>7 指标计算</strong><span>内部真值连接与聚合</span></div>
+            <div class="diagram-node"><strong>8 证据验证</strong><span>manifest、大小与摘要</span></div>
+            <div class="diagram-node"><strong>9 排行发布</strong><span>资格、覆盖与原子切换</span></div>
+            <div class="diagram-node"><strong>10 前端展示</strong><span>结论下钻到样本</span></div>
+          </div>
+          <ol class="sr-only">
+            <li>接入资源。</li><li>计算内容摘要并检查结构。</li><li>固化运行 Spec。</li><li>执行预检。</li><li>由用户确认运行矩阵。</li>
+            <li>执行训练、适配或冻结推理。</li><li>连接内部真值并计算指标。</li><li>验证 EvidencePack。</li><li>按资格原子发布排行。</li><li>在前端展示并支持证据下钻。</li>
+          </ol>
+        </div>
+        <h3>为什么可信</h3>
+        <p>可信不来自界面上的“通过”颜色，而来自每一步都绑定前一步摘要。候选源码、模型和数据首先变成内容引用；RunSpec 固化比较口径；PredictionRecord 保留样本身份但不向候选暴露测试真值；Metrics 记录贡献样本和聚合范围；EvidencePack 再对发布所依赖文件逐项登记大小和 SHA-256。</p>
+        <div class="diagram evidence-chain" role="img" aria-label="摘要关联的证据链">
+          <p class="diagram-title">摘要关联证据链</p>
+          <div class="diagram-grid" aria-hidden="true">
+            <div class="diagram-node"><strong>输入摘要</strong><span>数据/算法/特征/模型字节</span></div>
+            <div class="diagram-node"><strong>RunSpec</strong><span>不可变引用与 comparison key</span></div>
+            <div class="diagram-node"><strong>PredictionRecord</strong><span>样本身份、预测与执行上下文</span></div>
+            <div class="diagram-node"><strong>Metrics</strong><span>统计单位、贡献样本与指标值</span></div>
+            <div class="diagram-node"><strong>EvidencePack</strong><span>manifest、文件大小与摘要</span></div>
+            <div class="diagram-node"><strong>发布物</strong><span>不可变 generation 与活动指针</span></div>
+          </div>
+          <ol class="sr-only">
+            <li>计算输入内容摘要。</li><li>RunSpec 引用不可变输入并生成比较键。</li><li>PredictionRecord 绑定样本身份和预测。</li>
+            <li>Metrics 绑定贡献样本与统计范围。</li><li>EvidencePack 登记并验证所有证据文件。</li><li>验证后的发布物进入不可变 generation，再原子切换活动指针。</li>
+          </ol>
+        </div>
+      </section>
+      <section id="domain" class="chapter">
+        <h2>SOH 数据、特征与算法原理</h2>
+        <h3>发现契约与结构语义</h3>
+        <p>已接入领域能力从 <code>D:\battery_SOH\data\processed\*_features.pkl</code> 发现处理后特征表。Pickle 只在受信本机环境读取，本文不嵌入其内容。当前发现数量必须以 <code>GET /api/catalog</code> 和前端目录的实时结果为准，不在说明书中固定。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>字段</th><th>结构性意义</th><th>质量要求</th></tr></thead>
+            <tbody>
+              <tr><td><code>dataset</code></td><td>数据来源/语义域，参与数据集级分组与跨域协议。</td><td>不得用同名掩盖不同来源、化学体系或标签定义。</td></tr>
+              <tr><td><code>cell_id</code></td><td>电芯或资产身份，是 LOCO、轨迹聚合和泄漏检查的基本单位。</td><td>同一实体必须稳定；训练与测试身份不得交叠。</td></tr>
+              <tr><td><code>cycle_index</code></td><td>资产内的循环/观测顺序，用于轨迹、因果特征和时间前推。</td><td>检查重复、逆序、跳变和重置语义。</td></tr>
+              <tr><td><code>soh</code></td><td>监督真值，标签公式由数据卡/LabelSpec 解释。</td><td>必须为有限值；只允许 Metric Worker 连接测试真值。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>入场质检至少检查：必需列缺失、<code>soh</code> 为 NaN/Inf 等非有限标签、同一电芯重复周期、轨迹顺序异常、每个数据集的样本/电芯覆盖，以及训练/测试身份或派生统计交叉造成的泄漏。样本多不等于电芯覆盖充分；统计有效单位应优先服从独立资产，而非把同一电芯的循环当作独立重复。</p>
+        <h3>特征方案</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>方案</th><th>输入侧重点</th><th>适用与限制</th></tr></thead>
+            <tbody>
+              <tr><td><code>full</code></td><td>声明允许的通用统计与领域特征。</td><td>覆盖较广，但必须经 FeaturePolicy 排除标签、未来信息和仅部分数据域可得的代理变量。</td></tr>
+              <tr><td><code>voltage</code></td><td>充电电压统计、形状和固定窗口摘要。</td><td>易解释；受协议、电流、温度和采样密度影响。</td></tr>
+              <tr><td><code>ic_dva</code></td><td>IC/DVA 峰位、峰高、面积和形状摘要。</td><td>对老化机理变化敏感；微分会放大噪声，需明确平滑和窗口。</td></tr>
+              <tr><td><code>partial_window</code></td><td>只使用可部署的局部充电电压窗口。</td><td>适合浅充或数据不完整场景；不同化学体系的平台区不可直接复用同一窗口。</td></tr>
+              <tr><td><code>capacity_time</code></td><td>窗口容量、充电时长和相关速率。</td><td>直观且样本效率高；依赖电流积分、阶段识别和时间单位一致性。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>领域原理与泄漏边界</h3>
+        <p><strong>固定充电窗口：</strong>在同一电压区间比较充电容量、持续时间和曲线形状，可降低完整充电终点不一致带来的影响。窗口必须由化学体系和可观测协议预先声明，不能在看见测试误差后逐电芯选择。</p>
+        <p><strong>IC/DVA：</strong>增量容量 IC 通常写作 <code>dQ/dV</code>，突出容量随电压变化的峰；微分电压 DVA 写作 <code>dV/dQ</code>，突出电压对容量变化的响应。二者都需要排序、去重、重采样与平滑；平滑参数只能在训练折或预先固定，不能利用完整测试轨迹调参。</p>
+        <p><strong>健康指标三性：</strong>相关性衡量候选 HI 与 SOH/退化趋势的关联；单调性衡量方向一致程度但允许真实恢复和噪声；鲁棒性衡量局部扰动相对长期趋势的大小。三者是特征筛查证据，不等同于预测准确率或因果解释。</p>
+        <p><strong>因果平滑与折内计算：</strong>部署时第 k 个循环不能读取未来循环，因此滚动、滤波和重标定应使用当前及历史数据。所有填充、缩放、特征筛选、平滑参数、校准和 FeatureState 必须在训练/校准折内拟合，再原样应用于 held-out 视图。</p>
+        <h3>算法族与责任边界</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>算法族</th><th>归纳偏置</th><th>优点</th><th>限制</th><th>适用样本规模</th></tr></thead>
+            <tbody>
+              <tr><td>线性/正则化</td><td>特征作用近似加性、平滑且低复杂度。</td><td>稳定、透明、训练快，适合作为必备基线。</td><td>难表达强交互和分段退化。</td><td>小到中等；高维时需正则化与折内选择。</td></tr>
+              <tr><td>树模型</td><td>以分段常数和特征交互逼近非线性。</td><td>适合表格特征、尺度不敏感、可处理交互。</td><td>域外外推弱，可能学习数据集/周期代理。</td><td>中等；小样本需控制深度和叶节点。</td></tr>
+              <tr><td>核方法</td><td>在相似度空间进行平滑非线性回归。</td><td>小样本下可表达平滑曲面。</td><td>对尺度/核参数敏感，样本增大时训练和内存成本上升。</td><td>小到中等。</td></tr>
+              <tr><td>神经网络</td><td>通过表示学习拟合高维或序列模式。</td><td>可消费曲线/序列并共享跨任务表示。</td><td>数据与算力要求高，调参空间大，复现实验需严格固定。</td><td>中到大；小样本须强基线和消融。</td></tr>
+              <tr><td>物理残差</td><td>先验模型给出主趋势，学习器只拟合系统性偏差。</td><td>可提高可解释性并约束域外行为。</td><td>先验错误会传递；残差目标和基准模型必须可审计。</td><td>小到中等，取决于先验质量。</td></tr>
+              <tr><td>PINN</td><td>把物理方程或单调/边界惩罚写入损失。</td><td>可联合数据拟合与软约束。</td><td>权重敏感、优化困难；“带物理损失”不自动证明物理正确或优于经典模型。</td><td>中到大；需要独立验证约束收益。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="callout"><strong>责任边界：</strong>点估计器负责 <code>y_pred</code>；不确定度模块负责区间与 PICP；后处理负责范围、平滑或单调政策；周期重标定使用目标域已授权标签并属于 Adaptation Run。四者必须分别登记，不能把组合效果归因成单一算法能力。</p>
+        <h3>方法与公开数据资源综述</h3>
+        <p><strong>数据驱动方法：</strong>公开项目常见路线包括手工循环特征配合线性/树/核回归，以及直接学习充放电序列的 MLP、CNN、RNN 或 Transformer。项目资料显示，经典表格模型应保留为强基线，深度模型的价值需在完全相同的切分、输入和统计单位下验证，不能从模型复杂度推断领先。</p>
+        <p><strong>混合物理方法：</strong>SOHbenchmark 提供 XJTU/MIT 的多输入基准背景；PINN4SOH 展示把退化约束与神经网络联合的路径；本项目另有物理残差、范围门和轨迹约束。它们的共同价值是显式写出先验，但必须报告先验、数据项和后处理各自贡献。</p>
+        <p><strong>不确定度方法：</strong>多 seed 波动描述训练随机性，预测区间描述样本条件不确定度，两者不可互换。项目使用共形校准等模块时，应以留出资产形成校准证据，并同时报告覆盖率 PICP 与区间宽度；若校准使用目标电芯早期标签，则应归类为 Adaptation Run，而非 Frozen Inference Run。</p>
+        <p><strong>公开数据差异：</strong>NASA PCoE、CALCE、Oxford Battery Degradation Dataset、XJTU/MIT（SOHbenchmark）、HUST、Sandia SNL/BatteryArchive、UConn-ISU-ILCC 等资源覆盖 LFP、NMC/NCM、LCO/NCA 等不同体系与圆柱/软包等形态。恒温实验、动态工况、倍率/DOD/温度矩阵和现场浅充浅放并非同一任务；采样频率、RPT 间隔、充放电阶段、额定或初始容量归一化、标签插值和 EOL 口径也不同。因此同名 SOH、同名数据组织项目甚至同名机构数据都不能默认可合并或直接比较。</p>
+        <p>可核验的项目/作者参考包括：Microsoft BatteryML；Wang Fujin 等的 SOHbenchmark 与 PINN4SOH；Ruifeng Tan 等的 BatteryLife；Toyota Research Institute BEEP；Sandia BatteryArchive；NASA PCoE；CALCE；Oxford Battery Degradation Dataset；Ma 等的 HUST 数据；Preger 等的 SNL 研究；Nowacki 等的 UConn-ISU-ILCC 数据。这里列名称用于方法与数据边界定位，不作 SOTA 排名，也不显示出版年份。</p>
+        <h3>项目差距</h3>
+        <div class="status-grid" aria-label="领域能力差距">
+          <article class="status-card status-current"><span class="status-label">当前已实现</span><h3>契约与基础证据</h3><p>已有处理后表发现、DatasetSnapshot 基础、目标剥离、折内 FeatureState、结构化失败、逐样本/指标记录和证据摘要；当前模型资产可用于独立推理任务。</p></article>
+          <article class="status-card status-domain"><span class="status-label">已接入领域能力</span><h3>曲线与模型能力</h3><p>已接入多种充电摘要、固定窗口、IC/DVA、SOH 轨迹、经典/深度/PINN 候选、共形区间与完整看板，但各数据源原始曲线和标签谱系覆盖不完全相同。</p></article>
+          <article class="status-card status-target"><span class="status-label">目标架构</span><h3>仍需建设</h3><p>统一数据卡与许可/标签谱系、跨化学体系正式覆盖、冻结模型迁移的独立赛道、轨迹/曲线/特征/样本证据联动，以及资产 bootstrap、配对效应量和统计置信证据仍需完善。</p></article>
+        </div>
+      </section>
+      <section id="evaluation" class="chapter">
+        <h2>公平测评协议与指标</h2>
+        <h3>协议定义</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>协议</th><th>留出边界</th><th>回答的问题</th><th>主要风险</th></tr></thead>
+            <tbody>
+              <tr><td>LOCO</td><td>Leave-One-Cell-Out，整颗电芯留出。</td><td>同数据来源内对未见电芯的泛化。</td><td>电芯数量少时方差大；同批次/同协议仍可能过于相似。</td></tr>
+              <tr><td>LODO</td><td>Leave-One-Dataset-Out，整套数据来源留出。</td><td>跨设备、采样、工况或机构的数据域迁移。</td><td>标签定义与输入 schema 不一致可能使任务不可比。</td></tr>
+              <tr><td>LCHO</td><td>Leave-One-Chemistry-Out，整类化学体系留出。</td><td>跨 LFP、NMC/NCM、LCO/NCA 等体系的外推。</td><td>化学体系常与形态/协议共变，结论需避免错误因果归因。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>运行类型</th><th>允许动作</th><th>禁止混淆</th></tr></thead>
+            <tbody>
+              <tr><td>Training Run</td><td>在训练折拟合特征状态和模型，产出新的 ModelArtifact。</td><td>不得查看 held-out 真值或用全量数据预计算特征。</td></tr>
+              <tr><td>Adaptation Run</td><td>基于声明的目标域校准子集派生新模型/偏置/区间，并记录成本与谱系。</td><td>不得覆盖基础模型，也不得把适配结果标成零样本迁移。</td></tr>
+              <tr><td>Frozen Inference Run</td><td>冻结模型与 FeatureState，只在未见快照上执行 transform/predict 和性能计时。</td><td>不得 fit、微调、周期重标定或利用目标测试标签。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>公平比较的共同前提</h3>
+        <ol>
+          <li><strong>同 DatasetSnapshot：</strong>字节摘要、清洗规则、标签和样本身份一致。</li>
+          <li><strong>同协议：</strong>LOCO/LODO/LCHO、fold 生成规则和 held-out 单位一致。</li>
+          <li><strong>同 seed 集：</strong>随机性真实注入估计器、采样器和初始化路径；不能只在元数据里改数字。</li>
+          <li><strong>同 held-out 覆盖：</strong>尝试、成功、失败的执行单元分母一致，失败不能从均值分母中消失。</li>
+          <li><strong>同特征拟合边界：</strong>填充、缩放、选择、平滑、校准和超参数只从相应训练/校准视图学习。</li>
+        </ol>
+        <p>只有 TaskSpec、DatasetSnapshot、ProtocolSpec、MetricSpec 和 PolicySpec 构成的 comparison key 一致，候选才可进入同一正式比较。候选本身、run type、seed 或幂等请求可不同，但不能借此改变共同任务口径。</p>
+        <h3>指标与统计单位</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>指标</th><th>含义</th><th>解读边界</th></tr></thead>
+            <tbody>
+              <tr><td>MAE</td><td>绝对误差平均值，单位与 SOH 一致。</td><td>直观但不突出少量大误差。</td></tr>
+              <tr><td>RMSE</td><td>平方误差均值开方。</td><td>对大误差更敏感；不可与 MAE 数字直接排名。</td></tr>
+              <tr><td>MAPE</td><td>相对真值的绝对百分比误差。</td><td>真值接近零时不稳定，必须声明分母政策。</td></tr>
+              <tr><td>偏差</td><td>带符号平均误差。</td><td>正负误差会抵消，应与 MAE/RMSE 联读。</td></tr>
+              <tr><td>最大误差</td><td>最差样本绝对误差。</td><td>对离群点敏感，但能暴露高风险失败。</td></tr>
+              <tr><td>PICP</td><td>Prediction Interval Coverage Probability，真值落入预测区间的比例。</td><td>覆盖高不代表区间好；必须同时报告平均宽度。</td></tr>
+              <tr><td>单调性</td><td>轨迹方向一致程度或违反率。</td><td>真实容量恢复可能存在，不能机械要求严格下降。</td></tr>
+              <tr><td>越界率</td><td>预测超出 PolicySpec 允许 SOH 范围的比例。</td><td>后处理截断后的值不能掩盖原始越界证据。</td></tr>
+              <tr><td>EOL</td><td>达到退役阈值的周期/时间误差或分类判断。</td><td>依赖阈值、插值和截尾政策，需单独声明。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p><strong>轨迹级：</strong>先在单一电芯随循环的序列上计算误差、单调性、EOL 和区间覆盖，保留时间结构。<strong>资产级：</strong>每颗电芯先形成统计量，再等权或按预声明权重聚合，并可做资产 bootstrap。<strong>数据集级：</strong>汇总资产分布、覆盖和最差域；不能让长轨迹仅凭循环多而支配结论。</p>
+        <h3>排行资格与失败处理</h3>
+        <ul>
+          <li><strong>完整覆盖：</strong>所有必需组合成功、证据有限且比较键一致，才可按 PolicySpec 进入正式排行。</li>
+          <li><strong>部分成功：</strong>至少一个单元成功且至少一个失败；必须显示 attempted/succeeded/failed 和失败类别，默认不产生正常验收 verdict，也不能与完整覆盖候选等价排序。</li>
+          <li><strong>失败组合：</strong>全失败、超时、资源耗尽、NaN 或证据不完整均保留为一等结果，不能删行后重算均值。</li>
+          <li><strong>不具可比性：</strong>快照、协议、指标版本、特征预算或 held-out 覆盖不同的结果分榜展示，不发布“更优”结论。</li>
+        </ul>
+        <div class="status-grid" aria-label="公平测评实施状态">
+          <article class="status-card status-current"><span class="status-label">当前已实现</span><h3>基础公平性</h3><p>comparison key、seed 字段、目标剥离、折内特征状态、有限值验证、结构化失败和 complete/partial/failed 覆盖语义已有测试。</p></article>
+          <article class="status-card status-domain"><span class="status-label">已接入领域能力</span><h3>SOH 协议与指标</h3><p>LOCO、LODO、LCHO、训练/冻结推理、MAE、RMSE、PICP、轨迹指标和物理门已有领域实现或入口，具体可用性以目录和运行预检为准。</p></article>
+          <article class="status-card status-target"><span class="status-label">目标架构</span><h3>正式统计证据</h3><p>统一资产 bootstrap、配对检验、效应量、最差域统计、完整签署政策和跨化学正式矩阵仍是建设目标。</p></article>
+        </div>
+      </section>
+      <section id="contracts" class="chapter">
+        <h2>核心契约与证据对象</h2>
+        <p class="contract-chain">RunSpec -&gt; DatasetSnapshot -&gt; target-stripped fold view
+        -&gt; fitted FeatureState -&gt; ModelArtifact
+        -&gt; PredictionRecord -&gt; Metrics -&gt; EvidencePack -&gt; Publication</p>
+        <h3>对象职责</h3>
+        <dl>
+          <dt><strong>RunSpec</strong></dt>
+          <dd>不可变地引用 task、dataset、protocol、metric、policy 和候选内容，并记录 run type、seeds 与幂等键。comparison key 只由共同任务口径生成，使候选变化不改变比较组，而快照、协议、指标或政策变化必然分组。</dd>
+          <dt><strong>DatasetSnapshot</strong></dt>
+          <dd>固定输入表、样本身份、schema、来源/标签谱系和内容 digest。重新扫描目录不应悄悄改变既有运行；新字节产生新快照引用。</dd>
+          <dt><strong>Target-stripped fold view</strong></dt>
+          <dd>算法可见的 held-out 输入中不含 <code>soh</code> 或可逆推出真值的字段。训练标签只进入训练侧 fit；Metric Worker 用 <code>sample_id</code> 在内部连接真值。这是核心泄漏边界。</dd>
+          <dt><strong>FeatureState 与 ModelArtifact</strong></dt>
+          <dd>FeatureState 保存仅由训练/校准折拟合的填充、缩放、选择或平滑状态及其摘要；ModelArtifact 保存模型字节、输入 schema、来源运行和所引用 FeatureState。Frozen Inference Run 只能消费，不能覆盖。</dd>
+          <dt><strong>PredictionRecord</strong></dt>
+          <dd>至少绑定 run、candidate、featureset、protocol、fold、seed、dataset、cell、cycle 和 sample 身份，并要求 <code>y_pred</code> 等数值为有限实数。执行/样本键不得重复；测试真值不是候选输出要求。</dd>
+          <dt><strong>Metrics</strong></dt>
+          <dd>记录指标名/版本、值、单位、方向、aggregation_scope、贡献 sample_ids 与 cell_ids。有限值、区间顺序和重复身份均在写入证据前验证。</dd>
+          <dt><strong>EvidencePack</strong></dt>
+          <dd>manifest 固定 run identity、comparison key 和产物列表；每个产物记录相对路径、大小和 SHA-256。写入采用独占临时文件、刷新后原子替换；读取时重新验证路径、大小和摘要，篡改或缺失即失败。</dd>
+          <dt><strong>Publication</strong></dt>
+          <dd>只有验证通过且满足资格政策的证据才能形成发布视图。当前文件发布使用不可变 generation、<code>CURRENT.json</code> 和 last-known-good 思路，避免半成品覆盖活动版本。</dd>
+        </dl>
+        <h3>状态、结果与裁决必须分离</h3>
+        <p><code>execution_state</code> 描述生命周期位置；<code>outcome</code> 描述执行单元完成结果；<code>verdict</code> 描述政策/人工是否接受发布。运行结束、全部算完和可以发布是三个不同事实。</p>
+        <div class="diagram" role="img" aria-label="运行状态、执行结果与裁决三条语义通道">
+          <p class="diagram-title">目标架构语义模型</p>
+          <div class="state-lanes" aria-hidden="true">
+            <div class="state-lane"><strong>生命周期</strong><div class="state-nodes"><span class="state-node">queued</span><span class="state-arrow">→</span><span class="state-node">running</span><span class="state-arrow">→</span><span class="state-node">terminal</span></div></div>
+            <div class="state-lane"><strong>terminal outcome</strong><div class="state-nodes"><span class="state-node">succeeded</span><span class="state-node">partially_succeeded</span><span class="state-node">failed</span></div></div>
+            <div class="state-lane"><strong>verdict</strong><div class="state-nodes"><span class="state-node">accepted</span><span class="state-node">rejected</span><span class="state-node">not_evaluated</span></div></div>
+          </div>
+          <ol class="sr-only">
+            <li>生命周期从 queued 到 running，再到 terminal。</li>
+            <li>终态执行结果为 succeeded、partially_succeeded 或 failed。</li>
+            <li>独立裁决为 accepted、rejected 或 not_evaluated。</li>
+          </ol>
+        </div>
+        <p class="callout warning"><strong>当前实现映射：</strong>当前已实现的服务生命周期使用 <code>QUEUED</code>、<code>RUNNING</code>、<code>REVIEW</code>/<code>FAILED</code> 等状态；聚合 <code>outcome</code> 使用 <code>complete</code>、<code>partial</code>、<code>failed</code>；<code>verdict</code> 可见 <code>not_reviewed</code>、<code>pass</code>、<code>warn</code>、<code>fail</code>。上图的 terminal 与 accepted 词组是目标架构的归一化语义，不是当前枚举已替换的声明。</p>
+        <h3>失败与不可变性</h3>
+        <p>当前结构化失败类别包括 <code>INPUT_CONTRACT</code>、<code>DATA_QC</code>、<code>LEAKAGE</code>、<code>ALGORITHM</code>、<code>RESOURCE</code>、<code>INFRASTRUCTURE</code>、<code>METRIC</code> 和 <code>POLICY</code>。失败记录保留类型、信息和执行单元身份，重试产生新 attempt；发布重建产生新 generation。旧 attempt、已引用证据和历史 generation 不应原位修改或因重试被删除。</p>
+        <div class="status-grid" aria-label="契约能力实施状态">
+          <article class="status-card status-current"><span class="status-label">当前已实现</span><h3>Phase 0 契约</h3><p>RunSpec/comparison key、DatasetSnapshot、目标剥离视图、FeatureState、PredictionRecord、Metrics、EvidencePack 验证、结构化失败与不可变发布基础均有代码或测试。</p></article>
+          <article class="status-card status-domain"><span class="status-label">已接入领域能力</span><h3>SOH 身份映射</h3><p><code>dataset</code>、<code>cell_id</code>、<code>cycle_index</code>、<code>soh</code> 及曲线/特征身份已进入领域兼容路径，但完整 RawSegmentRef 与 FeatureProvenance 覆盖仍不统一。</p></article>
+          <article class="status-card status-target"><span class="status-label">目标架构</span><h3>独立审查与签署</h3><p>隔离 Worker 证明、统一 terminal/outcome/verdict 枚举、组织身份签署、完整审计事件和证据查询索引属于规划能力。</p></article>
+        </div>
+      </section>
       <section id="frontend" class="chapter"><h2>前端五页签功能说明</h2><p>训练测评、推理测评、模型资产库、SOH 完整看板和全局诊断承担不同职责。</p></section>
       <section id="setup" class="chapter"><h2>工具安装、启动与配置</h2><p>前端通过静态 HTTP 服务加载，后端 API 默认连接本机 Battery SOH 数据目录。</p></section>
       <section id="onboarding" class="chapter"><h2>新资源接入</h2><p>数据集、算法、特征方案和冻结模型均先验证，成功后再事务性激活。</p></section>

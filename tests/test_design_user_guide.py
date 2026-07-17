@@ -18,6 +18,40 @@ def test_design_user_guide_contains_every_required_chapter():
         assert f'id="{section_id}"' in text
 
 
+def test_design_user_guide_covers_fabric_and_soh_domain_terms():
+    text = GUIDE.read_text(encoding="utf-8")
+    expected = {
+        "RunSpec",
+        "DatasetSnapshot",
+        "PredictionRecord",
+        "EvidencePack",
+        "execution_state",
+        "outcome",
+        "verdict",
+        "LOCO",
+        "LODO",
+        "LCHO",
+        "Frozen Inference Run",
+        "MAE",
+        "RMSE",
+        "PICP",
+        "IC/DVA",
+        "partial_window",
+        "capacity_time",
+        "Target-stripped fold view",
+    }
+    assert expected <= set(term for term in expected if term in text)
+
+
+def test_design_user_guide_keeps_current_and_target_capabilities_distinct():
+    text = GUIDE.read_text(encoding="utf-8")
+    assert text.count("当前已实现") >= 5
+    assert text.count("已接入领域能力") >= 3
+    assert text.count("目标架构") >= 3
+    assert "隔离 Worker" in text
+    assert "规划能力" in text
+
+
 def test_design_user_guide_rejects_multitoken_stylesheet_rel(tmp_path):
     guide = tmp_path / "guide.html"
     guide.write_text(
