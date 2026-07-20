@@ -210,6 +210,67 @@ class SectionCodeBlockParser(HTMLParser):
         self.depth -= 1
 
 
+class StructuredStateLaneParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.current_lane = None
+        self.lane_depth = 0
+        self.lanes = {}
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        lane = values.get("data-state-lane")
+        if lane is not None:
+            assert self.current_lane is None, "structured state lanes cannot nest"
+            self.current_lane = lane
+            self.lane_depth = 1
+            self.lanes.setdefault(lane, [])
+            return
+        if self.current_lane is None:
+            return
+        self.lane_depth += 1
+        classes = set(values.get("class", "").split())
+        if "state-node" in classes:
+            self.lanes[self.current_lane].append(values.get("data-state-value"))
+
+    def handle_endtag(self, tag):
+        if self.current_lane is None:
+            return
+        self.lane_depth -= 1
+        if self.lane_depth == 0:
+            self.current_lane = None
+
+
+class StructuredFactParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.datasets = {}
+        self.featuresets = {}
+        self.metric_truth_boundaries = []
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        dataset = values.get("data-dataset-id")
+        if dataset is not None:
+            self.datasets[dataset] = values.get("data-integration-status")
+
+        featureset = values.get("data-featureset")
+        if featureset is not None:
+            self.featuresets[featureset] = {
+                key: value
+                for key, value in values.items()
+                if key.startswith("data-")
+            }
+
+        if "data-metric-truth-current" in values:
+            self.metric_truth_boundaries.append(
+                (
+                    values.get("data-metric-truth-current"),
+                    values.get("data-metric-truth-target"),
+                )
+            )
+
+
 def _guide_section_text(section_id):
     parser = SectionTextParser(section_id)
     parser.feed(GUIDE.read_text(encoding="utf-8"))
@@ -936,6 +997,8 @@ def test_delivery_checklist_covers_complete_freeze_contract():
         "完整 pytest",
     }
     assert required <= {item for item in required if item in checklist}
+    assert "三条受众阅读路径，加一个“全部”切换项" in checklist
+    assert "五种阅读路径" not in checklist
 
 
 def test_architecture_distinguishes_target_flow_from_current_phase0_path():
@@ -971,11 +1034,41 @@ def test_metric_truth_and_publication_claims_are_scoped_by_layer():
     assert "目标资格政策" in contracts
 
 
-def test_target_outcomes_use_canonical_vocabulary():
+def test_target_state_lanes_use_exact_authoritative_value_sets():
+    parser = StructuredStateLaneParser()
+    parser.feed(GUIDE.read_text(encoding="utf-8"))
+
+    assert set(parser.lanes) == {"target-outcome", "target-verdict"}
+    assert parser.lanes["target-outcome"] == [
+        "complete",
+        "partial",
+        "failed",
+        "timed_out",
+        "cancelled",
+        "invalid",
+    ]
+    assert parser.lanes["target-verdict"] == [
+        "pass",
+        "warn",
+        "fail",
+        "not_applicable",
+        "not_reviewed",
+    ]
+
+
+def test_target_state_explanations_use_authoritative_vocabulary_only():
     contracts = _guide_section_text("contracts")
+    text = _guide_without_embedded_images()
 
     assert "complete、partial、failed、timed_out、cancelled、invalid" in contracts
-    assert "partially_succeeded" not in contracts
+    assert "pass、warn、fail、not_applicable、not_reviewed" in contracts
+    for forbidden in (
+        "partially_succeeded",
+        "accepted",
+        "rejected",
+        "not_evaluated",
+    ):
+        assert forbidden not in text
 
 
 def test_domain_claims_match_current_feature_policy_and_dataset_integration():
@@ -996,6 +1089,44 @@ def test_domain_claims_match_current_feature_policy_and_dataset_integration():
     }
 
     assert required <= {term for term in required if term in domain}
+
+
+def test_structured_fact_markers_preserve_direction_and_current_target_scope():
+    parser = StructuredFactParser()
+    parser.feed(GUIDE.read_text(encoding="utf-8"))
+
+    assert parser.datasets == {
+        "uconn-isu-ilcc-lfp-gr": "integrated",
+        "isu-ilcc-figshare-nmc-gr": "research-only-not-integrated",
+    }
+    assert parser.featuresets["capacity_time"]["data-feature-policy-status"] == (
+        "open-gap"
+    )
+    assert parser.featuresets["capacity_time"]["data-current-risk-feature"] == (
+        "cycle_fraction"
+    )
+    assert parser.featuresets["ic_dva"]["data-current-columns"].split() == [
+        "ic_peak_ah_per_v",
+        "ic_peak_voltage_v",
+    ]
+    assert parser.metric_truth_boundaries == [
+        ("in-process", "exclusive-metric-worker")
+    ]
+
+
+def test_design_user_guide_forbids_typical_reversed_fact_claims():
+    text = _guide_without_embedded_images()
+    reversed_claims = (
+        "UConn-ISU-ILCC LFP/Gr 当前未接入",
+        "ISU-ILCC Figshare NMC/Gr 当前已接入",
+        "capacity_time 的 FeaturePolicy gap 已关闭",
+        "capacity_time 不含 cycle_fraction",
+        "当前内建 ic_dva 包含 DVA、面积和形状",
+        "当前只允许 Metric Worker 连接测试真值",
+        "当前 Metric Worker 独占测试真值",
+    )
+
+    assert not [claim for claim in reversed_claims if claim in text]
 
 
 def test_battery_dashboard_is_transactional_sync_target_not_tracked_payload():

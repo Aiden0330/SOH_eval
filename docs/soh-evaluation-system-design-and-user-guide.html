@@ -380,9 +380,9 @@
             <tbody>
               <tr><td><code>full</code></td><td>声明允许的通用统计与领域特征。</td><td>覆盖较广，但必须经 FeaturePolicy 排除标签、未来信息和仅部分数据域可得的代理变量。</td></tr>
               <tr><td><code>voltage</code></td><td>充电电压统计、形状和固定窗口摘要。</td><td>易解释；受协议、电流、温度和采样密度影响。</td></tr>
-              <tr><td><code>ic_dva</code></td><td>当前内建 ic_dva 只有 IC 峰高和峰位。</td><td>DVA、面积和形状属于方法背景或目标能力；微分会放大噪声，需明确平滑和窗口。</td></tr>
+              <tr data-featureset="ic_dva" data-current-columns="ic_peak_ah_per_v ic_peak_voltage_v"><td><code>ic_dva</code></td><td>当前内建 ic_dva 只有 IC 峰高和峰位。</td><td>DVA、面积和形状属于方法背景或目标能力；微分会放大噪声，需明确平滑和窗口。</td></tr>
               <tr><td><code>partial_window</code></td><td>只使用可部署的局部充电电压窗口。</td><td>适合浅充或数据不完整场景；不同化学体系的平台区不可直接复用同一窗口。</td></tr>
-              <tr><td><code>capacity_time</code></td><td>窗口容量、充电时长和相关速率；当前还包含 <code>cycle_fraction</code>。</td><td><code>cycle_fraction</code> 是待关闭的 FeaturePolicy gap；在关闭前不能宣称该方案已经全面满足未来信息隔离。</td></tr>
+              <tr data-featureset="capacity_time" data-feature-policy-status="open-gap" data-current-risk-feature="cycle_fraction"><td><code>capacity_time</code></td><td>窗口容量、充电时长和相关速率；当前还包含 <code>cycle_fraction</code>。</td><td><code>cycle_fraction</code> 是待关闭的 FeaturePolicy gap；在关闭前不能宣称该方案已经全面满足未来信息隔离。</td></tr>
             </tbody>
           </table>
         </div>
@@ -410,7 +410,7 @@
         <p><strong>数据驱动方法：</strong>公开项目常见路线包括手工循环特征配合线性/树/核回归，以及直接学习充放电序列的 MLP、CNN、RNN 或 Transformer。项目资料显示，经典表格模型应保留为强基线，深度模型的价值需在完全相同的切分、输入和统计单位下验证，不能从模型复杂度推断领先。</p>
         <p><strong>混合物理方法：</strong>SOHbenchmark 提供 XJTU/MIT 的多输入基准背景；PINN4SOH 展示把退化约束与神经网络联合的路径；本项目另有物理残差、范围门和轨迹约束。它们的共同价值是显式写出先验，但必须报告先验、数据项和后处理各自贡献。</p>
         <p><strong>不确定度方法：</strong>多 seed 波动描述训练随机性，预测区间描述样本条件不确定度，两者不可互换。项目使用共形校准等模块时，应以留出资产形成校准证据，并同时报告覆盖率 PICP 与区间宽度；若校准使用目标电芯早期标签，则应归类为 Adaptation Run，而非 Frozen Inference Run。</p>
-        <p><strong>公开数据差异：</strong>NASA PCoE、CALCE、Oxford Battery Degradation Dataset、XJTU/MIT（SOHbenchmark）、HUST、Sandia SNL/BatteryArchive 等资源覆盖 LFP、NMC/NCM、LCO/NCA 等不同体系与圆柱/软包等形态。当前已接入的是 UConn-ISU-ILCC LFP/Gr 数据；ISU-ILCC Figshare NMC/Gr 只出现在研究资料中，当前未接入。恒温实验、动态工况、倍率/DOD/温度矩阵和现场浅充浅放并非同一任务；采样频率、RPT 间隔、充放电阶段、额定或初始容量归一化、标签插值和 EOL 口径也不同。因此同名 SOH、同名数据组织项目甚至同名机构数据都不能默认可合并或直接比较。</p>
+        <p><strong>公开数据差异：</strong>NASA PCoE、CALCE、Oxford Battery Degradation Dataset、XJTU/MIT（SOHbenchmark）、HUST、Sandia SNL/BatteryArchive 等资源覆盖 LFP、NMC/NCM、LCO/NCA 等不同体系与圆柱/软包等形态。<span data-dataset-id="uconn-isu-ilcc-lfp-gr" data-integration-status="integrated">当前已接入的是 UConn-ISU-ILCC LFP/Gr 数据</span>；<span data-dataset-id="isu-ilcc-figshare-nmc-gr" data-integration-status="research-only-not-integrated">ISU-ILCC Figshare NMC/Gr 只出现在研究资料中，当前未接入</span>。恒温实验、动态工况、倍率/DOD/温度矩阵和现场浅充浅放并非同一任务；采样频率、RPT 间隔、充放电阶段、额定或初始容量归一化、标签插值和 EOL 口径也不同。因此同名 SOH、同名数据组织项目甚至同名机构数据都不能默认可合并或直接比较。</p>
         <p>可核验的项目/作者参考包括：Microsoft BatteryML；Wang Fujin 等的 SOHbenchmark 与 PINN4SOH；Ruifeng Tan 等的 BatteryLife；Toyota Research Institute BEEP；Sandia BatteryArchive；NASA PCoE；CALCE；Oxford Battery Degradation Dataset；Ma 等的 HUST 数据；Preger 等的 SNL 研究；Nowacki 等的 UConn-ISU-ILCC 数据。这里列名称用于方法与数据边界定位，不作 SOTA 排名，也不显示出版年份。</p>
         <h3>项目差距</h3>
         <div class="status-grid" aria-label="领域能力差距">
@@ -496,7 +496,7 @@
           <dt><strong>DatasetSnapshot</strong></dt>
           <dd>固定输入表、样本身份、schema、来源/标签谱系和内容 digest。重新扫描目录不应悄悄改变既有运行；新字节产生新快照引用。</dd>
           <dt><strong>Target-stripped fold view</strong></dt>
-          <dd>算法可见的 held-out 输入中不含 <code>soh</code> 或可逆推出真值的字段。训练标签只进入训练侧 fit。Metric Worker 独占真值只属于目标架构；当前服务会剥离候选输入中的目标列并在内部计算指标。这是核心泄漏边界。</dd>
+          <dd data-metric-truth-current="in-process" data-metric-truth-target="exclusive-metric-worker">算法可见的 held-out 输入中不含 <code>soh</code> 或可逆推出真值的字段。训练标签只进入训练侧 fit。Metric Worker 独占真值只属于目标架构；当前服务会剥离候选输入中的目标列并在内部计算指标。这是核心泄漏边界。</dd>
           <dt><strong>FeatureState 与 ModelArtifact</strong></dt>
           <dd>FeatureState 保存仅由训练/校准折拟合的填充、缩放、选择或平滑状态及其摘要；ModelArtifact 保存模型字节、输入 schema、来源运行和所引用 FeatureState。Frozen Inference Run 只能消费，不能覆盖。</dd>
           <dt><strong>PredictionRecord</strong></dt>
@@ -514,16 +514,16 @@
           <p class="diagram-title">目标架构语义模型</p>
           <div class="state-lanes" aria-hidden="true">
             <div class="state-lane"><strong>生命周期</strong><div class="state-nodes"><span class="state-node">queued</span><span class="state-arrow">→</span><span class="state-node">running</span><span class="state-arrow">→</span><span class="state-node">terminal</span></div></div>
-            <div class="state-lane"><strong>terminal outcome</strong><div class="state-nodes"><span class="state-node">complete</span><span class="state-node">partial</span><span class="state-node">failed</span><span class="state-node">timed_out</span><span class="state-node">cancelled</span><span class="state-node">invalid</span></div></div>
-            <div class="state-lane"><strong>verdict</strong><div class="state-nodes"><span class="state-node">accepted</span><span class="state-node">rejected</span><span class="state-node">not_evaluated</span></div></div>
+            <div class="state-lane" data-state-lane="target-outcome"><strong>terminal outcome</strong><div class="state-nodes"><span class="state-node" data-state-value="complete">complete</span><span class="state-node" data-state-value="partial">partial</span><span class="state-node" data-state-value="failed">failed</span><span class="state-node" data-state-value="timed_out">timed_out</span><span class="state-node" data-state-value="cancelled">cancelled</span><span class="state-node" data-state-value="invalid">invalid</span></div></div>
+            <div class="state-lane" data-state-lane="target-verdict"><strong>verdict</strong><div class="state-nodes"><span class="state-node" data-state-value="pass">pass</span><span class="state-node" data-state-value="warn">warn</span><span class="state-node" data-state-value="fail">fail</span><span class="state-node" data-state-value="not_applicable">not_applicable</span><span class="state-node" data-state-value="not_reviewed">not_reviewed</span></div></div>
           </div>
         </div>
         <ol id="diagram-state-fallback" class="diagram-fallback sr-only">
           <li>生命周期从 queued 到 running，再到 terminal。</li>
           <li>目标架构的终态执行结果为 complete、partial、failed、timed_out、cancelled、invalid。</li>
-          <li>独立裁决为 accepted、rejected 或 not_evaluated。</li>
+          <li>目标架构的 verdict 精确为 pass、warn、fail、not_applicable、not_reviewed。</li>
         </ol>
-        <p class="callout warning"><strong>当前实现映射：</strong>当前已实现的服务生命周期使用 <code>QUEUED</code>、<code>RUNNING</code>、<code>REVIEW</code>/<code>FAILED</code> 等状态；聚合 <code>outcome</code> 当前实现 <code>complete</code>、<code>partial</code>、<code>failed</code> 子集，目标规范词汇完整为 <code>complete、partial、failed、timed_out、cancelled、invalid</code>；<code>verdict</code> 可见 <code>not_reviewed</code>、<code>pass</code>、<code>warn</code>、<code>fail</code>。上图的 terminal 与 accepted 词组是目标架构的归一化语义，不是当前枚举已替换的声明。</p>
+        <p class="callout warning"><strong>当前实现映射：</strong>当前已实现的服务生命周期使用 <code>QUEUED</code>、<code>RUNNING</code>、<code>REVIEW</code>/<code>FAILED</code> 等状态；聚合 <code>outcome</code> 当前实现 <code>complete</code>、<code>partial</code>、<code>failed</code> 子集，目标规范词汇完整为 <code>complete、partial、failed、timed_out、cancelled、invalid</code>；当前 <code>verdict</code> 可见 <code>not_reviewed</code>、<code>pass</code>、<code>warn</code>、<code>fail</code>，目标规范再包含 <code>not_applicable</code>。上图的 target lanes 是目标架构完整语义，不是当前枚举已全部实现的声明。</p>
         <h3>失败与不可变性</h3>
         <p>当前结构化失败类别包括 <code>INPUT_CONTRACT</code>、<code>DATA_QC</code>、<code>LEAKAGE</code>、<code>ALGORITHM</code>、<code>RESOURCE</code>、<code>INFRASTRUCTURE</code>、<code>METRIC</code> 和 <code>POLICY</code>。失败记录保留类型、信息和执行单元身份，重试产生新 attempt；发布重建产生新 generation。旧 attempt、已引用证据和历史 generation 不应原位修改或因重试被删除。</p>
         <div class="status-grid" aria-label="契约能力实施状态">
@@ -895,7 +895,7 @@ GET /api/package/status</code></pre>
             <li><strong>封装：</strong>单文件 HTML、CSS/JavaScript/五张截图全部为内联资产，可直接通过 <code>file://</code> 打开。</li>
             <li><strong>结构：</strong>13 章与当前前端五页签完整；当前实现、已接入领域能力、目标架构三层分明，并分别解释训练与冻结推理。</li>
             <li><strong>视觉：</strong>五张截图均有具体 alt；在 1280×720 与 390×844 检查页面、H1、长路径、图表和关键控件无横向溢出、重叠或裁切。</li>
-            <li><strong>交互：</strong>搜索、清除、阅读路径高亮、目录跳转、复制、折叠/展开、scroll-spy 与 quick rail 均完成浏览器验收；五种阅读路径只高亮不隐藏正文。</li>
+            <li><strong>交互：</strong>搜索、清除、阅读路径高亮、目录跳转、复制、折叠/展开、scroll-spy 与 quick rail 均完成浏览器验收；三条受众阅读路径，加一个“全部”切换项，只高亮不隐藏正文。</li>
             <li><strong>降级：</strong>禁用 JavaScript 时 13 章、内部锚点和五张截图仍可读；打印隐藏交互 chrome 且关键图表不截断；reduced motion 生效。</li>
             <li><strong>离线：</strong>导航后网络请求为 0，console error 为 0；无外部脚本、样式、链接、网络字体或库。</li>
             <li><strong>安全：</strong>正文不含敏感信息；路径、设备别名、受信源码、不受信 Pickle、CORS 与本机绑定等安全边界已明确。</li>

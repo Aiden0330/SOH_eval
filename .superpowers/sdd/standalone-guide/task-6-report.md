@@ -208,3 +208,83 @@ successfully.
   and signed publication remain target architecture, not current capability.
 - The browser acceptance is an authoring-time CDP run; focused pytest retains
   the key search/anchor/clipboard and static delivery regressions.
+
+---
+
+## Independent Review Remediation
+
+The first Task 6 delivery was independently reviewed as NOT APPROVED because its
+target verdict lane used a non-authoritative vocabulary and several important
+fact directions were protected only by loose prose assertions.
+
+### Authoritative Contract
+
+The redesign spec defines the exact target values as:
+
+```text
+outcome = complete / partial / failed / timed_out / cancelled / invalid
+verdict = pass / warn / fail / not_applicable / not_reviewed
+```
+
+The HTML now marks the two target lanes with `data-state-lane` and every value
+with `data-state-value`. A dedicated HTMLParser asserts the exact ordered
+collections, including count and missing attributes, so an extra or reintroduced
+legacy value fails.
+
+The state lane, fallback text, and current-to-target explanation now use the
+authoritative verdict vocabulary. The legacy target verdict words were removed
+from the deliverable.
+
+### Structured Fact Direction
+
+Machine-readable attributes now freeze these relationships:
+
+- UConn-ISU-ILCC LFP/Gr: `integrated`.
+- ISU-ILCC Figshare NMC/Gr: `research-only-not-integrated`.
+- `capacity_time`: `open-gap`, with `cycle_fraction` as the current risk feature.
+- `ic_dva`: current columns are exactly `ic_peak_ah_per_v` and
+  `ic_peak_voltage_v`.
+- Metric truth: current `in-process`; target `exclusive-metric-worker`.
+
+Tests assert the attribute direction and reject representative reversed prose
+claims. The delivery checklist now says there are three audience reading paths
+plus one “all” switch, instead of calling the four controls five paths.
+
+### Remediation TDD
+
+Initial focused RED after adding the structural contracts:
+
+```text
+49 passed, 4 failed
+```
+
+The four failures were the expected missing checklist wording, structured state
+lanes, authoritative verdict explanation, and structured fact markers.
+
+After the HTML update, one test remained overbroad because it rejected the
+legitimate current execution-coverage term `succeeded` outside the target lane:
+
+```text
+52 passed, 1 failed
+```
+
+The global prohibition was narrowed to legacy target values; exact state-lane
+parsing remains responsible for rejecting `succeeded` in a target lane. Final
+focused GREEN:
+
+```text
+53 passed
+```
+
+### Remediation Verification
+
+- Validator: exit 0, 0 issues.
+- Focused guide pytest: 53 passed.
+- Inline JavaScript `node --check`: exit 0.
+- `git diff --check`: exit 0.
+- Sanitized forbidden scan: no unfinished markers, metadata labels, legacy
+  target verdicts, old checklist wording, or representative reversed claims.
+- Unicode marker scan: no U+FFFD or known mojibake.
+- The full suite was intentionally not rerun for this remediation, per the
+  review instruction; final whole-branch verification remains responsible for
+  that run.
