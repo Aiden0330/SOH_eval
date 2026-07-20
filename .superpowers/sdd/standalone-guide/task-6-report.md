@@ -552,3 +552,91 @@ The full Python suite was intentionally not run, per the Round 2 brief.
   `tests/test_design_user_guide.py`.
 - Report append:
   `.superpowers/sdd/standalone-guide/task-6-report.md`.
+
+## Final Whole-Branch Review Remediation Round 3
+
+### Round 3 RED
+
+The reviewer mutation was reproduced directly against the Round 2 validator:
+both remote and relative CSS `image-set(...)` declarations returned zero
+issues. After adding validator and screenshot-helper regressions, this targeted
+command was run before production changes:
+
+```powershell
+$env:PYTHONPATH = "$(Get-Location)\src"
+python -m pytest -q tests/test_design_user_guide.py -k "css_image_set_resources or exactly_one_approved_inline_style_body or css_image_set_without_replacing_html"
+```
+
+It exited 1 with exactly 5 failures:
+
+- remote `image-set("http://127.0.0.1:9/sidecar.png" 1x)` produced no
+  validator issue;
+- relative `image-set("./sidecar.png" 1x)` produced no validator issue;
+- a second harmless `<style>` body produced no validator issue; and
+- both screenshot-helper candidates were accepted instead of raising before
+  replacement.
+
+The helper fixtures started from a distinct old destination with an invalid
+training placeholder. This proved that accepting the candidate would replace
+bytes, while rejection must preserve the old destination byte-for-byte.
+
+### Round 3 Implementation Choice
+
+`GuideParser` now records each complete inline style body independently. The
+validator requires exactly one style body whose SHA-256 is:
+
+```text
+7bd17690456794cd7b62360858891a3fb0ddbed604af10972b39b0d6c8f6b965
+```
+
+This is the CSS analogue of the Round 2 approved script digest. The existing
+`url(...)` and `@import` checks remain useful diagnostics, but safety no longer
+depends on enumerating CSS resource-function spellings. Any future CSS change,
+including `image-set`, requires an explicit approval-contract update.
+
+The screenshot helper was not changed. Its existing complete-candidate
+validation automatically inherits the approved style contract before
+`os.replace`, and both new helper tests prove rejection leaves the old file
+unchanged.
+
+The historical Task 4 plan remains immutable execution history. Its WebP/JPEG
+helper mapping, `.webp` command examples and WebP preference are superseded by
+the Round 2 PNG-only helper/validator contract and must not be used as current
+instructions.
+
+The final HTML, approved style body, inline script and all five screenshot
+payloads were unchanged.
+
+### Round 3 GREEN
+
+The targeted rerun passed all 5 Round 3 mutations. Final focused verification
+from the worktree produced:
+
+```text
+python -m pytest -q tests/test_design_user_guide.py
+  exit 0; 118 tests passed
+python scripts/validate_design_user_guide.py docs/soh-evaluation-system-design-and-user-guide.html
+  exit 0; 0 issues
+python -m py_compile scripts/validate_design_user_guide.py scripts/embed_design_user_guide_screenshots.py
+  exit 0
+node frontend/app/dashboard-core.test.mjs
+  exit 0
+node frontend/app/chinese-ui.test.mjs
+  exit 0
+node frontend/app/native-dashboard.test.mjs
+  exit 0; native dashboard delivery contract passed
+git diff --check
+  exit 0; only Git autocrlf advisory warnings were emitted
+```
+
+The full Python suite was not run; Round 3 requested focused verification.
+
+### Round 3 Commit And Files
+
+- Implementation commit: `b7ecee7`.
+- Changed implementation/test files:
+  `scripts/validate_design_user_guide.py` and
+  `tests/test_design_user_guide.py`.
+- Audit updates:
+  `.superpowers/sdd/standalone-guide/task-6-report.md` and
+  `.superpowers/sdd/progress.md`.
