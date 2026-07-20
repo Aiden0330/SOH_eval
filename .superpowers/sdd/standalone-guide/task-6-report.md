@@ -757,3 +757,28 @@ full-suite evidence remains the controller run at `9b0f567`.
 - Audit updates:
   `.superpowers/sdd/standalone-guide/task-6-report.md` and
   `.superpowers/sdd/progress.md`.
+
+## Final Frozen Gate
+
+Round 4 was followed by a controller-owned frozen verification at
+`9b34ae0`. The deliverable HTML, validator, helper, and tests did not change
+during this gate.
+
+- The full Python suite reached 100% and exited 0. Standard output contained
+  only the existing chemistry-confound and non-finite metric protection
+  warnings; standard error was empty.
+- The focused guide suite passed 121 tests. The validator reported zero
+  issues; Python compilation, all three Node suites, inline JavaScript syntax,
+  and the whole-branch diff check exited 0.
+- Chromium QA passed at 1280 x 720 and 390 x 844 with no horizontal overflow,
+  all 13 chapters and five approved screenshots present, zero HTTP requests,
+  and zero console or page errors. The no-JavaScript view retained all
+  chapters, anchors, and screenshots.
+- Print QA produced 31 intact A4 pages. The long mode guides paginate across
+  pages while screenshots and diagrams remain unsplit; the formerly sparse
+  continuation pages contain continuous content.
+- Two independent final reviewers rechecked their prior findings and returned
+  `APPROVED`, with no remaining Critical, Important, or Minor findings.
+
+The visible HTML contains no commit hash, document version, or publication
+date. Commit identifiers remain only in this internal audit report.

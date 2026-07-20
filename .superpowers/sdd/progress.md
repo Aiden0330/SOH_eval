@@ -46,10 +46,11 @@ Guide Task 3: complete (commits 6da6a35..a0abaf9, independent review clean after
 Guide Task 4: complete (commits a0abaf9..179a3f4, independent review approved after marker-uniqueness and Native loaded-state remediation)
 Guide Task 5: complete (commits 179a3f4..6a28950, independent review approved after interaction-behavior and validator remediation)
 Guide Task 6: complete (commits 6a28950..fac3bf0, independent review approved after authoritative state/fact and visible-text binding remediation)
-Guide final whole-branch review: in progress
+Guide final whole-branch review: complete at 9b34ae0 (two independent reviewers APPROVED after four TDD remediation rounds; no Critical, Important, or Minor findings remain)
 Guide final review remediation Round 1: complete (implementation 208bbca; report 7ee3835; content, publication, offline-resource, helper atomicity, quick-source, and mobile fallback findings closed)
 Guide final review remediation Round 2: complete (implementation f95f1c3; report 299bbbb; ordered attribute, exact script, PNG decode, approved screenshot, and browser evidence findings closed)
 Guide final review remediation Round 3: complete at b7ecee7 (approved single-style SHA-256 closes remote/relative CSS image-set bypass; 118 focused guide tests, validator, py_compile, all three Node suites, and diff check passed)
 Guide plan supersession: historical Task 4 WebP/JPEG helper mappings, `.webp` command examples, and WebP preference are superseded by the Round 2 PNG-only helper/validator contract; the original plan remains unchanged as execution history
 Guide controller full-suite gate after Round 3: complete at 9b0f567 (controller full Python suite reached 100% and exited 0; the Round 3 agent's no-full-suite statement is historical to its focused gate)
 Guide final review remediation Round 4: complete at e3221d1 (single-file/directory publication and generic-builder/guide-helper claims corrected; duplicate nonempty IDs rejected before helper replacement; 13 chapter summary names made unique; print pagination restored; approved style/script digests deliberately advanced; 121 focused guide tests and all requested runtime gates passed)
+Guide final frozen verification: complete at 9b34ae0 (full Python suite reached 100% and exited 0; 121 focused guide tests, validator, three Node suites, inline JavaScript syntax, Python compile, whole-branch diff, clean status, desktop/mobile/no-JS/offline browser QA, and 31-page A4 print QA passed)
