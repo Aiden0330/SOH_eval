@@ -562,15 +562,59 @@ def _png_bytes(width=2, height=2, rgb=(32, 96, 160)):
     )
 
 
-def _valid_capture_set(tmp_path):
-    captures = {}
-    for index, name in enumerate(
-        ("training", "inference", "models", "native", "diagnostics")
-    ):
-        capture = tmp_path / f"{name}.png"
-        capture.write_bytes(
-            _png_bytes(rgb=(32 + index, 96 + index, 160 + index))
+def _png_bytes_with_invalid_zlib_stream(width=2, height=2):
+    def chunk(kind, payload):
+        return (
+            struct.pack(">I", len(payload))
+            + kind
+            + payload
+            + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF)
         )
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", header)
+        + chunk(b"IDAT", b"not-a-zlib-stream")
+        + chunk(b"IEND", b"")
+    )
+
+
+def _non_png_image_bytes(mime):
+    if mime == "image/jpeg":
+        return (
+            b"\xff\xd8\xff\xc0\x00\x11\x08\x00\x01\x00\x01"
+            b"\x03\x01\x11\x00\x02\x11\x00\x03\x11\x00\xff\xd9"
+        )
+    if mime == "image/webp":
+        image_data = b"\x2f\x00\x00\x00\x00"
+        chunk = (
+            b"VP8L"
+            + struct.pack("<I", len(image_data))
+            + image_data
+            + b"\x00"
+        )
+        return (
+            b"RIFF"
+            + struct.pack("<I", 4 + len(chunk))
+            + b"WEBP"
+            + chunk
+        )
+    raise AssertionError(f"unsupported test MIME: {mime}")
+
+
+def _approved_capture_set(tmp_path):
+    source = GUIDE.read_text(encoding="utf-8")
+    captures = {}
+    for name in ("training", "inference", "models", "native", "diagnostics"):
+        match = re.search(
+            rf'<img\b(?=[^>]*data-shot="{name}")'
+            rf'(?=[^>]*src="data:image/png;base64,([^"]+)")[^>]*>',
+            source,
+        )
+        assert match is not None
+        capture = tmp_path / f"{name}.png"
+        capture.write_bytes(base64.b64decode(match.group(1)))
         captures[name] = capture
     return captures
 
@@ -917,6 +961,22 @@ def test_headless_chrome_clears_nonempty_search_before_visible_anchor_jump(
 def test_headless_chrome_mobile_and_no_enhancement_offline_regression(
     tmp_path,
 ):
+    def install_browser_monitor(source):
+        monitor = r"""
+        <script>
+          window.__guideSmokeErrors = [];
+          window.addEventListener("error", (event) => {
+            window.__guideSmokeErrors.push(`error:${event.message}`);
+          }, true);
+          window.addEventListener("unhandledrejection", (event) => {
+            window.__guideSmokeErrors.push(
+              `unhandledrejection:${String(event.reason)}`
+            );
+          });
+        </script>
+        """
+        return source.replace("</head>", f"{monitor}</head>", 1)
+
     driver = r"""
     (async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 100));
@@ -937,6 +997,10 @@ def test_headless_chrome_mobile_and_no_enhancement_offline_regression(
           complete: image.complete,
           width: image.naturalWidth,
         })),
+        httpResources: performance.getEntriesByType("resource")
+          .map((entry) => entry.name)
+          .filter((name) => /^https?:/i.test(name)),
+        runtimeErrors: window.__guideSmokeErrors,
       };
       const output = document.createElement("pre");
       output.id = "smoke-result";
@@ -948,6 +1012,7 @@ def test_headless_chrome_mobile_and_no_enhancement_offline_regression(
     enhanced = _run_chrome_guide_driver(
         tmp_path,
         driver,
+        source_transform=install_browser_monitor,
         window_size=(390, 844),
     )
 
@@ -960,7 +1025,7 @@ def test_headless_chrome_mobile_and_no_enhancement_offline_regression(
             flags=re.DOTALL,
         )
         assert count == 1
-        return stripped
+        return install_browser_monitor(stripped)
 
     no_enhancement = _run_chrome_guide_driver(
         tmp_path,
@@ -975,6 +1040,8 @@ def test_headless_chrome_mobile_and_no_enhancement_offline_regression(
         image["complete"] and image["width"] > 0
         for image in enhanced["images"]
     )
+    assert enhanced["httpResources"] == []
+    assert enhanced["runtimeErrors"] == []
     assert no_enhancement["widthMatches"] is True
     assert no_enhancement["visibleChapters"] == len(REQUIRED_SECTIONS)
     assert no_enhancement["validAnchors"] == len(REQUIRED_SECTIONS)
@@ -983,6 +1050,8 @@ def test_headless_chrome_mobile_and_no_enhancement_offline_regression(
         image["complete"] and image["width"] > 0
         for image in no_enhancement["images"]
     )
+    assert no_enhancement["httpResources"] == []
+    assert no_enhancement["runtimeErrors"] == []
 
 
 def test_headless_chrome_initialization_failure_preserves_mobile_toc(
@@ -1322,6 +1391,98 @@ def test_validator_rejects_zero_declared_image_dimension(tmp_path):
     assert any(issue.code == "image-dimensions" for issue in issues)
 
 
+def test_validator_rejects_declared_dimensions_that_do_not_match_payload(
+    tmp_path,
+):
+    source = GUIDE.read_text(encoding="utf-8")
+    marker = re.search(
+        r'<img\b(?=[^>]*data-shot="training")[^>]*>',
+        source,
+    )
+    assert marker is not None
+    mutated_marker = marker.group(0).replace('width="1440"', 'width="1"', 1)
+    assert mutated_marker != marker.group(0)
+    guide = _write_guide(
+        tmp_path,
+        source.replace(marker.group(0), mutated_marker, 1),
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "image-dimensions" for issue in issues)
+
+
+def test_inspect_image_bytes_rejects_crc_correct_png_with_invalid_zlib_stream():
+    from scripts.validate_design_user_guide import (
+        ImageResourceError,
+        inspect_image_bytes,
+    )
+
+    with pytest.raises(ImageResourceError, match="compressed pixel data"):
+        inspect_image_bytes(
+            "image/png",
+            _png_bytes_with_invalid_zlib_stream(),
+        )
+
+
+def test_validator_rejects_crc_correct_png_with_invalid_zlib_stream(tmp_path):
+    encoded = base64.b64encode(
+        _png_bytes_with_invalid_zlib_stream()
+    ).decode("ascii")
+    source = _replace_shot_src(
+        GUIDE.read_text(encoding="utf-8"),
+        "training",
+        f"data:image/png;base64,{encoded}",
+    )
+    guide = _write_guide(tmp_path, source)
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "image-data" for issue in issues), issues
+
+
+def test_validator_rejects_well_formed_but_unapproved_png(tmp_path):
+    encoded = base64.b64encode(
+        _png_bytes(width=1440, height=800, rgb=(1, 2, 3))
+    ).decode("ascii")
+    source = _replace_shot_src(
+        GUIDE.read_text(encoding="utf-8"),
+        "training",
+        f"data:image/png;base64,{encoded}",
+    )
+    guide = _write_guide(tmp_path, source)
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "image-approval" for issue in issues), issues
+
+
+@pytest.mark.parametrize("mime", ("image/jpeg", "image/webp"))
+def test_inspect_image_bytes_support_is_intentionally_png_only(mime):
+    from scripts.validate_design_user_guide import (
+        ImageResourceError,
+        inspect_image_bytes,
+    )
+
+    with pytest.raises(ImageResourceError, match="unsupported image MIME"):
+        inspect_image_bytes(mime, _non_png_image_bytes(mime))
+
+
+@pytest.mark.parametrize("mime", ("image/jpeg", "image/webp"))
+def test_validator_rejects_non_png_embedded_images(tmp_path, mime):
+    encoded = base64.b64encode(_non_png_image_bytes(mime)).decode("ascii")
+    source = _replace_shot_src(
+        GUIDE.read_text(encoding="utf-8"),
+        "training",
+        f"data:{mime};base64,{encoded}",
+    )
+    guide = _write_guide(tmp_path, source)
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "image-mime" for issue in issues), issues
+
+
 def test_validator_requires_exact_embedded_screenshot_set(tmp_path):
     source = GUIDE.read_text(encoding="utf-8").replace(
         'data-shot="diagnostics"',
@@ -1388,6 +1549,101 @@ def test_validator_reports_bare_image_resource_attribute_instead_of_crashing(
     assert any(issue.code == "image" for issue in issues)
 
 
+def test_validator_rejects_first_duplicate_src_even_when_second_is_embedded(
+    tmp_path,
+):
+    source = GUIDE.read_text(encoding="utf-8")
+    marker = re.search(
+        r'<img\b(?=[^>]*data-shot="training")[^>]*>',
+        source,
+    )
+    assert marker is not None
+    mutated_marker, count = re.subn(
+        r'\bsrc="',
+        'src="./sidecar.png" src="',
+        marker.group(0),
+        count=1,
+    )
+    assert count == 1
+    guide = _write_guide(
+        tmp_path,
+        source.replace(marker.group(0), mutated_marker, 1),
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "duplicate-attribute" for issue in issues), issues
+    assert any(issue.code == "image" for issue in issues), issues
+
+
+def test_validator_rejects_duplicate_attributes_case_insensitively(tmp_path):
+    guide = _write_guide(
+        tmp_path,
+        _replace_once(
+            GUIDE.read_text(encoding="utf-8"),
+            "<body>",
+            '<body CLASS="first" class="second">',
+        ),
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "duplicate-attribute" for issue in issues), issues
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    (
+        (
+            "<body>",
+            '<body style="background-image:url(./sidecar.png)">',
+        ),
+        (
+            "<body>",
+            '<body onload="window[\'fetch\'](\'./sidecar.json\')">',
+        ),
+        (
+            '<a class="skip-link" href="#main-content">',
+            '<a class="skip-link" ping="./audit" href="#main-content">',
+        ),
+        (
+            "<body>",
+            '<body dynsrc="./legacy-sidecar.png">',
+        ),
+    ),
+)
+def test_validator_enforces_explicit_safe_attribute_contract(
+    tmp_path, old, new
+):
+    guide = _write_guide(
+        tmp_path,
+        _replace_once(
+            GUIDE.read_text(encoding="utf-8"),
+            old,
+            new,
+        ),
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "html-attribute" for issue in issues), issues
+
+
+def test_validator_rejects_bracket_member_fetch_in_inline_script(tmp_path):
+    guide = _write_guide(
+        tmp_path,
+        _replace_once(
+            GUIDE.read_text(encoding="utf-8"),
+            "</script>",
+            'window["fetch"]("./sidecar.json");\n  </script>',
+        ),
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "inline-script" for issue in issues), issues
+
+
 @pytest.mark.parametrize(
     "load_site",
     (
@@ -1436,8 +1692,7 @@ def test_embed_screenshots_replaces_each_named_capture(tmp_path):
     from scripts.embed_design_user_guide_screenshots import embed_screenshots
 
     html = _write_guide(tmp_path)
-    capture = tmp_path / "training.png"
-    capture.write_bytes(_png_bytes())
+    capture = _approved_capture_set(tmp_path)["training"]
 
     embed_screenshots(html, {"training": capture})
 
@@ -1548,6 +1803,63 @@ def test_embed_screenshots_rejects_truncated_named_image_without_changing_html(
     assert html.read_bytes() == original
 
 
+def test_embed_screenshots_rejects_invalid_zlib_stream_without_changing_html(
+    tmp_path,
+):
+    from scripts.embed_design_user_guide_screenshots import embed_screenshots
+
+    html = _write_guide(tmp_path)
+    original = html.read_bytes()
+    capture = tmp_path / "training.png"
+    capture.write_bytes(_png_bytes_with_invalid_zlib_stream())
+
+    with pytest.raises(ValueError, match="invalid image"):
+        embed_screenshots(html, {"training": capture})
+
+    assert html.read_bytes() == original
+
+
+def test_embed_screenshots_rejects_unapproved_png_without_changing_html(
+    tmp_path,
+):
+    from scripts.embed_design_user_guide_screenshots import embed_screenshots
+
+    html = _write_guide(tmp_path)
+    original = html.read_bytes()
+    capture = tmp_path / "training.png"
+    capture.write_bytes(
+        _png_bytes(width=1440, height=800, rgb=(1, 2, 3))
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="candidate guide validation failed: image-approval",
+    ):
+        embed_screenshots(html, {"training": capture})
+
+    assert html.read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    ("suffix", "mime"),
+    ((".jpg", "image/jpeg"), (".webp", "image/webp")),
+)
+def test_embed_screenshots_rejects_non_png_formats_without_changing_html(
+    tmp_path, suffix, mime
+):
+    from scripts.embed_design_user_guide_screenshots import embed_screenshots
+
+    html = _write_guide(tmp_path)
+    original = html.read_bytes()
+    capture = tmp_path / f"training{suffix}"
+    capture.write_bytes(_non_png_image_bytes(mime))
+
+    with pytest.raises(ValueError, match="unsupported image type"):
+        embed_screenshots(html, {"training": capture})
+
+    assert html.read_bytes() == original
+
+
 def test_embed_screenshots_candidate_validation_failure_preserves_old_file(
     tmp_path, monkeypatch
 ):
@@ -1556,7 +1868,7 @@ def test_embed_screenshots_candidate_validation_failure_preserves_old_file(
 
     html = _write_guide(tmp_path)
     original = html.read_bytes()
-    captures = _valid_capture_set(tmp_path)
+    captures = _approved_capture_set(tmp_path)
     monkeypatch.setattr(
         embed_module,
         "validate_document",
@@ -1579,7 +1891,7 @@ def test_embed_screenshots_partial_temporary_write_preserves_old_file(
 
     html = _write_guide(tmp_path)
     original = html.read_bytes()
-    captures = _valid_capture_set(tmp_path)
+    captures = _approved_capture_set(tmp_path)
     real_write_text = Path.write_text
 
     def fail_partial_temporary_write(path, text, *args, **kwargs):
@@ -1610,7 +1922,7 @@ def test_embed_screenshots_replace_failure_preserves_old_file(
 
     html = _write_guide(tmp_path)
     original = html.read_bytes()
-    captures = _valid_capture_set(tmp_path)
+    captures = _approved_capture_set(tmp_path)
     monkeypatch.setattr(
         frontend_publish_module,
         "_atomic_replace",
@@ -1631,9 +1943,14 @@ def test_embed_screenshots_post_replace_fsync_failure_leaves_new_file_active(
     import sohbench.frontend_publish as frontend_publish_module
     from scripts.embed_design_user_guide_screenshots import embed_screenshots
 
-    html = _write_guide(tmp_path)
+    source = _replace_shot_src(
+        GUIDE.read_text(encoding="utf-8"),
+        "training",
+        "data:image/png;base64,AA==",
+    )
+    html = _write_guide(tmp_path, source)
     original_hash = hashlib.sha256(html.read_bytes()).hexdigest()
-    captures = _valid_capture_set(tmp_path)
+    captures = _approved_capture_set(tmp_path)
     monkeypatch.setattr(
         frontend_publish_module,
         "_fsync_directory",
@@ -1655,7 +1972,7 @@ def test_embed_screenshots_successfully_replaces_all_valid_image_hashes(
     from scripts.embed_design_user_guide_screenshots import embed_screenshots
 
     html = _write_guide(tmp_path)
-    captures = _valid_capture_set(tmp_path)
+    captures = _approved_capture_set(tmp_path)
     expected_hashes = {
         name: hashlib.sha256(path.read_bytes()).hexdigest()
         for name, path in captures.items()
@@ -1729,11 +2046,7 @@ def test_design_user_guide_embeds_all_five_frontend_captures():
         assert (int(attrs["width"]), int(attrs["height"])) == dimensions
         assert attrs["src"].startswith("data:image/")
         mime, payload = attrs["src"].split(";base64,", maxsplit=1)
-        assert mime in {
-            "data:image/png",
-            "data:image/webp",
-            "data:image/jpeg",
-        }
+        assert mime == "data:image/png"
         decoded = base64.b64decode(payload)
         assert len(decoded) >= 10_000
         assert hashlib.sha256(decoded).hexdigest() == expected_hash

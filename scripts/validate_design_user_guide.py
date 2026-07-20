@@ -3,11 +3,13 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
+import hashlib
 import re
 import struct
 import zlib
 from collections import Counter
 from dataclasses import dataclass
+from functools import lru_cache
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -32,9 +34,42 @@ REQUIRED_STATUS_LABELS = ("当前已实现", "已接入领域能力", "目标架
 REQUIRED_TABS = ("训练测评", "推理测评", "模型资产库", "SOH 完整看板", "全局诊断")
 EXPECTED_SCREENSHOTS = ("training", "inference", "models", "native", "diagnostics")
 MOJIBAKE_MARKERS = ("\ufffd", "Ãƒ", "Ã‚", "Ã¢â€ ", "Ã§â€º", "Ã¦Âµ", "Ã¨Â¯", "锟斤拷")
-SUPPORTED_IMAGE_MIMES = frozenset(
-    {"image/png", "image/jpeg", "image/webp"}
+SUPPORTED_IMAGE_MIMES = frozenset({"image/png"})
+APPROVED_INLINE_SCRIPT_SHA256 = (
+    "96540c4320d4e03999c29fdacfe2133257e21c167d290fb3923e908715469b26"
 )
+APPROVED_SCREENSHOTS = {
+    "training": (
+        "image/png",
+        1440,
+        800,
+        "29c9390192c6e10afbbefe7693dd76842e62b95f81bf87a3b3e6b9fb17909329",
+    ),
+    "inference": (
+        "image/png",
+        1440,
+        800,
+        "cdeec39a1195a9bcc900f5addc8652f95fd165d80a9175838eea25e062dc120f",
+    ),
+    "models": (
+        "image/png",
+        1440,
+        800,
+        "3e2643919718896cf815841fcfe2f8f8437ceb2fa4496293ecffb956b88030f0",
+    ),
+    "native": (
+        "image/png",
+        1110,
+        800,
+        "4a2e268d75be07b6f8e8fff8c43faecbc632945123f64ebe8fbf498e9d8f5333",
+    ),
+    "diagnostics": (
+        "image/png",
+        1440,
+        800,
+        "1400e71b599b3c1ce02d8246b09e9e3817248e5351e00b9caec2d7cf1c09e9cb",
+    ),
+}
 ALLOWED_DOCUMENT_TAGS = frozenset(
     {
         "a",
@@ -81,6 +116,77 @@ ALLOWED_DOCUMENT_TAGS = frozenset(
         "title",
         "tr",
         "ul",
+    }
+)
+GLOBAL_ATTRIBUTES = frozenset({"class", "id", "role", "title"})
+ALLOWED_ATTRIBUTES_BY_TAG = {
+    "a": frozenset({"href"}),
+    "article": frozenset({"data-guide-mode"}),
+    "aside": frozenset({"aria-label"}),
+    "button": frozenset(
+        {
+            "aria-controls",
+            "aria-expanded",
+            "aria-label",
+            "aria-pressed",
+            "data-audience",
+            "data-icon-only",
+            "type",
+        }
+    ),
+    "dd": frozenset(
+        {"data-metric-truth-current", "data-metric-truth-target"}
+    ),
+    "details": frozenset({"open"}),
+    "div": frozenset(
+        {
+            "aria-atomic",
+            "aria-describedby",
+            "aria-hidden",
+            "aria-label",
+            "aria-live",
+            "data-capability-state",
+            "data-state-lane",
+            "data-target-user-confirmation",
+        }
+    ),
+    "html": frozenset({"lang"}),
+    "img": frozenset({"alt", "data-shot", "height", "src", "width"}),
+    "input": frozenset({"autocomplete", "placeholder", "type"}),
+    "label": frozenset({"for"}),
+    "li": frozenset(
+        {"data-capability-state", "data-target-user-confirmation"}
+    ),
+    "meta": frozenset({"charset", "content", "name"}),
+    "nav": frozenset({"aria-label"}),
+    "p": frozenset({"hidden"}),
+    "section": frozenset({"aria-labelledby", "data-paths"}),
+    "span": frozenset(
+        {
+            "aria-hidden",
+            "data-capability-state",
+            "data-current-checks",
+            "data-current-fact",
+            "data-current-values",
+            "data-dataset-id",
+            "data-integration-status",
+            "data-state-value",
+            "data-target-user-confirmation",
+        }
+    ),
+    "tr": frozenset(
+        {
+            "data-current-columns",
+            "data-current-risk-feature",
+            "data-feature-policy-status",
+            "data-featureset",
+        }
+    ),
+}
+ALLOWED_BOOLEAN_ATTRIBUTES = frozenset(
+    {
+        ("details", "open"),
+        ("p", "hidden"),
     }
 )
 RESOURCE_ELEMENT_TAGS = frozenset(
@@ -151,6 +257,15 @@ class ImageResourceError(ValueError):
         self.code = code
 
 
+def _first_attribute_values(
+    attrs: list[tuple[str, str | None]] | tuple[tuple[str, str | None], ...],
+) -> dict[str, str | None]:
+    values: dict[str, str | None] = {}
+    for name, value in attrs:
+        values.setdefault(name.casefold(), value)
+    return values
+
+
 class GuideParser(HTMLParser):
     _VOID_ELEMENTS = {
         "area",
@@ -173,15 +288,19 @@ class GuideParser(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.ids: set[str] = set()
         self.anchors: list[str] = []
-        self.images: list[dict[str, str]] = []
+        self.images: list[dict[str, str | None]] = []
         self.stylesheets: list[str] = []
         self.scripts: list[str] = []
         self.buttons: list[dict[str, object]] = []
         self.inline_styles: list[str] = []
         self.inline_scripts: list[str] = []
-        self.elements: list[tuple[str, dict[str, str | None]]] = []
+        self.script_bodies: list[str] = []
+        self.elements: list[
+            tuple[str, tuple[tuple[str, str | None], ...]]
+        ] = []
         self._in_style = False
         self._in_script = False
+        self._script_parts: list[str] = []
         self._active_button: dict[str, object] | None = None
         self._button_visibility: list[bool] = []
 
@@ -190,8 +309,9 @@ class GuideParser(HTMLParser):
         return str(values.get("aria-hidden") or "").lower() == "true"
 
     def handle_starttag(self, tag: str, attrs) -> None:
-        values = dict(attrs)
-        self.elements.append((tag, values))
+        ordered_attrs = tuple(attrs)
+        values = _first_attribute_values(ordered_attrs)
+        self.elements.append((tag, ordered_attrs))
         if element_id := values.get("id"):
             self.ids.add(element_id)
         if tag == "a" and (href := values.get("href")):
@@ -223,12 +343,14 @@ class GuideParser(HTMLParser):
             self._in_style = True
         if tag == "script":
             self._in_script = True
+            self._script_parts = []
 
     def handle_data(self, data: str) -> None:
         if self._in_style:
             self.inline_styles.append(data)
         if self._in_script:
             self.inline_scripts.append(data)
+            self._script_parts.append(data)
         if (
             self._active_button is not None
             and self._button_visibility
@@ -243,6 +365,8 @@ class GuideParser(HTMLParser):
             self._in_style = False
         if tag == "script":
             self._in_script = False
+            self.script_bodies.append("".join(self._script_parts))
+            self._script_parts = []
         if self._active_button is None:
             return
         if tag == "button":
@@ -256,12 +380,76 @@ def _invalid_image(code: str, message: str) -> ImageResourceError:
     return ImageResourceError(code, message)
 
 
+def _validate_png_pixel_stream(
+    *,
+    width: int,
+    height: int,
+    bit_depth: int,
+    color_type: int,
+    compression_method: int,
+    filter_method: int,
+    interlace_method: int,
+    compressed: bytes,
+) -> None:
+    valid_depths = {
+        0: frozenset({1, 2, 4, 8, 16}),
+        2: frozenset({8, 16}),
+        3: frozenset({1, 2, 4, 8}),
+        4: frozenset({8, 16}),
+        6: frozenset({8, 16}),
+    }
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}
+    if bit_depth not in valid_depths.get(color_type, frozenset()):
+        raise _invalid_image("image-data", "PNG color type or bit depth is invalid")
+    if compression_method != 0 or filter_method != 0:
+        raise _invalid_image("image-data", "PNG compression or filter method is invalid")
+    if interlace_method != 0:
+        raise _invalid_image("image-data", "interlaced PNG is not approved")
+
+    row_bytes = (width * channels[color_type] * bit_depth + 7) // 8
+    expected_size = height * (row_bytes + 1)
+    if expected_size <= 0 or expected_size > 64 * 1024 * 1024:
+        raise _invalid_image("image-data", "PNG decoded pixel data size is invalid")
+
+    decoder = zlib.decompressobj()
+    try:
+        decoded = decoder.decompress(compressed, expected_size + 1)
+        if decoder.unconsumed_tail:
+            raise _invalid_image(
+                "image-data",
+                "PNG compressed pixel data exceeds declared dimensions",
+            )
+        decoded += decoder.flush()
+    except zlib.error as exc:
+        raise _invalid_image(
+            "image-data",
+            "PNG compressed pixel data is invalid",
+        ) from exc
+
+    if (
+        not decoder.eof
+        or decoder.unused_data
+        or len(decoded) != expected_size
+    ):
+        raise _invalid_image(
+            "image-data",
+            "PNG compressed pixel data does not match declared dimensions",
+        )
+    row_offsets = range(0, expected_size, row_bytes + 1)
+    if any(decoded[offset] > 4 for offset in row_offsets):
+        raise _invalid_image("image-data", "PNG row filter is invalid")
+
+
+@lru_cache(maxsize=32)
 def _png_dimensions(payload: bytes) -> tuple[int, int]:
     if not payload.startswith(b"\x89PNG\r\n\x1a\n"):
         raise _invalid_image("image-data", "PNG signature is missing")
 
     offset = 8
     width = height = 0
+    bit_depth = color_type = -1
+    compression_method = filter_method = interlace_method = -1
+    image_data: list[bytes] = []
     seen_header = False
     seen_data = False
     seen_end = False
@@ -285,11 +473,19 @@ def _png_dimensions(payload: bytes) -> tuple[int, int]:
             if kind != b"IHDR" or length != 13:
                 raise _invalid_image("image-data", "PNG IHDR is invalid")
             width, height = struct.unpack(">II", data[:8])
+            (
+                bit_depth,
+                color_type,
+                compression_method,
+                filter_method,
+                interlace_method,
+            ) = data[8:13]
             seen_header = True
         elif kind == b"IHDR":
             raise _invalid_image("image-data", "PNG has duplicate IHDR")
         if kind == b"IDAT":
             seen_data = True
+            image_data.append(data)
         if kind == b"IEND":
             if length != 0 or chunk_end != len(payload):
                 raise _invalid_image("image-data", "PNG IEND is invalid")
@@ -300,119 +496,17 @@ def _png_dimensions(payload: bytes) -> tuple[int, int]:
 
     if not (seen_header and seen_data and seen_end) or offset != len(payload):
         raise _invalid_image("image-data", "PNG is incomplete")
-    return width, height
-
-
-def _jpeg_dimensions(payload: bytes) -> tuple[int, int]:
-    if not payload.startswith(b"\xff\xd8") or not payload.endswith(b"\xff\xd9"):
-        raise _invalid_image("image-data", "JPEG boundaries are invalid")
-
-    offset = 2
-    dimensions = None
-    sof_markers = frozenset(
-        {
-            0xC0,
-            0xC1,
-            0xC2,
-            0xC3,
-            0xC5,
-            0xC6,
-            0xC7,
-            0xC9,
-            0xCA,
-            0xCB,
-            0xCD,
-            0xCE,
-            0xCF,
-        }
+    _validate_png_pixel_stream(
+        width=width,
+        height=height,
+        bit_depth=bit_depth,
+        color_type=color_type,
+        compression_method=compression_method,
+        filter_method=filter_method,
+        interlace_method=interlace_method,
+        compressed=b"".join(image_data),
     )
-    while offset < len(payload) - 2:
-        if payload[offset] != 0xFF:
-            raise _invalid_image("image-data", "JPEG marker is malformed")
-        while offset < len(payload) and payload[offset] == 0xFF:
-            offset += 1
-        if offset >= len(payload):
-            raise _invalid_image("image-data", "JPEG marker is truncated")
-        marker = payload[offset]
-        offset += 1
-        if marker == 0xDA:
-            break
-        if marker in {0x01, *range(0xD0, 0xD9)}:
-            continue
-        if offset + 2 > len(payload):
-            raise _invalid_image("image-data", "JPEG segment is truncated")
-        segment_length = struct.unpack(">H", payload[offset : offset + 2])[0]
-        if segment_length < 2 or offset + segment_length > len(payload):
-            raise _invalid_image("image-data", "JPEG segment length is invalid")
-        if marker in sof_markers:
-            if segment_length < 7:
-                raise _invalid_image("image-data", "JPEG SOF is truncated")
-            height, width = struct.unpack(
-                ">HH", payload[offset + 3 : offset + 7]
-            )
-            dimensions = (width, height)
-        offset += segment_length
-
-    if dimensions is None:
-        raise _invalid_image("image-data", "JPEG dimensions are missing")
-    return dimensions
-
-
-def _webp_dimensions(payload: bytes) -> tuple[int, int]:
-    if (
-        len(payload) < 20
-        or payload[:4] != b"RIFF"
-        or payload[8:12] != b"WEBP"
-    ):
-        raise _invalid_image("image-data", "WebP header is invalid")
-    if struct.unpack("<I", payload[4:8])[0] != len(payload) - 8:
-        raise _invalid_image("image-data", "WebP RIFF length is invalid")
-
-    offset = 12
-    dimensions = None
-    has_image_data = False
-    while offset < len(payload):
-        if len(payload) - offset < 8:
-            raise _invalid_image("image-data", "WebP chunk is truncated")
-        kind = payload[offset : offset + 4]
-        length = struct.unpack("<I", payload[offset + 4 : offset + 8])[0]
-        data_start = offset + 8
-        data_end = data_start + length
-        padded_end = data_end + (length % 2)
-        if padded_end > len(payload):
-            raise _invalid_image("image-data", "WebP chunk payload is truncated")
-        data = payload[data_start:data_end]
-
-        if kind == b"VP8X":
-            if length < 10:
-                raise _invalid_image("image-data", "WebP VP8X is truncated")
-            width = int.from_bytes(data[4:7], "little") + 1
-            height = int.from_bytes(data[7:10], "little") + 1
-            dimensions = (width, height)
-        elif kind == b"VP8L":
-            if length < 5 or data[0] != 0x2F:
-                raise _invalid_image("image-data", "WebP VP8L is invalid")
-            bits = int.from_bytes(data[1:5], "little")
-            dimensions = (
-                (bits & 0x3FFF) + 1,
-                ((bits >> 14) & 0x3FFF) + 1,
-            )
-            has_image_data = True
-        elif kind == b"VP8 ":
-            if length < 10 or data[3:6] != b"\x9d\x01\x2a":
-                raise _invalid_image("image-data", "WebP VP8 frame is invalid")
-            dimensions = (
-                struct.unpack("<H", data[6:8])[0] & 0x3FFF,
-                struct.unpack("<H", data[8:10])[0] & 0x3FFF,
-            )
-            has_image_data = True
-        elif kind == b"ANMF":
-            has_image_data = True
-        offset = padded_end
-
-    if offset != len(payload) or dimensions is None or not has_image_data:
-        raise _invalid_image("image-data", "WebP image data is incomplete")
-    return dimensions
+    return width, height
 
 
 def inspect_image_bytes(mime: str, payload: bytes) -> ImageInfo:
@@ -423,12 +517,6 @@ def inspect_image_bytes(mime: str, payload: bytes) -> ImageInfo:
     if payload.startswith(b"\x89PNG\r\n\x1a\n"):
         actual_mime = "image/png"
         dimensions = _png_dimensions(payload)
-    elif payload.startswith(b"\xff\xd8"):
-        actual_mime = "image/jpeg"
-        dimensions = _jpeg_dimensions(payload)
-    elif payload.startswith(b"RIFF") and payload[8:12] == b"WEBP":
-        actual_mime = "image/webp"
-        dimensions = _webp_dimensions(payload)
     else:
         raise _invalid_image("image-data", "unsupported or missing image magic")
 
@@ -448,7 +536,7 @@ def inspect_image_bytes(mime: str, payload: bytes) -> ImageInfo:
 
 def decode_image_data_uri(value: str) -> ImageInfo:
     match = re.fullmatch(
-        r"data:(image/(?:png|jpeg|webp));base64,"
+        r"data:(image/[A-Za-z0-9.+-]+);base64,"
         r"([A-Za-z0-9+/]*={0,2})",
         value,
         flags=re.IGNORECASE,
@@ -492,15 +580,44 @@ def validate_document(path: Path, *, source_root: Path = ROOT) -> list[Validatio
         elif href and not href.startswith("#"):
             issues.append(ValidationIssue("external-link", f"non-anchor link {href}"))
 
+    duplicate_attributes = []
+    unsafe_attributes = []
     external_resources = []
     unsupported_tags = []
-    for tag, values in parser.elements:
+    for tag, ordered_attrs in parser.elements:
+        values = _first_attribute_values(ordered_attrs)
+        attribute_counts = Counter(
+            name.casefold() for name, _ in ordered_attrs
+        )
+        duplicate_attributes.extend(
+            f"<{tag} {name}>"
+            for name, count in attribute_counts.items()
+            if count > 1
+        )
+        allowed_attributes = ALLOWED_ATTRIBUTES_BY_TAG.get(tag, frozenset())
+        for attribute, value in ordered_attrs:
+            normalized_attribute = attribute.casefold()
+            if (
+                normalized_attribute.startswith("on")
+                or (
+                    normalized_attribute not in GLOBAL_ATTRIBUTES
+                    and normalized_attribute not in allowed_attributes
+                )
+                or (
+                    value is None
+                    and (tag, normalized_attribute)
+                    not in ALLOWED_BOOLEAN_ATTRIBUTES
+                )
+            ):
+                unsafe_attributes.append(
+                    f"<{tag} {attribute}={value!r}>"
+                )
         if tag not in ALLOWED_DOCUMENT_TAGS:
             if tag in RESOURCE_ELEMENT_TAGS:
                 external_resources.append(f"<{tag}>")
             else:
                 unsupported_tags.append(tag)
-        for attribute, value in values.items():
+        for attribute, value in ordered_attrs:
             normalized_attribute = attribute.casefold()
             if (
                 normalized_attribute in RESOURCE_ATTRIBUTES
@@ -515,6 +632,22 @@ def validate_document(path: Path, *, source_root: Path = ROOT) -> list[Validatio
             and str(values.get("http-equiv") or "").casefold() == "refresh"
         ):
             external_resources.append("<meta http-equiv='refresh'>")
+    if duplicate_attributes:
+        issues.append(
+            ValidationIssue(
+                "duplicate-attribute",
+                "duplicate HTML attribute found: "
+                + ", ".join(duplicate_attributes),
+            )
+        )
+    if unsafe_attributes:
+        issues.append(
+            ValidationIssue(
+                "html-attribute",
+                "unsupported or malformed HTML attribute found: "
+                + ", ".join(unsafe_attributes),
+            )
+        )
     if external_resources:
         issues.append(
             ValidationIssue(
@@ -552,7 +685,22 @@ def validate_document(path: Path, *, source_root: Path = ROOT) -> list[Validatio
             )
         )
 
-    inline_javascript = "\n".join(parser.inline_scripts)
+    inline_javascript = "\n".join(parser.script_bodies)
+    script_digest = (
+        hashlib.sha256(parser.script_bodies[0].encode("utf-8")).hexdigest()
+        if len(parser.script_bodies) == 1
+        else None
+    )
+    if (
+        len(parser.script_bodies) != 1
+        or script_digest != APPROVED_INLINE_SCRIPT_SHA256
+    ):
+        issues.append(
+            ValidationIssue(
+                "inline-script",
+                "inline script must match the approved single-script digest",
+            )
+        )
     active_loads = [
         pattern
         for pattern in ACTIVE_LOAD_PATTERNS
@@ -579,12 +727,14 @@ def validate_document(path: Path, *, source_root: Path = ROOT) -> list[Validatio
             )
         )
     for image in parser.images:
+        shot = str(image.get("data-shot") or "")
         source = str(image.get("src") or "")
+        image_info = None
         if not source.startswith("data:image/"):
             issues.append(ValidationIssue("image", f"image is not embedded: {image.get('id', '<unknown>')}"))
         else:
             try:
-                decode_image_data_uri(source)
+                image_info = decode_image_data_uri(source)
             except ImageResourceError as exc:
                 issues.append(
                     ValidationIssue(
@@ -605,6 +755,30 @@ def validate_document(path: Path, *, source_root: Path = ROOT) -> list[Validatio
                     f"{image.get('data-shot', '<unknown>')}",
                 )
             )
+        elif image_info is not None and (
+            width != image_info.width or height != image_info.height
+        ):
+            issues.append(
+                ValidationIssue(
+                    "image-dimensions",
+                    "declared image dimensions do not match payload: "
+                    f"{shot}",
+                )
+            )
+        if image_info is not None:
+            actual_approval = (
+                image_info.mime,
+                image_info.width,
+                image_info.height,
+                hashlib.sha256(image_info.payload).hexdigest(),
+            )
+            if APPROVED_SCREENSHOTS.get(shot) != actual_approval:
+                issues.append(
+                    ValidationIssue(
+                        "image-approval",
+                        f"embedded screenshot is not approved: {shot}",
+                    )
+                )
         if not str(image.get("alt") or "").strip():
             issues.append(ValidationIssue("image-alt", f"image has no alt text: {image.get('id', '<unknown>')}"))
     for button in parser.buttons:

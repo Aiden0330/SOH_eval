@@ -23,9 +23,6 @@ except ModuleNotFoundError:  # Direct execution from the scripts directory.
 
 MIME_BY_SUFFIX = {
     ".png": "image/png",
-    ".webp": "image/webp",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
 }
 SHOT_NAMES = ("training", "inference", "models", "native", "diagnostics")
 
