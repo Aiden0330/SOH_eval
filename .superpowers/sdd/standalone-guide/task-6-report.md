@@ -457,3 +457,98 @@ evidence remains recorded above; no new print runtime dependency was added.
   `scripts/embed_design_user_guide_screenshots.py`,
   `tests/test_design_user_guide.py`, and
   `.superpowers/sdd/standalone-guide/task-6-report.md`.
+
+## Final Whole-Branch Review Remediation Round 2
+
+### Round 2 RED
+
+After adding the required attribute, script-context and image-decoding
+mutations, the focused command was:
+
+```powershell
+$env:PYTHONPATH = "$(Get-Location)\src"
+python -m pytest -q tests/test_design_user_guide.py
+```
+
+It exited 1 with 17 expected failures and 94 passes. The failures proved that
+the previous validator:
+
+- discarded ordered duplicate attributes and accepted a first sidecar `src`
+  followed by an embedded `src`;
+- accepted case-insensitive duplicate names, inline `style`, `onload`, `ping`
+  and an unknown resource-bearing attribute;
+- accepted `window["fetch"](...)` because script safety depended on spelling
+  patterns;
+- accepted a CRC-correct PNG with an invalid zlib stream directly, in a
+  complete guide and through screenshot embedding;
+- accepted JPEG and WebP through both the validator and helper; and
+- did not bind declared dimensions to decoded dimensions.
+
+Self-review added two positive-approval mutations for a structurally valid,
+dimension-matching but unapproved PNG. With the approval check temporarily
+absent, the targeted run exited 1 with exactly 2 failures. Restoring the
+approval check made both pass.
+
+### Implementation Choice
+
+- `GuideParser` now preserves each ordered attribute tuple, derives effective
+  values with browser-significant first-occurrence semantics and reports
+  duplicate names case-insensitively.
+- The fixed guide uses explicit global/per-tag attribute allowlists. Event
+  attributes, `style`, `ping`, unknown attributes and bare non-boolean forms
+  are rejected. The two intentional boolean forms, `hidden` and `open`,
+  remain allowed.
+- The exact single inline script body is frozen at SHA-256
+  `96540c4320d4e03999c29fdacfe2133257e21c167d290fb3923e908715469b26`.
+  The existing load-site patterns remain diagnostic defense, not the proof of
+  script approval.
+- Image support is intentionally narrowed to PNG. PNG validation now
+  decompresses the complete concatenated IDAT stream, validates decoded row
+  size and filter bytes, and checks payload dimensions against declared
+  dimensions.
+- The five browser-proven screenshots are frozen by
+  `data-shot -> PNG MIME / dimensions / SHA-256`. A well-formed replacement
+  requires an explicit approval-contract update.
+- Screenshot embedding still validates input bytes and the complete staged
+  candidate before `os.replace`; therefore the same attribute, script and
+  image approval gates preserve the old destination on rejection.
+- The installed-Chrome smoke additionally records HTTP(S) performance resource
+  entries and captures `error`/`unhandledrejection`; both enhanced and
+  no-enhancement mobile runs observed empty lists.
+
+The guide HTML and all five approved screenshot payloads remained byte-for-byte
+unchanged.
+
+### Round 2 GREEN
+
+The mutation-only rerun passed all 17 initial RED cases. The final required
+focused verification from the worktree produced:
+
+```text
+python -m pytest -q tests/test_design_user_guide.py
+  exit 0; 113 tests passed
+python scripts/validate_design_user_guide.py docs/soh-evaluation-system-design-and-user-guide.html
+  exit 0; 0 issues
+python -m py_compile scripts/validate_design_user_guide.py scripts/embed_design_user_guide_screenshots.py
+  exit 0
+node frontend/app/dashboard-core.test.mjs
+  exit 0
+node frontend/app/chinese-ui.test.mjs
+  exit 0
+node frontend/app/native-dashboard.test.mjs
+  exit 0; native dashboard delivery contract passed
+git diff --check
+  exit 0; only Git autocrlf advisory warnings were emitted
+```
+
+The full Python suite was intentionally not run, per the Round 2 brief.
+
+### Round 2 Commit And Files
+
+- Implementation commit: `f95f1c3`.
+- Changed implementation/test files:
+  `scripts/validate_design_user_guide.py`,
+  `scripts/embed_design_user_guide_screenshots.py`, and
+  `tests/test_design_user_guide.py`.
+- Report append:
+  `.superpowers/sdd/standalone-guide/task-6-report.md`.
