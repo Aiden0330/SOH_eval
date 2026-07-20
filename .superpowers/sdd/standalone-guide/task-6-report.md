@@ -226,10 +226,12 @@ outcome = complete / partial / failed / timed_out / cancelled / invalid
 verdict = pass / warn / fail / not_applicable / not_reviewed
 ```
 
-The HTML now marks the two target lanes with `data-state-lane` and every value
-with `data-state-value`. A dedicated HTMLParser asserts the exact ordered
-collections, including count and missing attributes, so an extra or reintroduced
-legacy value fails.
+The HTML marks the two target lanes with `data-state-lane` and every value with
+`data-state-value`. The first remediation parser asserted the exact ordered
+attribute collections, including count and missing attributes, but did not bind
+those attributes to each node's visible text. The second review remediation
+closes that gap by capturing normalized visible text and requiring every
+`(data-state-value, visible text)` pair to equal the authoritative value.
 
 The state lane, fallback text, and current-to-target explanation now use the
 authoritative verdict vocabulary. The legacy target verdict words were removed
@@ -246,9 +248,13 @@ Machine-readable attributes now freeze these relationships:
   `ic_peak_voltage_v`.
 - Metric truth: current `in-process`; target `exclusive-metric-worker`.
 
-Tests assert the attribute direction and reject representative reversed prose
-claims. The delivery checklist now says there are three audience reading paths
-plus one “all” switch, instead of calling the four controls five paths.
+The first remediation asserted attribute direction and rejected representative
+reversed prose claims globally. That was not sufficient to prevent a marked
+element's local visible text from contradicting its attribute. The second review
+remediation binds each dataset span's complete normalized text and the full
+`capacity_time` row text to the structured contract. The delivery checklist now
+says there are three audience reading paths plus one “all” switch, instead of
+calling the four controls five paths.
 
 ### Remediation TDD
 
@@ -288,3 +294,56 @@ focused GREEN:
 - The full suite was intentionally not rerun for this remediation, per the
   review instruction; final whole-branch verification remains responsible for
   that run.
+
+## Second Independent Review Remediation
+
+### Visible-Text Binding Gap
+
+The second review found one Important issue: structured attributes could remain
+correct while the visible state, dataset, or FeaturePolicy text was reversed.
+The earlier attribute-only and global-prose checks would still pass for such a
+local mutation.
+
+`StructuredStateLaneParser` now captures normalized visible text for every
+`state-node`. The shared fact-contract helper retains the exact ordered outcome
+and verdict collections and additionally requires each visible label to equal
+its own `data-state-value`.
+
+`StructuredFactParser` now captures the complete normalized text of both marked
+dataset spans and every marked feature row. The shared helper requires:
+
+- UConn-ISU-ILCC LFP/Gr to say it is currently integrated.
+- ISU-ILCC Figshare NMC/Gr to say it is research-only and currently not
+  integrated.
+- The full `capacity_time` row to say that the current feature set includes
+  `cycle_fraction`, the FeaturePolicy gap remains open and must be closed, and
+  complete future-information isolation cannot yet be claimed.
+
+### Visible-Text TDD
+
+Four mutation-negative cases were added without changing any structured
+attribute: `complete` displayed as `succeeded`, each dataset relationship
+reversed independently, and the open gap displayed as closed. All four call the
+same fact-contract helper.
+
+Focused RED before parser binding:
+
+```text
+53 passed, 4 failed
+```
+
+Each failure was the expected `DID NOT RAISE AssertionError`, proving that the
+old parser accepted the contradictory visible text. Focused GREEN after binding:
+
+```text
+57 passed
+```
+
+### Second Review Verification
+
+- Validator: exit 0, 0 issues.
+- Focused guide pytest with the current worktree `PYTHONPATH`: 57 passed.
+- Inline JavaScript `node --check`: exit 0.
+- `git diff --check`: exit 0.
+- The full suite was not rerun, as requested; final whole-branch verification
+  remains responsible for that run.

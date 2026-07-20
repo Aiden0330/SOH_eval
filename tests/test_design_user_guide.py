@@ -18,6 +18,25 @@ from scripts.validate_design_user_guide import REQUIRED_SECTIONS, validate_docum
 
 ROOT = Path(__file__).resolve().parents[1]
 GUIDE = ROOT / "docs" / "soh-evaluation-system-design-and-user-guide.html"
+TARGET_OUTCOMES = [
+    "complete",
+    "partial",
+    "failed",
+    "timed_out",
+    "cancelled",
+    "invalid",
+]
+TARGET_VERDICTS = [
+    "pass",
+    "warn",
+    "fail",
+    "not_applicable",
+    "not_reviewed",
+]
+
+
+def _normalize_visible_text(parts):
+    return " ".join(part.strip() for part in parts if part.strip())
 
 
 class DiagramFallbackParser(HTMLParser):
@@ -216,6 +235,10 @@ class StructuredStateLaneParser(HTMLParser):
         self.current_lane = None
         self.lane_depth = 0
         self.lanes = {}
+        self.visible_nodes = {}
+        self.current_node_value = None
+        self.node_depth = 0
+        self.node_parts = []
 
     def handle_starttag(self, tag, attrs):
         values = dict(attrs)
@@ -225,17 +248,39 @@ class StructuredStateLaneParser(HTMLParser):
             self.current_lane = lane
             self.lane_depth = 1
             self.lanes.setdefault(lane, [])
+            self.visible_nodes.setdefault(lane, [])
             return
         if self.current_lane is None:
             return
         self.lane_depth += 1
+        if self.current_node_value is not None:
+            self.node_depth += 1
+            return
         classes = set(values.get("class", "").split())
         if "state-node" in classes:
-            self.lanes[self.current_lane].append(values.get("data-state-value"))
+            self.current_node_value = values.get("data-state-value")
+            self.node_depth = 1
+            self.node_parts = []
+            self.lanes[self.current_lane].append(self.current_node_value)
+
+    def handle_data(self, data):
+        if self.current_node_value is not None:
+            self.node_parts.append(data)
 
     def handle_endtag(self, tag):
         if self.current_lane is None:
             return
+        if self.current_node_value is not None:
+            self.node_depth -= 1
+            if self.node_depth == 0:
+                self.visible_nodes[self.current_lane].append(
+                    (
+                        self.current_node_value,
+                        _normalize_visible_text(self.node_parts),
+                    )
+                )
+                self.current_node_value = None
+                self.node_parts = []
         self.lane_depth -= 1
         if self.lane_depth == 0:
             self.current_lane = None
@@ -245,14 +290,28 @@ class StructuredFactParser(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.datasets = {}
+        self.dataset_texts = {}
         self.featuresets = {}
+        self.featureset_texts = {}
         self.metric_truth_boundaries = []
+        self.current_dataset = None
+        self.dataset_depth = 0
+        self.dataset_parts = []
+        self.current_featureset = None
+        self.featureset_depth = 0
+        self.featureset_parts = []
 
     def handle_starttag(self, tag, attrs):
         values = dict(attrs)
         dataset = values.get("data-dataset-id")
         if dataset is not None:
             self.datasets[dataset] = values.get("data-integration-status")
+        if self.current_dataset is not None:
+            self.dataset_depth += 1
+        elif dataset is not None:
+            self.current_dataset = dataset
+            self.dataset_depth = 1
+            self.dataset_parts = []
 
         featureset = values.get("data-featureset")
         if featureset is not None:
@@ -261,6 +320,12 @@ class StructuredFactParser(HTMLParser):
                 for key, value in values.items()
                 if key.startswith("data-")
             }
+        if self.current_featureset is not None:
+            self.featureset_depth += 1
+        elif featureset is not None:
+            self.current_featureset = featureset
+            self.featureset_depth = 1
+            self.featureset_parts = []
 
         if "data-metric-truth-current" in values:
             self.metric_truth_boundaries.append(
@@ -269,6 +334,31 @@ class StructuredFactParser(HTMLParser):
                     values.get("data-metric-truth-target"),
                 )
             )
+
+    def handle_data(self, data):
+        if self.current_dataset is not None:
+            self.dataset_parts.append(data)
+        if self.current_featureset is not None:
+            self.featureset_parts.append(data)
+
+    def handle_endtag(self, tag):
+        if self.current_dataset is not None:
+            self.dataset_depth -= 1
+            if self.dataset_depth == 0:
+                self.dataset_texts[self.current_dataset] = _normalize_visible_text(
+                    self.dataset_parts
+                )
+                self.current_dataset = None
+                self.dataset_parts = []
+
+        if self.current_featureset is not None:
+            self.featureset_depth -= 1
+            if self.featureset_depth == 0:
+                self.featureset_texts[
+                    self.current_featureset
+                ] = _normalize_visible_text(self.featureset_parts)
+                self.current_featureset = None
+                self.featureset_parts = []
 
 
 def _guide_section_text(section_id):
@@ -290,6 +380,66 @@ def _guide_without_embedded_images():
         "data:image/embedded;base64,",
         text,
     )
+
+
+def _assert_structured_fact_contract(source):
+    state_parser = StructuredStateLaneParser()
+    state_parser.feed(source)
+    assert set(state_parser.lanes) == {"target-outcome", "target-verdict"}
+    assert state_parser.lanes["target-outcome"] == TARGET_OUTCOMES
+    assert state_parser.lanes["target-verdict"] == TARGET_VERDICTS
+    assert state_parser.visible_nodes == {
+        "target-outcome": [(value, value) for value in TARGET_OUTCOMES],
+        "target-verdict": [(value, value) for value in TARGET_VERDICTS],
+    }
+
+    fact_parser = StructuredFactParser()
+    fact_parser.feed(source)
+    assert fact_parser.datasets == {
+        "uconn-isu-ilcc-lfp-gr": "integrated",
+        "isu-ilcc-figshare-nmc-gr": "research-only-not-integrated",
+    }
+    assert fact_parser.dataset_texts == {
+        "uconn-isu-ilcc-lfp-gr": "当前已接入的是 UConn-ISU-ILCC LFP/Gr 数据",
+        "isu-ilcc-figshare-nmc-gr": (
+            "ISU-ILCC Figshare NMC/Gr 只出现在研究资料中，当前未接入"
+        ),
+    }
+    assert fact_parser.featuresets["capacity_time"][
+        "data-feature-policy-status"
+    ] == "open-gap"
+    assert fact_parser.featuresets["capacity_time"][
+        "data-current-risk-feature"
+    ] == "cycle_fraction"
+    capacity_time_text = fact_parser.featureset_texts["capacity_time"]
+    assert "当前还包含 cycle_fraction" in capacity_time_text
+    assert "cycle_fraction 是待关闭的 FeaturePolicy gap" in capacity_time_text
+    assert (
+        "在关闭前不能宣称该方案已经全面满足未来信息隔离"
+        in capacity_time_text
+    )
+    assert fact_parser.featuresets["ic_dva"]["data-current-columns"].split() == [
+        "ic_peak_ah_per_v",
+        "ic_peak_voltage_v",
+    ]
+    assert fact_parser.metric_truth_boundaries == [
+        ("in-process", "exclusive-metric-worker")
+    ]
+
+
+def _replace_once(source, old, new):
+    assert source.count(old) == 1
+    return source.replace(old, new, 1)
+
+
+def _replace_element_text(source, marker, replacement):
+    pattern = re.compile(
+        rf'(<span\b[^>]*{re.escape(marker)}[^>]*>).*?(</span>)',
+        flags=re.DOTALL,
+    )
+    mutated, count = pattern.subn(rf"\1{replacement}\2", source, count=1)
+    assert count == 1
+    return mutated
 
 
 def _source_method_routes():
@@ -1035,25 +1185,7 @@ def test_metric_truth_and_publication_claims_are_scoped_by_layer():
 
 
 def test_target_state_lanes_use_exact_authoritative_value_sets():
-    parser = StructuredStateLaneParser()
-    parser.feed(GUIDE.read_text(encoding="utf-8"))
-
-    assert set(parser.lanes) == {"target-outcome", "target-verdict"}
-    assert parser.lanes["target-outcome"] == [
-        "complete",
-        "partial",
-        "failed",
-        "timed_out",
-        "cancelled",
-        "invalid",
-    ]
-    assert parser.lanes["target-verdict"] == [
-        "pass",
-        "warn",
-        "fail",
-        "not_applicable",
-        "not_reviewed",
-    ]
+    _assert_structured_fact_contract(GUIDE.read_text(encoding="utf-8"))
 
 
 def test_target_state_explanations_use_authoritative_vocabulary_only():
@@ -1092,26 +1224,60 @@ def test_domain_claims_match_current_feature_policy_and_dataset_integration():
 
 
 def test_structured_fact_markers_preserve_direction_and_current_target_scope():
-    parser = StructuredFactParser()
-    parser.feed(GUIDE.read_text(encoding="utf-8"))
+    _assert_structured_fact_contract(GUIDE.read_text(encoding="utf-8"))
 
-    assert parser.datasets == {
-        "uconn-isu-ilcc-lfp-gr": "integrated",
-        "isu-ilcc-figshare-nmc-gr": "research-only-not-integrated",
-    }
-    assert parser.featuresets["capacity_time"]["data-feature-policy-status"] == (
-        "open-gap"
+
+def test_state_value_attribute_cannot_mask_mutated_visible_text():
+    source = GUIDE.read_text(encoding="utf-8")
+    mutated = _replace_once(
+        source,
+        'data-state-value="complete">complete</span>',
+        'data-state-value="complete">succeeded</span>',
     )
-    assert parser.featuresets["capacity_time"]["data-current-risk-feature"] == (
-        "cycle_fraction"
+
+    with pytest.raises(AssertionError):
+        _assert_structured_fact_contract(mutated)
+
+
+@pytest.mark.parametrize(
+    ("marker", "replacement"),
+    [
+        (
+            'data-dataset-id="uconn-isu-ilcc-lfp-gr"',
+            "UConn-ISU-ILCC LFP/Gr 当前未接入，只出现在研究资料中",
+        ),
+        (
+            'data-dataset-id="isu-ilcc-figshare-nmc-gr"',
+            "当前已接入的是 ISU-ILCC Figshare NMC/Gr 数据",
+        ),
+    ],
+)
+def test_dataset_attribute_cannot_mask_reversed_visible_relationship(
+    marker, replacement
+):
+    source = GUIDE.read_text(encoding="utf-8")
+    mutated = _replace_element_text(source, marker, replacement)
+
+    with pytest.raises(AssertionError):
+        _assert_structured_fact_contract(mutated)
+
+
+def test_open_gap_attribute_cannot_mask_closed_visible_claim():
+    source = GUIDE.read_text(encoding="utf-8")
+    mutated = _replace_once(
+        source,
+        (
+            "<code>cycle_fraction</code> 是待关闭的 FeaturePolicy gap；"
+            "在关闭前不能宣称该方案已经全面满足未来信息隔离。"
+        ),
+        (
+            "<code>cycle_fraction</code> 的 FeaturePolicy gap 已关闭；"
+            "现在可以宣称该方案已经全面满足未来信息隔离。"
+        ),
     )
-    assert parser.featuresets["ic_dva"]["data-current-columns"].split() == [
-        "ic_peak_ah_per_v",
-        "ic_peak_voltage_v",
-    ]
-    assert parser.metric_truth_boundaries == [
-        ("in-process", "exclusive-metric-worker")
-    ]
+
+    with pytest.raises(AssertionError):
+        _assert_structured_fact_contract(mutated)
 
 
 def test_design_user_guide_forbids_typical_reversed_fact_claims():
