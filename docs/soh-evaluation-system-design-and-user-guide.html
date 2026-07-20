@@ -243,7 +243,7 @@
       </details>
       <section id="overview" class="chapter" data-paths="manager developer operator">
         <h2>项目概览</h2>
-        <div class="quick-source" aria-label="项目概览速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>项目目标、能力边界、受众</dd><dt>输出</dt><dd>可信测评定位与阅读入口</dd><dt>检查</dt><dd>当前、领域接入、目标架构明确分层</dd><dt>风险</dt><dd>不要把规划能力写成已上线能力</dd></dl></div>
+        <div class="quick-source" aria-label="项目概览速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>项目目标、能力边界、受众</dd><dt>命令</dt><dd>不适用；运行入口见命令附录</dd><dt>输出</dt><dd>可信测评定位与阅读入口</dd><dt>检查</dt><dd>当前、领域接入、目标架构明确分层</dd><dt>风险</dt><dd>不要把规划能力写成已上线能力</dd></dl></div>
         <p>系统以可比较、可追溯、可复核的算法测评为第一目标，并以跨数据集、跨电芯和跨化学体系的多场景算法建设为第二目标。它不是只展示一个误差数字的看板，而是把输入、协议、执行覆盖、逐样本预测、指标和发布物连成可验证证据链。</p>
         <div class="audience-paths audience-switcher" aria-label="选择阅读路径">
           <button type="button" data-audience="all" aria-pressed="true">全部</button>
@@ -266,7 +266,7 @@
             <span class="status-label">已接入领域能力</span>
             <h3>Battery SOH 能力</h3>
             <ul>
-              <li>处理后特征表发现、SOH 标签、充电曲线和 IC/DVA。</li>
+              <li><span data-current-fact="overview-ic">处理后特征表发现、SOH 标签、IC 峰特征和 IC <code>dQ/dV</code> 曲线。</span></li>
               <li>经典回归、深度/PINN 候选、共形区间与物理后处理。</li>
               <li>训练、冻结推理、模型资产和完整看板。</li>
             </ul>
@@ -291,13 +291,13 @@
       </section>
       <section id="architecture" class="chapter" data-paths="manager developer">
         <h2>总体架构与数据流</h2>
-        <div class="quick-source" aria-label="总体架构速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>RunSpec、数据快照、领域能力</dd><dt>输出</dt><dd>五层架构、运行流与证据链</dd><dt>检查</dt><dd>摘要关系可追溯，职责边界清楚</dd><dt>风险</dt><dd>隔离 Worker 仍属目标架构</dd></dl></div>
+        <div class="quick-source" aria-label="总体架构速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>RunSpec、数据快照、领域能力</dd><dt>命令</dt><dd>不适用；验证命令见命令附录</dd><dt>输出</dt><dd>五层架构、运行流与证据链</dd><dt>检查</dt><dd>摘要关系可追溯，职责边界清楚</dd><dt>风险</dt><dd>隔离 Worker 仍属目标架构</dd></dl></div>
         <p>五层图是职责视图，不代表所有层都已经以独立服务部署。当前已实现的 Phase 0 在同一 Python 进程或受信本机进程内组合控制、执行和证据能力；目标架构再把高风险执行移入隔离 Worker。</p>
         <div class="diagram" role="img" aria-label="五层可信测评架构" aria-describedby="diagram-architecture-fallback">
           <p class="diagram-title">五层可信测评架构</p>
           <div class="architecture-stack" aria-hidden="true">
             <div class="architecture-layer"><strong>体验与入口层</strong><span>当前前端五页签、CLI、HTTP API；V2 控制台属于目标架构。</span></div>
-            <div class="architecture-layer"><strong>控制面</strong><span>Registry、RunSpec、comparison key、预检、用户确认和任务状态。</span></div>
+            <div class="architecture-layer"><strong>控制面</strong><span data-target-user-confirmation="control-visual" data-capability-state="target">Registry、RunSpec、comparison key、预检、用户确认（目标）和任务状态。</span></div>
             <div class="architecture-layer"><strong>执行面</strong><span>当前本机/内存执行、DatasetSnapshot、折内特征与训练/推理；隔离 Worker 与资源守卫属于目标架构。</span></div>
             <div class="architecture-layer"><strong>证据面</strong><span>PredictionRecord、Metrics、EvidencePack、不可变 generation、排行与发布。</span></div>
             <div class="architecture-layer"><strong>Battery SOH Domain Pack</strong><span>已接入领域能力：数据映射、标签、特征、曲线、协议和场景政策。</span></div>
@@ -305,7 +305,7 @@
         </div>
         <ol id="diagram-architecture-fallback" class="diagram-fallback sr-only">
           <li>体验与入口层：前端、CLI 和 API。</li>
-          <li>控制面：Registry、RunSpec、预检和任务状态。</li>
+          <li data-target-user-confirmation="control-fallback" data-capability-state="target">控制面：Registry、RunSpec、预检、用户确认（目标）和任务状态。</li>
           <li>执行面：数据快照、折内特征、训练和冻结推理。</li>
           <li>证据面：逐样本预测、指标、EvidencePack、排行和发布。</li>
           <li>Battery SOH Domain Pack：数据、标签、特征、曲线、协议和场景政策。</li>
@@ -316,7 +316,7 @@
           <article class="status-card status-target"><span class="status-label">目标架构</span><h3>隔离与治理</h3><p>隔离 Worker、独立队列、CPU/内存/时限/网络守卫、外部插件沙箱和 V2 控制台是规划能力。</p></article>
         </div>
         <h3>目标架构端到端流程</h3>
-        <p>下图包含用户确认、Adaptation、独立 Metric Worker、PolicySpec 资格判断与签署发布，整体属于目标架构，不代表当前 Phase 0 已经拆分出这些服务或启用这些门控。</p>
+        <p>下图包含用户确认（目标）、Adaptation、独立 Metric Worker、PolicySpec 资格判断与签署发布，整体属于目标架构，不代表当前 Phase 0 已经拆分出这些服务或启用这些门控。</p>
         <div class="diagram" role="img" aria-label="目标架构端到端测评流程" aria-describedby="diagram-workflow-fallback">
           <p class="diagram-title">目标架构端到端流程</p>
           <div class="diagram-grid" aria-hidden="true">
@@ -324,7 +324,7 @@
             <div class="diagram-node"><strong>2 内容摘要</strong><span>字节摘要、schema 与来源</span></div>
             <div class="diagram-node"><strong>3 Spec 固化</strong><span>不可变引用与比较键</span></div>
             <div class="diagram-node"><strong>4 预检</strong><span>兼容性、泄漏和资源估算</span></div>
-            <div class="diagram-node"><strong>5 用户确认</strong><span>冻结运行矩阵</span></div>
+            <div class="diagram-node" data-target-user-confirmation="workflow-visual" data-capability-state="target"><strong>5 用户确认（目标）</strong> <span>冻结运行矩阵</span></div>
             <div class="diagram-node"><strong>6 执行</strong><span>训练、Adaptation 或冻结推理</span></div>
             <div class="diagram-node"><strong>7 Metric Worker</strong><span>独占真值连接与指标聚合</span></div>
             <div class="diagram-node"><strong>8 证据验证</strong><span>manifest、大小与摘要</span></div>
@@ -333,7 +333,7 @@
           </div>
         </div>
         <ol id="diagram-workflow-fallback" class="diagram-fallback sr-only">
-          <li>接入资源。</li><li>计算内容摘要并检查结构。</li><li>固化运行 Spec。</li><li>执行预检。</li><li>由用户确认运行矩阵。</li>
+          <li>接入资源。</li><li>计算内容摘要并检查结构。</li><li>固化运行 Spec。</li><li>执行预检。</li><li data-target-user-confirmation="workflow-fallback" data-capability-state="target">由用户确认（目标）运行矩阵。</li>
           <li>执行训练、Adaptation 或冻结推理。</li><li>由 Metric Worker 独占连接真值并计算指标。</li><li>验证 EvidencePack。</li><li>按 PolicySpec 判断资格并签署发布。</li><li>在前端展示并支持证据下钻。</li>
         </ol>
         <h3>当前 Phase 0 路径</h3>
@@ -358,7 +358,7 @@
       </section>
       <section id="domain" class="chapter" data-paths="developer">
         <h2>SOH 数据、特征与算法原理</h2>
-        <div class="quick-source" aria-label="领域能力速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>处理后特征表、曲线与 SOH 标签</dd><dt>输出</dt><dd>特征谱系、算法族与物理约束</dd><dt>检查</dt><dd>身份列、标签与 held-out 边界</dd><dt>风险</dt><dd>缺失谱系和跨域泄漏</dd></dl></div>
+        <div class="quick-source" aria-label="领域能力速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>处理后特征表、曲线与 SOH 标签</dd><dt>命令</dt><dd>不适用；数据发现见目录/API 附录</dd><dt>输出</dt><dd>特征谱系、算法族与物理约束</dd><dt>检查</dt><dd>身份列、标签与 held-out 边界</dd><dt>风险</dt><dd>缺失谱系和跨域泄漏</dd></dl></div>
         <h3>发现契约与结构语义</h3>
         <p>已接入领域能力从 <code>D:\battery_SOH\data\processed\*_features.pkl</code> 发现处理后特征表。Pickle 只在受信本机环境读取，本文不嵌入其内容。当前发现数量必须以 <code>GET /api/catalog</code> 和前端目录的实时结果为准，不在说明书中固定。</p>
         <div class="table-wrap">
@@ -380,7 +380,7 @@
             <tbody>
               <tr><td><code>full</code></td><td>声明允许的通用统计与领域特征。</td><td>覆盖较广，但必须经 FeaturePolicy 排除标签、未来信息和仅部分数据域可得的代理变量。</td></tr>
               <tr><td><code>voltage</code></td><td>充电电压统计、形状和固定窗口摘要。</td><td>易解释；受协议、电流、温度和采样密度影响。</td></tr>
-              <tr data-featureset="ic_dva" data-current-columns="ic_peak_ah_per_v ic_peak_voltage_v"><td><code>ic_dva</code></td><td>当前内建 ic_dva 只有 IC 峰高和峰位。</td><td>DVA、面积和形状属于方法背景或目标能力；微分会放大噪声，需明确平滑和窗口。</td></tr>
+              <tr data-featureset="ic_dva" data-current-columns="ic_peak_ah_per_v ic_peak_voltage_v"><td><code>ic_dva</code></td><td><span data-current-fact="method-ic">当前内建 ic_dva 只有 IC 峰高和峰位。</span></td><td>DVA、面积和形状属于方法背景或目标能力；微分会放大噪声，需明确平滑和窗口。</td></tr>
               <tr><td><code>partial_window</code></td><td>只使用可部署的局部充电电压窗口。</td><td>适合浅充或数据不完整场景；不同化学体系的平台区不可直接复用同一窗口。</td></tr>
               <tr data-featureset="capacity_time" data-feature-policy-status="open-gap" data-current-risk-feature="cycle_fraction"><td><code>capacity_time</code></td><td>窗口容量、充电时长和相关速率；当前还包含 <code>cycle_fraction</code>。</td><td><code>cycle_fraction</code> 是待关闭的 FeaturePolicy gap；在关闭前不能宣称该方案已经全面满足未来信息隔离。</td></tr>
             </tbody>
@@ -415,13 +415,13 @@
         <h3>项目差距</h3>
         <div class="status-grid" aria-label="领域能力差距">
           <article class="status-card status-current"><span class="status-label">当前已实现</span><h3>契约与基础证据</h3><p>已有处理后表发现、DatasetSnapshot 基础、目标剥离、折内 FeatureState、结构化失败、逐样本/指标记录和证据摘要；当前模型资产可用于独立推理任务。</p></article>
-          <article class="status-card status-domain"><span class="status-label">已接入领域能力</span><h3>曲线与模型能力</h3><p>已接入多种充电摘要、固定窗口、IC/DVA、SOH 轨迹、经典/深度/PINN 候选、共形区间与完整看板，但各数据源原始曲线和标签谱系覆盖不完全相同。</p></article>
+          <article class="status-card status-domain"><span class="status-label">已接入领域能力</span><h3>曲线与模型能力</h3><p><span data-current-fact="domain-status-ic">已接入多种充电摘要、固定窗口、IC 峰特征、IC <code>dQ/dV</code> 曲线和 SOH 轨迹。</span>经典/深度/PINN 候选、共形区间与完整看板也已接入，但各数据源原始曲线和标签谱系覆盖不完全相同。</p></article>
           <article class="status-card status-target"><span class="status-label">目标架构</span><h3>仍需建设</h3><p>统一数据卡与许可/标签谱系、跨化学体系正式覆盖、冻结模型迁移的独立赛道、轨迹/曲线/特征/样本证据联动，以及资产 bootstrap、配对效应量和统计置信证据仍需完善。</p></article>
         </div>
       </section>
       <section id="evaluation" class="chapter" data-paths="manager developer">
         <h2>公平测评协议与指标</h2>
-        <div class="quick-source" aria-label="公平测评速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>数据快照、协议、seed、统计单位</dd><dt>输出</dt><dd>LOCO/LODO/LCHO 指标与覆盖结论</dd><dt>检查</dt><dd>comparison key 与 held-out 范围一致</dd><dt>风险</dt><dd>局部覆盖不得冒充全量结论</dd></dl></div>
+        <div class="quick-source" aria-label="公平测评速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>数据快照、协议、seed、统计单位</dd><dt>命令</dt><dd>不适用；任务创建见 API 附录</dd><dt>输出</dt><dd>LOCO/LODO/LCHO 指标与覆盖结论</dd><dt>检查</dt><dd>comparison key 与 held-out 范围一致</dd><dt>风险</dt><dd>局部覆盖不得冒充全量结论</dd></dl></div>
         <h3>协议定义</h3>
         <div class="table-wrap">
           <table>
@@ -485,7 +485,7 @@
       </section>
       <section id="contracts" class="chapter" data-paths="developer">
         <h2>核心契约与证据对象</h2>
-        <div class="quick-source" aria-label="核心契约速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>RunSpec、DatasetSnapshot、PredictionRecord</dd><dt>输出</dt><dd>Metrics、EvidencePack、结构化状态</dd><dt>检查</dt><dd>摘要、有限值与不可变发布</dd><dt>风险</dt><dd>不要混淆 execution、outcome、verdict</dd></dl></div>
+        <div class="quick-source" aria-label="核心契约速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>RunSpec、DatasetSnapshot、PredictionRecord</dd><dt>命令</dt><dd>不适用；validator 见交付检查</dd><dt>输出</dt><dd>Metrics、EvidencePack、结构化状态</dd><dt>检查</dt><dd>摘要、有限值与不可变发布</dd><dt>风险</dt><dd>不要混淆 execution、outcome、verdict</dd></dl></div>
         <p class="contract-chain">RunSpec -&gt; DatasetSnapshot -&gt; target-stripped fold view
         -&gt; fitted FeatureState -&gt; ModelArtifact
         -&gt; PredictionRecord -&gt; Metrics -&gt; EvidencePack -&gt; Publication</p>
@@ -523,7 +523,7 @@
           <li>目标架构的终态执行结果为 complete、partial、failed、timed_out、cancelled、invalid。</li>
           <li>目标架构的 verdict 精确为 pass、warn、fail、not_applicable、not_reviewed。</li>
         </ol>
-        <p class="callout warning"><strong>当前实现映射：</strong>当前已实现的服务生命周期使用 <code>QUEUED</code>、<code>RUNNING</code>、<code>REVIEW</code>/<code>FAILED</code> 等状态；聚合 <code>outcome</code> 当前实现 <code>complete</code>、<code>partial</code>、<code>failed</code> 子集，目标规范词汇完整为 <code>complete、partial、failed、timed_out、cancelled、invalid</code>；当前 <code>verdict</code> 可见 <code>not_reviewed</code>、<code>pass</code>、<code>warn</code>、<code>fail</code>，目标规范再包含 <code>not_applicable</code>。上图的 target lanes 是目标架构完整语义，不是当前枚举已全部实现的声明。</p>
+        <p class="callout warning"><strong>当前实现映射：</strong>当前已实现的服务生命周期使用 <code>QUEUED</code>、<code>RUNNING</code>、<code>REVIEW</code>/<code>FAILED</code> 等状态；聚合 <code>outcome</code> 当前实现 <code>complete</code>、<code>partial</code>、<code>failed</code> 子集。<span data-current-fact="task-verdict" data-current-values="not_reviewed fail">当前任务 verdict 字段只使用 <code>not_reviewed</code> / <code>fail</code>。</span> <span data-current-fact="leaderboard-verdicts" data-current-checks="generalization calibration physical_consistency">当前 leaderboard 的 verdicts 是 <code>generalization</code> / <code>calibration</code> / <code>physical_consistency</code> 三个具名布尔检查，不是任务 verdict 枚举。</span>目标规范词汇完整为 outcome <code>complete、partial、failed、timed_out、cancelled、invalid</code> 和 verdict <code>pass、warn、fail、not_applicable、not_reviewed</code>。上图的 target lanes 是目标架构完整语义，不是当前枚举已全部实现的声明。</p>
         <h3>失败与不可变性</h3>
         <p>当前结构化失败类别包括 <code>INPUT_CONTRACT</code>、<code>DATA_QC</code>、<code>LEAKAGE</code>、<code>ALGORITHM</code>、<code>RESOURCE</code>、<code>INFRASTRUCTURE</code>、<code>METRIC</code> 和 <code>POLICY</code>。失败记录保留类型、信息和执行单元身份，重试产生新 attempt；发布重建产生新 generation。旧 attempt、已引用证据和历史 generation 不应原位修改或因重试被删除。</p>
         <div class="status-grid" aria-label="契约能力实施状态">
@@ -534,8 +534,8 @@
       </section>
       <section id="frontend" class="chapter" data-paths="manager operator">
         <h2>前端五页签功能说明</h2>
-        <div class="quick-source" aria-label="前端页签速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>训练、推理、模型、曲线和诊断产物</dd><dt>输出</dt><dd>五页签代表状态与操作边界</dd><dt>检查</dt><dd>页面选择与 KPI 范围同步</dd><dt>风险</dt><dd>截图只代表当前候选前端状态</dd></dl></div>
-        <p>五个页签共享同一资源目录和发布数据，但职责不能混用：训练产生模型，冻结推理只消费模型，资产库负责审计，完整看板定位单电芯/周期曲线，全局诊断比较跨组合证据。</p>
+        <div class="quick-source" aria-label="前端页签速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>训练、推理、模型、曲线和诊断产物</dd><dt>命令</dt><dd>启动命令见安装章节</dd><dt>输出</dt><dd>五页签代表状态与操作边界</dd><dt>检查</dt><dd>页面选择与 KPI 范围同步</dd><dt>风险</dt><dd>截图只代表当前候选前端状态</dd></dl></div>
+        <p>五个页签共享同一资源目录和发布数据，但职责不能混用：训练产生模型，冻结推理只消费模型，资产库负责审计，完整看板定位单电芯/周期曲线，全局诊断比较跨组合证据。<span data-current-fact="five-tab-ic">SOH 完整看板当前展示 IC <code>dQ/dV</code> 曲线。</span></p>
 
         <article class="mode-guide" data-guide-mode="训练测评">
           <h2 class="mode-title">训练测评</h2>
@@ -623,14 +623,14 @@
             <figcaption><strong>SOH 完整看板</strong><span>图中为同步后的真实页签，底部内嵌视图已加载场景、算法、特征和电芯控件。</span></figcaption>
           </figure>
           <h3>适用场景</h3>
-          <p>查看 SOH 轨迹，并从异常周期下钻到充电电压、容量、时间曲线、IC/DVA 及高亮特征段。它负责局部曲线解释，不代替全局算法公平排名。</p>
+          <p><span data-current-fact="native-purpose-ic">查看 SOH 轨迹，并从异常周期下钻到充电电压、容量、时间曲线、IC <code>dQ/dV</code> 曲线及高亮特征段。</span>它负责局部曲线解释，不代替全局算法公平排名。</p>
           <h3>必需输入</h3>
           <p>已成功同步到 <code>frontend/app/battery-dashboard</code> 的原生看板，或独立 HTML 中内嵌的有效看板；源侧需要入口页、manifest 和被 manifest 引用的场景 JSON，曲线视图还需要对应 <code>*_curves.json</code>。</p>
           <h3>操作步骤</h3>
           <ol class="step-list">
             <li>先执行原生看板同步并刷新状态；页签在资源有效时加载 iframe 或内嵌副本。</li>
             <li>选择场景、数据集和电芯，检查完整 SOH 轨迹。</li>
-            <li>点击周期点联动电压-容量-时间曲线，查看 IC/DVA 与特征高亮区段。</li>
+            <li><span data-current-fact="native-operation-ic">点击周期点联动电压-容量-时间曲线，查看 IC <code>dQ/dV</code> 曲线与特征高亮区段。</span></li>
             <li>记录场景、电芯和周期身份，再回到训练/推理证据定位对应组合。</li>
           </ol>
           <h3>成功信号</h3>
@@ -670,7 +670,7 @@
 
       <section id="setup" class="chapter" data-paths="developer operator">
         <h2>工具安装、启动与配置</h2>
-        <div class="quick-source" aria-label="启动配置速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>Python 环境、本机数据目录、空闲端口</dd><dt>命令</dt><dd>API 8001、静态前端 8010、健康检查</dd><dt>检查</dt><dd><code>ok: true</code> 与 <code>trusted_local</code></dd><dt>风险</dt><dd>只停止本次捕获的进程 ID</dd></dl></div>
+        <div class="quick-source" aria-label="启动配置速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>Python 环境、本机数据目录、空闲端口</dd><dt>命令</dt><dd>API 8001、静态前端 8010、健康检查</dd><dt>输出</dt><dd>本机 API 与静态工作台</dd><dt>检查</dt><dd><code>ok: true</code> 与 <code>trusted_local</code></dd><dt>风险</dt><dd>只停止本次捕获的进程 ID</dd></dl></div>
         <p>说明书本身可直接通过 <code>file://</code> 阅读；候选工作台使用 ES modules 和 JSON fetch，必须经静态 HTTP 服务打开。以下命令均在仓库根目录执行。</p>
         <h3>一次性安装</h3>
         <pre><code>python -m venv .venv
@@ -702,7 +702,7 @@ $webPid = $web.Id</code></pre>
 
       <section id="onboarding" class="chapter" data-paths="developer operator">
         <h2>新资源接入</h2>
-        <div class="quick-source" aria-label="资源接入速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>数据、算法、特征或冻结模型包</dd><dt>输出</dt><dd>验证后事务激活的目录项</dd><dt>检查</dt><dd>格式、契约、摘要与冒烟预测</dd><dt>风险</dt><dd>源码和 Pickle 仅限 trusted-local</dd></dl></div>
+        <div class="quick-source" aria-label="资源接入速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>数据、算法、特征或冻结模型包</dd><dt>命令</dt><dd>上传端点见 API 附录</dd><dt>输出</dt><dd>验证后事务激活的目录项</dd><dt>检查</dt><dd>格式、契约、摘要与冒烟预测</dd><dt>风险</dt><dd>源码和 Pickle 仅限 trusted-local</dd></dl></div>
         <p>四类资源均先进入 staging，完成格式、契约和冒烟验证后再激活。<code>replace</code> 缺省为 <code>false</code>；失败事务恢复原文件、目录和目录项，但系统没有面向用户的“撤销任意已成功上传”历史 API。</p>
         <div class="resource-grid">
           <article class="resource-card">
@@ -743,7 +743,7 @@ $webPid = $web.Id</code></pre>
 
       <section id="runs" class="chapter" data-paths="developer operator">
         <h2>训练测评与冻结推理</h2>
-        <div class="quick-source" aria-label="运行流程速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>训练矩阵或模型-数据集推理对</dd><dt>输出</dt><dd>新 run ID、模型资产与终态记录</dd><dt>检查</dt><dd>succeeded / partial / failed 覆盖</dd><dt>风险</dt><dd>推理不得隐式重训</dd></dl></div>
+        <div class="quick-source" aria-label="运行流程速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>训练矩阵或模型-数据集推理对</dd><dt>命令</dt><dd><code>POST /api/jobs</code> 或 <code>POST /api/inference-jobs</code></dd><dt>输出</dt><dd>新 run ID、模型资产与终态记录</dd><dt>检查</dt><dd>succeeded / partial / failed 覆盖</dd><dt>风险</dt><dd>推理不得隐式重训</dd></dl></div>
         <p>训练和推理是两条独立路径：训练读取标签、拟合算法和特征状态并发布模型；推理读取冻结模型快照，可在无标签目标表上运行，且永远不调用训练。</p>
         <div class="flow-strip" aria-label="端到端运行流程">
           <div class="flow-step"><strong>1. 资源预检</strong>目录、列、源码或 Pickle 契约</div><span class="flow-arrow">→</span>
@@ -767,12 +767,12 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
         <h3>冻结推理请求与部分成功</h3>
         <p>请求至少需要 <code>models</code>，可带 <code>datasets</code>、审计字段和非空 <code>pairs</code>。后端为每个模型-数据集对恢复 manifest 声明的特征流水线状态，检查缺失列，然后执行预测。模型读取失败或特征不兼容只生成受影响组合的失败记录；有成功也有失败时任务终态为 <code>partial</code>。</p>
         <h3>任务历史、轮询与重跑</h3>
-        <p>训练历史来自 <code>GET /api/jobs</code>，推理历史来自 <code>GET /api/inference-jobs</code>；详情路由附加任务 ID。前端约每秒轮询，瞬时错误会退避重连，404 会清除活动锁并允许重跑。当前任务状态使用 <code>succeeded</code>、<code>partial</code>、<code>failed</code>。重跑总是创建新任务和新 run ID，不原位改写旧运行。目录发布可先物化新的不可变 generation；若 <code>CURRENT.json</code> 更新失败时不会激活该 generation，旧 pointer 和 last-known-good 保持可读。先从历史恢复相同选择，再根据失败列/模型缩小范围重跑。</p>
+        <p>训练历史来自 <code>GET /api/jobs</code>，推理历史来自 <code>GET /api/inference-jobs</code>；详情路由附加任务 ID。前端约每秒轮询，瞬时错误会退避重连，404 会清除活动锁并允许重跑。当前任务状态使用 <code>succeeded</code>、<code>partial</code>、<code>failed</code>。重跑总是创建新任务和新 run ID，不原位改写旧运行。目录发布可先物化新的不可变 generation；<code>CURRENT.json</code> 的 <code>os.replace</code> 之前失败时，旧 pointer 和 last-known-good 保持活动。若替换后的目录 <code>fsync</code> 失败，调用方可能收到错误，但新 pointer 已经活动；重试前重新读取 <code>CURRENT.json</code>，再记录或处理活动 generation。先从历史恢复相同选择，再根据失败列/模型缩小范围重跑。</p>
       </section>
 
       <section id="evidence" class="chapter" data-paths="manager developer operator">
         <h2>结果、排行与证据解释</h2>
-        <div class="quick-source" aria-label="证据解释速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>结果表、排行榜、QC、配置与 EvidencePack</dd><dt>输出</dt><dd>带覆盖范围的可复核结论</dd><dt>检查</dt><dd>comparison key、verdict 与摘要链</dd><dt>风险</dt><dd>0/0 不等于全部失败</dd></dl></div>
+        <div class="quick-source" aria-label="证据解释速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>结果表、排行榜、QC、配置与 EvidencePack</dd><dt>命令</dt><dd>任务详情端点见 API 附录</dd><dt>输出</dt><dd>带覆盖范围的可复核结论</dd><dt>检查</dt><dd>comparison key、verdict 与摘要链</dd><dt>风险</dt><dd>0/0 不等于全部失败</dd></dl></div>
         <p>单个 KPI 不是结论。先核对任务终态和 execution coverage，再核对 comparison key、数据范围、指标、验收 verdict 与证据摘要。</p>
         <p class="callout"><strong>对象边界：</strong>原始运行目录与前端 publication generation 是两类对象。原始运行目录按 run ID 独占创建，保存本次训练/推理证据，可作为后续合并来源；原始运行目录不是前端 generation，原始运行目录不会推进 <code>CURRENT.json</code>。只有验证后的目录发布成功，活动前端数据才切换到新的 generation。</p>
         <div class="table-wrap">
@@ -802,8 +802,8 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
 
       <section id="packaging" class="chapter" data-paths="developer operator">
         <h2>数据同步与离线打包</h2>
-        <div class="quick-source" aria-label="同步打包速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>运行源、前端数据与原生看板</dd><dt>命令</dt><dd>build artifacts、sync、portable、standalone</dd><dt>检查</dt><dd>staging 校验后再激活</dd><dt>风险</dt><dd>失败不得推进 CURRENT.json</dd></dl></div>
-        <p><strong>generation 和 <code>CURRENT.json</code> 只属于目录发布。</strong>前端 artifacts、原生看板同步和 portable 目录使用 staging → 校验 → fsync → generation → 原子更新 pointer 的顺序。generation 可在 <code>CURRENT.json</code> 更新前物化；指针更新失败不会激活它，旧 pointer 和 last-known-good 继续可读。pointer 成功后再同步兼容视图，兼容视图后续同步失败不破坏活动 generation。系统没有“回滚到任意历史 generation”的用户命令。</p>
+        <div class="quick-source" aria-label="同步打包速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>运行源、前端数据与原生看板</dd><dt>命令</dt><dd>build artifacts、sync、portable、standalone</dd><dt>输出</dt><dd>generation、portable 目录或 standalone HTML</dd><dt>检查</dt><dd>staging 校验后再激活</dd><dt>风险</dt><dd>报错后重新核验活动指针或文件摘要</dd></dl></div>
+        <p><strong>generation 和 <code>CURRENT.json</code> 只属于目录发布。</strong>前端 artifacts、原生看板同步和 portable 目录使用 staging → 校验 → fsync → generation → 原子更新 pointer 的顺序。generation 可在 <code>CURRENT.json</code> 更新前物化；pointer 的 <code>os.replace</code> 前失败不会激活它，旧 pointer 和 last-known-good 继续活动。替换后的目录 <code>fsync</code> 失败具有提交状态歧义：调用方可能收到错误，而新 pointer 已经活动；操作员必须重新读取 <code>CURRENT.json</code> 后再重试或登记版本。pointer 成功后再同步兼容视图，兼容视图后续同步失败不破坏活动 generation。系统没有“回滚到任意历史 generation”的用户命令。</p>
         <h3>合并并发布前端 artifacts</h3>
         <pre><code>.venv\Scripts\python.exe scripts\build_frontend_artifacts.py --help</code></pre>
         <p class="command-note">帮助会报告：位置参数 <code>runs</code>、可重复 <code>--source-run</code>、<code>--archive-dir</code>、<code>--frontend-data-dir</code>、<code>--phase</code>、<code>--replace-cell estimator:featureset</code> 和 <code>--no-auto-replace-from-stability</code>。先按运行优先级提供具体源目录；空的 frontend data 参数可跳过同步。</p>
@@ -815,12 +815,12 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
         <p>可另传 <code>--app-dir</code>；缺省为 <code>frontend/app</code>。输出是需要静态 HTTP 服务的目录包，写入 <code>MANIFEST.json</code>，可带已同步原生看板，并始终移除 detection 资产与引用。</p>
         <h3>构建 standalone 单 HTML</h3>
         <pre><code>.venv\Scripts\python.exe scripts\build_standalone_frontend.py --output dist\soh-eval-standalone.html</code></pre>
-        <p>可另传 <code>--app-dir</code>。构建器内联 CSS、JS、JSON、离线 GET fetch adapter 和有效原生看板 <code>srcdoc</code>。Standalone 不创建 generation，也不读写 <code>CURRENT.json</code>；它先验证临时 HTML，再原子替换一个输出文件，失败时保留原有 standalone 文件。生成的 HTML 可直接离线打开。</p>
+        <p>可另传 <code>--app-dir</code>。构建器内联 CSS、JS、JSON、离线 GET fetch adapter 和有效原生看板 <code>srcdoc</code>。Standalone 不创建 generation，也不读写 <code>CURRENT.json</code>；候选语义、资源和图片验证、临时写入或 <code>os.replace</code> 之前失败时保留原有 standalone 文件。若替换后目录 <code>fsync</code> 报错，新文件可能已经活动；重试或记录活动版本前必须校验 standalone 文件摘要。生成的 HTML 可直接离线打开。</p>
       </section>
 
       <section id="troubleshooting" class="chapter" data-paths="developer operator">
         <h2>常见问题、安全边界与排障</h2>
-        <div class="quick-source" aria-label="排障安全速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>任务状态、目录、manifest、结构化失败</dd><dt>输出</dt><dd>按层定位的处理动作</dd><dt>检查</dt><dd>路径、设备别名、缓存与兼容性</dd><dt>风险</dt><dd>不可信源码、Pickle 与网络暴露</dd></dl></div>
+        <div class="quick-source" aria-label="排障安全速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>任务状态、目录、manifest、结构化失败</dd><dt>命令</dt><dd>健康检查与任务详情见命令附录</dd><dt>输出</dt><dd>按层定位的处理动作</dd><dt>检查</dt><dd>路径、设备别名、缓存与兼容性</dd><dt>风险</dt><dd>不可信源码、Pickle 与网络暴露</dd></dl></div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>现象</th><th>先检查</th><th>判定与处理</th></tr></thead>
@@ -831,7 +831,7 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
               <tr><td>推理无响应</td><td>API 健康、任务详情、模型快照大小、轮询错误</td><td>瞬时错误让前端重连；404 会解锁。进程失败时保留任务 JSON/traceback 后重启。</td></tr>
               <tr><td>验收通过为零</td><td><code>verdicts</code>、required metrics、execution coverage</td><td><code>0/0</code> 可表示无终态可验收记录；不要把它解释为全失败。</td></tr>
               <tr><td>Pickle/特征不匹配</td><td>SHA-256、manifest <code>feature_columns</code>、pipeline/state</td><td>补齐目标列或用正确模型；不要在推理中临时重训来掩盖不兼容。</td></tr>
-              <tr><td>前端仍是旧结果</td><td>活动 <code>CURRENT.json</code>、URL 的 <code>v</code>、任务终态</td><td>成功/部分成功会 cache-bust；确认 pointer 指向完整 generation，再强制刷新。</td></tr>
+              <tr><td>发布报错或前端仍是旧结果</td><td>活动 <code>CURRENT.json</code>、standalone 摘要、URL 的 <code>v</code>、任务终态</td><td>目录发布报错后重新读取 <code>CURRENT.json</code>；单文件发布报错后重新校验 standalone 文件摘要。确认实际活动内容后再重试或强制刷新。</td></tr>
               <tr><td>原生看板无数据</td><td><code>SYNC_MANIFEST.json</code>、源 manifest、曲线选项</td><td>修复源 JSON 后重同步；若用了 <code>--no-curves</code>，曲线缺失是预期。</td></tr>
               <tr><td>布局溢出或乱码</td><td>浏览器缩放、窄屏、UTF-8、U+FFFD</td><td>保持 UTF-8，使用表格自身横向滚动；不要把页面级 overflow 当作解决方案。</td></tr>
               <tr><td>上传失败后担心半发布</td><td>错误响应、目录项与原文件摘要</td><td>事务会恢复原 payload/catalog；修复验证错误再重传。它不是已成功上传后的历史回滚功能。</td></tr>
@@ -849,7 +849,7 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
       </section>
       <section id="reference" class="chapter" data-paths="developer operator">
         <h2>API、命令和目录速查</h2>
-        <div class="quick-source" aria-label="API 与目录速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>当前 API 路由、命令和关键目录</dd><dt>输出</dt><dd>可复制的最短验收链</dd><dt>检查</dt><dd>路由与 <code>api_server.py</code> 一致</dd><dt>风险</dt><dd>文本 URL 不是外部活动链接</dd></dl></div>
+        <div class="quick-source" aria-label="API 与目录速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>当前 API 路由、命令和关键目录</dd><dt>命令</dt><dd>本章表格与最短验收链</dd><dt>输出</dt><dd>可复制的最短验收链</dd><dt>检查</dt><dd>路由与 <code>api_server.py</code> 一致</dd><dt>风险</dt><dd>文本 URL 不是外部活动链接</dd></dl></div>
         <p>下表来自当前 <code>api_server.py</code> 路由集。正常 JSON 响应带 CORS；验证错误为 400，未知路由/任务为 404，未捕获异常为 500。</p>
         <div class="table-wrap route-table">
           <table>
@@ -915,7 +915,6 @@ GET /api/package/status</code></pre>
   (() => {
     "use strict";
 
-    document.documentElement.classList.add("js");
     const chapters = [...document.querySelectorAll(".chapter")];
     const navLinks = [...document.querySelectorAll('.guide-nav a[href^="#"], .mobile-toc a[href^="#"]')];
     const main = document.querySelector("main");
@@ -1184,6 +1183,7 @@ GET /api/package/status</code></pre>
     setAudience("all");
     filterGuide("");
     activateSection(location.hash.slice(1) || "overview");
+    document.documentElement.classList.add("js");
   })();
   </script>
 </body>

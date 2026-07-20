@@ -6,7 +6,9 @@ import html
 import json
 import re
 import shutil
+import struct
 import subprocess
+import zlib
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -36,7 +38,7 @@ TARGET_VERDICTS = [
 
 
 def _normalize_visible_text(parts):
-    return " ".join(part.strip() for part in parts if part.strip())
+    return " ".join("".join(parts).split())
 
 
 class DiagramFallbackParser(HTMLParser):
@@ -361,6 +363,140 @@ class StructuredFactParser(HTMLParser):
                 self.featureset_parts = []
 
 
+class StructuredCurrentClaimParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.claims = {}
+        self.target_confirmations = []
+        self.current_kind = None
+        self.current_key = None
+        self.current_attrs = None
+        self.depth = 0
+        self.parts = []
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        if self.current_kind is not None:
+            self.depth += 1
+            return
+
+        if "data-current-fact" in values:
+            self.current_kind = "claim"
+            self.current_key = values["data-current-fact"]
+        elif "data-target-user-confirmation" in values:
+            self.current_kind = "target-confirmation"
+            self.current_key = values["data-target-user-confirmation"]
+        else:
+            return
+
+        self.current_attrs = values
+        self.depth = 1
+        self.parts = []
+
+    def handle_data(self, data):
+        if self.current_kind is not None:
+            self.parts.append(data)
+
+    def handle_endtag(self, tag):
+        if self.current_kind is None:
+            return
+        self.depth -= 1
+        if self.depth:
+            return
+
+        item = {
+            "attributes": self.current_attrs,
+            "text": _normalize_visible_text(self.parts),
+        }
+        if self.current_kind == "claim":
+            assert self.current_key not in self.claims
+            self.claims[self.current_key] = item
+        else:
+            self.target_confirmations.append(item)
+        self.current_kind = None
+        self.current_key = None
+        self.current_attrs = None
+        self.parts = []
+
+
+class QuickSourceParser(HTMLParser):
+    _VOID_ELEMENTS = {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.chapter_id = None
+        self.chapter_depth = 0
+        self.in_quick_source = False
+        self.quick_depth = 0
+        self.in_term = False
+        self.term_parts = []
+        self.fields = {}
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        classes = set(values.get("class", "").split())
+        if (
+            self.chapter_id is None
+            and tag == "section"
+            and "chapter" in classes
+        ):
+            self.chapter_id = values.get("id")
+            self.chapter_depth = 1
+            self.fields.setdefault(self.chapter_id, [])
+            return
+        if self.chapter_id is None:
+            return
+
+        if tag not in self._VOID_ELEMENTS:
+            self.chapter_depth += 1
+        if tag == "div" and "quick-source" in classes:
+            self.in_quick_source = True
+            self.quick_depth = 1
+            return
+        if self.in_quick_source:
+            if tag not in self._VOID_ELEMENTS:
+                self.quick_depth += 1
+            if tag == "dt":
+                self.in_term = True
+                self.term_parts = []
+
+    def handle_data(self, data):
+        if self.in_term:
+            self.term_parts.append(data)
+
+    def handle_endtag(self, tag):
+        if self.chapter_id is None:
+            return
+        if self.in_quick_source:
+            if tag == "dt" and self.in_term:
+                self.fields[self.chapter_id].append(
+                    _normalize_visible_text(self.term_parts)
+                )
+                self.in_term = False
+                self.term_parts = []
+            self.quick_depth -= 1
+            if self.quick_depth == 0:
+                self.in_quick_source = False
+        self.chapter_depth -= 1
+        if self.chapter_depth == 0:
+            self.chapter_id = None
+
+
 def _guide_section_text(section_id):
     parser = SectionTextParser(section_id)
     parser.feed(GUIDE.read_text(encoding="utf-8"))
@@ -380,6 +516,63 @@ def _guide_without_embedded_images():
         "data:image/embedded;base64,",
         text,
     )
+
+
+def _write_guide(tmp_path, source=None):
+    guide = tmp_path / "guide.html"
+    guide.write_text(
+        GUIDE.read_text(encoding="utf-8") if source is None else source,
+        encoding="utf-8",
+    )
+    return guide
+
+
+def _replace_shot_src(source, shot, replacement):
+    pattern = re.compile(
+        rf'(<img\b(?=[^>]*\bdata-shot="{re.escape(shot)}")'
+        rf'(?=[^>]*\bsrc=")[^>]*\bsrc=")[^"]*(")',
+        flags=re.IGNORECASE,
+    )
+    mutated, count = pattern.subn(
+        lambda match: f"{match.group(1)}{replacement}{match.group(2)}",
+        source,
+        count=1,
+    )
+    assert count == 1
+    return mutated
+
+
+def _png_bytes(width=2, height=2, rgb=(32, 96, 160)):
+    def chunk(kind, payload):
+        return (
+            struct.pack(">I", len(payload))
+            + kind
+            + payload
+            + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF)
+        )
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    row = bytes(rgb) * width
+    scanlines = b"".join(b"\x00" + row for _ in range(height))
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", header)
+        + chunk(b"IDAT", zlib.compress(scanlines))
+        + chunk(b"IEND", b"")
+    )
+
+
+def _valid_capture_set(tmp_path):
+    captures = {}
+    for index, name in enumerate(
+        ("training", "inference", "models", "native", "diagnostics")
+    ):
+        capture = tmp_path / f"{name}.png"
+        capture.write_bytes(
+            _png_bytes(rgb=(32 + index, 96 + index, 160 + index))
+        )
+        captures[name] = capture
+    return captures
 
 
 def _assert_structured_fact_contract(source):
@@ -424,6 +617,76 @@ def _assert_structured_fact_contract(source):
     ]
     assert fact_parser.metric_truth_boundaries == [
         ("in-process", "exclusive-metric-worker")
+    ]
+
+
+def _assert_current_claim_contract(source):
+    parser = StructuredCurrentClaimParser()
+    parser.feed(source)
+
+    assert parser.claims["task-verdict"]["attributes"][
+        "data-current-values"
+    ].split() == ["not_reviewed", "fail"]
+    assert parser.claims["task-verdict"]["text"] == (
+        "当前任务 verdict 字段只使用 not_reviewed / fail。"
+    )
+    assert parser.claims["leaderboard-verdicts"]["attributes"][
+        "data-current-checks"
+    ].split() == [
+        "generalization",
+        "calibration",
+        "physical_consistency",
+    ]
+    assert parser.claims["leaderboard-verdicts"]["text"] == (
+        "当前 leaderboard 的 verdicts 是 generalization / calibration / "
+        "physical_consistency 三个具名布尔检查，不是任务 verdict 枚举。"
+    )
+
+    expected_curve_claims = {
+        "overview-ic": "处理后特征表发现、SOH 标签、IC 峰特征和 IC dQ/dV 曲线。",
+        "method-ic": "当前内建 ic_dva 只有 IC 峰高和峰位。",
+        "domain-status-ic": "已接入多种充电摘要、固定窗口、IC 峰特征、IC dQ/dV 曲线和 SOH 轨迹。",
+        "five-tab-ic": "SOH 完整看板当前展示 IC dQ/dV 曲线。",
+        "native-purpose-ic": "查看 SOH 轨迹，并从异常周期下钻到充电电压、容量、时间曲线、IC dQ/dV 曲线及高亮特征段。",
+        "native-operation-ic": "点击周期点联动电压-容量-时间曲线，查看 IC dQ/dV 曲线与特征高亮区段。",
+    }
+    assert {
+        key: parser.claims[key]["text"] for key in expected_curve_claims
+    } == expected_curve_claims
+    assert not [
+        key
+        for key in expected_curve_claims
+        if "DVA" in parser.claims[key]["text"]
+    ]
+
+    assert [
+        (
+            item["attributes"].get("data-target-user-confirmation"),
+            item["attributes"].get("data-capability-state"),
+            item["text"],
+        )
+        for item in parser.target_confirmations
+    ] == [
+        (
+            "control-visual",
+            "target",
+            "Registry、RunSpec、comparison key、预检、用户确认（目标）和任务状态。",
+        ),
+        (
+            "control-fallback",
+            "target",
+            "控制面：Registry、RunSpec、预检、用户确认（目标）和任务状态。",
+        ),
+        (
+            "workflow-visual",
+            "target",
+            "5 用户确认（目标） 冻结运行矩阵",
+        ),
+        (
+            "workflow-fallback",
+            "target",
+            "由用户确认（目标）运行矩阵。",
+        ),
     ]
 
 
@@ -532,18 +795,28 @@ def _find_chrome():
     return None
 
 
-def _run_chrome_guide_driver(tmp_path, driver):
+def _run_chrome_guide_driver(
+    tmp_path,
+    driver,
+    *,
+    source_transform=None,
+    window_size=(1280, 720),
+):
     chrome = _find_chrome()
     if chrome is None:
         pytest.skip("Chrome/Edge not found; headless guide behavior smoke skipped")
 
     driven_guide = tmp_path / "guide-smoke.html"
     source = GUIDE.read_text(encoding="utf-8")
+    if source_transform is not None:
+        source = source_transform(source)
     driven_guide.write_text(
         source.replace("</body>", f"<script>{driver}</script></body>"),
         encoding="utf-8",
     )
-    profile = tmp_path / "chrome-profile"
+    profile = tmp_path / (
+        f"chrome-profile-{window_size[0]}-{len(list(tmp_path.glob('chrome-profile-*')))}"
+    )
     completed = subprocess.run(
         [
             str(chrome),
@@ -552,7 +825,7 @@ def _run_chrome_guide_driver(tmp_path, driver):
             "--no-first-run",
             "--no-default-browser-check",
             "--allow-file-access-from-files",
-            "--window-size=1280,720",
+            f"--window-size={window_size[0]},{window_size[1]}",
             "--virtual-time-budget=2000",
             f"--user-data-dir={profile}",
             "--dump-dom",
@@ -641,6 +914,121 @@ def test_headless_chrome_clears_nonempty_search_before_visible_anchor_jump(
     assert result["selectionLength"] > 0
 
 
+def test_headless_chrome_mobile_and_no_enhancement_offline_regression(
+    tmp_path,
+):
+    driver = r"""
+    (async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+      const chapters = [...document.querySelectorAll(".chapter")];
+      const anchors = [...document.querySelectorAll(".mobile-toc a[href^='#']")];
+      const payload = {
+        widthMatches:
+          document.documentElement.scrollWidth ===
+          document.documentElement.clientWidth,
+        visibleChapters: chapters.filter(
+          (chapter) => getComputedStyle(chapter).display !== "none"
+        ).length,
+        validAnchors: anchors.filter((anchor) => {
+          const target = document.querySelector(anchor.getAttribute("href"));
+          return target && getComputedStyle(target).display !== "none";
+        }).length,
+        images: [...document.images].map((image) => ({
+          complete: image.complete,
+          width: image.naturalWidth,
+        })),
+      };
+      const output = document.createElement("pre");
+      output.id = "smoke-result";
+      output.textContent = JSON.stringify(payload);
+      document.body.replaceChildren(output);
+    })();
+    """
+
+    enhanced = _run_chrome_guide_driver(
+        tmp_path,
+        driver,
+        window_size=(390, 844),
+    )
+
+    def remove_enhancement(source):
+        stripped, count = re.subn(
+            r"\s*<script>\s*\(\(\) => \{.*?</script>",
+            "",
+            source,
+            count=1,
+            flags=re.DOTALL,
+        )
+        assert count == 1
+        return stripped
+
+    no_enhancement = _run_chrome_guide_driver(
+        tmp_path,
+        driver,
+        source_transform=remove_enhancement,
+        window_size=(390, 844),
+    )
+
+    assert enhanced["widthMatches"] is True
+    assert len(enhanced["images"]) == 5
+    assert all(
+        image["complete"] and image["width"] > 0
+        for image in enhanced["images"]
+    )
+    assert no_enhancement["widthMatches"] is True
+    assert no_enhancement["visibleChapters"] == len(REQUIRED_SECTIONS)
+    assert no_enhancement["validAnchors"] == len(REQUIRED_SECTIONS)
+    assert len(no_enhancement["images"]) == 5
+    assert all(
+        image["complete"] and image["width"] > 0
+        for image in no_enhancement["images"]
+    )
+
+
+def test_headless_chrome_initialization_failure_preserves_mobile_toc(
+    tmp_path,
+):
+    def inject_initialization_failure(source):
+        marker = "    enhanceChapterDetails();"
+        assert source.count(marker) == 1
+        return source.replace(
+            marker,
+            '    throw new Error("injected initialization failure");\n'
+            + marker,
+            1,
+        )
+
+    result = _run_chrome_guide_driver(
+        tmp_path,
+        r"""
+        (() => {
+          const toc = document.querySelector(".mobile-toc");
+          const payload = {
+            jsActive: document.documentElement.classList.contains("js"),
+            tocVisible: getComputedStyle(toc).display !== "none",
+            anchors: toc.querySelectorAll('a[href^="#"]').length,
+            visibleChapters: [...document.querySelectorAll(".chapter")]
+              .filter((chapter) => getComputedStyle(chapter).display !== "none")
+              .length,
+          };
+          const output = document.createElement("pre");
+          output.id = "smoke-result";
+          output.textContent = JSON.stringify(payload);
+          document.body.replaceChildren(output);
+        })();
+        """,
+        source_transform=inject_initialization_failure,
+        window_size=(390, 844),
+    )
+
+    assert result == {
+        "jsActive": False,
+        "tocVisible": True,
+        "anchors": len(REQUIRED_SECTIONS),
+        "visibleChapters": len(REQUIRED_SECTIONS),
+    }
+
+
 def test_design_user_guide_has_progressive_interactions_and_print_rules():
     text = GUIDE.read_text(encoding="utf-8")
     for token in (
@@ -677,6 +1065,17 @@ def test_every_chapter_has_audience_paths_and_inline_quick_source():
     )
     assert len(chapter_tags) == len(REQUIRED_SECTIONS)
     assert text.count('class="quick-source"') == len(REQUIRED_SECTIONS)
+
+
+def test_every_chapter_quick_source_has_exact_required_fields():
+    parser = QuickSourceParser()
+    parser.feed(GUIDE.read_text(encoding="utf-8"))
+
+    assert set(parser.fields) == set(REQUIRED_SECTIONS)
+    assert all(
+        fields == ["输入", "命令", "输出", "检查", "风险"]
+        for fields in parser.fields.values()
+    )
 
 
 def test_reading_paths_only_change_navigation_emphasis():
@@ -860,16 +1259,185 @@ def test_validator_rejects_known_mojibake_marker(tmp_path):
     assert any(issue.code == "mojibake" for issue in issues)
 
 
+@pytest.mark.parametrize(
+    ("case", "replacement", "expected_code"),
+    [
+        (
+            "malformed-base64",
+            "data:image/png;base64,%%%",
+            "image-data",
+        ),
+        (
+            "truncated-png",
+            "data:image/png;base64,"
+            + base64.b64encode(b"\x89PNG\r\n\x1a\n").decode("ascii"),
+            "image-data",
+        ),
+        (
+            "mime-magic-mismatch",
+            "data:image/jpeg;base64,"
+            + base64.b64encode(_png_bytes()).decode("ascii"),
+            "image-mime",
+        ),
+        (
+            "zero-payload-width",
+            "data:image/png;base64,"
+            + base64.b64encode(_png_bytes(width=0, height=1)).decode("ascii"),
+            "image-dimensions",
+        ),
+    ],
+)
+def test_validator_rejects_malformed_or_misdeclared_embedded_images(
+    tmp_path, case, replacement, expected_code
+):
+    source = _replace_shot_src(
+        GUIDE.read_text(encoding="utf-8"),
+        "training",
+        replacement,
+    )
+    guide = _write_guide(tmp_path, source)
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == expected_code for issue in issues), (
+        case,
+        issues,
+    )
+
+
+def test_validator_rejects_zero_declared_image_dimension(tmp_path):
+    source = GUIDE.read_text(encoding="utf-8")
+    marker = re.search(
+        r'<img\b(?=[^>]*data-shot="training")[^>]*>',
+        source,
+    )
+    assert marker is not None
+    mutated_marker = marker.group(0).replace('width="1440"', 'width="0"', 1)
+    assert mutated_marker != marker.group(0)
+    source = source.replace(marker.group(0), mutated_marker, 1)
+    guide = _write_guide(tmp_path, source)
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "image-dimensions" for issue in issues)
+
+
+def test_validator_requires_exact_embedded_screenshot_set(tmp_path):
+    source = GUIDE.read_text(encoding="utf-8").replace(
+        'data-shot="diagnostics"',
+        'data-shot="unexpected"',
+        1,
+    )
+    guide = _write_guide(tmp_path, source)
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "image-set" for issue in issues)
+
+
+@pytest.mark.parametrize(
+    "injection",
+    (
+        '<iframe src="frame.html"></iframe>',
+        '<object data="payload.bin"></object>',
+        '<embed src="payload.bin">',
+        '<link rel="icon" href="favicon.ico">',
+        "<link rel href>",
+        '<script src="guide.js"></script>',
+        '<picture><source src="shot.webp"></picture>',
+        '<video src="movie.mp4" poster="poster.png"></video>',
+        '<audio src="audio.mp3"></audio>',
+        '<img src="data:image/png;base64,AA==" srcset="remote.png 2x" '
+        'alt="额外资源">',
+        '<form action="/submit"><button type="submit">提交</button></form>',
+    ),
+)
+def test_validator_rejects_sidecar_and_active_resource_references(
+    tmp_path, injection
+):
+    guide = _write_guide(
+        tmp_path,
+        GUIDE.read_text(encoding="utf-8").replace(
+            "</body>",
+            injection + "</body>",
+        ),
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "external-resource" for issue in issues), issues
+
+
+def test_validator_reports_bare_image_resource_attribute_instead_of_crashing(
+    tmp_path,
+):
+    source = GUIDE.read_text(encoding="utf-8")
+    marker = re.search(
+        r'<img\b(?=[^>]*data-shot="training")[^>]*>',
+        source,
+    )
+    assert marker is not None
+    mutated_marker = re.sub(r'src="[^"]+"', "src", marker.group(0), count=1)
+    guide = _write_guide(
+        tmp_path,
+        source.replace(marker.group(0), mutated_marker, 1),
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "image" for issue in issues)
+
+
+@pytest.mark.parametrize(
+    "load_site",
+    (
+        'fetch("https://example.invalid/data.json")',
+        'new XMLHttpRequest()',
+        'new WebSocket("wss://example.invalid/socket")',
+        'new EventSource("/events")',
+        'navigator.sendBeacon("/audit", "x")',
+        'import("remote-module.js")',
+    ),
+)
+def test_validator_rejects_active_javascript_load_sites(tmp_path, load_site):
+    guide = _write_guide(
+        tmp_path,
+        GUIDE.read_text(encoding="utf-8").replace(
+            "</body>",
+            f"<script>{load_site};</script></body>",
+        ),
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "active-load" for issue in issues), issues
+
+
+def test_validator_does_not_treat_literal_localhost_code_as_active_load(
+    tmp_path,
+):
+    guide = _write_guide(
+        tmp_path,
+        GUIDE.read_text(encoding="utf-8").replace(
+            "</body>",
+            '<pre><code>fetch("http://127.0.0.1:8001/api/health")'
+            "</code></pre></body>",
+        ),
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert not [
+        issue for issue in issues if issue.code in {"active-load", "network"}
+    ]
+
+
 def test_embed_screenshots_replaces_each_named_capture(tmp_path):
     from scripts.embed_design_user_guide_screenshots import embed_screenshots
 
-    html = tmp_path / "guide.html"
-    html.write_text(
-        '<img data-shot="training" src="data:image/png;base64,AA==" alt="训练页">',
-        encoding="utf-8",
-    )
+    html = _write_guide(tmp_path)
     capture = tmp_path / "training.png"
-    capture.write_bytes(b"\x89PNG\r\n\x1a\nfixture")
+    capture.write_bytes(_png_bytes())
 
     embed_screenshots(html, {"training": capture})
 
@@ -881,11 +1449,14 @@ def test_embed_screenshots_replaces_each_named_capture(tmp_path):
 def test_embed_screenshots_rejects_missing_marker_without_changing_html(tmp_path):
     from scripts.embed_design_user_guide_screenshots import embed_screenshots
 
-    html = tmp_path / "guide.html"
-    original = '<img data-shot="models" src="data:image/png;base64,AA==" alt="模型页">'
-    html.write_text(original, encoding="utf-8")
+    original = GUIDE.read_text(encoding="utf-8").replace(
+        'data-shot="training"',
+        'data-shot="removed-training"',
+        1,
+    )
+    html = _write_guide(tmp_path, original)
     capture = tmp_path / "training.png"
-    capture.write_bytes(b"\x89PNG\r\n\x1a\nfixture")
+    capture.write_bytes(_png_bytes())
 
     with pytest.raises(
         ValueError,
@@ -899,12 +1470,16 @@ def test_embed_screenshots_rejects_missing_marker_without_changing_html(tmp_path
 def test_embed_screenshots_rejects_duplicate_marker_without_changing_html(tmp_path):
     from scripts.embed_design_user_guide_screenshots import embed_screenshots
 
-    html = tmp_path / "guide.html"
-    marker = '<img data-shot="training" src="data:image/png;base64,AA==" alt="训练页">'
-    original = marker + marker
-    html.write_text(original, encoding="utf-8")
+    source = GUIDE.read_text(encoding="utf-8")
+    marker = re.search(
+        r'<img\b(?=[^>]*data-shot="training")[^>]*>',
+        source,
+    )
+    assert marker is not None
+    original = source.replace(marker.group(0), marker.group(0) * 2, 1)
+    html = _write_guide(tmp_path, original)
     capture = tmp_path / "training.png"
-    capture.write_bytes(b"\x89PNG\r\n\x1a\nfixture")
+    capture.write_bytes(_png_bytes())
 
     with pytest.raises(
         ValueError,
@@ -918,13 +1493,16 @@ def test_embed_screenshots_rejects_duplicate_marker_without_changing_html(tmp_pa
 def test_embed_screenshots_late_marker_failure_leaves_original_html(tmp_path):
     from scripts.embed_design_user_guide_screenshots import embed_screenshots
 
-    html = tmp_path / "guide.html"
-    original = '<img data-shot="training" src="old" alt="训练页">'
-    html.write_text(original, encoding="utf-8")
+    original = GUIDE.read_text(encoding="utf-8").replace(
+        'data-shot="inference"',
+        'data-shot="removed-inference"',
+        1,
+    )
+    html = _write_guide(tmp_path, original)
     training = tmp_path / "training.png"
     inference = tmp_path / "inference.png"
-    training.write_bytes(b"\x89PNG\r\n\x1a\ntraining")
-    inference.write_bytes(b"\x89PNG\r\n\x1a\ninference")
+    training.write_bytes(_png_bytes(rgb=(1, 2, 3)))
+    inference.write_bytes(_png_bytes(rgb=(4, 5, 6)))
 
     with pytest.raises(
         ValueError,
@@ -943,9 +1521,8 @@ def test_embed_screenshots_rejects_unsupported_suffix_without_changing_html(
 ):
     from scripts.embed_design_user_guide_screenshots import embed_screenshots
 
-    html = tmp_path / "guide.html"
-    original = '<img data-shot="training" src="old" alt="训练页">'
-    html.write_text(original, encoding="utf-8")
+    html = _write_guide(tmp_path)
+    original = html.read_text(encoding="utf-8")
     capture = tmp_path / "training.bmp"
     capture.write_bytes(b"bitmap fixture")
 
@@ -955,24 +1532,150 @@ def test_embed_screenshots_rejects_unsupported_suffix_without_changing_html(
     assert html.read_text(encoding="utf-8") == original
 
 
-def test_embed_screenshots_uses_webp_mime_type(tmp_path):
+def test_embed_screenshots_rejects_truncated_named_image_without_changing_html(
+    tmp_path,
+):
     from scripts.embed_design_user_guide_screenshots import embed_screenshots
 
-    html = tmp_path / "guide.html"
-    html.write_text(
-        '<img data-shot="native" src="old" alt="完整看板">',
-        encoding="utf-8",
-    )
-    capture = tmp_path / "native.webp"
-    capture.write_bytes(b"RIFFfixtureWEBP")
+    html = _write_guide(tmp_path)
+    original = html.read_bytes()
+    capture = tmp_path / "training.png"
+    capture.write_bytes(b"\x89PNG\r\n\x1a\n")
 
-    embed_screenshots(html, {"native": capture})
+    with pytest.raises(ValueError, match="invalid image"):
+        embed_screenshots(html, {"training": capture})
 
-    expected = base64.b64encode(capture.read_bytes()).decode("ascii")
-    assert (
-        f"src=\"data:image/webp;base64,{expected}\""
-        in html.read_text(encoding="utf-8")
+    assert html.read_bytes() == original
+
+
+def test_embed_screenshots_candidate_validation_failure_preserves_old_file(
+    tmp_path, monkeypatch
+):
+    import scripts.embed_design_user_guide_screenshots as embed_module
+    from scripts.validate_design_user_guide import ValidationIssue
+
+    html = _write_guide(tmp_path)
+    original = html.read_bytes()
+    captures = _valid_capture_set(tmp_path)
+    monkeypatch.setattr(
+        embed_module,
+        "validate_document",
+        lambda path: [
+            ValidationIssue("injected-semantic", "candidate rejected")
+        ],
     )
+
+    with pytest.raises(ValueError, match="candidate guide validation failed"):
+        embed_module.embed_screenshots(html, captures)
+
+    assert html.read_bytes() == original
+
+
+def test_embed_screenshots_partial_temporary_write_preserves_old_file(
+    tmp_path, monkeypatch
+):
+    import sohbench.frontend_publish as frontend_publish_module
+    from scripts.embed_design_user_guide_screenshots import embed_screenshots
+
+    html = _write_guide(tmp_path)
+    original = html.read_bytes()
+    captures = _valid_capture_set(tmp_path)
+    real_write_text = Path.write_text
+
+    def fail_partial_temporary_write(path, text, *args, **kwargs):
+        if path.parent == html.parent and path.name.startswith(
+            f".{html.name}.tmp-"
+        ):
+            path.write_bytes(text[:64].encode("utf-8"))
+            raise OSError("injected partial temporary write")
+        return real_write_text(path, text, *args, **kwargs)
+
+    monkeypatch.setattr(
+        frontend_publish_module.Path,
+        "write_text",
+        fail_partial_temporary_write,
+    )
+
+    with pytest.raises(OSError, match="partial temporary write"):
+        embed_screenshots(html, captures)
+
+    assert html.read_bytes() == original
+
+
+def test_embed_screenshots_replace_failure_preserves_old_file(
+    tmp_path, monkeypatch
+):
+    import sohbench.frontend_publish as frontend_publish_module
+    from scripts.embed_design_user_guide_screenshots import embed_screenshots
+
+    html = _write_guide(tmp_path)
+    original = html.read_bytes()
+    captures = _valid_capture_set(tmp_path)
+    monkeypatch.setattr(
+        frontend_publish_module,
+        "_atomic_replace",
+        lambda source, destination: (_ for _ in ()).throw(
+            OSError("injected replace failure")
+        ),
+    )
+
+    with pytest.raises(OSError, match="replace failure"):
+        embed_screenshots(html, captures)
+
+    assert html.read_bytes() == original
+
+
+def test_embed_screenshots_post_replace_fsync_failure_leaves_new_file_active(
+    tmp_path, monkeypatch
+):
+    import sohbench.frontend_publish as frontend_publish_module
+    from scripts.embed_design_user_guide_screenshots import embed_screenshots
+
+    html = _write_guide(tmp_path)
+    original_hash = hashlib.sha256(html.read_bytes()).hexdigest()
+    captures = _valid_capture_set(tmp_path)
+    monkeypatch.setattr(
+        frontend_publish_module,
+        "_fsync_directory",
+        lambda path: (_ for _ in ()).throw(
+            OSError("injected post-replace fsync failure")
+        ),
+    )
+
+    with pytest.raises(OSError, match="post-replace fsync failure"):
+        embed_screenshots(html, captures)
+
+    assert hashlib.sha256(html.read_bytes()).hexdigest() != original_hash
+    assert validate_document(html, source_root=ROOT) == []
+
+
+def test_embed_screenshots_successfully_replaces_all_valid_image_hashes(
+    tmp_path,
+):
+    from scripts.embed_design_user_guide_screenshots import embed_screenshots
+
+    html = _write_guide(tmp_path)
+    captures = _valid_capture_set(tmp_path)
+    expected_hashes = {
+        name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for name, path in captures.items()
+    }
+
+    embed_screenshots(html, captures)
+
+    rendered = html.read_text(encoding="utf-8")
+    for name, expected_hash in expected_hashes.items():
+        match = re.search(
+            rf'<img\b(?=[^>]*data-shot="{name}")'
+            rf'(?=[^>]*src="data:image/[^;"]+;base64,([^"]+)")[^>]*>',
+            rendered,
+        )
+        assert match is not None
+        assert (
+            hashlib.sha256(base64.b64decode(match.group(1))).hexdigest()
+            == expected_hash
+        )
+    assert validate_document(html, source_root=ROOT) == []
 
 
 def test_design_user_guide_embeds_all_five_frontend_captures():
@@ -1155,7 +1858,7 @@ def test_architecture_distinguishes_target_flow_from_current_phase0_path():
     architecture = _guide_section_text("architecture")
     target_terms = {
         "目标架构端到端流程",
-        "用户确认",
+        "用户确认（目标）",
         "Adaptation",
         "Metric Worker",
         "PolicySpec",
@@ -1188,6 +1891,40 @@ def test_target_state_lanes_use_exact_authoritative_value_sets():
     _assert_structured_fact_contract(GUIDE.read_text(encoding="utf-8"))
 
 
+def test_current_task_leaderboard_and_curve_facts_are_structurally_separate():
+    _assert_current_claim_contract(GUIDE.read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        (
+            "当前任务 verdict 字段只使用 "
+            "<code>not_reviewed</code> / <code>fail</code>。",
+            "当前任务 verdict 字段使用 "
+            "<code>not_reviewed</code> / <code>pass</code> / "
+            "<code>warn</code> / <code>fail</code>。",
+        ),
+        (
+            "SOH 完整看板当前展示 IC <code>dQ/dV</code> 曲线。",
+            "SOH 完整看板当前展示 IC/DVA 曲线。",
+        ),
+        (
+            "<strong>5 用户确认（目标）</strong>",
+            "<strong>5 用户确认</strong>",
+        ),
+    ],
+)
+def test_structured_current_fact_attributes_cannot_mask_reversed_visible_text(
+    old, new
+):
+    source = GUIDE.read_text(encoding="utf-8")
+    mutated = _replace_once(source, old, new)
+
+    with pytest.raises(AssertionError):
+        _assert_current_claim_contract(mutated)
+
+
 def test_target_state_explanations_use_authoritative_vocabulary_only():
     contracts = _guide_section_text("contracts")
     text = _guide_without_embedded_images()
@@ -1209,6 +1946,7 @@ def test_domain_claims_match_current_feature_policy_and_dataset_integration():
         "当前内建 ic_dva 只有 IC 峰高和峰位",
         "DVA、面积和形状",
         "方法背景或目标能力",
+        "IC dQ/dV 曲线",
         "capacity_time",
         "cycle_fraction",
         "FeaturePolicy gap",
@@ -1511,23 +2249,34 @@ def test_publication_claims_are_scoped_by_artifact_kind_and_success():
     runs = _guide_section_text("runs")
     evidence = _guide_section_text("evidence")
     packaging = _guide_section_text("packaging")
+    troubleshooting = _guide_section_text("troubleshooting")
 
     assert "重跑总是创建新任务和新 run ID" in runs
     assert "目录发布可先物化新的不可变 generation" in runs
-    assert "CURRENT.json 更新失败时不会激活该 generation" in runs
-    assert "旧 pointer 和 last-known-good 保持可读" in runs
+    assert "CURRENT.json 的 os.replace 之前失败" in runs
+    assert "旧 pointer 和 last-known-good 保持活动" in runs
+    assert "替换后的目录 fsync 失败" in runs
+    assert "新 pointer 已经活动" in runs
+    assert "重试前重新读取 CURRENT.json" in runs
 
     assert "原始运行目录与前端 publication generation 是两类对象" in evidence
     assert "原始运行目录不会推进 CURRENT.json" in evidence
 
     assert "generation 和 CURRENT.json 只属于目录发布" in packaging
     assert "generation 可在 CURRENT.json 更新前物化" in packaging
-    assert "指针更新失败不会激活它" in packaging
-    assert "旧 pointer 和 last-known-good 继续可读" in packaging
+    assert "pointer 的 os.replace 前失败不会激活它" in packaging
+    assert "替换后的目录 fsync 失败具有提交状态歧义" in packaging
+    assert "重新读取 CURRENT.json" in packaging
     assert "兼容视图后续同步失败不破坏活动 generation" in packaging
     assert "Standalone 不创建 generation，也不读写 CURRENT.json" in packaging
-    assert "先验证临时 HTML，再原子替换一个输出文件" in packaging
-    assert "失败时保留原有 standalone 文件" in packaging
+    assert "候选语义、资源和图片验证" in packaging
+    assert "os.replace 之前失败时保留原有 standalone 文件" in packaging
+    assert "替换后目录 fsync 报错" in packaging
+    assert "新文件可能已经活动" in packaging
+    assert "校验 standalone 文件摘要" in packaging
+
+    assert "重新读取 CURRENT.json" in troubleshooting
+    assert "重新校验 standalone 文件摘要" in troubleshooting
 
 
 def test_reference_precisely_describes_raw_run_directories():

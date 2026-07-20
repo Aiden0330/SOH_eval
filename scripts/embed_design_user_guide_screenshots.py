@@ -2,10 +2,23 @@ from __future__ import annotations
 
 import argparse
 import base64
-import os
 import re
-import tempfile
 from pathlib import Path
+
+from sohbench.frontend_publish import publish_text_file_atomic
+
+try:
+    from scripts.validate_design_user_guide import (
+        ImageResourceError,
+        inspect_image_bytes,
+        validate_document,
+    )
+except ModuleNotFoundError:  # Direct execution from the scripts directory.
+    from validate_design_user_guide import (  # type: ignore[no-redef]
+        ImageResourceError,
+        inspect_image_bytes,
+        validate_document,
+    )
 
 
 MIME_BY_SUFFIX = {
@@ -21,7 +34,12 @@ def _data_uri(path: Path) -> str:
     mime = MIME_BY_SUFFIX.get(path.suffix.lower())
     if mime is None:
         raise ValueError(f"unsupported image type: {path.suffix}")
-    payload = base64.b64encode(path.read_bytes()).decode("ascii")
+    raw = path.read_bytes()
+    try:
+        inspect_image_bytes(mime, raw)
+    except ImageResourceError as exc:
+        raise ValueError(f"invalid image {path}: {exc}") from exc
+    payload = base64.b64encode(raw).decode("ascii")
     return f"data:{mime};base64,{payload}"
 
 
@@ -44,20 +62,21 @@ def embed_screenshots(html_path: Path, captures: dict[str, Path]) -> None:
     for pattern, data_uri in replacements:
         text = pattern.sub(rf"\g<1>{data_uri}\2", text, count=1)
 
-    fd, staged_name = tempfile.mkstemp(
-        prefix=f".{html_path.name}.",
-        suffix=".tmp",
-        dir=html_path.parent,
+    def validate_candidate(candidate: Path) -> None:
+        issues = validate_document(candidate)
+        if issues:
+            details = "; ".join(
+                f"{issue.code}: {issue.message}" for issue in issues
+            )
+            raise ValueError(
+                f"candidate guide validation failed: {details}"
+            )
+
+    publish_text_file_atomic(
+        html_path,
+        text,
+        validate=validate_candidate,
     )
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(text)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(staged_name, html_path)
-    except BaseException:
-        Path(staged_name).unlink(missing_ok=True)
-        raise
 
 
 def main(argv: list[str] | None = None) -> int:
