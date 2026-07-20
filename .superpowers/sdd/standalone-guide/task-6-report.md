@@ -640,3 +640,120 @@ The full Python suite was not run; Round 3 requested focused verification.
 - Audit updates:
   `.superpowers/sdd/standalone-guide/task-6-report.md` and
   `.superpowers/sdd/progress.md`.
+
+## Final Whole-Branch Review Remediation Round 4
+
+### Verification Provenance Before Round 4
+
+The Round 3 statement that the full Python suite was not run is historical:
+it describes the Round 3 remediation agent's focused gate before the audit
+commit. The controller subsequently ran the full Python suite at HEAD
+`9b0f567`; it reached 100% and exited 0. Round 4 does not replace or
+reinterpret that controller evidence.
+
+### Round 4 RED
+
+The six merged independent-review findings were checked against the current
+code before editing. The generic standalone builder's candidate callback only
+checks the doctype, standalone marker and closing HTML shell, while the guide
+screenshot helper calls the complete guide validator before replacement.
+`GuideParser` also stored IDs only in a set, every dynamic chapter summary used
+the same visible accessible name, and print CSS left `.mode-guide` under the
+screen `break-inside: avoid` rule.
+
+The following test selection was run after adding the Round 4 regressions and
+before production changes:
+
+```powershell
+$env:PYTHONPATH = "$(Get-Location)\src"
+python -m pytest -q tests/test_design_user_guide.py -k "print_restores_filtered_content or dynamic_chapter_summaries or duplicate_nonempty_ids or duplicate_id_without_replacing_html or delivery_checklist or metric_truth_and_publication_claims or publication_claims_are_scoped"
+```
+
+It exited 1 with exactly 7 expected failures:
+
+- no print override allowed long `.mode-guide` content to paginate;
+- all 13 generated chapter summary accessible names were identical;
+- the validator accepted a duplicate nonempty `overview` ID;
+- the screenshot helper replaced its candidate instead of preserving the old
+  file when the candidate had that duplicate ID;
+- the delivery checklist lacked the controller full-suite provenance;
+- the contracts chapter conflated single-file and directory publication; and
+- the packaging chapter attributed the guide's stronger candidate gates to
+  the generic standalone builder.
+
+### Round 4 Implementation
+
+- Single-file publication is now described as same-directory temporary write,
+  file fsync, candidate validation, `os.replace`, and directory fsync. It is
+  explicitly separate from directory generations, `CURRENT.json`, and the
+  last-known-good active generation.
+- The generic `build_standalone_frontend.py` path is scoped to structural
+  shell checks. The guide's screenshot embed/validator path retains its
+  stronger semantic, resource, image, script, style, and approval checks
+  before replacement.
+- `GuideParser` now counts each nonempty ID while retaining the ID membership
+  set. Duplicate values produce one sorted `duplicate-id` issue, and the
+  unchanged screenshot helper inherits this complete-candidate rejection.
+- Each generated chapter summary keeps the compact visible text but receives
+  an `aria-label` containing its one-based chapter number and H2 text. A Node
+  contract executes the real function against all 13 headings and proves the
+  accessible names are unique and descriptive.
+- Print CSS deliberately overrides `.mode-guide` with
+  `break-inside: auto !important` and
+  `page-break-inside: auto !important`, while smaller figures, tables and
+  product shots keep their avoid rules.
+- The delivery checklist now identifies the controller full-suite evidence at
+  `9b0f567` and labels the earlier Round 3 no-full-suite statement as the
+  historical remediation-agent gate.
+
+The approved inline style SHA-256 is now:
+
+```text
+6d90e5c537533a9e6570a82923d8d52b8e47df50ea501ca6a3fcb6b210150f35
+```
+
+The approved inline script SHA-256 is now:
+
+```text
+4bb54b9106beca74188540499121301774b8d6a1fe1b56d2060664394ca391fa
+```
+
+All five approved screenshot data URIs and hashes were unchanged.
+
+### Round 4 GREEN
+
+The identical seven-test selection passed 7/7. Pre-commit focused verification
+then produced:
+
+```text
+python -m pytest -q tests/test_design_user_guide.py
+  exit 0; 121 tests passed
+python scripts/validate_design_user_guide.py docs/soh-evaluation-system-design-and-user-guide.html
+  exit 0; 0 issues
+python -m py_compile scripts/validate_design_user_guide.py scripts/embed_design_user_guide_screenshots.py
+  exit 0
+node frontend/app/dashboard-core.test.mjs
+  exit 0
+node frontend/app/chinese-ui.test.mjs
+  exit 0
+node frontend/app/native-dashboard.test.mjs
+  exit 0; native dashboard delivery contract passed
+inline guide JavaScript piped to node --check -
+  exit 0
+git diff --check
+  exit 0; only Git autocrlf advisory warnings were emitted
+```
+
+The full Python suite was not rerun during Round 4, as requested. The current
+full-suite evidence remains the controller run at `9b0f567`.
+
+### Round 4 Commit And Files
+
+- Implementation commit: `e3221d1`.
+- Changed implementation/test files:
+  `docs/soh-evaluation-system-design-and-user-guide.html`,
+  `scripts/validate_design_user_guide.py`, and
+  `tests/test_design_user_guide.py`.
+- Audit updates:
+  `.superpowers/sdd/standalone-guide/task-6-report.md` and
+  `.superpowers/sdd/progress.md`.
