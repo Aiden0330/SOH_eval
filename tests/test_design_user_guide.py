@@ -2372,12 +2372,14 @@ def test_delivery_checklist_covers_complete_freeze_contract():
     assert required <= {item for item in required if item in checklist}
     assert "三条受众阅读路径，加一个“全部”切换项" in checklist
     assert "五种阅读路径" not in checklist
-    assert "HEAD 9b0f567" in checklist
+    assert "controller 在 Round 3 后运行完整 pytest" in checklist
     assert "完整 Python suite 达到 100% 且 exit 0" in checklist
     assert (
         "Round 3 报告中的“未运行全量 Python”只记录此前修复代理 gate"
         in checklist
     )
+    assert "HEAD" not in checklist
+    assert "9b0f567" not in checklist
 
 
 def test_architecture_distinguishes_target_flow_from_current_phase0_path():

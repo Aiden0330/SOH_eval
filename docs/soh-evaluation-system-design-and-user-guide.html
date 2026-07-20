@@ -900,7 +900,7 @@ GET /api/package/status</code></pre>
             <li><strong>降级：</strong>禁用 JavaScript 时 13 章、内部锚点和五张截图仍可读；打印隐藏交互 chrome 且关键图表不截断；reduced motion 生效。</li>
             <li><strong>离线：</strong>导航后网络请求为 0，console error 为 0；无外部脚本、样式、链接、网络字体或库。</li>
             <li><strong>安全：</strong>正文不含敏感信息；路径、设备别名、受信源码、不受信 Pickle、CORS 与本机绑定等安全边界已明确。</li>
-            <li><strong>验证：</strong>Round 3 报告中的“未运行全量 Python”只记录此前修复代理 gate；随后当前 controller 在 HEAD <code>9b0f567</code> 运行完整 pytest，即完整 Python suite 达到 100% 且 exit 0。validator、focused pytest、inline JavaScript Node 检查、三套 Node 测试、差异与 Unicode 扫描也均记录终态。</li>
+            <li><strong>验证：</strong>Round 3 报告中的“未运行全量 Python”只记录此前修复代理 gate；随后 controller 在 Round 3 后运行完整 pytest，即完整 Python suite 达到 100% 且 exit 0。validator、focused pytest、inline JavaScript Node 检查、三套 Node 测试、差异与 Unicode 扫描也均记录终态。</li>
           </ul>
         </section>
       </section>
