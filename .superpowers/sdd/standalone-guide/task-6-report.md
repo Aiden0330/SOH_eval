@@ -111,14 +111,18 @@ count claim.
 
 - Directory staging is validated and moved to an immutable generation before
   `CURRENT.json` is replaced.
-- A pointer failure does not activate the new generation; the prior pointer and
-  last-known-good remain readable. A definitely unreferenced generation may be
-  cleaned up.
+- A failure before the pointer file's `os.replace` does not activate the new
+  generation; the prior pointer and last-known-good remain active. A definitely
+  unreferenced generation may be cleaned up.
+- A directory durability/fsync failure after pointer replacement may return an
+  error even though the new pointer is already active. The operator must re-read
+  `CURRENT.json` before retrying or recording the active generation.
 - Compatibility-view synchronization happens after pointer activation. Its
   failure does not invalidate the active generation.
 - Standalone packaging has no generation or `CURRENT.json`: it validates a
-  temporary HTML and atomically replaces one output file, preserving the prior
-  file on failure.
+  temporary HTML before replacement. Validation, temporary-write, and other
+  pre-replace failures preserve the prior file; a post-replace directory fsync
+  error is ambiguous and requires re-reading the file digest.
 
 ## Browser Acceptance
 
@@ -347,3 +351,109 @@ old parser accepted the contradictory visible text. Focused GREEN after binding:
 - `git diff --check`: exit 0.
 - The full suite was not rerun, as requested; final whole-branch verification
   remains responsible for that run.
+
+## Final Whole-Branch Review Remediation
+
+### RED Tests
+
+The first focused command after adding the final-review regressions was:
+
+```powershell
+$env:PYTHONPATH = "$(Get-Location)\src"
+python -m pytest -q tests/test_design_user_guide.py
+```
+
+It exited 1 with 36 expected failures and 56 passes across the then-collected
+92 cases. The RED failures covered:
+
+- current task `verdict` values, leaderboard named boolean checks, and the
+  target verdict enum not being structurally separated;
+- current/integrated IC contexts still naming DVA, plus unqualified user
+  confirmation in visual/fallback representations;
+- overbroad directory and standalone publication failure guarantees;
+- missing strict base64, image magic/dimension, screenshot-set, sidecar resource,
+  and active JavaScript load-site validation;
+- screenshot embedding accepting truncated image bytes and bypassing candidate
+  validation/shared atomic publication;
+- missing pre-replace failure preservation and post-replace fsync ambiguity
+  injection coverage;
+- missing `命令`/`输出` fields in chapter quick sources and premature `.js`
+  activation on initialization failure.
+
+Self-review then added two malformed-attribute mutations. Their targeted RED was:
+
+```text
+10 passed, 2 failed
+```
+
+Both failures were expected `AttributeError` paths for bare `rel`/`src`
+attributes, proving the validator needed to return issues rather than crash.
+
+### Implementation Decisions
+
+- Bound current task verdicts to exactly `not_reviewed / fail`, bound current
+  leaderboard `verdicts` to the named boolean checks `generalization`,
+  `calibration`, and `physical_consistency`, and retained the exact target enum
+  `pass / warn / fail / not_applicable / not_reviewed`.
+- Replaced every current/integrated DVA claim with current IC peak or IC
+  `dQ/dV` curve wording. DVA remains only method background or target scope.
+- Marked user confirmation as target in both five-layer and workflow visual and
+  accessible fallback representations.
+- Added a strict standalone resource allowlist, exact five-shot set, canonical
+  base64 decoding, PNG/JPEG/WebP magic and structural dimension validation,
+  positive declared dimensions, CSS resource rejection, and active JavaScript
+  load-site rejection. Literal localhost commands in code blocks remain valid.
+- Validated input capture bytes before embedding, validated the complete staged
+  candidate, and reused `publish_text_file_atomic`. Pre-replace failures preserve
+  the old file; post-replace directory fsync failure remains truthfully ambiguous.
+- Added all five quick-source fields to every chapter, delayed `.js` activation
+  until initialization completes, and persisted 390 px/no-enhancement/image
+  browser smoke coverage with installed Chrome.
+- Retained all five approved embedded screenshot payloads and their exact
+  SHA-256 contracts; the guide image payload lines were not regenerated.
+
+### Focused GREEN
+
+The required commands were rerun from the worktree with the current `src` first:
+
+```text
+python -m pytest -q tests/test_design_user_guide.py
+  exit 0; 94 tests passed
+python scripts/validate_design_user_guide.py docs/soh-evaluation-system-design-and-user-guide.html
+  exit 0; 0 issues
+python -m py_compile scripts/validate_design_user_guide.py scripts/embed_design_user_guide_screenshots.py
+  exit 0
+node frontend/app/dashboard-core.test.mjs
+  exit 0
+node frontend/app/chinese-ui.test.mjs
+  exit 0
+node frontend/app/native-dashboard.test.mjs
+  exit 0; native dashboard delivery contract passed
+git diff --check
+  exit 0; only Git autocrlf advisory warnings were emitted
+```
+
+The focused Chrome tests additionally proved:
+
+- 390 px `scrollWidth === clientWidth`;
+- all five embedded images completed with nonzero natural width;
+- the no-enhancement state retained 13 visible chapters and 13 valid anchors;
+- an injected initialization exception left `.js` inactive and the native
+  mobile TOC visible.
+
+The full Python suite was intentionally not run, per the final-review brief.
+
+### Minor Findings
+
+No Minor finding was intentionally left open. Existing authoring-time print
+evidence remains recorded above; no new print runtime dependency was added.
+
+### Commit And Files
+
+- Implementation commit: `208bbca`.
+- Changed files:
+  `docs/soh-evaluation-system-design-and-user-guide.html`,
+  `scripts/validate_design_user_guide.py`,
+  `scripts/embed_design_user_guide_screenshots.py`,
+  `tests/test_design_user_guide.py`, and
+  `.superpowers/sdd/standalone-guide/task-6-report.md`.
