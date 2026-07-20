@@ -130,3 +130,120 @@ Task 4 的 Native 修正和全部正文事实未被改写。
 - `scripts/validate_design_user_guide.py`
 - `tests/test_design_user_guide.py`
 - `.superpowers/sdd/standalone-guide/task-5-report.md`
+
+---
+
+## 独立审查修正
+
+### 修正基线与范围
+
+- 独立审查结论：NOT APPROVED
+- 修正基线：`5d658729b47d745418d5dbebdb22c4cc95cad9a8`
+- 修正提交说明：`fix: harden guide interaction contracts`
+- 仍只修改 Task 5 的四个所有权文件，未新增产品运行时文件或依赖。
+
+### Remediation RED
+
+先新增以下失败契约：
+
+- 真实 Chrome 在搜索 `EvidencePack` 后点击仍可见的 `#evidence`，必须清空搜索、
+  恢复 13 章并更新 hash。
+- 同一 Chrome 驱动令 Clipboard API reject 且 `execCommand` 返回 false，只能报告
+  “已选中”及“已选中，请按 Ctrl+C”。
+- 五个 screenshot image 必须有精确固有尺寸，并保持既有 payload SHA-256。
+- 没有 `data-icon-only`、只有 `aria-hidden=true` 符号的 button 仍必须报告
+  `button-name`。
+- 注释中的三个 media token 不能满足 responsive validator。
+- 相对 `url("asset.png")` 和相对、绝对、HTTP 三种 `@import` 必须报告
+  `external-asset`。
+
+RED 命令：
+
+```powershell
+D:\SOH_eval\.venv\Scripts\python.exe -m pytest `
+  tests\test_design_user_guide.py -q `
+  -k "headless_chrome or embeds_all_five or unmarked_symbol or commented_responsive or relative_css_url or css_imports"
+```
+
+RED 结果：`8 failed`。Chrome 实际返回 `queryAfter: "EvidencePack"`；图片缺少
+`width`；其余失败分别证明 button text、CSS comment、relative URL 和
+`@import` 漏报。
+
+第一次 GREEN 重跑为 `7 passed, 1 failed`：按钮已进入“已选中”，但
+`--dump-dom` 的无绘制路径不执行用于更新 live region 的
+`requestAnimationFrame`。生产公告改为下一事件循环的 `setTimeout(0)`，保留
+清空后重新播报语义，并让后台/无绘制页面可靠更新。随后真实 Chrome 用例通过。
+
+### 交互修正
+
+目录 click 不再检查目标章是否 hidden。只要受保护的
+`search && search.value.trim()` 为真，就同步执行：
+
+1. 清空 search value。
+2. 调用 `filterGuide("")` 恢复全部 13 章。
+3. 让链接默认行为完成锚点跳转。
+4. 收起移动目录。
+
+pytest 内的 authoring helper 只使用标准库和临时目录：
+
+- 按常见安装路径和 `PATH` 查找 Chrome/Edge。
+- 找不到浏览器时以明确原因 `pytest.skip`。
+- 找到后使用 `--headless=new --dump-dom --virtual-time-budget=2000`。
+- 向临时 HTML 注入驱动，不修改产品 HTML 或截图 payload。
+
+### 图片固有尺寸
+
+五张 `<img data-shot>` 新增：
+
+| shot | width | height |
+|---|---:|---:|
+| training | 1440 | 800 |
+| inference | 1440 | 800 |
+| models | 1440 | 800 |
+| native | 1110 | 800 |
+| diagnostics | 1440 | 800 |
+
+CSS 继续使用 `.product-shot img { width: 100%; height: auto; }`。测试同时精确检查
+属性、解码 payload 和 SHA-256；五个哈希均与修正前一致。
+
+### Validator 加固
+
+- `GuideParser` 为每个 button 收集属性和可见文本。
+- `aria-hidden=true` 子树不贡献 accessible text。
+- 所有 button 都必须有非空 `aria-label` 或非空可见文本，不再依赖
+  `data-icon-only` 标记。
+- 合并 inline style 后先移除 `/* ... */`，再用实际 media 规则匹配 1100px、
+  720px 和 print。
+- 任意 `@import` 均拒绝。
+- 任意非 `data:` 的 `url(...)` 均拒绝；相对、绝对与 HTTP(S) CSS 资源统一报告
+  `external-asset`。
+- 原有 external stylesheet/script、网络、mojibake、图片和 API parity 检查保留。
+
+### Remediation GREEN 与浏览器范围
+
+最终 focused pytest：
+
+```text
+42 passed
+```
+
+其中 pytest 自动化的真实浏览器范围是：
+
+- 搜索结果中目标章本来可见的目录点击恢复行为。
+- Clipboard API 与 `execCommand` 两级失败后的选择和 aria-live 文案。
+
+另以无依赖 Chrome DevTools Protocol 执行一次性 authoring smoke：
+
+- 1280x720：`240px 765px 260px` 三栏、main 独立滚动、无页面横溢出。
+- 390x844：右栏隐藏、章内 quick source 可见、sticky toggle 正常、无页面横溢出。
+- `#evidence` click 后 query 为空、13 章可见、hash/active 均为 `#evidence`。
+- 五图 declared size 与 natural size 分别为 1440x800 或 1110x800，全部加载完成。
+- print：nav、rail、search、audience、copy、back-to-top 隐藏；过滤章节和关闭
+  details 正文恢复；thead 为 `table-header-group`。
+- reduced motion：html/main 为 `scroll-behavior: auto`，transition 为 0。
+- JavaScript disabled：13 章可见，原生 mobile fallback 打开，五图加载，390px
+  无横溢出。
+- console error 为 0，HTTP(S) request 为 0。
+
+print、reduced-motion、JS-disabled 和两视口 computed-style 检查仍是一次性
+authoring smoke，不声明为 pytest 持久回归；Task 6 可继续做人工视觉/打印预览验收。

@@ -35,6 +35,23 @@ class ValidationIssue:
 
 
 class GuideParser(HTMLParser):
+    _VOID_ELEMENTS = {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.ids: set[str] = set()
@@ -42,9 +59,15 @@ class GuideParser(HTMLParser):
         self.images: list[dict[str, str]] = []
         self.stylesheets: list[str] = []
         self.scripts: list[str] = []
-        self.buttons: list[dict[str, str]] = []
+        self.buttons: list[dict[str, object]] = []
         self.inline_styles: list[str] = []
         self._in_style = False
+        self._active_button: dict[str, object] | None = None
+        self._button_visibility: list[bool] = []
+
+    @staticmethod
+    def _is_aria_hidden(values: dict[str, str | None]) -> bool:
+        return str(values.get("aria-hidden") or "").lower() == "true"
 
     def handle_starttag(self, tag: str, attrs) -> None:
         values = dict(attrs)
@@ -59,17 +82,43 @@ class GuideParser(HTMLParser):
         if tag == "script" and values.get("src"):
             self.scripts.append(values["src"])
         if tag == "button":
-            self.buttons.append(values)
+            button: dict[str, object] = {
+                "attributes": values,
+                "text_parts": [],
+            }
+            self.buttons.append(button)
+            self._active_button = button
+            self._button_visibility = [not self._is_aria_hidden(values)]
+        elif self._active_button is not None and tag not in self._VOID_ELEMENTS:
+            parent_visible = self._button_visibility[-1]
+            self._button_visibility.append(
+                parent_visible and not self._is_aria_hidden(values)
+            )
         if tag == "style":
             self._in_style = True
 
     def handle_data(self, data: str) -> None:
         if self._in_style:
             self.inline_styles.append(data)
+        if (
+            self._active_button is not None
+            and self._button_visibility
+            and self._button_visibility[-1]
+        ):
+            text_parts = self._active_button["text_parts"]
+            assert isinstance(text_parts, list)
+            text_parts.append(data)
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "style":
             self._in_style = False
+        if self._active_button is None:
+            return
+        if tag == "button":
+            self._active_button = None
+            self._button_visibility = []
+        elif len(self._button_visibility) > 1:
+            self._button_visibility.pop()
 
 
 def _source_routes(source_root: Path) -> set[str]:
@@ -98,28 +147,50 @@ def validate_document(path: Path, *, source_root: Path = ROOT) -> list[Validatio
             issues.append(ValidationIssue("anchor", f"unresolved anchor {href}"))
         elif href and not href.startswith("#"):
             issues.append(ValidationIssue("external-link", f"non-anchor link {href}"))
-    if parser.stylesheets or parser.scripts:
-        issues.append(ValidationIssue("external-asset", "external stylesheet or script found"))
+    inline_css = "\n".join(parser.inline_styles)
+    active_css = re.sub(r"/\*.*?\*/", "", inline_css, flags=re.DOTALL)
+    css_import = re.search(r"@import\b", active_css, flags=re.IGNORECASE)
+    css_urls = re.findall(
+        r"url\(\s*(\"[^\"]*\"|'[^']*'|[^)]*)\s*\)",
+        active_css,
+        flags=re.IGNORECASE,
+    )
+    external_css_url = any(
+        not value.strip().strip("\"'").lower().startswith("data:")
+        for value in css_urls
+    )
+    if parser.stylesheets or parser.scripts or css_import or external_css_url:
+        issues.append(
+            ValidationIssue(
+                "external-asset",
+                "external stylesheet, script, or CSS resource found",
+            )
+        )
     for image in parser.images:
         if not image.get("src", "").startswith("data:image/"):
             issues.append(ValidationIssue("image", f"image is not embedded: {image.get('id', '<unknown>')}"))
         if not image.get("alt", "").strip():
             issues.append(ValidationIssue("image-alt", f"image has no alt text: {image.get('id', '<unknown>')}"))
     for button in parser.buttons:
-        if (
-            button.get("data-icon-only", "").lower() == "true"
-            and not button.get("aria-label", "").strip()
-        ):
+        attributes = button["attributes"]
+        text_parts = button["text_parts"]
+        assert isinstance(attributes, dict)
+        assert isinstance(text_parts, list)
+        aria_label = str(attributes.get("aria-label") or "").strip()
+        visible_text = " ".join("".join(text_parts).split())
+        if not aria_label and not visible_text:
             issues.append(
-                ValidationIssue("button-name", "icon-only button has no aria-label")
+                ValidationIssue("button-name", "button has no accessible name")
             )
-    inline_css = "\n".join(parser.inline_styles)
     required_media_rules = (
-        "@media (max-width: 1100px)",
-        "@media (max-width: 720px)",
-        "@media print",
+        r"@media\s*\(\s*max-width\s*:\s*1100px\s*\)",
+        r"@media\s*\(\s*max-width\s*:\s*720px\s*\)",
+        r"@media\s+print\b",
     )
-    if any(rule not in inline_css for rule in required_media_rules):
+    if any(
+        re.search(rule, active_css, flags=re.IGNORECASE) is None
+        for rule in required_media_rules
+    ):
         issues.append(
             ValidationIssue(
                 "responsive",

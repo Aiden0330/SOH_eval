@@ -1,6 +1,11 @@
 import ast
 import base64
+import hashlib
+import html
+import json
 import re
+import shutil
+import subprocess
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -289,6 +294,132 @@ def _guide_function_source(name):
     return script[start:end]
 
 
+def _find_chrome():
+    candidates = (
+        shutil.which("chrome"),
+        shutil.which("chrome.exe"),
+        shutil.which("msedge"),
+        shutil.which("msedge.exe"),
+        Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+        Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
+        Path(r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
+        Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+    )
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file():
+            return Path(candidate)
+    return None
+
+
+def _run_chrome_guide_driver(tmp_path, driver):
+    chrome = _find_chrome()
+    if chrome is None:
+        pytest.skip("Chrome/Edge not found; headless guide behavior smoke skipped")
+
+    driven_guide = tmp_path / "guide-smoke.html"
+    source = GUIDE.read_text(encoding="utf-8")
+    driven_guide.write_text(
+        source.replace("</body>", f"<script>{driver}</script></body>"),
+        encoding="utf-8",
+    )
+    profile = tmp_path / "chrome-profile"
+    completed = subprocess.run(
+        [
+            str(chrome),
+            "--headless=new",
+            "--disable-gpu",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--allow-file-access-from-files",
+            "--window-size=1280,720",
+            "--virtual-time-budget=2000",
+            f"--user-data-dir={profile}",
+            "--dump-dom",
+            driven_guide.as_uri(),
+        ],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=45,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    match = re.search(
+        r'<pre id="smoke-result">(.*?)</pre>',
+        completed.stdout,
+        flags=re.DOTALL,
+    )
+    assert match is not None, completed.stderr or completed.stdout[-1000:]
+    return json.loads(html.unescape(match.group(1)))
+
+
+def test_headless_chrome_clears_nonempty_search_before_visible_anchor_jump(
+    tmp_path,
+):
+    result = _run_chrome_guide_driver(
+        tmp_path,
+        r"""
+        (async () => {
+          const search = document.querySelector("#guide-search");
+          search.value = "EvidencePack";
+          search.dispatchEvent(new Event("input", { bubbles: true }));
+          const target = document.querySelector("#evidence");
+          const targetWasVisible = !target.hidden;
+          document.querySelector('.guide-nav a[href="#evidence"]').click();
+          await new Promise((resolve) => window.setTimeout(resolve, 50));
+
+          try {
+            Object.defineProperty(navigator, "clipboard", {
+              configurable: true,
+              value: {
+                writeText: () => Promise.reject(new Error("denied")),
+              },
+            });
+          } catch {}
+          document.execCommand = () => false;
+          document.querySelector(".copy-button").click();
+          await new Promise((resolve) => {
+            const started = performance.now();
+            const checkStatus = () => {
+              if (
+                document.querySelector("#copy-status").textContent
+                || performance.now() - started > 500
+              ) {
+                resolve();
+              } else {
+                window.setTimeout(checkStatus, 20);
+              }
+            };
+            checkStatus();
+          });
+
+          const payload = {
+            targetWasVisible,
+            queryAfter: search.value,
+            visibleAfter: [...document.querySelectorAll(".chapter")]
+              .filter((chapter) => !chapter.hidden).length,
+            hashAfter: location.hash,
+            copyButton: document.querySelector(".copy-button").textContent,
+            copyStatus: document.querySelector("#copy-status").textContent,
+            selectionLength: String(getSelection()).length,
+          };
+          const output = document.createElement("pre");
+          output.id = "smoke-result";
+          output.textContent = JSON.stringify(payload);
+          document.body.replaceChildren(output);
+        })();
+        """,
+    )
+
+    assert result["targetWasVisible"] is True
+    assert result["queryAfter"] == ""
+    assert result["visibleAfter"] == len(REQUIRED_SECTIONS)
+    assert result["hashAfter"] == "#evidence"
+    assert result["copyButton"] == "已选中"
+    assert result["copyStatus"] == "已选中，请按 Ctrl+C"
+    assert result["selectionLength"] > 0
+
+
 def test_design_user_guide_has_progressive_interactions_and_print_rules():
     text = GUIDE.read_text(encoding="utf-8")
     for token in (
@@ -340,7 +471,7 @@ def test_search_restores_chapters_before_filtered_anchor_navigation():
     source = _guide_function_source("filterGuide")
     assert "chapter.hidden = !match" in source
     assert "filterGuide(\"\")" in text
-    assert "targetChapter.hidden" in text
+    assert "search.value.trim()" in text
     assert "chapters.length" in text
 
 
@@ -380,7 +511,7 @@ def test_print_restores_filtered_content_and_reduced_motion_disables_motion():
     assert "transition: none !important" in reduced_css
 
 
-def test_all_icon_only_buttons_have_accessible_names():
+def test_all_buttons_have_accessible_names():
     issues = validate_document(GUIDE, source_root=ROOT)
     assert not [issue for issue in issues if issue.code == "button-name"]
 
@@ -391,6 +522,22 @@ def test_validator_rejects_icon_only_button_without_aria_label(tmp_path):
         GUIDE.read_text(encoding="utf-8").replace(
             "</body>",
             '<button type="button" data-icon-only="true"></button></body>',
+        ),
+        encoding="utf-8",
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "button-name" for issue in issues)
+
+
+def test_validator_rejects_unmarked_symbol_only_button_without_name(tmp_path):
+    guide = tmp_path / "guide.html"
+    guide.write_text(
+        GUIDE.read_text(encoding="utf-8").replace(
+            "</body>",
+            '<button type="button"><span aria-hidden="true">↑</span></button>'
+            "</body>",
         ),
         encoding="utf-8",
     )
@@ -412,6 +559,67 @@ def test_validator_rejects_missing_mobile_or_print_rules(tmp_path):
     issues = validate_document(guide, source_root=ROOT)
 
     assert any(issue.code == "responsive" for issue in issues)
+
+
+def test_validator_ignores_commented_responsive_tokens(tmp_path):
+    guide = tmp_path / "guide.html"
+    text = (
+        GUIDE.read_text(encoding="utf-8")
+        .replace("@media (max-width: 1100px)", "@media screen", 1)
+        .replace("@media (max-width: 720px)", "@media screen", 1)
+        .replace("@media print", "@media screen", 1)
+        .replace(
+            "</style>",
+            "/* @media (max-width: 1100px) {} "
+            "@media (max-width: 720px) {} @media print {} */</style>",
+            1,
+        )
+    )
+    guide.write_text(text, encoding="utf-8")
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "responsive" for issue in issues)
+
+
+def test_validator_rejects_relative_css_url(tmp_path):
+    guide = tmp_path / "guide.html"
+    guide.write_text(
+        GUIDE.read_text(encoding="utf-8").replace(
+            "</style>",
+            '.external { background-image: url("asset.png"); }</style>',
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "external-asset" for issue in issues)
+
+
+@pytest.mark.parametrize(
+    "rule",
+    (
+        '@import "theme.css";',
+        '@import "/assets/theme.css";',
+        '@import url("https://example.invalid/theme.css");',
+    ),
+)
+def test_validator_rejects_css_imports(tmp_path, rule):
+    guide = tmp_path / "guide.html"
+    guide.write_text(
+        GUIDE.read_text(encoding="utf-8").replace(
+            "</style>",
+            f"{rule}</style>",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "external-asset" for issue in issues)
 
 
 def test_validator_rejects_known_mojibake_marker(tmp_path):
@@ -543,7 +751,29 @@ def test_embed_screenshots_uses_webp_mime_type(tmp_path):
 
 def test_design_user_guide_embeds_all_five_frontend_captures():
     text = GUIDE.read_text(encoding="utf-8")
-    for shot in ("training", "inference", "models", "native", "diagnostics"):
+    expected = {
+        "training": (
+            (1440, 800),
+            "29c9390192c6e10afbbefe7693dd76842e62b95f81bf87a3b3e6b9fb17909329",
+        ),
+        "inference": (
+            (1440, 800),
+            "cdeec39a1195a9bcc900f5addc8652f95fd165d80a9175838eea25e062dc120f",
+        ),
+        "models": (
+            (1440, 800),
+            "3e2643919718896cf815841fcfe2f8f8437ceb2fa4496293ecffb956b88030f0",
+        ),
+        "native": (
+            (1110, 800),
+            "4a2e268d75be07b6f8e8fff8c43faecbc632945123f64ebe8fbf498e9d8f5333",
+        ),
+        "diagnostics": (
+            (1440, 800),
+            "1400e71b599b3c1ce02d8246b09e9e3817248e5351e00b9caec2d7cf1c09e9cb",
+        ),
+    }
+    for shot, (dimensions, expected_hash) in expected.items():
         assert text.count(f'data-shot="{shot}"') == 1
         figures = [
             body
@@ -567,6 +797,7 @@ def test_design_user_guide_embeds_all_five_frontend_captures():
         )
         assert attrs["data-shot"] == shot
         assert attrs["alt"].strip()
+        assert (int(attrs["width"]), int(attrs["height"])) == dimensions
         assert attrs["src"].startswith("data:image/")
         mime, payload = attrs["src"].split(";base64,", maxsplit=1)
         assert mime in {
@@ -574,7 +805,9 @@ def test_design_user_guide_embeds_all_five_frontend_captures():
             "data:image/webp",
             "data:image/jpeg",
         }
-        assert len(base64.b64decode(payload)) >= 10_000
+        decoded = base64.b64decode(payload)
+        assert len(decoded) >= 10_000
+        assert hashlib.sha256(decoded).hexdigest() == expected_hash
         caption = re.sub(r"<[^>]+>", "", structure.group("caption")).strip()
         assert caption
 
