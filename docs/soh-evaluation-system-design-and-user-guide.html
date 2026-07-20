@@ -188,6 +188,7 @@
       .chapter[hidden], details:not([open]) > .chapter-body { display: block !important; }
       .code-block { overflow: visible; background: transparent; }
       pre { overflow: visible; white-space: pre-wrap; word-break: break-word; }
+      .mode-guide { break-inside: auto !important; page-break-inside: auto !important; }
       .diagram, figure, table, pre, .status-card, .table-wrap, .product-shot { break-inside: avoid; page-break-inside: avoid; }
       h2, h3 { break-after: avoid; page-break-after: avoid; }
       thead { display: table-header-group; }
@@ -506,7 +507,7 @@
           <dt><strong>EvidencePack</strong></dt>
           <dd>manifest 固定 run identity、comparison key 和产物列表；每个产物记录相对路径、大小和 SHA-256。写入采用独占临时文件、刷新后原子替换；读取时重新验证路径、大小和摘要，篡改或缺失即失败。</dd>
           <dt><strong>Publication</strong></dt>
-          <dd>当前文件发布使用不可变 generation、<code>CURRENT.json</code> 和 last-known-good 保证当前 artifact 完整性，但当前发布不以 reviewed verdict 或 PolicySpec 为门控。经过独立审查并按目标资格政策决定排行/签署发布属于目标架构。</dd>
+          <dd>发布机制按 artifact 类型区分：单文件发布（包括 standalone HTML 与本说明书）写入同目录临时文件，完成文件 fsync 和候选验证后执行 <code>os.replace</code>，再 fsync 目录；它不创建 generation，也不读写 <code>CURRENT.json</code>。前端目录发布才物化不可变 generation，并由 <code>CURRENT.json</code> 指向的 last-known-good 活动 generation 保持完整性。当前发布不以 reviewed verdict 或 PolicySpec 为门控；经过独立审查并按目标资格政策决定排行/签署发布属于目标架构。</dd>
         </dl>
         <h3>状态、结果与裁决必须分离</h3>
         <p><code>execution_state</code> 描述生命周期位置；<code>outcome</code> 描述执行单元完成结果；<code>verdict</code> 描述政策/人工是否接受发布。运行结束、全部算完和可以发布是三个不同事实。</p>
@@ -815,7 +816,7 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
         <p>可另传 <code>--app-dir</code>；缺省为 <code>frontend/app</code>。输出是需要静态 HTTP 服务的目录包，写入 <code>MANIFEST.json</code>，可带已同步原生看板，并始终移除 detection 资产与引用。</p>
         <h3>构建 standalone 单 HTML</h3>
         <pre><code>.venv\Scripts\python.exe scripts\build_standalone_frontend.py --output dist\soh-eval-standalone.html</code></pre>
-        <p>可另传 <code>--app-dir</code>。构建器内联 CSS、JS、JSON、离线 GET fetch adapter 和有效原生看板 <code>srcdoc</code>。Standalone 不创建 generation，也不读写 <code>CURRENT.json</code>；候选语义、资源和图片验证、临时写入或 <code>os.replace</code> 之前失败时保留原有 standalone 文件。若替换后目录 <code>fsync</code> 报错，新文件可能已经活动；重试或记录活动版本前必须校验 standalone 文件摘要。生成的 HTML 可直接离线打开。</p>
+        <p>可另传 <code>--app-dir</code>。构建器内联 CSS、JS、JSON、离线 GET fetch adapter 和有效原生看板 <code>srcdoc</code>。Standalone 不创建 generation，也不读写 <code>CURRENT.json</code>。通用构建器只执行结构性 shell 检查：doctype、standalone 标记和闭合 HTML shell；本说明书的截图嵌入/validator 路径会在替换前执行更强的候选语义、资源和图片验证，实际 helper 门槛不变。两条路径都采用单文件临时写入、文件 fsync 和 <code>os.replace</code>，因此 <code>os.replace</code> 之前失败时保留原有 standalone 文件。若替换后目录 <code>fsync</code> 报错，新文件可能已经活动；重试或记录活动版本前必须校验 standalone 文件摘要。生成的 HTML 可直接离线打开。</p>
       </section>
 
       <section id="troubleshooting" class="chapter" data-paths="developer operator">
@@ -899,7 +900,7 @@ GET /api/package/status</code></pre>
             <li><strong>降级：</strong>禁用 JavaScript 时 13 章、内部锚点和五张截图仍可读；打印隐藏交互 chrome 且关键图表不截断；reduced motion 生效。</li>
             <li><strong>离线：</strong>导航后网络请求为 0，console error 为 0；无外部脚本、样式、链接、网络字体或库。</li>
             <li><strong>安全：</strong>正文不含敏感信息；路径、设备别名、受信源码、不受信 Pickle、CORS 与本机绑定等安全边界已明确。</li>
-            <li><strong>验证：</strong>validator、focused pytest、完整 pytest、inline JavaScript Node 检查、差异与 Unicode 扫描均记录终态。</li>
+            <li><strong>验证：</strong>Round 3 报告中的“未运行全量 Python”只记录此前修复代理 gate；随后当前 controller 在 HEAD <code>9b0f567</code> 运行完整 pytest，即完整 Python suite 达到 100% 且 exit 0。validator、focused pytest、inline JavaScript Node 检查、三套 Node 测试、差异与 Unicode 扫描也均记录终态。</li>
           </ul>
         </section>
       </section>
@@ -1114,7 +1115,7 @@ GET /api/package/status</code></pre>
     }
 
     function enhanceChapterDetails() {
-      chapters.forEach((chapter) => {
+      chapters.forEach((chapter, index) => {
         const heading = chapter.querySelector(":scope > h2");
         if (!heading || heading.nextElementSibling?.classList.contains("chapter-details")) return;
         const details = document.createElement("details");
@@ -1122,6 +1123,7 @@ GET /api/package/status</code></pre>
         details.open = true;
         const summary = document.createElement("summary");
         summary.textContent = "展开或折叠本章内容";
+        summary.setAttribute("aria-label", `展开或折叠第 ${index + 1} 章：${heading.textContent.trim()}`);
         const body = document.createElement("div");
         body.className = "chapter-body";
         while (heading.nextSibling) body.append(heading.nextSibling);

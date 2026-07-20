@@ -1199,10 +1199,96 @@ def test_print_restores_filtered_content_and_reduced_motion_disables_motion():
     )
     assert "thead" in print_css
     assert "table-header-group" in print_css
+    assert re.search(
+        r"\.mode-guide\s*\{[^}]*break-inside:\s*auto\s*!important;"
+        r"[^}]*page-break-inside:\s*auto\s*!important;",
+        print_css,
+    )
 
     reduced_css = text[text.index("@media (prefers-reduced-motion: reduce)") :]
     assert "scroll-behavior: auto !important" in reduced_css
     assert "transition: none !important" in reduced_css
+
+
+def test_dynamic_chapter_summaries_have_unique_descriptive_accessible_names():
+    source = GUIDE.read_text(encoding="utf-8")
+    headings = re.findall(
+        r'<section id="[^"]+" class="chapter"[^>]*>\s*<h2>([^<]+)</h2>',
+        source,
+    )
+    assert len(headings) == len(REQUIRED_SECTIONS)
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required for the inline guide contract")
+    runner = f"""
+const headings = {json.dumps(headings, ensure_ascii=False)};
+const observed = [];
+const chapters = headings.map((text) => {{
+  const heading = {{
+    textContent: text,
+    nextElementSibling: null,
+    nextSibling: null,
+  }};
+  return {{
+    querySelector: () => heading,
+    append: () => {{}},
+  }};
+}});
+const document = {{
+  createElement(tag) {{
+    if (tag === "summary") {{
+      return {{
+        textContent: "",
+        attributes: {{}},
+        setAttribute(name, value) {{
+          this.attributes[name] = value;
+        }},
+      }};
+    }}
+    if (tag === "details") {{
+      return {{
+        className: "",
+        open: false,
+        append(summary) {{
+          observed.push({{
+            visible: summary.textContent,
+            accessible: summary.attributes["aria-label"]
+              || summary.textContent,
+          }});
+        }},
+      }};
+    }}
+    return {{ className: "", append() {{}} }};
+  }},
+}};
+{_guide_function_source("enhanceChapterDetails")}
+enhanceChapterDetails();
+process.stdout.write(JSON.stringify(observed));
+"""
+    completed = subprocess.run(
+        [node, "-e", runner],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    observed = json.loads(completed.stdout)
+    accessible_names = [item["accessible"] for item in observed]
+
+    assert len(observed) == len(REQUIRED_SECTIONS)
+    assert len(set(accessible_names)) == len(REQUIRED_SECTIONS)
+    assert all(
+        f"第 {index} 章" in name and heading in name
+        for index, (heading, name) in enumerate(
+            zip(headings, accessible_names),
+            start=1,
+        )
+    )
+    assert {
+        item["visible"] for item in observed
+    } == {"展开或折叠本章内容"}
 
 
 def test_all_buttons_have_accessible_names():
@@ -1629,6 +1715,25 @@ def test_validator_rejects_duplicate_attributes_case_insensitively(tmp_path):
     assert any(issue.code == "duplicate-attribute" for issue in issues), issues
 
 
+def test_validator_rejects_duplicate_nonempty_ids(tmp_path):
+    guide = _write_guide(
+        tmp_path,
+        _replace_once(
+            GUIDE.read_text(encoding="utf-8"),
+            "<body>",
+            '<body id="overview">',
+        ),
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    duplicate_ids = [
+        issue for issue in issues if issue.code == "duplicate-id"
+    ]
+    assert len(duplicate_ids) == 1, issues
+    assert "#overview" in duplicate_ids[0].message
+
+
 @pytest.mark.parametrize(
     ("old", "new"),
     (
@@ -1932,6 +2037,34 @@ def test_embed_screenshots_rejects_non_png_formats_without_changing_html(
         embed_screenshots(html, {"training": capture})
 
     assert html.read_bytes() == original
+
+
+def test_embed_screenshots_rejects_duplicate_id_without_replacing_html(
+    tmp_path,
+):
+    from scripts.embed_design_user_guide_screenshots import embed_screenshots
+
+    source = _replace_once(
+        GUIDE.read_text(encoding="utf-8"),
+        "<body>",
+        '<body id="overview">',
+    )
+    source = _replace_shot_src(
+        source,
+        "training",
+        "data:image/png;base64,AA==",
+    )
+    html_path = _write_guide(tmp_path, source)
+    original = html_path.read_bytes()
+    capture = _approved_capture_set(tmp_path)["training"]
+
+    with pytest.raises(
+        ValueError,
+        match="candidate guide validation failed: duplicate-id",
+    ):
+        embed_screenshots(html_path, {"training": capture})
+
+    assert html_path.read_bytes() == original
 
 
 def test_embed_screenshots_candidate_validation_failure_preserves_old_file(
@@ -2239,6 +2372,12 @@ def test_delivery_checklist_covers_complete_freeze_contract():
     assert required <= {item for item in required if item in checklist}
     assert "三条受众阅读路径，加一个“全部”切换项" in checklist
     assert "五种阅读路径" not in checklist
+    assert "HEAD 9b0f567" in checklist
+    assert "完整 Python suite 达到 100% 且 exit 0" in checklist
+    assert (
+        "Round 3 报告中的“未运行全量 Python”只记录此前修复代理 gate"
+        in checklist
+    )
 
 
 def test_architecture_distinguishes_target_flow_from_current_phase0_path():
@@ -2270,7 +2409,13 @@ def test_metric_truth_and_publication_claims_are_scoped_by_layer():
     assert "Metric Worker 独占真值只属于目标架构" in contracts
     assert "当前服务会剥离候选输入中的目标列并在内部计算指标" in contracts
     assert "当前发布不以 reviewed verdict 或 PolicySpec 为门控" in contracts
-    assert "当前 artifact 完整性" in contracts
+    assert "单文件发布" in contracts
+    assert "同目录临时文件" in contracts
+    assert "文件 fsync" in contracts
+    assert "不创建 generation，也不读写 CURRENT.json" in contracts
+    assert "目录发布才物化不可变 generation" in contracts
+    assert "CURRENT.json 指向的 last-known-good" in contracts
+    assert "当前文件发布使用不可变 generation" not in contracts
     assert "目标资格政策" in contracts
 
 
@@ -2656,6 +2801,10 @@ def test_publication_claims_are_scoped_by_artifact_kind_and_success():
     assert "重新读取 CURRENT.json" in packaging
     assert "兼容视图后续同步失败不破坏活动 generation" in packaging
     assert "Standalone 不创建 generation，也不读写 CURRENT.json" in packaging
+    assert "通用构建器只执行结构性 shell 检查" in packaging
+    assert "doctype、standalone 标记和闭合 HTML shell" in packaging
+    assert "本说明书的截图嵌入/validator 路径" in packaging
+    assert "替换前执行更强的候选语义、资源和图片验证" in packaging
     assert "候选语义、资源和图片验证" in packaging
     assert "os.replace 之前失败时保留原有 standalone 文件" in packaging
     assert "替换后目录 fsync 报错" in packaging

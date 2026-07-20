@@ -36,10 +36,10 @@ EXPECTED_SCREENSHOTS = ("training", "inference", "models", "native", "diagnostic
 MOJIBAKE_MARKERS = ("\ufffd", "Ãƒ", "Ã‚", "Ã¢â€ ", "Ã§â€º", "Ã¦Âµ", "Ã¨Â¯", "锟斤拷")
 SUPPORTED_IMAGE_MIMES = frozenset({"image/png"})
 APPROVED_INLINE_SCRIPT_SHA256 = (
-    "96540c4320d4e03999c29fdacfe2133257e21c167d290fb3923e908715469b26"
+    "4bb54b9106beca74188540499121301774b8d6a1fe1b56d2060664394ca391fa"
 )
 APPROVED_INLINE_STYLE_SHA256 = (
-    "7bd17690456794cd7b62360858891a3fb0ddbed604af10972b39b0d6c8f6b965"
+    "6d90e5c537533a9e6570a82923d8d52b8e47df50ea501ca6a3fcb6b210150f35"
 )
 APPROVED_SCREENSHOTS = {
     "training": (
@@ -290,6 +290,7 @@ class GuideParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.ids: set[str] = set()
+        self.id_counts: Counter[str] = Counter()
         self.anchors: list[str] = []
         self.images: list[dict[str, str | None]] = []
         self.stylesheets: list[str] = []
@@ -319,6 +320,7 @@ class GuideParser(HTMLParser):
         self.elements.append((tag, ordered_attrs))
         if element_id := values.get("id"):
             self.ids.add(element_id)
+            self.id_counts[element_id] += 1
         if tag == "a" and (href := values.get("href")):
             self.anchors.append(href)
         if tag == "img":
@@ -580,6 +582,19 @@ def validate_document(path: Path, *, source_root: Path = ROOT) -> list[Validatio
     issues: list[ValidationIssue] = []
     if '<html lang="zh-CN">' not in text or '<meta charset="utf-8">' not in text.lower():
         issues.append(ValidationIssue("encoding", "lang or UTF-8 metadata is missing"))
+    duplicate_ids = sorted(
+        element_id
+        for element_id, count in parser.id_counts.items()
+        if count > 1
+    )
+    if duplicate_ids:
+        issues.append(
+            ValidationIssue(
+                "duplicate-id",
+                "duplicate nonempty HTML id found: "
+                + ", ".join(f"#{element_id}" for element_id in duplicate_ids),
+            )
+        )
     for section_id in REQUIRED_SECTIONS:
         if section_id not in parser.ids:
             issues.append(ValidationIssue("section", f"missing section #{section_id}"))
