@@ -1,5 +1,6 @@
 import ast
 import base64
+from collections import Counter
 import hashlib
 import html
 import json
@@ -219,6 +220,15 @@ def _guide_section_code_blocks(section_id):
     parser = SectionCodeBlockParser(section_id)
     parser.feed(GUIDE.read_text(encoding="utf-8"))
     return parser.blocks
+
+
+def _guide_without_embedded_images():
+    text = GUIDE.read_text(encoding="utf-8")
+    return re.sub(
+        r'data:image/[^;"]+;base64,[^"]+',
+        "data:image/embedded;base64,",
+        text,
+    )
 
 
 def _source_method_routes():
@@ -503,6 +513,11 @@ def test_print_restores_filtered_content_and_reduced_motion_disables_motion():
     print_css = text[text.index("@media print") :]
     assert ".chapter[hidden]" in print_css
     assert "display: block !important" in print_css
+    assert re.search(
+        r"\.guide-shell\s*\{[^}]*display:\s*block;"
+        r"[^}]*height:\s*auto;[^}]*overflow:\s*visible;",
+        print_css,
+    )
     assert "thead" in print_css
     assert "table-header-group" in print_css
 
@@ -837,6 +852,165 @@ def test_design_user_guide_covers_fabric_and_soh_domain_terms():
     assert expected <= set(term for term in expected if term in text)
 
 
+def test_design_user_guide_has_frozen_content_boundaries():
+    text = _guide_without_embedded_images()
+    forbidden = (
+        "TO" + "DO",
+        "T" + "BD",
+        "待" + "补充",
+        "文档版本",
+        "发布日期",
+        "更新日期",
+        "<script src=",
+        '<link rel="stylesheet"',
+    )
+
+    assert not any(marker in text for marker in forbidden)
+    assert not re.search(r"\b20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}\b", text)
+    assert not re.search(r"\b20\d{6}T\d{6}(?:-[0-9a-f]{8})?\b", text)
+    assert not any(
+        marker in text
+        for marker in ("\ufffd", "\u00c3", "\u00c2", "\u951f\u65a4\u62f7")
+    )
+
+
+def test_design_user_guide_has_source_boundary_and_dynamic_local_snapshot():
+    source_boundary = _guide_section_text("source-boundary")
+    expected_sources = {
+        r"D:\battery_SOH\docs\design\soh-system-design.md",
+        r"D:\battery_SOH\docs\design\soh-algorithm-design.md",
+        r"D:\battery_SOH\docs\research\multi_dataset_soh_benchmark_landscape.md",
+    }
+    expected_snapshots = {
+        "calce_cs2_features.pkl",
+        "hust_features.pkl",
+        "nasa_features.pkl",
+        "oxford_features.pkl",
+        "rwth_isea_public_features.pkl",
+        "smoke_eval_demo_features.pkl",
+        "snl_lfp_features.pkl",
+        "uconn_features.pkl",
+    }
+
+    assert "当前代码、测试和运行契约" in source_boundary
+    assert "最高优先级" in source_boundary
+    assert expected_sources <= {
+        item for item in expected_sources if item in source_boundary
+    }
+    assert expected_snapshots <= {
+        item for item in expected_snapshots if item in source_boundary
+    }
+    assert "本机现场快照" in source_boundary
+    assert "动态发现" in source_boundary
+    assert not re.search(r"\b8\s*(?:个|套|组|份)\s*数据集", source_boundary)
+
+
+def test_delivery_checklist_covers_complete_freeze_contract():
+    checklist = _guide_section_text("delivery-checklist")
+    required = {
+        "单文件",
+        "内联资产",
+        "13 章",
+        "五页签",
+        "当前实现",
+        "领域能力",
+        "目标架构",
+        "训练",
+        "冻结推理",
+        "五张截图",
+        "alt",
+        "搜索",
+        "路径",
+        "复制",
+        "scroll-spy",
+        "1280×720",
+        "390×844",
+        "禁用 JavaScript",
+        "打印",
+        "网络请求为 0",
+        "console error 为 0",
+        "敏感信息",
+        "安全边界",
+        "validator",
+        "focused pytest",
+        "完整 pytest",
+    }
+    assert required <= {item for item in required if item in checklist}
+
+
+def test_architecture_distinguishes_target_flow_from_current_phase0_path():
+    architecture = _guide_section_text("architecture")
+    target_terms = {
+        "目标架构端到端流程",
+        "用户确认",
+        "Adaptation",
+        "Metric Worker",
+        "PolicySpec",
+        "签署发布",
+    }
+    current_terms = {
+        "当前 Phase 0 路径",
+        "同一 Python 进程",
+        "剥离候选输入中的目标列",
+        "内部计算指标",
+        "写入 EvidencePack",
+        "目录发布",
+    }
+
+    assert target_terms <= {term for term in target_terms if term in architecture}
+    assert current_terms <= {term for term in current_terms if term in architecture}
+
+
+def test_metric_truth_and_publication_claims_are_scoped_by_layer():
+    contracts = _guide_section_text("contracts")
+
+    assert "Metric Worker 独占真值只属于目标架构" in contracts
+    assert "当前服务会剥离候选输入中的目标列并在内部计算指标" in contracts
+    assert "当前发布不以 reviewed verdict 或 PolicySpec 为门控" in contracts
+    assert "当前 artifact 完整性" in contracts
+    assert "目标资格政策" in contracts
+
+
+def test_target_outcomes_use_canonical_vocabulary():
+    contracts = _guide_section_text("contracts")
+
+    assert "complete、partial、failed、timed_out、cancelled、invalid" in contracts
+    assert "partially_succeeded" not in contracts
+
+
+def test_domain_claims_match_current_feature_policy_and_dataset_integration():
+    domain = _guide_section_text("domain")
+    required = {
+        "当前内建 ic_dva 只有 IC 峰高和峰位",
+        "DVA、面积和形状",
+        "方法背景或目标能力",
+        "capacity_time",
+        "cycle_fraction",
+        "FeaturePolicy gap",
+        "待关闭",
+        "尚未全面阻断未来信息",
+        "UConn-ISU-ILCC LFP/Gr",
+        "已接入",
+        "ISU-ILCC Figshare NMC/Gr",
+        "未接入",
+    }
+
+    assert required <= {term for term in required if term in domain}
+
+
+def test_battery_dashboard_is_transactional_sync_target_not_tracked_payload():
+    reference = _guide_section_text("reference")
+    required = {
+        r"frontend\app\battery-dashboard",
+        "事务同步目标",
+        "生成物不入库",
+        "manifest",
+        "运行状态",
+    }
+
+    assert required <= {term for term in required if term in reference}
+
+
 def test_design_user_guide_keeps_current_and_target_capabilities_distinct():
     text = GUIDE.read_text(encoding="utf-8")
     assert text.count("当前已实现") >= 5
@@ -1000,6 +1174,10 @@ def test_api_reference_exactly_matches_source_get_and_post_routes():
     parser.feed(GUIDE.read_text(encoding="utf-8"))
 
     assert parser.routes == _source_method_routes()
+    assert Counter(method for method, _ in parser.routes) == {
+        "GET": 9,
+        "POST": 11,
+    }
 
 
 def test_setup_documents_exact_backend_defaults_and_frontend_startup_command():
@@ -1038,15 +1216,18 @@ def test_publication_claims_are_scoped_by_artifact_kind_and_success():
     packaging = _guide_section_text("packaging")
 
     assert "重跑总是创建新任务和新 run ID" in runs
-    assert "只有后续目录发布成功才创建不可变 generation 并推进 CURRENT.json" in runs
-    assert "目录发布前失败不创建 generation" in runs
+    assert "目录发布可先物化新的不可变 generation" in runs
+    assert "CURRENT.json 更新失败时不会激活该 generation" in runs
+    assert "旧 pointer 和 last-known-good 保持可读" in runs
 
     assert "原始运行目录与前端 publication generation 是两类对象" in evidence
     assert "原始运行目录不会推进 CURRENT.json" in evidence
 
     assert "generation 和 CURRENT.json 只属于目录发布" in packaging
-    assert "只有 staging 构建和校验成功后才创建不可变 generation" in packaging
-    assert "失败在激活前不创建 generation，也不改变 CURRENT.json" in packaging
+    assert "generation 可在 CURRENT.json 更新前物化" in packaging
+    assert "指针更新失败不会激活它" in packaging
+    assert "旧 pointer 和 last-known-good 继续可读" in packaging
+    assert "兼容视图后续同步失败不破坏活动 generation" in packaging
     assert "Standalone 不创建 generation，也不读写 CURRENT.json" in packaging
     assert "先验证临时 HTML，再原子替换一个输出文件" in packaging
     assert "失败时保留原有 standalone 文件" in packaging

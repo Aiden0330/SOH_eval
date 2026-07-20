@@ -183,7 +183,7 @@
       .guide-nav, .quick-rail, .mobile-toc, .skip-link, .search-tools, .search-empty, .audience-switcher, .copy-button, .code-toolbar, .back-to-top, .chapter-details > summary, .quick-source { display: none !important; }
       body, main { background: #fff; }
       main { width: auto; max-width: none; height: auto; padding: 0; overflow: visible; }
-      .guide-shell { display: block; }
+      .guide-shell { display: block; height: auto; overflow: visible; }
       .chapter, .guide-header { max-width: none; }
       .chapter[hidden], details:not([open]) > .chapter-body { display: block !important; }
       .code-block { overflow: visible; background: transparent; }
@@ -281,6 +281,12 @@
             </ul>
           </article>
         </div>
+        <section id="source-boundary" aria-labelledby="source-boundary-title">
+          <h3 id="source-boundary-title">事实来源边界</h3>
+          <p><strong>当前代码、测试和运行契约具有最高优先级。</strong>当设计资料、研究笔记或现场文件与可执行行为不一致时，以当前仓库源码、自动化测试、validator 和实际运行结果为准；目标设计只说明计划能力，不反向证明当前已经实现。</p>
+          <p>本说明书参考的本机设计/研究来源包括 <code>D:\battery_SOH\docs\design\soh-system-design.md</code>、<code>D:\battery_SOH\docs\design\soh-algorithm-design.md</code> 和 <code>D:\battery_SOH\docs\research\multi_dataset_soh_benchmark_landscape.md</code>。这些材料用于解释领域背景与目标方向，不能覆盖当前实现证据。</p>
+          <p><code>D:\battery_SOH\data\processed\*_features.pkl</code> 的本机现场快照、动态发现为：<code>calce_cs2_features.pkl</code>、<code>hust_features.pkl</code>、<code>nasa_features.pkl</code>、<code>oxford_features.pkl</code>、<code>rwth_isea_public_features.pkl</code>、<code>smoke_eval_demo_features.pkl</code>、<code>snl_lfp_features.pkl</code>、<code>uconn_features.pkl</code>。该列表只记录验收现场，不是永久数据集数量或稳定清单；后续可用性必须重新发现并通过目录/API 预检。</p>
+        </section>
         <p class="callout warning"><strong>边界：</strong>隔离 Worker、V2 控制台和组织级签名仍是规划能力。本文出现这些组件时均以“目标架构”标记，不应据此判断其已经上线。</p>
       </section>
       <section id="architecture" class="chapter" data-paths="manager developer">
@@ -309,25 +315,29 @@
           <article class="status-card status-domain"><span class="status-label">已接入领域能力</span><h3>领域入口</h3><p>候选前端可以发现 Battery SOH 特征表、算法、冻结模型与曲线产物；领域内容通过兼容层接入测评主链。</p></article>
           <article class="status-card status-target"><span class="status-label">目标架构</span><h3>隔离与治理</h3><p>隔离 Worker、独立队列、CPU/内存/时限/网络守卫、外部插件沙箱和 V2 控制台是规划能力。</p></article>
         </div>
-        <div class="diagram" role="img" aria-label="端到端测评流程" aria-describedby="diagram-workflow-fallback">
-          <p class="diagram-title">端到端工作流</p>
+        <h3>目标架构端到端流程</h3>
+        <p>下图包含用户确认、Adaptation、独立 Metric Worker、PolicySpec 资格判断与签署发布，整体属于目标架构，不代表当前 Phase 0 已经拆分出这些服务或启用这些门控。</p>
+        <div class="diagram" role="img" aria-label="目标架构端到端测评流程" aria-describedby="diagram-workflow-fallback">
+          <p class="diagram-title">目标架构端到端流程</p>
           <div class="diagram-grid" aria-hidden="true">
             <div class="diagram-node"><strong>1 资源接入</strong><span>数据、算法、特征或模型</span></div>
             <div class="diagram-node"><strong>2 内容摘要</strong><span>字节摘要、schema 与来源</span></div>
             <div class="diagram-node"><strong>3 Spec 固化</strong><span>不可变引用与比较键</span></div>
             <div class="diagram-node"><strong>4 预检</strong><span>兼容性、泄漏和资源估算</span></div>
             <div class="diagram-node"><strong>5 用户确认</strong><span>冻结运行矩阵</span></div>
-            <div class="diagram-node"><strong>6 执行</strong><span>训练、适配或冻结推理</span></div>
-            <div class="diagram-node"><strong>7 指标计算</strong><span>内部真值连接与聚合</span></div>
+            <div class="diagram-node"><strong>6 执行</strong><span>训练、Adaptation 或冻结推理</span></div>
+            <div class="diagram-node"><strong>7 Metric Worker</strong><span>独占真值连接与指标聚合</span></div>
             <div class="diagram-node"><strong>8 证据验证</strong><span>manifest、大小与摘要</span></div>
-            <div class="diagram-node"><strong>9 排行发布</strong><span>资格、覆盖与原子切换</span></div>
+            <div class="diagram-node"><strong>9 PolicySpec</strong><span>资格判断与签署发布</span></div>
             <div class="diagram-node"><strong>10 前端展示</strong><span>结论下钻到样本</span></div>
           </div>
         </div>
         <ol id="diagram-workflow-fallback" class="diagram-fallback sr-only">
           <li>接入资源。</li><li>计算内容摘要并检查结构。</li><li>固化运行 Spec。</li><li>执行预检。</li><li>由用户确认运行矩阵。</li>
-          <li>执行训练、适配或冻结推理。</li><li>连接内部真值并计算指标。</li><li>验证 EvidencePack。</li><li>按资格原子发布排行。</li><li>在前端展示并支持证据下钻。</li>
+          <li>执行训练、Adaptation 或冻结推理。</li><li>由 Metric Worker 独占连接真值并计算指标。</li><li>验证 EvidencePack。</li><li>按 PolicySpec 判断资格并签署发布。</li><li>在前端展示并支持证据下钻。</li>
         </ol>
+        <h3>当前 Phase 0 路径</h3>
+        <p>当前 Phase 0 在同一 Python 进程中完成训练或冻结推理：服务先剥离候选输入中的目标列，训练折内拟合 FeatureState 和模型，再对 held-out 视图预测并在内部计算指标，写入 EvidencePack；需要前端数据时，后续走 staging 校验、generation 物化、<code>CURRENT.json</code> 激活和兼容视图同步的目录发布路径。当前没有独立 Adaptation/Metric Worker 服务，也不以 reviewed verdict 或 PolicySpec 作为目录发布门控。</p>
         <h3>为什么可信</h3>
         <p>可信不来自界面上的“通过”颜色，而来自每一步都绑定前一步摘要。候选源码、模型和数据首先变成内容引用；RunSpec 固化比较口径；PredictionRecord 保留样本身份但不向候选暴露测试真值；Metrics 记录贡献样本和聚合范围；EvidencePack 再对发布所依赖文件逐项登记大小和 SHA-256。</p>
         <div class="diagram evidence-chain" role="img" aria-label="摘要关联的证据链" aria-describedby="diagram-evidence-fallback">
@@ -358,7 +368,7 @@
               <tr><td><code>dataset</code></td><td>数据来源/语义域，参与数据集级分组与跨域协议。</td><td>不得用同名掩盖不同来源、化学体系或标签定义。</td></tr>
               <tr><td><code>cell_id</code></td><td>电芯或资产身份，是 LOCO、轨迹聚合和泄漏检查的基本单位。</td><td>同一实体必须稳定；训练与测试身份不得交叠。</td></tr>
               <tr><td><code>cycle_index</code></td><td>资产内的循环/观测顺序，用于轨迹、因果特征和时间前推。</td><td>检查重复、逆序、跳变和重置语义。</td></tr>
-              <tr><td><code>soh</code></td><td>监督真值，标签公式由数据卡/LabelSpec 解释。</td><td>必须为有限值；只允许 Metric Worker 连接测试真值。</td></tr>
+              <tr><td><code>soh</code></td><td>监督真值，标签公式由数据卡/LabelSpec 解释。</td><td>必须为有限值；Metric Worker 独占连接真值只属于目标架构，当前服务在内部连接。</td></tr>
             </tbody>
           </table>
         </div>
@@ -370,9 +380,9 @@
             <tbody>
               <tr><td><code>full</code></td><td>声明允许的通用统计与领域特征。</td><td>覆盖较广，但必须经 FeaturePolicy 排除标签、未来信息和仅部分数据域可得的代理变量。</td></tr>
               <tr><td><code>voltage</code></td><td>充电电压统计、形状和固定窗口摘要。</td><td>易解释；受协议、电流、温度和采样密度影响。</td></tr>
-              <tr><td><code>ic_dva</code></td><td>IC/DVA 峰位、峰高、面积和形状摘要。</td><td>对老化机理变化敏感；微分会放大噪声，需明确平滑和窗口。</td></tr>
+              <tr><td><code>ic_dva</code></td><td>当前内建 ic_dva 只有 IC 峰高和峰位。</td><td>DVA、面积和形状属于方法背景或目标能力；微分会放大噪声，需明确平滑和窗口。</td></tr>
               <tr><td><code>partial_window</code></td><td>只使用可部署的局部充电电压窗口。</td><td>适合浅充或数据不完整场景；不同化学体系的平台区不可直接复用同一窗口。</td></tr>
-              <tr><td><code>capacity_time</code></td><td>窗口容量、充电时长和相关速率。</td><td>直观且样本效率高；依赖电流积分、阶段识别和时间单位一致性。</td></tr>
+              <tr><td><code>capacity_time</code></td><td>窗口容量、充电时长和相关速率；当前还包含 <code>cycle_fraction</code>。</td><td><code>cycle_fraction</code> 是待关闭的 FeaturePolicy gap；在关闭前不能宣称该方案已经全面满足未来信息隔离。</td></tr>
             </tbody>
           </table>
         </div>
@@ -380,7 +390,7 @@
         <p><strong>固定充电窗口：</strong>在同一电压区间比较充电容量、持续时间和曲线形状，可降低完整充电终点不一致带来的影响。窗口必须由化学体系和可观测协议预先声明，不能在看见测试误差后逐电芯选择。</p>
         <p><strong>IC/DVA：</strong>增量容量 IC 通常写作 <code>dQ/dV</code>，突出容量随电压变化的峰；微分电压 DVA 写作 <code>dV/dQ</code>，突出电压对容量变化的响应。二者都需要排序、去重、重采样与平滑；平滑参数只能在训练折或预先固定，不能利用完整测试轨迹调参。</p>
         <p><strong>健康指标三性：</strong>相关性衡量候选 HI 与 SOH/退化趋势的关联；单调性衡量方向一致程度但允许真实恢复和噪声；鲁棒性衡量局部扰动相对长期趋势的大小。三者是特征筛查证据，不等同于预测准确率或因果解释。</p>
-        <p><strong>因果平滑与折内计算：</strong>部署时第 k 个循环不能读取未来循环，因此滚动、滤波和重标定应使用当前及历史数据。所有填充、缩放、特征筛选、平滑参数、校准和 FeatureState 必须在训练/校准折内拟合，再原样应用于 held-out 视图。</p>
+        <p><strong>因果平滑与折内计算：</strong>部署时第 k 个循环不应读取未来循环，因此滚动、滤波和重标定应使用当前及历史数据。当前训练路径确实在训练折拟合 FeatureState 后再应用于 held-out 视图；但由于 <code>capacity_time</code> 仍含 <code>cycle_fraction</code>，系统尚未全面阻断未来信息，这一 FeaturePolicy gap 仍待关闭。</p>
         <h3>算法族与责任边界</h3>
         <div class="table-wrap">
           <table>
@@ -400,7 +410,7 @@
         <p><strong>数据驱动方法：</strong>公开项目常见路线包括手工循环特征配合线性/树/核回归，以及直接学习充放电序列的 MLP、CNN、RNN 或 Transformer。项目资料显示，经典表格模型应保留为强基线，深度模型的价值需在完全相同的切分、输入和统计单位下验证，不能从模型复杂度推断领先。</p>
         <p><strong>混合物理方法：</strong>SOHbenchmark 提供 XJTU/MIT 的多输入基准背景；PINN4SOH 展示把退化约束与神经网络联合的路径；本项目另有物理残差、范围门和轨迹约束。它们的共同价值是显式写出先验，但必须报告先验、数据项和后处理各自贡献。</p>
         <p><strong>不确定度方法：</strong>多 seed 波动描述训练随机性，预测区间描述样本条件不确定度，两者不可互换。项目使用共形校准等模块时，应以留出资产形成校准证据，并同时报告覆盖率 PICP 与区间宽度；若校准使用目标电芯早期标签，则应归类为 Adaptation Run，而非 Frozen Inference Run。</p>
-        <p><strong>公开数据差异：</strong>NASA PCoE、CALCE、Oxford Battery Degradation Dataset、XJTU/MIT（SOHbenchmark）、HUST、Sandia SNL/BatteryArchive、UConn-ISU-ILCC 等资源覆盖 LFP、NMC/NCM、LCO/NCA 等不同体系与圆柱/软包等形态。恒温实验、动态工况、倍率/DOD/温度矩阵和现场浅充浅放并非同一任务；采样频率、RPT 间隔、充放电阶段、额定或初始容量归一化、标签插值和 EOL 口径也不同。因此同名 SOH、同名数据组织项目甚至同名机构数据都不能默认可合并或直接比较。</p>
+        <p><strong>公开数据差异：</strong>NASA PCoE、CALCE、Oxford Battery Degradation Dataset、XJTU/MIT（SOHbenchmark）、HUST、Sandia SNL/BatteryArchive 等资源覆盖 LFP、NMC/NCM、LCO/NCA 等不同体系与圆柱/软包等形态。当前已接入的是 UConn-ISU-ILCC LFP/Gr 数据；ISU-ILCC Figshare NMC/Gr 只出现在研究资料中，当前未接入。恒温实验、动态工况、倍率/DOD/温度矩阵和现场浅充浅放并非同一任务；采样频率、RPT 间隔、充放电阶段、额定或初始容量归一化、标签插值和 EOL 口径也不同。因此同名 SOH、同名数据组织项目甚至同名机构数据都不能默认可合并或直接比较。</p>
         <p>可核验的项目/作者参考包括：Microsoft BatteryML；Wang Fujin 等的 SOHbenchmark 与 PINN4SOH；Ruifeng Tan 等的 BatteryLife；Toyota Research Institute BEEP；Sandia BatteryArchive；NASA PCoE；CALCE；Oxford Battery Degradation Dataset；Ma 等的 HUST 数据；Preger 等的 SNL 研究；Nowacki 等的 UConn-ISU-ILCC 数据。这里列名称用于方法与数据边界定位，不作 SOTA 排名，也不显示出版年份。</p>
         <h3>项目差距</h3>
         <div class="status-grid" aria-label="领域能力差距">
@@ -460,7 +470,7 @@
           </table>
         </div>
         <p><strong>轨迹级：</strong>先在单一电芯随循环的序列上计算误差、单调性、EOL 和区间覆盖，保留时间结构。<strong>资产级：</strong>每颗电芯先形成统计量，再等权或按预声明权重聚合，并可做资产 bootstrap。<strong>数据集级：</strong>汇总资产分布、覆盖和最差域；不能让长轨迹仅凭循环多而支配结论。</p>
-        <h3>排行资格与失败处理</h3>
+        <h3>目标架构的排行资格与失败处理</h3>
         <ul>
           <li><strong>完整覆盖：</strong>所有必需组合成功、证据有限且比较键一致，才可按 PolicySpec 进入正式排行。</li>
           <li><strong>部分成功：</strong>至少一个单元成功且至少一个失败；必须显示 attempted/succeeded/failed 和失败类别，默认不产生正常验收 verdict，也不能与完整覆盖候选等价排序。</li>
@@ -486,7 +496,7 @@
           <dt><strong>DatasetSnapshot</strong></dt>
           <dd>固定输入表、样本身份、schema、来源/标签谱系和内容 digest。重新扫描目录不应悄悄改变既有运行；新字节产生新快照引用。</dd>
           <dt><strong>Target-stripped fold view</strong></dt>
-          <dd>算法可见的 held-out 输入中不含 <code>soh</code> 或可逆推出真值的字段。训练标签只进入训练侧 fit；Metric Worker 用 <code>sample_id</code> 在内部连接真值。这是核心泄漏边界。</dd>
+          <dd>算法可见的 held-out 输入中不含 <code>soh</code> 或可逆推出真值的字段。训练标签只进入训练侧 fit。Metric Worker 独占真值只属于目标架构；当前服务会剥离候选输入中的目标列并在内部计算指标。这是核心泄漏边界。</dd>
           <dt><strong>FeatureState 与 ModelArtifact</strong></dt>
           <dd>FeatureState 保存仅由训练/校准折拟合的填充、缩放、选择或平滑状态及其摘要；ModelArtifact 保存模型字节、输入 schema、来源运行和所引用 FeatureState。Frozen Inference Run 只能消费，不能覆盖。</dd>
           <dt><strong>PredictionRecord</strong></dt>
@@ -496,7 +506,7 @@
           <dt><strong>EvidencePack</strong></dt>
           <dd>manifest 固定 run identity、comparison key 和产物列表；每个产物记录相对路径、大小和 SHA-256。写入采用独占临时文件、刷新后原子替换；读取时重新验证路径、大小和摘要，篡改或缺失即失败。</dd>
           <dt><strong>Publication</strong></dt>
-          <dd>只有验证通过且满足资格政策的证据才能形成发布视图。当前文件发布使用不可变 generation、<code>CURRENT.json</code> 和 last-known-good 思路，避免半成品覆盖活动版本。</dd>
+          <dd>当前文件发布使用不可变 generation、<code>CURRENT.json</code> 和 last-known-good 保证当前 artifact 完整性，但当前发布不以 reviewed verdict 或 PolicySpec 为门控。经过独立审查并按目标资格政策决定排行/签署发布属于目标架构。</dd>
         </dl>
         <h3>状态、结果与裁决必须分离</h3>
         <p><code>execution_state</code> 描述生命周期位置；<code>outcome</code> 描述执行单元完成结果；<code>verdict</code> 描述政策/人工是否接受发布。运行结束、全部算完和可以发布是三个不同事实。</p>
@@ -504,16 +514,16 @@
           <p class="diagram-title">目标架构语义模型</p>
           <div class="state-lanes" aria-hidden="true">
             <div class="state-lane"><strong>生命周期</strong><div class="state-nodes"><span class="state-node">queued</span><span class="state-arrow">→</span><span class="state-node">running</span><span class="state-arrow">→</span><span class="state-node">terminal</span></div></div>
-            <div class="state-lane"><strong>terminal outcome</strong><div class="state-nodes"><span class="state-node">succeeded</span><span class="state-node">partially_succeeded</span><span class="state-node">failed</span></div></div>
+            <div class="state-lane"><strong>terminal outcome</strong><div class="state-nodes"><span class="state-node">complete</span><span class="state-node">partial</span><span class="state-node">failed</span><span class="state-node">timed_out</span><span class="state-node">cancelled</span><span class="state-node">invalid</span></div></div>
             <div class="state-lane"><strong>verdict</strong><div class="state-nodes"><span class="state-node">accepted</span><span class="state-node">rejected</span><span class="state-node">not_evaluated</span></div></div>
           </div>
         </div>
         <ol id="diagram-state-fallback" class="diagram-fallback sr-only">
           <li>生命周期从 queued 到 running，再到 terminal。</li>
-          <li>终态执行结果为 succeeded、partially_succeeded 或 failed。</li>
+          <li>目标架构的终态执行结果为 complete、partial、failed、timed_out、cancelled、invalid。</li>
           <li>独立裁决为 accepted、rejected 或 not_evaluated。</li>
         </ol>
-        <p class="callout warning"><strong>当前实现映射：</strong>当前已实现的服务生命周期使用 <code>QUEUED</code>、<code>RUNNING</code>、<code>REVIEW</code>/<code>FAILED</code> 等状态；聚合 <code>outcome</code> 使用 <code>complete</code>、<code>partial</code>、<code>failed</code>；<code>verdict</code> 可见 <code>not_reviewed</code>、<code>pass</code>、<code>warn</code>、<code>fail</code>。上图的 terminal 与 accepted 词组是目标架构的归一化语义，不是当前枚举已替换的声明。</p>
+        <p class="callout warning"><strong>当前实现映射：</strong>当前已实现的服务生命周期使用 <code>QUEUED</code>、<code>RUNNING</code>、<code>REVIEW</code>/<code>FAILED</code> 等状态；聚合 <code>outcome</code> 当前实现 <code>complete</code>、<code>partial</code>、<code>failed</code> 子集，目标规范词汇完整为 <code>complete、partial、failed、timed_out、cancelled、invalid</code>；<code>verdict</code> 可见 <code>not_reviewed</code>、<code>pass</code>、<code>warn</code>、<code>fail</code>。上图的 terminal 与 accepted 词组是目标架构的归一化语义，不是当前枚举已替换的声明。</p>
         <h3>失败与不可变性</h3>
         <p>当前结构化失败类别包括 <code>INPUT_CONTRACT</code>、<code>DATA_QC</code>、<code>LEAKAGE</code>、<code>ALGORITHM</code>、<code>RESOURCE</code>、<code>INFRASTRUCTURE</code>、<code>METRIC</code> 和 <code>POLICY</code>。失败记录保留类型、信息和执行单元身份，重试产生新 attempt；发布重建产生新 generation。旧 attempt、已引用证据和历史 generation 不应原位修改或因重试被删除。</p>
         <div class="status-grid" aria-label="契约能力实施状态">
@@ -757,7 +767,7 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
         <h3>冻结推理请求与部分成功</h3>
         <p>请求至少需要 <code>models</code>，可带 <code>datasets</code>、审计字段和非空 <code>pairs</code>。后端为每个模型-数据集对恢复 manifest 声明的特征流水线状态，检查缺失列，然后执行预测。模型读取失败或特征不兼容只生成受影响组合的失败记录；有成功也有失败时任务终态为 <code>partial</code>。</p>
         <h3>任务历史、轮询与重跑</h3>
-        <p>训练历史来自 <code>GET /api/jobs</code>，推理历史来自 <code>GET /api/inference-jobs</code>；详情路由附加任务 ID。前端约每秒轮询，瞬时错误会退避重连，404 会清除活动锁并允许重跑。终态只有 <code>succeeded</code>、<code>partial</code>、<code>failed</code>。重跑总是创建新任务和新 run ID，不原位改写旧运行；只有后续目录发布成功才创建不可变 generation 并推进 <code>CURRENT.json</code>，目录发布前失败不创建 generation。先从历史恢复相同选择，再根据失败列/模型缩小范围重跑。</p>
+        <p>训练历史来自 <code>GET /api/jobs</code>，推理历史来自 <code>GET /api/inference-jobs</code>；详情路由附加任务 ID。前端约每秒轮询，瞬时错误会退避重连，404 会清除活动锁并允许重跑。当前任务状态使用 <code>succeeded</code>、<code>partial</code>、<code>failed</code>。重跑总是创建新任务和新 run ID，不原位改写旧运行。目录发布可先物化新的不可变 generation；若 <code>CURRENT.json</code> 更新失败时不会激活该 generation，旧 pointer 和 last-known-good 保持可读。先从历史恢复相同选择，再根据失败列/模型缩小范围重跑。</p>
       </section>
 
       <section id="evidence" class="chapter" data-paths="manager developer operator">
@@ -793,7 +803,7 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
       <section id="packaging" class="chapter" data-paths="developer operator">
         <h2>数据同步与离线打包</h2>
         <div class="quick-source" aria-label="同步打包速查"><h3>本章速查</h3><dl><dt>输入</dt><dd>运行源、前端数据与原生看板</dd><dt>命令</dt><dd>build artifacts、sync、portable、standalone</dd><dt>检查</dt><dd>staging 校验后再激活</dd><dt>风险</dt><dd>失败不得推进 CURRENT.json</dd></dl></div>
-        <p><strong>generation 和 <code>CURRENT.json</code> 只属于目录发布。</strong>前端 artifacts、原生看板同步和 portable 目录使用 staging → 校验 → fsync → generation → 原子更新 pointer 的顺序；只有 staging 构建和校验成功后才创建不可变 generation。失败在激活前不创建 generation，也不改变 <code>CURRENT.json</code>，last-known-good 目录继续可读。系统没有“回滚到任意历史 generation”的用户命令。</p>
+        <p><strong>generation 和 <code>CURRENT.json</code> 只属于目录发布。</strong>前端 artifacts、原生看板同步和 portable 目录使用 staging → 校验 → fsync → generation → 原子更新 pointer 的顺序。generation 可在 <code>CURRENT.json</code> 更新前物化；指针更新失败不会激活它，旧 pointer 和 last-known-good 继续可读。pointer 成功后再同步兼容视图，兼容视图后续同步失败不破坏活动 generation。系统没有“回滚到任意历史 generation”的用户命令。</p>
         <h3>合并并发布前端 artifacts</h3>
         <pre><code>.venv\Scripts\python.exe scripts\build_frontend_artifacts.py --help</code></pre>
         <p class="command-note">帮助会报告：位置参数 <code>runs</code>、可重复 <code>--source-run</code>、<code>--archive-dir</code>、<code>--frontend-data-dir</code>、<code>--phase</code>、<code>--replace-cell estimator:featureset</code> 和 <code>--no-auto-replace-from-stability</code>。先按运行优先级提供具体源目录；空的 frontend data 参数可跳过同步。</p>
@@ -869,7 +879,7 @@ BYO 算法：有效特征迭代数 = 1 个 “(byo)” pipeline</code></pre>
           </table>
         </div>
         <h3>关键目录</h3>
-        <p class="mono">D:\battery_SOH\data\processed：发现数据集 · work\trusted_plugins：插件、模型与任务历史 · runs：不可变的原始运行目录，可作为后续合并来源 · frontend\app\data：活动前端 artifacts 与 CURRENT.json · frontend\app\battery-dashboard：已同步原生看板 · dist：portable/standalone 输出</p>
+        <p class="mono">D:\battery_SOH\data\processed：动态发现数据集 · work\trusted_plugins：插件、模型与任务历史 · runs：不可变的原始运行目录，可作为后续合并来源 · frontend\app\data：活动前端 artifacts 与 CURRENT.json · frontend\app\battery-dashboard：事务同步目标，生成物不入库，可用性取决于 SYNC_MANIFEST.json/manifest 与运行状态 · dist：portable/standalone 输出</p>
         <h3>最短验收链</h3>
         <pre><code>GET /api/health
 GET /api/catalog
@@ -879,6 +889,19 @@ GET /api/models
 POST /api/inference-jobs
 GET /api/inference-jobs/{job_id}
 GET /api/package/status</code></pre>
+        <section id="delivery-checklist" aria-labelledby="delivery-checklist-title">
+          <h3 id="delivery-checklist-title">交付冻结清单</h3>
+          <ul class="check-list">
+            <li><strong>封装：</strong>单文件 HTML、CSS/JavaScript/五张截图全部为内联资产，可直接通过 <code>file://</code> 打开。</li>
+            <li><strong>结构：</strong>13 章与当前前端五页签完整；当前实现、已接入领域能力、目标架构三层分明，并分别解释训练与冻结推理。</li>
+            <li><strong>视觉：</strong>五张截图均有具体 alt；在 1280×720 与 390×844 检查页面、H1、长路径、图表和关键控件无横向溢出、重叠或裁切。</li>
+            <li><strong>交互：</strong>搜索、清除、阅读路径高亮、目录跳转、复制、折叠/展开、scroll-spy 与 quick rail 均完成浏览器验收；五种阅读路径只高亮不隐藏正文。</li>
+            <li><strong>降级：</strong>禁用 JavaScript 时 13 章、内部锚点和五张截图仍可读；打印隐藏交互 chrome 且关键图表不截断；reduced motion 生效。</li>
+            <li><strong>离线：</strong>导航后网络请求为 0，console error 为 0；无外部脚本、样式、链接、网络字体或库。</li>
+            <li><strong>安全：</strong>正文不含敏感信息；路径、设备别名、受信源码、不受信 Pickle、CORS 与本机绑定等安全边界已明确。</li>
+            <li><strong>验证：</strong>validator、focused pytest、完整 pytest、inline JavaScript Node 检查、差异与 Unicode 扫描均记录终态。</li>
+          </ul>
+        </section>
       </section>
     </main>
     <aside class="quick-rail" aria-label="当前章节速查">
