@@ -38,6 +38,9 @@ SUPPORTED_IMAGE_MIMES = frozenset({"image/png"})
 APPROVED_INLINE_SCRIPT_SHA256 = (
     "96540c4320d4e03999c29fdacfe2133257e21c167d290fb3923e908715469b26"
 )
+APPROVED_INLINE_STYLE_SHA256 = (
+    "7bd17690456794cd7b62360858891a3fb0ddbed604af10972b39b0d6c8f6b965"
+)
 APPROVED_SCREENSHOTS = {
     "training": (
         "image/png",
@@ -294,12 +297,14 @@ class GuideParser(HTMLParser):
         self.buttons: list[dict[str, object]] = []
         self.inline_styles: list[str] = []
         self.inline_scripts: list[str] = []
+        self.style_bodies: list[str] = []
         self.script_bodies: list[str] = []
         self.elements: list[
             tuple[str, tuple[tuple[str, str | None], ...]]
         ] = []
         self._in_style = False
         self._in_script = False
+        self._style_parts: list[str] = []
         self._script_parts: list[str] = []
         self._active_button: dict[str, object] | None = None
         self._button_visibility: list[bool] = []
@@ -341,6 +346,7 @@ class GuideParser(HTMLParser):
             )
         if tag == "style":
             self._in_style = True
+            self._style_parts = []
         if tag == "script":
             self._in_script = True
             self._script_parts = []
@@ -348,6 +354,7 @@ class GuideParser(HTMLParser):
     def handle_data(self, data: str) -> None:
         if self._in_style:
             self.inline_styles.append(data)
+            self._style_parts.append(data)
         if self._in_script:
             self.inline_scripts.append(data)
             self._script_parts.append(data)
@@ -363,6 +370,8 @@ class GuideParser(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         if tag == "style":
             self._in_style = False
+            self.style_bodies.append("".join(self._style_parts))
+            self._style_parts = []
         if tag == "script":
             self._in_script = False
             self.script_bodies.append("".join(self._script_parts))
@@ -665,7 +674,22 @@ def validate_document(path: Path, *, source_root: Path = ROOT) -> list[Validatio
             )
         )
 
-    inline_css = "\n".join(parser.inline_styles)
+    inline_css = "\n".join(parser.style_bodies)
+    style_digest = (
+        hashlib.sha256(parser.style_bodies[0].encode("utf-8")).hexdigest()
+        if len(parser.style_bodies) == 1
+        else None
+    )
+    if (
+        len(parser.style_bodies) != 1
+        or style_digest != APPROVED_INLINE_STYLE_SHA256
+    ):
+        issues.append(
+            ValidationIssue(
+                "inline-style",
+                "inline style must match the approved single-style digest",
+            )
+        )
     active_css = re.sub(r"/\*.*?\*/", "", inline_css, flags=re.DOTALL)
     css_import = re.search(r"@import\b", active_css, flags=re.IGNORECASE)
     css_urls = re.findall(

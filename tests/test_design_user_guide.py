@@ -1293,6 +1293,44 @@ def test_validator_rejects_relative_css_url(tmp_path):
 
 
 @pytest.mark.parametrize(
+    "resource",
+    (
+        "http://127.0.0.1:9/sidecar.png",
+        "./sidecar.png",
+    ),
+)
+def test_validator_rejects_css_image_set_resources(tmp_path, resource):
+    rule = f'.mutation {{ background-image: image-set("{resource}" 1x); }}'
+    guide = _write_guide(
+        tmp_path,
+        GUIDE.read_text(encoding="utf-8").replace(
+            "</style>",
+            f"{rule}</style>",
+            1,
+        ),
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "inline-style" for issue in issues), issues
+
+
+def test_validator_requires_exactly_one_approved_inline_style_body(tmp_path):
+    guide = _write_guide(
+        tmp_path,
+        GUIDE.read_text(encoding="utf-8").replace(
+            "</head>",
+            "<style>.mutation { color: inherit; }</style></head>",
+            1,
+        ),
+    )
+
+    issues = validate_document(guide, source_root=ROOT)
+
+    assert any(issue.code == "inline-style" for issue in issues), issues
+
+
+@pytest.mark.parametrize(
     "rule",
     (
         '@import "theme.css";',
@@ -1834,6 +1872,42 @@ def test_embed_screenshots_rejects_unapproved_png_without_changing_html(
     with pytest.raises(
         ValueError,
         match="candidate guide validation failed: image-approval",
+    ):
+        embed_screenshots(html, {"training": capture})
+
+    assert html.read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    "resource",
+    (
+        "http://127.0.0.1:9/sidecar.png",
+        "./sidecar.png",
+    ),
+)
+def test_embed_screenshots_rejects_css_image_set_without_replacing_html(
+    tmp_path, resource
+):
+    from scripts.embed_design_user_guide_screenshots import embed_screenshots
+
+    rule = f'.mutation {{ background-image: image-set("{resource}" 1x); }}'
+    source = GUIDE.read_text(encoding="utf-8").replace(
+        "</style>",
+        f"{rule}</style>",
+        1,
+    )
+    source = _replace_shot_src(
+        source,
+        "training",
+        "data:image/png;base64,AA==",
+    )
+    html = _write_guide(tmp_path, source)
+    original = html.read_bytes()
+    capture = _approved_capture_set(tmp_path)["training"]
+
+    with pytest.raises(
+        ValueError,
+        match="candidate guide validation failed: inline-style",
     ):
         embed_screenshots(html, {"training": capture})
 
