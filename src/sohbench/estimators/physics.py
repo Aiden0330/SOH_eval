@@ -53,6 +53,20 @@ class PhysicsResidualEstimator:
     name: str = "phys_resid"
     feature_mode: str = "unified"
     backend: str = "sklearn"
+    method_family: str = "gray_box_degradation"
+    pairing_mode: str = "method_package"
+    compatible_featuresets = (
+        "degradation_kinetics",
+        "operating_stress",
+        "electrochemical_diagnostics",
+        "capacity_time",
+        "full",
+    )
+    preferred_featureset: str = "degradation_kinetics"
+    data_granularity: str = "cycle_table"
+    required_signals = ("cycle_index",)
+    physics_constraints = ("sqrt_time_degradation", "linear_degradation", "soh_range")
+    description: str = "平方根与线性老化先验叠加 GBDT 残差的半经验灰盒方法。"
 
     def __init__(
         self,

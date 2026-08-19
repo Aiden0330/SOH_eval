@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>SOH 评测工作台</title>
+<title>SOH 评测案例工作台</title>
 <link rel="icon" href="data:," />
-<link rel="stylesheet" href="styles.css?v=diagnostics-tab-20260701" />
+<link rel="stylesheet" href="styles.css?v=phase46-label-safety-20260817a" />
 </head>
 <body>
 <div class="app-shell">
@@ -15,20 +15,27 @@
         <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 2 4-6"/></svg>
       </div>
       <div>
-        <strong>Battery Bench</strong>
-        <span>本机可信评测</span>
+        <strong>Evidence Bench</strong>
+        <span>独立测评证据层</span>
       </div>
     </div>
     <nav class="sidenav-menu">
-      <button class="side-mode active" type="button" data-side-mode="training"><span class="nav-icon"></span><span>训练测评</span></button>
-      <button class="side-mode" type="button" data-side-mode="inference"><span class="nav-icon"></span><span>推理测评</span></button>
-      <button class="side-mode" type="button" data-side-mode="models"><span class="nav-icon"></span><span>模型资产库</span></button>
-      <button class="side-action" type="button" id="open-task-history"><span class="nav-icon"></span><span>任务历史</span></button>
-      <button class="side-mode" type="button" data-side-mode="diagnostics"><span class="nav-icon"></span><span>全局诊断</span></button>
+      <span class="sidenav-section-label">案例流程</span>
+      <button class="side-mode active" type="button" data-side-mode="training" data-pipeline-stage="training"><span class="nav-icon">1</span><span class="nav-copy"><b>设计与训练</b><small data-pipeline-status="training">进行中</small></span></button>
+      <button class="side-mode" type="button" data-side-mode="inference" data-pipeline-stage="inference"><span class="nav-icon">2</span><span class="nav-copy"><b>推理验证</b><small data-pipeline-status="inference">待开始</small></span></button>
+      <button class="side-mode" type="button" data-side-mode="audit" data-pipeline-stage="audit"><span class="nav-icon">3</span><span class="nav-copy"><b>评测与证据</b><small data-pipeline-status="audit">待开始</small></span></button>
+      <details class="sidenav-tools">
+        <summary><span class="nav-icon"></span><span>资源与洞察</span></summary>
+        <div>
+          <button class="side-mode" type="button" data-side-mode="datasets"><span class="nav-icon"></span><span class="nav-copy"><b>数据集信息</b><small>规模与迁移边界</small></span></button>
+          <button class="side-mode" type="button" data-side-mode="diagnostics"><span class="nav-icon"></span><span class="nav-copy"><b>可信洞察</b><small>总览与建议</small></span></button>
+          <button class="side-mode" type="button" data-side-mode="models"><span class="nav-icon"></span><span class="nav-copy"><b>资源管理</b><small>算法包与接入</small></span></button>
+        </div>
+      </details>
     </nav>
     <div class="sidenav-footer">
-      <span>数据目录</span>
-      <b>D:\battery_SOH\data</b>
+      <span>本机证据工作区</span>
+      <b>实测 / Mock 明确分层</b>
     </div>
   </aside>
 
@@ -36,14 +43,15 @@
     <section class="topbar" aria-label="工作台概览">
       <div class="brand">
         <div>
-          <h1>评测工作台</h1>
-          <span>数据集、算法、特征与 Pickle 模型统一编排</span>
+          <span class="case-eyebrow">Evaluation Case · <b id="case-context-id">LIVE</b></span>
+          <h1>评测案例工作台</h1>
+          <span>从实验设计到证据评审，始终使用同一案例上下文</span>
         </div>
       </div>
       <div class="topbar-actions">
         <label class="profile-select">
-          <span>展示数据源</span>
-          <select id="profile-select" aria-label="展示数据源"></select>
+          <span>数据源</span>
+          <select id="profile-select" aria-label="数据源"></select>
         </label>
         <div class="runmeta" id="runmeta" aria-live="polite"></div>
       </div>
@@ -53,13 +61,6 @@
 
     <section class="scope-bar" id="scope-context" aria-label="数据范围"></section>
 
-    <nav class="mode-tabs" id="mode-tabs" role="tablist" aria-label="评测页签">
-      <button class="mode-tab" role="tab" data-mode="training" aria-selected="true">训练测评</button>
-      <button class="mode-tab" role="tab" data-mode="inference" aria-selected="false">推理测评</button>
-      <button class="mode-tab" role="tab" data-mode="models" aria-selected="false">模型资产库</button>
-      <button class="mode-tab" role="tab" data-mode="diagnostics" aria-selected="false">全局诊断</button>
-    </nav>
-
     <section class="workspace-card workbench-shell">
       <section class="workbench-card mode-panel" id="workbench-card" data-mode-panel="training">
         <div class="section-head">
@@ -68,87 +69,101 @@
               <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18"/><path d="M4 8h16"/><path d="M4 16h16"/><circle cx="7" cy="8" r="2"/><circle cx="17" cy="16" r="2"/></svg>
               训练测评
             </h2>
-            <p class="desc">上传资源、配置训练矩阵、产出 Pickle 模型。</p>
+            <p class="desc">围绕数据范围，选择特征表达与算法候选，形成可比较的训练组合。</p>
           </div>
-          <span class="api-state" id="api-state">连接中</span>
         </div>
         <div class="tab-intent training-intent">
-          <span>训练过程</span>
-          <strong>关注资源接入、组合配置、训练执行和模型发布。</strong>
+          <span>组合设计</span>
+          <strong>先确认特征覆盖，再比较算法；模型包由训练自动沉淀，无需在这里上传。</strong>
         </div>
         <div class="training-layout">
-          <aside class="workbench-panel workflow-panel" id="training-workflow" aria-label="训练流程"></aside>
           <div class="training-config-stack">
-            <div class="panel-title center-title">
-              <span>实验编排台</span>
-              <b>中间列保持固定高度，列表在面板内滚动</b>
+            <div class="panel-title center-title training-titlebar">
+              <div>
+                <span>特征 × 算法实验设计</span>
+                <b>同一数据与协议下公平比较不同组合</b>
+              </div>
+              <span class="api-state" id="api-state">连接中</span>
             </div>
-            <div class="workbench-steps" id="workbench-steps" aria-label="评测流程"></div>
-            <div class="workbench-grid">
-              <div class="workbench-panel upload-panel">
-                <h3>上传资源</h3>
-                <div class="upload-card">
-                  <div class="upload-card-title"><span class="resource-kind data">数据</span><b>数据集</b></div>
-                  <div class="upload-row">
-                    <input id="upload-dataset-name" type="text" placeholder="数据集名称" />
-                    <input id="upload-dataset-file" type="file" accept=".csv,.pkl,.pickle,.parquet" />
-                    <button data-upload-kind="dataset">上传</button>
+            <div class="training-design-grid">
+              <fieldset class="training-selection-block dataset-selection-block">
+                <legend><span>01</span> 数据范围</legend>
+                <p>选择参与同一轮组合比较的数据集。</p>
+                <div id="run-datasets" class="resource-list dataset-selection-list"></div>
+              </fieldset>
+              <section class="combination-builder" aria-labelledby="combination-builder-title">
+                <div class="combination-builder-head">
+                  <div>
+                    <span>02</span>
+                    <div><b id="combination-builder-title">组合特征与算法</b><small>特征决定输入表达，算法决定学习与泛化方式。</small></div>
                   </div>
                 </div>
-                <div class="upload-card">
-                  <div class="upload-card-title"><span class="resource-kind algorithm">算法</span><b>算法插件</b></div>
-                  <div class="upload-row">
-                    <input id="upload-algorithm-name" type="text" placeholder="算法插件名称" />
-                    <input id="upload-algorithm-file" type="file" accept=".py" />
-                    <button data-upload-kind="algorithm">上传</button>
-                  </div>
+                <div class="combination-pickers">
+                  <fieldset class="training-selection-block feature-selection-block">
+                    <legend>先选特征方案</legend>
+                    <p>优先选择在目标数据中覆盖完整、可解释的特征。</p>
+                    <div id="run-featuresets" class="resource-list combination-list"></div>
+                  </fieldset>
+                  <div class="combination-operator" aria-hidden="true">×</div>
+                  <fieldset class="training-selection-block algorithm-selection-block">
+                    <legend>再选算法候选</legend>
+                    <p>可同时选择基线模型与深度模型进行公平对比。</p>
+                    <div id="run-estimators" class="resource-list combination-list"></div>
+                  </fieldset>
                 </div>
-                <div class="upload-card">
-                  <div class="upload-card-title"><span class="resource-kind feature">特征</span><b>特征方案</b></div>
-                  <div class="upload-row">
-                    <input id="upload-featureset-name" type="text" placeholder="特征方案名称" />
-                    <input id="upload-featureset-file" type="file" accept=".py" />
-                    <button data-upload-kind="featureset">上传</button>
-                  </div>
-                </div>
+                <div id="training-combination-preview" class="training-combination-preview" aria-live="polite"></div>
+              </section>
+            </div>
+            <div class="training-launchbar">
+              <div class="training-protocols" role="group" aria-label="验证协议与随机种子">
+                <span>验证协议</span>
+                <label><input type="checkbox" name="run-protocol" value="loco" checked /> LOCO</label>
+                <label><input type="checkbox" name="run-protocol" value="lodo" /> LODO</label>
+                <label><input type="checkbox" name="run-protocol" value="lcho" /> LCHO</label>
+                <label class="seed-field" for="job-seeds"><span>随机种子</span><input id="job-seeds" type="text" value="0" aria-describedby="seed-help" /></label>
+                <small id="seed-help" class="sr-only">多个随机种子请用英文逗号分隔</small>
               </div>
-              <div class="workbench-panel run-panel">
-                <h3>启动训练评测</h3>
-                <div class="run-options">
-                  <div>
-                    <label>数据集</label>
-                    <div id="run-datasets" class="resource-list"></div>
-                  </div>
-                  <div>
-                    <label>算法</label>
-                    <div id="run-estimators" class="resource-list"></div>
-                  </div>
-                  <div>
-                    <label>特征</label>
-                    <div id="run-featuresets" class="resource-list"></div>
-                  </div>
-                </div>
-                <div class="run-plan" id="run-plan"></div>
-                <div class="run-line">
-                  <label><input type="checkbox" name="run-protocol" value="loco" checked /> LOCO</label>
-                  <label><input type="checkbox" name="run-protocol" value="lodo" /> LODO</label>
-                  <label><input type="checkbox" name="run-protocol" value="lcho" /> LCHO</label>
-                  <input id="job-seeds" type="text" value="0" aria-label="seeds" />
-                  <button id="start-eval">开始训练测评</button>
-                </div>
-              </div>
+              <div class="run-plan" id="run-plan"></div>
+              <label class="completion-save-toggle" for="training-save-toggle" title="只收藏完成结果，不影响任务审计记录">
+                <input id="training-save-toggle" type="checkbox" checked />
+                <span><b>加入已完成组合</b><small>第 3 页可选</small></span>
+              </label>
+              <button id="start-eval" class="primary-action training-run-action" type="button">运行所选组合</button>
             </div>
           </div>
-          <aside class="workbench-panel artifact-panel" id="training-artifacts" aria-label="训练产物"></aside>
+          <aside class="workbench-panel artifact-panel" id="training-artifacts" aria-label="组合摘要与训练产物"></aside>
         </div>
-        <div class="job-state" id="job-state">等待后端连接</div>
+        <div class="job-state" id="job-state" aria-live="polite">等待后端连接</div>
+      </section>
+
+      <section class="dataset-catalog-card mode-panel" id="dataset-catalog" data-mode-panel="datasets" hidden>
+        <div class="section-head">
+          <div>
+            <h2>数据集信息</h2>
+            <p class="desc">统一查看数据规模、Cycle、电池、化学体系和容量口径，并明确训练留出与迁移验证边界。</p>
+          </div>
+          <span class="api-state">目录实测</span>
+        </div>
+        <div class="dataset-policy-strip" aria-label="测试与迁移规则">
+          <div><span>同数据集测试</span><b>只使用训练未见的留出电池或留出切分</b></div>
+          <div><span>跨数据集迁移</span><b>默认只提交相同化学体系的数据集</b></div>
+          <div><span>研究模式</span><b>跨体系或未知体系需显式启用风险策略</b></div>
+        </div>
+        <div id="dataset-catalog-summary" class="dataset-catalog-summary" aria-label="数据集总览"></div>
+        <div class="dataset-catalog-table-wrap">
+          <table class="dataset-catalog-table">
+            <thead><tr><th>数据集</th><th>本地状态</th><th>数据总量</th><th>Cycle 数</th><th>电池数量</th><th>化学体系</th><th>最大容量</th><th>测试边界</th><th>同体系迁移目标</th></tr></thead>
+            <tbody id="dataset-catalog-table"></tbody>
+          </table>
+        </div>
+        <p class="dataset-catalog-footnote">数据总量为处理后记录数；Cycle 数按“电池 + Cycle”唯一组合统计。最大容量优先使用实测 capacity_ah，缺失时回退到额定容量。</p>
       </section>
 
       <section class="inference-card mode-panel" id="inference-panel" data-mode-panel="inference" hidden>
         <div class="section-head">
           <div>
             <h2>推理测评</h2>
-            <p class="desc">选择已有 Pickle 模型和目标数据集，只执行 predict，比较迁移精度与推理速度。</p>
+            <p class="desc">从算法包管理中选择已校验模型与目标数据集，比较迁移精度和推理速度。</p>
           </div>
           <span class="api-state">推理页</span>
         </div>
@@ -165,21 +180,23 @@
                 <span>迁移泛化测评</span>
                 <b>推理页聚焦迁移误差、吞吐与兼容性</b>
               </div>
-              <button id="start-inference" class="primary-action">启动推理测评</button>
-            </div>
-            <div class="upload-card">
-              <div class="upload-card-title"><span class="resource-kind algorithm">模型</span><b>上传 Pickle 模型</b></div>
-              <div class="upload-row model-upload-row">
-                <input id="upload-model-name" type="text" placeholder="模型名称" />
-                <input id="upload-model-file" type="file" accept=".pkl,.pickle" />
-                <input id="upload-model-manifest" type="file" accept=".json" />
-                <button data-upload-kind="model">上传模型</button>
-              </div>
+              <button id="start-inference" class="primary-action" type="button">启动推理测评</button>
             </div>
             <div class="resource-columns">
               <div class="workbench-panel inference-model-panel">
-                <h3>模型</h3>
-                <div id="inference-models" class="resource-list"></div>
+                <h3>本次训练候选</h3>
+                <div id="inference-model-scope" class="inference-model-scope"></div>
+                <details class="inference-advanced-selector">
+                  <summary>高级：改选其他算法包 <span id="inference-advanced-count"></span></summary>
+                  <div class="inference-advanced-body">
+                    <label class="inference-model-search" for="inference-model-search">
+                      <span>搜索算法包</span>
+                      <input id="inference-model-search" type="search" placeholder="模型、算法或特征" autocomplete="off" />
+                    </label>
+                    <div id="inference-models" class="resource-list"></div>
+                    <small id="inference-model-search-note" class="advanced-search-note"></small>
+                  </div>
+                </details>
               </div>
               <div class="workbench-panel inference-dataset-panel">
                 <h3>数据集</h3>
@@ -195,60 +212,127 @@
       <section class="model-library-card mode-panel" id="model-library" data-mode-panel="models" hidden>
         <div class="section-head">
           <div>
-            <h2>模型资产库</h2>
-            <p class="desc">集中查看训练测评产出的模型和外部上传的 Pickle 模型。</p>
+            <h2>算法包管理</h2>
+            <p class="desc">集中导入、校验和追踪 Pickle 模型包；训练产物会自动进入资产库。</p>
           </div>
         </div>
         <div class="tab-intent models-intent">
-          <span>模型资产</span>
-          <strong>固定高度列表支持滑动查看模型，右侧表格集中呈现 manifest、特征 schema 与最近推理表现。</strong>
+          <span>包管理</span>
+          <strong>外部文件只在这里接入；训练与推理页面只消费已校验的算法包。</strong>
         </div>
         <div class="model-library-layout">
-          <aside class="workbench-panel model-library-aside" aria-label="模型资产侧栏">
+          <aside class="workbench-panel model-library-aside package-import-aside" aria-label="算法包导入">
             <div class="panel-title">
-              <span>资产筛选</span>
-              <b>固定左栏，不拉高页面</b>
+              <span>导入算法包</span>
+              <b>Pickle + manifest 成对校验</b>
             </div>
             <div class="panel-scroll">
-              <div class="filter-grid">
-                <label class="filter-item">模型名称<input type="search" value="byo_skb_ridge" aria-label="模型名称" /></label>
-                <label class="filter-item">算法<select aria-label="算法筛选"><option>全部算法</option><option>BYO_SKB_RIDGE</option><option>CNN1D</option></select></label>
-                <label class="filter-item">训练数据<select aria-label="训练数据筛选"><option>全部数据集</option><option>CALCE_CS2</option><option>HUST</option><option>RWTH_ISEA_PUBLIC</option></select></label>
-                <label class="filter-item">特征数<select aria-label="特征数筛选"><option>全部</option><option>20</option><option>64</option></select></label>
+              <div id="model-package-state" class="package-inline-state" aria-live="polite">等待选择算法包</div>
+              <div class="package-upload-card">
+                <label for="upload-model-name">包名称 <small>可选</small></label>
+                <input id="upload-model-name" type="text" placeholder="默认使用 Pickle 文件名" />
+                <label for="upload-model-file">Pickle 模型</label>
+                <input id="upload-model-file" type="file" accept=".pkl,.pickle" />
+                <label for="upload-model-manifest">模型清单</label>
+                <input id="upload-model-manifest" type="file" accept=".json" />
+                <button class="primary-action" data-upload-kind="model" type="button">导入并校验</button>
               </div>
-              <div class="asset-governance-note green">
-                <span>筛选结果</span>
-                <strong>表格区域独立滚动，长模型列表不会拉高页面。</strong>
-              </div>
+              <p class="package-security-note">仅导入可信来源。Pickle 反序列化可执行代码，系统会在本机可信执行模式下校验 manifest 与特征 schema。</p>
+              <details class="advanced-package-import">
+                <summary>接入源码算法、特征与数据</summary>
+                <div class="advanced-package-body">
+                  <div class="upload-card">
+                    <div class="upload-card-title"><span class="resource-kind algorithm">算法</span><b>Python 插件</b></div>
+                    <div class="upload-row">
+                      <input id="upload-algorithm-name" type="text" placeholder="算法插件名称" aria-label="算法插件名称" />
+                      <input id="upload-algorithm-file" type="file" accept=".py" aria-label="算法插件文件" />
+                      <button data-upload-kind="algorithm" type="button">导入</button>
+                    </div>
+                  </div>
+                  <div class="upload-card">
+                    <div class="upload-card-title"><span class="resource-kind feature">特征</span><b>特征插件</b></div>
+                    <div class="upload-row">
+                      <input id="upload-featureset-name" type="text" placeholder="特征方案名称" aria-label="特征方案名称" />
+                      <input id="upload-featureset-file" type="file" accept=".py" aria-label="特征插件文件" />
+                      <button data-upload-kind="featureset" type="button">导入</button>
+                    </div>
+                  </div>
+                  <div class="upload-card">
+                    <div class="upload-card-title"><span class="resource-kind data">数据</span><b>评测数据集</b></div>
+                    <div class="upload-row">
+                      <input id="upload-dataset-name" type="text" placeholder="数据集名称" aria-label="数据集名称" />
+                      <input id="upload-dataset-file" type="file" accept=".csv,.pkl,.pickle,.parquet" aria-label="数据集文件" />
+                      <button data-upload-kind="dataset" type="button">导入</button>
+                    </div>
+                  </div>
+                  <label class="plugin-root-field" for="battery-soh-root">
+                    <span>battery_SOH 根目录</span>
+                    <input id="battery-soh-root" type="text" value="D:\battery_SOH" />
+                  </label>
+                  <button id="import-battery-soh-plugins" class="secondary-action plugin-import-action" type="button">接入 battery_SOH 算法与特征</button>
+                </div>
+              </details>
             </div>
           </aside>
           <div class="model-library-main">
             <div class="panel-title center-title">
-              <span>模型资产库</span>
-              <b>长列表固定高度，表头吸顶</b>
+              <span>已注册算法包</span>
+              <b>训练产物与外部包使用同一清单</b>
             </div>
             <div id="model-library-summary" class="model-summary-grid" aria-label="模型资产摘要"></div>
             <div id="model-library-table"></div>
           </div>
-          <aside class="workbench-panel model-library-detail" aria-label="模型资产详情">
+          <aside class="workbench-panel model-library-detail" aria-label="算法包校验信息">
             <div class="panel-title">
-              <span>资产详情</span>
-              <b>选择模型后显示</b>
+              <span>包校验</span>
+              <b>版本、特征与来源</b>
             </div>
-            <div class="panel-scroll">
+            <div class="panel-scroll" id="model-library-governance">
               <div class="asset-governance-note">
-                <span>当前模型</span>
-                <strong class="mono">byo_skb_ridge_calce_cs2_21</strong>
+                <span>身份固定</span>
+                <strong>Pickle 摘要 + manifest 版本</strong>
               </div>
               <div class="asset-governance-note green">
-                <span>兼容特征</span>
-                <strong>20 列 / capacity_time / soh / cycle_index</strong>
+                <span>特征兼容</span>
+                <strong>推理前核对 feature schema</strong>
               </div>
               <div class="asset-governance-note amber">
-                <span>最近推理</span>
-                <strong>RWTH 0.047 MAE，建议保留迁移记录。</strong>
+                <span>执行边界</span>
+                <strong>仅可信本机模式加载 Pickle</strong>
               </div>
-              <button class="primary-action" data-mode-shortcut="inference" type="button">进入推理测评</button>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="recommendation-card-shell mode-panel" id="algorithm-recommendations" data-mode-panel="recommendations" hidden>
+        <div class="recommendation-layout">
+          <div class="recommendation-main">
+            <div class="panel-title center-title">
+              <span>算法推荐</span>
+              <b>合并 LODO 迁移与 LOCO 跨电芯泛化结果</b>
+            </div>
+            <div id="recommendation-overview"></div>
+            <div id="recommendation-scenarios" class="recommendation-scenarios"></div>
+          </div>
+          <aside class="workbench-panel recommendation-aside" aria-label="推荐解释">
+            <div class="panel-title">
+              <span>解释边界</span>
+              <b>训练与推理分开读</b>
+            </div>
+            <div class="panel-scroll">
+              <div class="asset-governance-note green">
+                <span>推理推荐</span>
+                <strong>默认推荐优先按迁移推理 MAE 排序，直接服务新数据集泛化。</strong>
+              </div>
+              <div class="asset-governance-note">
+                <span>训练过程</span>
+                <strong>训练 CV 最优只说明拟合过程稳定，不自动等同于迁移最优。</strong>
+              </div>
+              <div class="asset-governance-note amber">
+                <span>速度权衡</span>
+                <strong>速度最快算法单独列出，适合低延迟部署场景复核。</strong>
+              </div>
             </div>
           </aside>
         </div>
@@ -260,60 +344,108 @@
         <b>数据 QC、稳定性、矩阵、排行榜和校准性</b>
       </div>
       <div class="diagnostics-body">
-        <section class="card dataset-card" id="dataset-card">
-          <h2>
-            <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h16"/><circle cx="8" cy="5" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="10" cy="19" r="2"/></svg>
-            数据集范围
-          </h2>
-          <p class="desc">汇总 QC 覆盖、样本占比，并可勾选 held-out 数据集切片。</p>
-          <div id="dataset-summary" class="dataset-summary"></div>
-          <div id="dataset-controls" class="dataset-controls" aria-label="数据集选择"></div>
-        </section>
+        <div class="diagnostics-overview-grid">
+          <section class="card battery-diagnostics-card" id="battery-diagnostics-card">
+            <h2>
+              <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h11"/><path d="M19 10v4"/><rect x="3" y="6" width="14" height="12" rx="2"/><path d="M7 10v4M11 10v4"/></svg>
+              battery_SOH dashboard
+            </h2>
+            <p class="desc">读取导入的 battery_SOH dashboard 诊断摘要、迁移记录和 ESS 检测结果。</p>
+            <div id="battery-diagnostics-summary"></div>
+          </section>
 
-        <section class="card stability-card" id="stability-card">
-          <h2>
-            <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18h16"/><path d="M7 18V8"/><path d="M12 18V5"/><path d="M17 18v-7"/><path d="M5 5l4 4 4-6 6 8"/></svg>
-            多 seed 稳定性
-          </h2>
-          <p class="desc">Top 组合在 seeds 0 / 1 / 2 下的 MAE 均值、标准差和范围。</p>
-          <div id="stability" class="stability-wrap"></div>
-        </section>
+          <section class="card package-operations-card" id="package-operations-card">
+            <h2>
+              <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M7 4v6"/><path d="M17 4v6"/><path d="M5 13h14"/><path d="M8 17h8"/></svg>
+              数据同步与离线打包
+            </h2>
+            <p class="desc">一键同步 SOH 证据画布数据，并生成可迁移的目录包或单 HTML 离线包。</p>
+            <label class="package-path-field">
+              <span>SOH 看板源目录</span>
+              <input id="package-source-dashboard" type="text" value="D:\battery_SOH\dashboard" aria-label="SOH 看板源目录" />
+            </label>
+            <div class="package-action-row">
+              <button id="sync-native-dashboard" type="button">同步 SOH 看板</button>
+              <button id="build-portable-package" type="button">生成目录包</button>
+              <button id="build-standalone-package" type="button">生成单 HTML</button>
+            </div>
+            <div id="package-operation-status" class="package-status ready" aria-live="polite">等待后端连接</div>
+            <div id="package-operation-results" class="package-result-list"></div>
+          </section>
 
-        <section class="card" id="matrix-card">
-          <h2>
-            <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
-            特征 x 算法矩阵 - 跨域 MAE
-          </h2>
-          <p class="desc">数值越低越好。按列比较不同特征表示，按行比较不同算法。</p>
-          <div id="matrix" class="matrix-wrap"></div>
-        </section>
+          <section class="card package-report-card" id="package-report-card">
+            <h2>
+              <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/><path d="M4 19h16"/></svg>
+              交付包验收报告
+            </h2>
+            <p class="desc">读取最近同步和打包产物，检查 SOH 曲线、目录包、单 HTML 与异常检测资产排除状态。</p>
+            <button id="refresh-package-report" class="secondary-action" type="button">刷新验收</button>
+            <div id="package-report-summary" class="package-status ready" aria-live="polite">等待刷新验收</div>
+            <div id="package-delivery-files" class="package-delivery-files" aria-label="交付报告文件">
+              <span>JSON 清单 <code>dist\soh-eval-delivery-report.json</code></span>
+              <span>Markdown 说明 <code>dist\soh-eval-delivery-report.md</code></span>
+            </div>
+            <div id="package-report-checks" class="package-check-list"></div>
+          </section>
 
-        <div class="toolbar">
-          <span class="toolbar-label">特征集</span>
-          <div class="tabs" id="fs-tabs" role="tablist"></div>
+          <section class="card dataset-card" id="dataset-card">
+            <h2>
+              <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h16"/><circle cx="8" cy="5" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="10" cy="19" r="2"/></svg>
+              数据集范围
+            </h2>
+            <p class="desc">汇总 QC 覆盖、样本占比，并可勾选 held-out 数据集切片。</p>
+            <div id="dataset-summary" class="dataset-summary"></div>
+            <div id="dataset-controls" class="dataset-controls" aria-label="数据集选择"></div>
+          </section>
+
+          <section class="card stability-card" id="stability-card">
+            <h2>
+              <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18h16"/><path d="M7 18V8"/><path d="M12 18V5"/><path d="M17 18v-7"/><path d="M5 5l4 4 4-6 6 8"/></svg>
+              多 seed 稳定性
+            </h2>
+            <p class="desc">Top 组合在 seeds 0 / 1 / 2 下的 MAE 均值、标准差和范围。</p>
+            <div id="stability" class="stability-wrap"></div>
+          </section>
         </div>
 
-        <section class="card">
-          <h2><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17l5-5 4 4 7-9"/><path d="M4 21h16"/></svg> 算法优劣对比 - <span id="insights-fs" class="mono"></span></h2>
-          <p class="desc">在当前特征集和数据集范围内，对比精度、校准性和物理一致性。</p>
-          <div id="insights" class="insights"></div>
-        </section>
+        <div class="diagnostics-controls-row">
+          <div class="toolbar">
+            <span class="toolbar-label">特征集</span>
+            <div class="tabs" id="fs-tabs" role="tablist"></div>
+          </div>
+        </div>
 
-        <div class="grid">
-          <div>
-            <section class="card">
+        <div class="diagnostics-analysis-grid">
+          <section class="card" id="matrix-card">
+            <h2>
+              <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
+              特征 x 算法矩阵 - 跨域 MAE
+            </h2>
+            <p class="desc">数值越低越好。按列比较不同特征表示，按行比较不同算法。</p>
+            <div id="matrix" class="matrix-wrap"></div>
+          </section>
+
+          <div class="diagnostics-center-stack">
+            <section class="card diagnostics-insights-card">
+              <h2><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17l5-5 4 4 7-9"/><path d="M4 21h16"/></svg> 算法优劣对比 - <span id="insights-fs" class="mono"></span></h2>
+              <p class="desc">在当前特征集和数据集范围内，对比精度、校准性和物理一致性。</p>
+              <div id="insights" class="insights"></div>
+            </section>
+
+            <section class="card diagnostics-leaderboard-card">
               <h2><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5m6 14V9m6 10V3"/></svg> 排行榜 - <span id="lb-fs" class="mono"></span></h2>
               <p class="desc">按 MAE 从低到高排序。判定：G 泛化 / C 校准 / P 物理一致。</p>
               <div id="leaderboard"></div>
             </section>
           </div>
-          <div>
-            <section class="card">
+
+          <div class="diagnostics-side-stack">
+            <section class="card diagnostics-picp-card">
               <h2><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 校准性 - PICP 对比 90%</h2>
               <p class="desc">区间覆盖率。橙色标线为 0.90 目标。</p>
               <div id="picp"></div>
             </section>
-            <section class="card">
+            <section class="card diagnostics-qc-card">
               <h2><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg> 数据 QC 报告</h2>
               <p class="desc">所有指标计算前先执行的质量门控。</p>
               <div id="qc"></div>
@@ -322,6 +454,68 @@
         </div>
       </div>
       </section>
+
+      <section class="audit-workbench mode-panel" id="audit-workbench" data-mode-panel="audit" hidden>
+        <header class="fusion-casebar">
+          <div class="fusion-case-context">
+            <span>评测案例 / <b id="audit-breadcrumb-case">LIVE</b> / 评测与证据</span>
+          </div>
+          <div class="audit-toolbar-actions">
+            <div class="audit-case-summary" id="audit-case-summary" aria-live="polite"></div>
+            <details class="casebar-more">
+              <summary>更多</summary>
+              <div>
+                <button class="casebar-link" type="button" id="open-task-history">任务记录</button>
+                <button class="casebar-link danger" type="button" id="finalize-failed-case" data-audit-action="finalize-failed" hidden>确认不通过并结束</button>
+                <button class="casebar-link" type="button" id="archive-incomplete-case" data-audit-action="archive-case" hidden>归档未完成案例</button>
+              </div>
+            </details>
+            <small class="audit-primary-hint" id="audit-primary-hint" hidden></small>
+            <button type="button" class="primary" id="audit-review-primary" data-audit-action="review" data-review-target="in_review">提交评审</button>
+          </div>
+        </header>
+        <div class="fusion-stage-rail" id="audit-stage-rail" aria-label="评测案例阶段"></div>
+        <div class="fusion-context-ribbon" id="audit-context-ribbon" aria-label="当前证据上下文"></div>
+        <section class="saved-combination-registry" id="audit-saved-combinations" aria-label="已完成组合" aria-live="polite"></section>
+        <div class="audit-workbench-layout fusion-layout">
+          <aside class="audit-panel fusion-scope-panel" aria-label="比较范围">
+            <div class="audit-panel-head">
+              <span>比较范围</span>
+              <small>选择会同步驱动全部证据视图</small>
+            </div>
+            <div class="audit-panel-body" id="audit-scope-body"></div>
+          </aside>
+          <main class="audit-main-panel fusion-evidence-main" aria-label="比较证据与复测闭环">
+            <div class="fusion-kpi-strip" id="audit-kpi-strip"></div>
+            <section class="fusion-evidence-canvas">
+              <div class="fusion-canvas-head" id="audit-evidence-head"></div>
+              <div class="fusion-soh-trajectory" id="audit-soh-trajectory" aria-label="SOH 轨迹证据"></div>
+              <div class="fusion-raw-evidence" id="audit-raw-evidence" aria-label="原始与派生曲线证据" hidden></div>
+            </section>
+            <section class="fusion-closure-shell">
+              <div class="audit-panel-head">
+                <span>逐 Cycle 证据与闭环</span>
+                <small>固定样本 → 回归集 → 模型重推理 / 证据重放 → 自动回填</small>
+              </div>
+              <div class="audit-panel-body" id="audit-closure-body"></div>
+            </section>
+          </main>
+          <aside class="audit-panel fusion-inspector-panel" aria-label="判定检查器">
+            <div class="audit-panel-head">
+              <span>判定检查器</span>
+              <small>结论、完整度、血缘与动作同屏</small>
+            </div>
+            <div class="audit-panel-body fusion-inspector-scroll">
+              <div id="audit-readiness-body"></div>
+              <section class="fusion-trail-section">
+                <div class="evidence-block-title"><span>审计轨迹</span><small>不可变事件</small></div>
+                <div id="audit-trail-body"></div>
+              </section>
+            </div>
+          </aside>
+        </div>
+      </section>
+
     </section>
 
     <p class="foot" id="foot"></p>
@@ -366,6 +560,28 @@
   <div class="task-history-message" id="task-history-message" aria-live="polite"></div>
   <div class="task-history-list" id="task-history-list"></div>
 </aside>
-<script type="module" src="app.js?v=task-history-20260630"></script>
+<div class="drawer-backdrop" id="acceptance-detail-backdrop" hidden></div>
+<aside class="task-drawer acceptance-detail-drawer" id="acceptance-detail-drawer" aria-label="验收详情" hidden>
+  <div class="task-drawer-head">
+    <div>
+      <span>验收详情</span>
+      <b>训练口径与失败原因</b>
+    </div>
+    <button type="button" id="close-acceptance-detail" aria-label="关闭验收详情">关闭</button>
+  </div>
+  <div class="acceptance-detail-body" id="acceptance-detail-body"></div>
+</aside>
+<div class="drawer-backdrop" id="battery-asset-backdrop" hidden></div>
+<aside class="task-drawer battery-asset-drawer" id="battery-asset-drawer" aria-label="battery_SOH 资产详情" hidden>
+  <div class="task-drawer-head">
+    <div>
+      <span>battery_SOH 资产</span>
+      <b>算法、特征与曲线索引</b>
+    </div>
+    <button type="button" id="close-battery-asset" aria-label="关闭 battery_SOH 资产详情">关闭</button>
+  </div>
+  <div class="battery-asset-body" id="battery-asset-body"></div>
+</aside>
+<script type="module" src="app.js?v=phase46-label-safety-20260817a"></script>
 </body>
 </html>

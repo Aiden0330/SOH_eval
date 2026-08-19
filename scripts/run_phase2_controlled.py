@@ -12,13 +12,14 @@ from sohbench.protocols import LeaveOneDatasetOut
 from sohbench.report import write_artifacts
 from sohbench.runner import BenchmarkRunner
 from sohbench.tasks import SOHEstimationTask
+from sohbench.paths import DEFAULT_DATA_DIR
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run a tractable Phase-2 PyTorch SOH benchmark pass."
     )
-    parser.add_argument("--data-dir", default=r"D:\battery_SOH\data")
+    parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))
     parser.add_argument("--out-dir", default="runs")
     parser.add_argument("--datasets", nargs="+", default=["all"])
     parser.add_argument("--featuresets", nargs="+", default=["partial_window"])

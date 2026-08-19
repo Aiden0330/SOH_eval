@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 .venv/
+.venv-mac/
 runs/
 work/
 *.parquet
@@ -11,3 +12,6 @@ dist/
 desktop.ini
 route_log/*.log
 .worktrees/
+data/**
+!data/README.md
+!data/manifest.json

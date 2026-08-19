@@ -7,6 +7,7 @@ from .tasks import SOHEstimationTask
 from .runner import BenchmarkRunner
 from .report import write_artifacts
 import sohbench.estimators.baselines  # noqa: F401  (register ridge/gbdt/svr/gpr)
+import sohbench.estimators.mechanism  # noqa: F401  (register extended baselines/gray-box method)
 import sohbench.estimators.physics   # noqa: F401  (register phys_resid)
 import sohbench.estimators.neural    # noqa: F401  (register mlp)
 import sohbench.estimators.byo       # noqa: F401  (register byo_skb_ridge)

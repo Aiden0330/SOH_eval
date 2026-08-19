@@ -2,7 +2,7 @@ import os, pytest
 from pathlib import Path
 from sohbench.cli import run_benchmark
 
-DATA = Path(r"D:\battery_SOH\data")
+DATA = Path(__file__).resolve().parents[1] / "data"
 
 @pytest.mark.skipif(not (DATA/"processed").exists(), reason="real data dir absent")
 def test_four_datasets_run(tmp_path):

@@ -46,6 +46,23 @@ class PINNEstimator:
     name: str = "pinn"
     feature_mode: str = "unified"
     backend: str = "pytorch"
+    method_family: str = "physics_regularized_neural"
+    pairing_mode: str = "method_package"
+    compatible_featuresets = (
+        "degradation_kinetics",
+        "operating_stress",
+        "electrochemical_diagnostics",
+        "capacity_time",
+        "full",
+    )
+    preferred_featureset: str = "degradation_kinetics"
+    data_granularity: str = "cycle_sequence"
+    required_signals = ("cycle_index",)
+    physics_constraints = ("trajectory_monotonicity", "soh_range")
+    description: str = (
+        "逐 Cycle MLP 加单调性和范围约束；属于物理正则网络，"
+        "不等同于含电化学控制方程残差的严格 PINN。"
+    )
 
     def __init__(
         self,

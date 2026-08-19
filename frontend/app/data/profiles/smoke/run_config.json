@@ -15,10 +15,16 @@
     0
   ],
   "trusted_local_plugins": true,
-  "saved_models": [
+  "saved_models": [],
+  "model_warnings": [],
+  "invalidated_saved_models": [
     "smoke_linear_decay_smoke_cycle_shape_loco_smoke_eval_demo_smoke_cell_01_seed0",
     "smoke_linear_decay_smoke_cycle_shape_loco_smoke_eval_demo_smoke_cell_02_seed0",
     "smoke_linear_decay_smoke_cycle_shape_loco_smoke_eval_demo_smoke_cell_03_seed0"
   ],
-  "model_warnings": []
+  "result_validity": {
+    "status": "partially_invalidated",
+    "contract": "sohbench.label-safety.v1",
+    "reason": "标签泄漏：模型输入包含真实 SOH 或其确定性派生字段；该模型及其既有测评指标不再可用"
+  }
 }

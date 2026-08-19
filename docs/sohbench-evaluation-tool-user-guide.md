@@ -2,7 +2,7 @@
 
 版本：2026-06-29  
 项目目录：`D:\SOH_eval`  
-默认数据目录：`D:\battery_SOH\data`
+默认数据目录：`D:\SOH_eval\data`
 
 ## 1. 工具目标
 
@@ -10,7 +10,7 @@
 
 当前工作重点是建立“可复现、可比较、可扩展”的本机可信评测系统：
 
-- 支持 `D:\battery_SOH\data` 下已有和后续新增的数据集。
+- 支持项目目录 `D:\SOH_eval\data` 下已有和后续新增的数据集。
 - 支持内置算法、本机可信插件算法、深度模型算法。
 - 支持内置特征方案和本机可信插件特征方案。
 - 支持通过前端选择数据集、算法、特征方案并触发评测。
@@ -20,7 +20,7 @@
 
 | 组件 | 默认位置/地址 | 作用 |
 |---|---|---|
-| 数据目录 | `D:\battery_SOH\data` | 存放原始数据和 `processed/*_features.pkl` |
+| 数据目录 | `D:\SOH_eval\data` | 存放原始数据和 `processed/*_features.pkl` |
 | 后端 API | `http://127.0.0.1:8001` | 上传数据集/算法/特征，创建评测任务，查询任务状态 |
 | 前端页面 | `http://localhost:8000` | 数据集选择、上传、评测配置、结果展示 |
 | 前端数据产物 | `frontend/app/data` | 前端读取的 `leaderboard.json`、`run_config.json` 等 |
@@ -32,7 +32,7 @@
 评测器默认从以下目录发现数据集：
 
 ```text
-D:\battery_SOH\data\processed
+D:\SOH_eval\data\processed
 ```
 
 可被自动发现的数据文件必须满足：
@@ -72,7 +72,7 @@ $env:PYTHONPATH='src'
 .\.venv\Scripts\python.exe -m sohbench.api_server `
   --host 127.0.0.1 `
   --port 8001 `
-  --data-dir D:\battery_SOH\data `
+  --data-dir D:\SOH_eval\data `
   --work-dir work\trusted_plugins `
   --runs-dir runs `
   --frontend-data-dir frontend\app\data
@@ -152,7 +152,7 @@ Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8001/api/health
 ```powershell
 $env:PYTHONPATH='src'
 .\.venv\Scripts\python.exe -m sohbench.cli run `
-  --data-dir D:\battery_SOH\data `
+  --data-dir D:\SOH_eval\data `
   --datasets all `
   --estimators ridge `
   --protocols lodo `
@@ -166,7 +166,7 @@ $env:PYTHONPATH='src'
 ```powershell
 $env:PYTHONPATH='src'
 .\.venv\Scripts\python.exe -m sohbench.cli run `
-  --data-dir D:\battery_SOH\data `
+  --data-dir D:\SOH_eval\data `
   --datasets all `
   --estimators ridge gbdt svr gpr mlp byo_skb_ridge phys_resid `
   --protocols lodo `
@@ -409,7 +409,7 @@ $env:PYTHONPATH='src'
 
 依次检查：
 
-1. 文件是否在 `D:\battery_SOH\data\processed`。
+1. 文件是否在 `D:\SOH_eval\data\processed`。
 2. 文件名是否为 `<dataset_name>_features.pkl`。
 3. 是否包含必需列 `dataset`, `cell_id`, `cycle_index`, `soh`。
 4. 后端 `/api/catalog` 是否能看到该数据集。

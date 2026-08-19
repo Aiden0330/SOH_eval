@@ -4,6 +4,7 @@ from . import metrics as M
 from .conformal import ConformalWrapper, WeightedConformalWrapper
 from .features import unified_features
 from .featuresets import project
+from .method_contracts import method_contract
 from .registry import get_featureset
 import sohbench.featuresets  # noqa: F401 — ensure the 5 named sets are registered
 
@@ -30,19 +31,22 @@ class BenchmarkRunner:
         records = []
 
         for est_factory in estimators:
-            est_name = getattr(est_factory, "name", est_factory.__class__.__name__)
-            est_feature_mode = getattr(est_factory, "feature_mode", "unified")
-            est_backend = getattr(est_factory, "backend", "sklearn")
-            is_byo = est_feature_mode == "byo"
+            contract = method_contract(est_factory)
+            est_name = contract.name
+            is_byo = contract.feature_mode == "byo"
 
             if is_byo:
                 # BYO estimators: single pseudo-featureset, no projection
                 fs_iterations = [("(byo)", table, "byo")]
             else:
-                # Unified estimators: project table to each requested featureset
+                # Ordinary estimators remain a free Cartesian product. Joint
+                # or gray-box methods may declare an explicit feature-profile
+                # contract; incompatible cells are omitted consistently with
+                # the server-side preflight.
+                selected_featuresets = contract.feature_iterations(featuresets)
                 fs_iterations = [
                     (fs_name, project(table, fs_name), "unified")
-                    for fs_name in featuresets
+                    for fs_name in selected_featuresets
                 ]
 
             for fs_name, data_table, track in fs_iterations:
@@ -58,8 +62,13 @@ class BenchmarkRunner:
                                 held_out_key=fold.held_out_key, fold=fi,
                                 seed=seed, ci_source="conformal",
                                 featureset=fs_name, track=track,
-                                feature_mode=est_feature_mode,
-                                backend=est_backend,
+                                feature_mode=contract.feature_mode,
+                                backend=contract.backend,
+                                method_family=contract.method_family,
+                                pairing_mode=contract.pairing_mode,
+                                method_category=contract.method_category,
+                                combination_policy=contract.combination_policy,
+                                execution_contract=contract.execution_contract,
                             )
                             try:
                                 est = est_factory() if isinstance(est_factory, type) else est_factory

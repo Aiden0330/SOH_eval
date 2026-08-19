@@ -42,7 +42,7 @@
 Phase 1 全量矩阵：
 
 ```bash
-.venv/Scripts/python.exe -m sohbench run --data-dir "D:\battery_SOH\data" \
+.venv/Scripts/python.exe -m sohbench run --data-dir "D:\SOH_eval\data" \
   --datasets all --estimators ridge gbdt mlp phys_resid \
   --protocols lodo --featuresets full voltage ic_dva partial_window capacity_time \
   --seeds 0 --out-dir runs
@@ -52,9 +52,9 @@ Phase 2 受控初跑：
 
 ```bash
 .venv/Scripts/python.exe scripts/run_phase2_controlled.py \
-  --data-dir "D:\battery_SOH\data" \
+  --data-dir "D:\SOH_eval\data" \
   --datasets all --featuresets partial_window ic_dva full --seeds 0 \
   --n-max 6000 --seq-epochs 8 --pinn-epochs 20 --out-dir runs
 ```
 
-`--datasets all` 会扫描 `D:\battery_SOH\data\processed\*_features.pkl`，只纳入满足 `dataset / cell_id / cycle_index / soh` 字段契约的 feature 表。后续新增同类数据集后，不需要改前端代码；重新运行 benchmark 并把四个 JSON 复制到 `frontend/app/data/` 即可。
+`--datasets all` 会扫描项目目录 `D:\SOH_eval\data\processed\*_features.pkl`，只纳入满足 `dataset / cell_id / cycle_index / soh` 字段契约的 feature 表。后续新增同类数据集后，不需要改前端代码；重新运行 benchmark 并把四个 JSON 复制到 `frontend/app/data/` 即可。

@@ -8,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 
 from sohbench.evaluation_service import EvaluationService
+from sohbench.paths import DEFAULT_DATA_DIR
 
 try:
     from scripts.run_smoke_acceptance import (
@@ -31,7 +32,7 @@ except ModuleNotFoundError:
 
 @dataclass
 class RealMigrationAcceptanceConfig:
-    data_dir: str | Path = Path(r"D:\battery_SOH\data")
+    data_dir: str | Path = DEFAULT_DATA_DIR
     work_dir: str | Path = Path("work/migration_acceptance")
     runs_dir: str | Path = Path("runs")
     frontend_data_dir: str | Path = Path("frontend/app/data")
@@ -180,7 +181,7 @@ def _require_dataset_files(data_dir: Path, names: list[str]) -> None:
 
 def parse_args() -> RealMigrationAcceptanceConfig:
     parser = argparse.ArgumentParser("run a small real-data migration acceptance")
-    parser.add_argument("--data-dir", default=r"D:\battery_SOH\data")
+    parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))
     parser.add_argument("--work-dir", default="work/migration_acceptance")
     parser.add_argument("--runs-dir", default="runs")
     parser.add_argument("--frontend-data-dir", default="frontend/app/data")

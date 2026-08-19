@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import re
 import time
 
 import numpy as np
 import pandas as pd
 
 from . import metrics as M
+from .metadata import DATASET_CHEMISTRY
 
 
 def run_inference_benchmark(
@@ -14,38 +18,165 @@ def run_inference_benchmark(
     meta: pd.DataFrame | None,
     model_names: list[str],
 ) -> list[dict]:
+    records, _evidence = _run_inference(
+        model_store,
+        table,
+        meta,
+        model_names,
+        job_id="",
+        dataset_snapshot_ids={},
+        capture_evidence=False,
+    )
+    return records
+
+
+def run_inference_benchmark_with_evidence(
+    model_store,
+    table: pd.DataFrame,
+    meta: pd.DataFrame | None,
+    model_names: list[str],
+    *,
+    job_id: str,
+    dataset_snapshot_ids: dict[str, str] | None = None,
+    evaluation_policy: str = "research_any",
+    model_bindings: list[dict] | None = None,
+) -> tuple[list[dict], dict]:
+    """Run point inference and retain canonical per-cycle evidence facts.
+
+    The legacy benchmark API intentionally continues to return aggregate rows.
+    This companion API performs the same predictions once and additionally
+    returns PredictionRecord and metric-contribution payloads for case-scoped
+    evidence views.
+    """
+    return _run_inference(
+        model_store,
+        table,
+        meta,
+        model_names,
+        job_id=str(job_id or ""),
+        dataset_snapshot_ids=dict(dataset_snapshot_ids or {}),
+        capture_evidence=True,
+        evaluation_policy=evaluation_policy,
+        model_bindings=list(model_bindings or []),
+    )
+
+
+def _run_inference(
+    model_store,
+    table: pd.DataFrame,
+    meta: pd.DataFrame | None,
+    model_names: list[str],
+    *,
+    job_id: str,
+    dataset_snapshot_ids: dict[str, str],
+    capture_evidence: bool,
+    evaluation_policy: str = "research_any",
+    model_bindings: list[dict] | None = None,
+) -> tuple[list[dict], dict]:
     records: list[dict] = []
+    prediction_records: list[dict] = []
+    metric_contributions: list[dict] = []
+    bindings_by_name = {
+        str(item.get("name") or ""): dict(item)
+        for item in (model_bindings or [])
+        if item.get("name")
+    }
     for model_name in model_names:
+        binding = bindings_by_name.get(str(model_name)) or {}
+        bound_artifact_id = str(binding.get("artifact_id") or "")
         try:
-            loaded = model_store.load_model(model_name)
+            loaded = (
+                model_store.load_artifact(bound_artifact_id)
+                if bound_artifact_id
+                else model_store.load_model(model_name)
+            )
         except Exception as exc:
             records.append(_failed_record(model_name, "all", 0, 0.0, str(exc)))
             continue
 
+        if bound_artifact_id:
+            artifact_id = bound_artifact_id
+        else:
+            try:
+                artifact_id = model_store.artifact_id(model_name)
+            except Exception:
+                artifact_id = ""
+        candidate_id = _candidate_id(artifact_id or model_name)
+        split_assignment_id = _split_assignment_id(loaded.manifest)
+
         for dataset, group in table.groupby("dataset", sort=True):
+            dataset_name = str(dataset)
+            scope = _evaluation_scope(
+                loaded.manifest,
+                dataset_name,
+                group,
+                policy=evaluation_policy,
+            )
+            scoped_group = scope["group"]
             base = {
                 "model": model_name,
-                "dataset": str(dataset),
+                "dataset": dataset_name,
                 "featureset": loaded.manifest.get("featureset"),
                 "estimator": loaded.manifest.get("estimator"),
-                "n_samples": int(len(group)),
+                "candidate_id": candidate_id,
+                "model_artifact_id": artifact_id,
+                "n_samples": int(len(scoped_group)),
                 "load_ms": float(loaded.load_ms),
+                "evaluation_scope": scope["scope"],
+                "evaluation_reason": scope["reason"],
+                "source_chemistries": scope["source_chemistries"],
+                "target_chemistry": scope["target_chemistry"],
             }
+            if not scope["eligible"]:
+                records.append({
+                    **base,
+                    "mae": None,
+                    "rmse": None,
+                    "mean_bias_error": None,
+                    "monotonicity_violation_rate": None,
+                    "value_range_violation": None,
+                    "predict_ms": None,
+                    "ms_per_1000_samples": None,
+                    "samples_per_second": None,
+                    "status": "skipped",
+                    "error": scope["reason"],
+                })
+                continue
             try:
+                group_meta = _group_meta(meta, scoped_group)
                 start = time.perf_counter()
-                pred = loaded.predict(group, meta)
+                pred = loaded.predict(scoped_group, group_meta)
                 predict_ms = (time.perf_counter() - start) * 1000.0
                 records.append(
                     {
                         **base,
-                        **_metrics(group, pred),
+                        **_metrics(scoped_group, pred),
                         "predict_ms": float(predict_ms),
-                        "ms_per_1000_samples": float(predict_ms / max(len(group), 1) * 1000.0),
-                        "samples_per_second": float(len(group) / max(predict_ms / 1000.0, 1e-12)),
+                        "ms_per_1000_samples": float(predict_ms / max(len(scoped_group), 1) * 1000.0),
+                        "samples_per_second": float(len(scoped_group) / max(predict_ms / 1000.0, 1e-12)),
                         "status": "succeeded",
                         "error": "",
                     }
                 )
+                if capture_evidence:
+                    interval = _prediction_interval(loaded, scoped_group, group_meta)
+                    evidence_rows, contribution_rows = _prediction_evidence_rows(
+                        scoped_group,
+                        pred,
+                        interval,
+                        job_id=job_id,
+                        model_name=model_name,
+                        candidate_id=candidate_id,
+                        model_artifact_id=artifact_id,
+                        featureset=str(loaded.manifest.get("featureset") or "full"),
+                        feature_columns=loaded.feature_columns(),
+                        dataset=dataset_name,
+                        dataset_snapshot_id=dataset_snapshot_ids.get(dataset_name, ""),
+                        split_assignment_id=split_assignment_id,
+                        evaluation_scope=scope["scope"],
+                    )
+                    prediction_records.extend(evidence_rows)
+                    metric_contributions.extend(contribution_rows)
             except Exception as exc:
                 records.append(
                     {
@@ -62,7 +193,232 @@ def run_inference_benchmark(
                         "error": str(exc),
                     }
                 )
-    return records
+    return records, {
+        "prediction_records": prediction_records,
+        "metric_contributions": metric_contributions,
+    }
+
+
+def _evaluation_scope(manifest: dict, dataset: str, group: pd.DataFrame, *, policy: str) -> dict:
+    """Resolve the non-overlapping test slice used by inference validation."""
+    trained_on = [str(value) for value in (manifest.get("trained_on") or []) if str(value)]
+    held_out_key = str(manifest.get("held_out_key") or "")
+    protocol = str(manifest.get("protocol") or "").lower()
+    target_chemistry = str(DATASET_CHEMISTRY.get(dataset) or "unknown")
+    source_chemistries = sorted({
+        str(DATASET_CHEMISTRY.get(name) or "unknown")
+        for name in trained_on
+        if str(DATASET_CHEMISTRY.get(name) or "unknown").lower() != "unknown"
+    })
+    base = {
+        "group": group,
+        "eligible": True,
+        "scope": "research_any",
+        "reason": "研究模式：允许训练回放或跨化学体系验证",
+        "source_chemistries": source_chemistries,
+        "target_chemistry": target_chemistry,
+    }
+    if policy != "held_out_same_chemistry":
+        return base
+
+    if protocol == "loco" and held_out_key.startswith(f"{dataset}/"):
+        held_out_cell = held_out_key.split("/", 1)[1]
+        held_out_group = group[group["cell_id"].astype(str) == held_out_cell]
+        return {
+            **base,
+            "group": held_out_group,
+            "eligible": not held_out_group.empty,
+            "scope": "held_out_test",
+            "reason": f"仅使用训练未见电池 {held_out_key}",
+        }
+    if protocol == "lodo" and held_out_key == dataset:
+        return {**base, "scope": "held_out_test", "reason": f"使用训练完整留出的数据集 {dataset}"}
+    if dataset in trained_on:
+        return {
+            **base,
+            "group": group.iloc[0:0],
+            "eligible": False,
+            "scope": "training_overlap",
+            "reason": "目标数据参与过训练且没有匹配的留出切分",
+        }
+    if not trained_on:
+        return {
+            **base,
+            "group": group.iloc[0:0],
+            "eligible": False,
+            "scope": "provenance_unknown",
+            "reason": "模型未声明训练数据范围",
+        }
+    if target_chemistry.lower() == "unknown":
+        return {
+            **base,
+            "group": group.iloc[0:0],
+            "eligible": False,
+            "scope": "chemistry_unknown",
+            "reason": "目标数据集化学体系待确认",
+        }
+    if target_chemistry not in source_chemistries:
+        return {
+            **base,
+            "group": group.iloc[0:0],
+            "eligible": False,
+            "scope": "cross_chemistry",
+            "reason": f"迁移默认限制为同化学体系：{source_chemistries or ['unknown']} -> {target_chemistry}",
+        }
+    return {
+        **base,
+        "scope": "same_chemistry_transfer",
+        "reason": f"同化学体系迁移：{target_chemistry}",
+    }
+
+
+def _group_meta(meta: pd.DataFrame | None, group: pd.DataFrame) -> pd.DataFrame | None:
+    if meta is None:
+        return None
+    try:
+        return meta.loc[group.index]
+    except (KeyError, TypeError):
+        return meta if len(meta) == len(group) else None
+
+
+def _prediction_interval(loaded, group, group_meta):
+    try:
+        interval = loaded.predict_interval(group, group_meta)
+    except Exception:
+        # Point prediction remains valid when an optional interval adapter is
+        # unavailable for an imported model package.
+        return None
+    if interval is None:
+        return None
+    lower, upper = (np.asarray(values, dtype=float) for values in interval)
+    if lower.shape[0] != len(group) or upper.shape[0] != len(group):
+        return None
+    if not np.isfinite(lower).all() or not np.isfinite(upper).all():
+        return None
+    return lower, upper
+
+
+def _prediction_evidence_rows(
+    group: pd.DataFrame,
+    pred: np.ndarray,
+    interval,
+    *,
+    job_id: str,
+    model_name: str,
+    candidate_id: str,
+    model_artifact_id: str,
+    featureset: str,
+    feature_columns: list[str],
+    dataset: str,
+    dataset_snapshot_id: str,
+    split_assignment_id: str,
+    evaluation_scope: str,
+) -> tuple[list[dict], list[dict]]:
+    count = len(group)
+    lower = interval[0] if interval is not None else None
+    upper = interval[1] if interval is not None else None
+    rows: list[dict] = []
+    contributions: list[dict] = []
+    for position, (_index, source) in enumerate(group.iterrows()):
+        cell_id = str(source.get("cell_id") or "")
+        cycle_index = _json_number(source.get("cycle_index"))
+        true_soh = _json_number(source.get("soh"))
+        pred_soh = float(pred[position])
+        lower_value = float(lower[position]) if lower is not None else None
+        upper_value = float(upper[position]) if upper is not None else None
+        absolute_error = abs(pred_soh - true_soh) if true_soh is not None else None
+        interval_covered = (
+            bool(lower_value <= true_soh <= upper_value)
+            if true_soh is not None and lower_value is not None and upper_value is not None
+            else None
+        )
+        sample_id = f"{dataset}:{cell_id}:{cycle_index}"
+        digest_payload = f"{job_id}|{model_name}|{sample_id}".encode("utf-8")
+        prediction_record_id = f"pred:{_id_token(job_id or 'inference', 32)}:{hashlib.sha256(digest_payload).hexdigest()[:24]}"
+        contribution = {
+            "mae_contribution": absolute_error / max(count, 1) if absolute_error is not None else None,
+            "rmse_squared_contribution": (
+                absolute_error * absolute_error / max(count, 1)
+                if absolute_error is not None else None
+            ),
+            "picp_contribution": (
+                (1.0 if interval_covered else 0.0) / max(count, 1)
+                if interval_covered is not None else None
+            ),
+        }
+        feature_values = {
+            column: value
+            for column in feature_columns
+            if column in source.index and (value := _json_number(source.get(column))) is not None
+        }
+        record = {
+            "schema_version": "1.0.0",
+            "prediction_record_id": prediction_record_id,
+            "sample_id": sample_id,
+            "run_id": job_id,
+            "candidate_id": candidate_id,
+            "model_name": model_name,
+            "model_artifact_id": model_artifact_id,
+            "featureset": featureset,
+            "dataset": dataset,
+            "dataset_snapshot_id": dataset_snapshot_id,
+            "split_assignment_id": split_assignment_id,
+            "evaluation_scope": evaluation_scope,
+            "cell_id": cell_id,
+            "cycle_index": cycle_index,
+            "true_soh": true_soh,
+            "pred_soh": pred_soh,
+            "lower": lower_value,
+            "upper": upper_value,
+            "absolute_error": absolute_error,
+            "interval_covered": interval_covered,
+            "curve_segment_ref_id": "",
+            "feature_values": feature_values,
+            "metric_contributions": contribution,
+        }
+        rows.append(record)
+        contributions.append(
+            {
+                "schema_version": "1.0.0",
+                "prediction_record_id": prediction_record_id,
+                "sample_id": sample_id,
+                "candidate_id": candidate_id,
+                **contribution,
+            }
+        )
+    return rows, contributions
+
+
+def _candidate_id(identity: str) -> str:
+    return f"artifact:{_id_token(identity, 48)}"
+
+
+def _id_token(value: object, limit: int) -> str:
+    token = re.sub(r"[^A-Za-z0-9_.-]+", "-", str(value or "unknown"))
+    token = token.strip("-.")[:limit]
+    return token or "unknown"
+
+
+def _split_assignment_id(manifest: dict) -> str:
+    descriptor = {
+        "protocol": str(manifest.get("protocol") or ""),
+        "held_out_key": str(manifest.get("held_out_key") or ""),
+        "seed": manifest.get("seed"),
+    }
+    if not any(value not in (None, "") for value in descriptor.values()):
+        return ""
+    encoded = json.dumps(descriptor, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return f"protocol@sha256:{hashlib.sha256(encoded).hexdigest()}"
+
+
+def _json_number(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not np.isfinite(number):
+        return None
+    return int(number) if number.is_integer() else number
 
 
 def _metrics(group: pd.DataFrame, pred: np.ndarray) -> dict:

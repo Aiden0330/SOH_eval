@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": ".venv-mac/bin/python",
+      "runtimeArgs": ["-m", "sohbench.api_server"],
+      "port": 8001
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": ".venv-mac/bin/python",
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "frontend/app"],
+      "port": 8765
+    }
+  ]
+}

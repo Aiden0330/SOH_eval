@@ -14,8 +14,9 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
-from typing import List
+from typing import Callable, List
 
+import numpy as np
 import pandas as pd
 
 from .contracts import ID_COLUMNS, feature_columns
@@ -27,6 +28,18 @@ __all__ = [
     "register_featureset",
     "get_featureset",
 ]
+
+_MECHANISM_DERIVED_COLUMNS = {
+    "cycle_sqrt",
+    "cycle_log1p",
+    "voltage_span_v",
+    "charge_energy_proxy_wh",
+    "cumulative_capacity_proxy_ah",
+    "current_rms_proxy_a",
+    "current_variability_ratio",
+    "temperature_over_25c",
+    "arrhenius_stress_factor",
+}
 
 
 @dataclass
@@ -45,6 +58,12 @@ class FeatureSet:
 
     name: str
     candidates: List[str] = field(default_factory=list)
+    family: str = "data_driven"
+    mechanism_level: str = "none"
+    data_granularity: str = "cycle_table"
+    description: str = ""
+    required_signals: List[str] = field(default_factory=list)
+    transform: Callable[[pd.DataFrame, pd.DataFrame | None], pd.DataFrame] | None = None
 
     def columns(self, table: pd.DataFrame) -> list[str]:
         """Return candidate columns that are present as *feature* columns in *table*.
@@ -108,7 +127,14 @@ class _FullFeatureSet(FeatureSet):
     """Returns ALL feature columns present in the table."""
 
     def columns(self, table: pd.DataFrame) -> list[str]:
-        return feature_columns(table)
+        # Keep ``full`` stable when another selected feature profile adds
+        # request-scoped derived columns to the shared table.  Otherwise the
+        # meaning of ``full`` would silently depend on which sibling checkbox
+        # happened to be selected in the same run.
+        return [
+            column for column in feature_columns(table)
+            if column not in _MECHANISM_DERIVED_COLUMNS
+        ]
 
 
 # Replace the sentinel "full" entry with the proper implementation.
@@ -136,4 +162,118 @@ register_featureset(FeatureSet(
 register_featureset(FeatureSet(
     name="capacity_time",
     candidates=["charge_capacity_max", "time_s_max", "cycle_index_feature", "cycle_fraction"],
+))
+
+
+def _numeric(table: pd.DataFrame, column: str) -> np.ndarray:
+    """Return a finite-or-NaN numeric array without changing row identity."""
+    if column not in table.columns:
+        return np.full(len(table), np.nan, dtype=float)
+    values = pd.to_numeric(table[column], errors="coerce").to_numpy(dtype=float, copy=True)
+    values[~np.isfinite(values)] = np.nan
+    return values
+
+
+def _mechanism_proxy_transform(
+    table: pd.DataFrame,
+    meta: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Derive target-free degradation and operating-stress proxies.
+
+    These quantities are intentionally named ``*_proxy`` where the available
+    per-cycle aggregate table cannot support identification of a full ECM,
+    electrochemical model, or cumulative Ah-throughput state.  Missing source
+    signals remain NaN so dataset compatibility stays auditable.
+    """
+    del meta
+    out = table.copy()
+    cycle = _numeric(out, "cycle_index_feature")
+    if not np.isfinite(cycle).any():
+        cycle = _numeric(out, "cycle_index")
+    cycle = np.maximum(cycle, 0.0)
+    out["cycle_sqrt"] = np.sqrt(cycle)
+    out["cycle_log1p"] = np.log1p(cycle)
+
+    voltage_mean = _numeric(out, "voltage_mean")
+    voltage_min = _numeric(out, "voltage_min")
+    voltage_max = _numeric(out, "voltage_max")
+    out["voltage_span_v"] = voltage_max - voltage_min
+
+    charge_capacity = _numeric(out, "charge_capacity_max")
+    out["charge_energy_proxy_wh"] = voltage_mean * charge_capacity
+    out["cumulative_capacity_proxy_ah"] = cycle * charge_capacity
+
+    current_mean = _numeric(out, "current_mean")
+    current_std = _numeric(out, "current_std")
+    abs_current_mean = _numeric(out, "abs_current_mean")
+    out["current_rms_proxy_a"] = np.sqrt(np.square(current_mean) + np.square(current_std))
+    denominator = np.where(np.abs(abs_current_mean) > 1e-12, np.abs(abs_current_mean), np.nan)
+    out["current_variability_ratio"] = current_std / denominator
+
+    temperature_c = _numeric(out, "temperature_mean")
+    temperature_k = temperature_c + 273.15
+    out["temperature_over_25c"] = temperature_c - 25.0
+    # Fixed 24 kJ/mol activation-energy proxy.  It is a stress descriptor,
+    # not an identified cell-specific aging parameter.
+    activation_energy = 24_000.0
+    gas_constant = 8.314462618
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        exponent = (activation_energy / gas_constant) * (1.0 / 298.15 - 1.0 / temperature_k)
+    out["arrhenius_stress_factor"] = np.where(
+        np.isfinite(exponent) & (temperature_k > 0.0),
+        np.exp(np.clip(exponent, -30.0, 30.0)),
+        np.nan,
+    )
+    return out
+
+
+register_featureset(FeatureSet(
+    name="electrochemical_diagnostics",
+    candidates=[
+        "ic_peak_ah_per_v",
+        "ic_peak_voltage_v",
+        "q_win_ah",
+        "t_win_s",
+        "voltage_span_v",
+        "charge_energy_proxy_wh",
+    ],
+    family="mechanism_derived",
+    mechanism_level="diagnostic_proxy",
+    description="IC/DVA 峰、局部充电窗口与电压/能量代理，适合曲线诊断和退化模式比较。",
+    required_signals=["cycle_voltage", "cycle_current", "cycle_time"],
+    transform=_mechanism_proxy_transform,
+))
+
+register_featureset(FeatureSet(
+    name="operating_stress",
+    candidates=[
+        "current_rms_proxy_a",
+        "current_variability_ratio",
+        "temperature_mean",
+        "temperature_over_25c",
+        "arrhenius_stress_factor",
+        "voltage_span_v",
+    ],
+    family="mechanism_derived",
+    mechanism_level="stress_proxy",
+    description="电流波动、温度与 Arrhenius 应力代理，用于跨工况泛化与灰盒退化模型。",
+    required_signals=["cycle_current", "cycle_temperature", "cycle_voltage"],
+    transform=_mechanism_proxy_transform,
+))
+
+register_featureset(FeatureSet(
+    name="degradation_kinetics",
+    candidates=[
+        "cycle_sqrt",
+        "cycle_log1p",
+        "cumulative_capacity_proxy_ah",
+        "charge_capacity_max",
+        "time_s_max",
+        "arrhenius_stress_factor",
+    ],
+    family="mechanism_derived",
+    mechanism_level="semi_empirical",
+    description="平方根/对数老化坐标、容量吞吐与温度应力代理，面向半经验退化先验。",
+    required_signals=["cycle_index", "cycle_capacity", "cycle_temperature"],
+    transform=_mechanism_proxy_transform,
 ))

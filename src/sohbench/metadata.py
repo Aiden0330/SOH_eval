@@ -8,6 +8,7 @@ DATASET_CHEMISTRY = {
     "oxford": "LCO/NCO", # Oxford ORA Kokam pouch, graphite/LCO-NCO (was "NMC")
     "snl_lfp": "LFP",    # SNL LFP subset from BatteryLife/BatteryArchive mirror
     "uconn": "LFP",      # UConn-ISU-ILCC LFP/graphite dataset
+    "rwth_isea_public": "LFP",  # RWTH ISEA residential storage cells (Fortelion LFP)
 }
 DATASET_C_RATED_AH = {
     "nasa": 2.0,      # NASA PCoE 18650 LiCoO2, 2 Ah
@@ -16,11 +17,13 @@ DATASET_C_RATED_AH = {
     "oxford": 0.74,   # Oxford ORA Kokam pouch, graphite/LCO-NCO
     "snl_lfp": float("nan"),
     "uconn": float("nan"),
+    "rwth_isea_public": float("nan"),
 }
 DATASET_LABEL_SOURCE = {  # all reference-discharge calibrated capacity
     "nasa": "calibration_capacity", "calce_cs2": "calibration_capacity",
     "hust": "calibration_capacity", "oxford": "calibration_capacity",
     "snl_lfp": "calibration_capacity", "uconn": "calibration_capacity",
+    "rwth_isea_public": "calibration_capacity",
 }
 
 def build_meta(table: pd.DataFrame) -> pd.DataFrame:

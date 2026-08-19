@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from sohbench.evaluation_service import EvaluationService
+from sohbench.paths import DEFAULT_DATA_DIR
 
 
 ESTIMATOR_TEMPLATE = '''
@@ -43,21 +44,21 @@ FEATURESET_TEMPLATE = '''
 import numpy as np
 
 FEATURESET_NAME = {name!r}
-FEATURE_COLUMNS = ["smoke_cycle_norm", "smoke_fade_from_full"]
+FEATURE_COLUMNS = ["smoke_cycle_norm", "smoke_cycle_log1p"]
 
 
 def transform(table, meta=None):
     out = table.copy()
     max_cycle = out.groupby(["dataset", "cell_id"])["cycle_index"].transform("max").replace(0, 1)
     out["smoke_cycle_norm"] = out["cycle_index"] / max_cycle
-    out["smoke_fade_from_full"] = 1.0 - out["soh"]
+    out["smoke_cycle_log1p"] = np.log1p(out["cycle_index"].clip(lower=0))
     return out
 '''
 
 
 @dataclass
 class SmokeAcceptanceConfig:
-    data_dir: str | Path = Path(r"D:\battery_SOH\data")
+    data_dir: str | Path = DEFAULT_DATA_DIR
     work_dir: str | Path = Path("work/trusted_plugins")
     runs_dir: str | Path = Path("runs")
     frontend_data_dir: str | Path = Path("frontend/app/data")
@@ -238,7 +239,7 @@ def _smoke_dataset_csv(config: SmokeAcceptanceConfig) -> bytes:
                     "voltage_max": 4.10 - 0.04 * cycle_norm,
                     "resistance_proxy": 0.012 + 0.004 * cycle_norm + cell_offset,
                     "smoke_cycle_norm": cycle_norm,
-                    "smoke_fade_from_full": 1.0 - soh,
+                    "smoke_cycle_log1p": float(np.log1p(cycle)),
                 }
             )
     return pd.DataFrame(rows).to_csv(index=False).encode("utf-8")
@@ -323,7 +324,7 @@ def _job_summary(job: dict) -> dict:
 
 def parse_args() -> SmokeAcceptanceConfig:
     parser = argparse.ArgumentParser("run a one-click SOH evaluation smoke acceptance")
-    parser.add_argument("--data-dir", default=r"D:\battery_SOH\data")
+    parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))
     parser.add_argument("--work-dir", default="work/trusted_plugins")
     parser.add_argument("--runs-dir", default="runs")
     parser.add_argument("--frontend-data-dir", default="frontend/app/data")

@@ -180,7 +180,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser("validate trusted local plugin workflow")
     parser.add_argument("--source-dir", default="work/public_sources/rwth-battery-degradation")
     parser.add_argument("--work-dir", default="work/trusted_plugin_validation")
-    parser.add_argument("--data-dir", default=r"D:\battery_SOH\data")
+    parser.add_argument("--data-dir", default=str(Path(__file__).resolve().parents[1] / "data"))
     parser.add_argument("--plugin-work-dir", default="work/trusted_plugins")
     parser.add_argument("--runs-dir", default="runs")
     parser.add_argument("--frontend-data-dir", default="frontend/app/data")

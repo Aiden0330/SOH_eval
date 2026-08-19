@@ -1,23 +1,91 @@
 {
   "datasets": [
     "nasa",
-    "calce_cs2"
+    "oxford"
   ],
   "models": [
-    "ridge_voltage_loco_nasa_B0005_seed0"
+    "battery_soh_tabular_ensemble_battery_soh_operational_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_capacity_time_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_degradation_kinetics_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_electrochemical_diagnostics_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_ic_dva_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_operating_stress_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_partial_window_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_rwth_cycle_shape_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_smoke_cycle_shape_loco_calce_cs2_CS2_21_seed0",
+    "battery_soh_tabular_ensemble_voltage_loco_calce_cs2_CS2_33_seed0"
   ],
   "launch_strategy": "compatible_only",
+  "evaluation_policy": "held_out_same_chemistry",
+  "selected_models": [
+    "battery_soh_tabular_ensemble_battery_soh_operational_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_capacity_time_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_degradation_kinetics_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_electrochemical_diagnostics_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_full_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_ic_dva_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_operating_stress_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_partial_window_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_rwth_cycle_shape_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_smoke_cycle_shape_loco_calce_cs2_CS2_21_seed0",
+    "battery_soh_tabular_ensemble_voltage_loco_calce_cs2_CS2_33_seed0"
+  ],
+  "submitted_models": [
+    "battery_soh_tabular_ensemble_battery_soh_operational_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_capacity_time_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_degradation_kinetics_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_electrochemical_diagnostics_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_ic_dva_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_operating_stress_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_partial_window_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_rwth_cycle_shape_loco_calce_cs2_CS2_33_seed0",
+    "battery_soh_tabular_ensemble_smoke_cycle_shape_loco_calce_cs2_CS2_21_seed0",
+    "battery_soh_tabular_ensemble_voltage_loco_calce_cs2_CS2_33_seed0"
+  ],
+  "skipped_models": [
+    "battery_soh_tabular_ensemble_full_loco_calce_cs2_CS2_33_seed0"
+  ],
   "selected_datasets": [
     "nasa",
-    "calce_cs2"
+    "oxford"
   ],
   "submitted_datasets": [
     "nasa",
-    "calce_cs2"
+    "oxford"
   ],
   "skipped_datasets": [],
-  "job_id": "20260630T193330-47f4f611",
+  "case_id": "EV-20260817-8ECB1C75",
+  "profile_name": "phase30-gate-nasa-20260815-055355",
+  "job_id": "20260817T034954-897fda7c",
   "trusted_local_pickle_models": true,
-  "run_dir": "runs\\20260630T193330",
-  "raw_run_dir": "runs\\20260630T193330"
+  "applied_featureset_transforms": [
+    "battery_soh_operational",
+    "capacity_time",
+    "degradation_kinetics",
+    "electrochemical_diagnostics",
+    "ic_dva",
+    "operating_stress",
+    "partial_window",
+    "rwth_cycle_shape",
+    "smoke_cycle_shape",
+    "voltage"
+  ],
+  "dataset_snapshots": [
+    {
+      "dataset": "nasa",
+      "snapshot_id": "dataset-snapshot@sha256:f7523b4e6b1dcbcceb940834878967cfaff2392805c9992c3768f721ebb8586b"
+    },
+    {
+      "dataset": "oxford",
+      "snapshot_id": "dataset-snapshot@sha256:9db249a5ae4a6d677045a79fedcbee83dc0c2846e145f7256f8a5eb78b9809a8"
+    }
+  ],
+  "protocols": [
+    "loco"
+  ],
+  "seeds": [
+    0
+  ],
+  "run_dir": "D:\\SOH_eval\\runs\\20260817T035003",
+  "raw_run_dir": "D:\\SOH_eval\\runs\\20260817T035003"
 }

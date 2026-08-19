@@ -68,9 +68,56 @@ def _leaderboard_entries(results: pd.DataFrame, task, group_cols: list[str]) -> 
     return entries
 
 
+def _attach_training_provenance(entries: list[dict], config: dict) -> list[dict]:
+    artifacts = list(config.get("model_artifacts") or [])
+    snapshots = list(config.get("dataset_snapshots") or [])
+    snapshot_ids = [
+        item.get("snapshot_id") for item in snapshots if item.get("snapshot_id")
+    ]
+    for entry in entries:
+        matching = [
+            item for item in artifacts
+            if item.get("estimator") == entry.get("estimator")
+            and (item.get("featureset") or "full") == (entry.get("featureset") or "full")
+            and item.get("protocol") == entry.get("protocol")
+            and (
+                not entry.get("held_out_key")
+                or str(item.get("held_out_key")) == str(entry.get("held_out_key"))
+            )
+        ]
+        artifact_ids = sorted(
+            {str(item.get("artifact_id")) for item in matching if item.get("artifact_id")}
+        )
+        entry["run_id"] = config.get("run_id") or config.get("job_id")
+        entry["preflight_id"] = config.get("preflight_id")
+        entry["source_datasets"] = list(config.get("datasets") or [])
+        entry["dataset_snapshot_ids"] = snapshot_ids
+        entry["model_artifact_ids"] = artifact_ids
+        entry["model_artifact_count"] = len(artifact_ids)
+        if len(artifact_ids) == 1:
+            entry["model_artifact_id"] = artifact_ids[0]
+    return entries
+
+
+def _claim_run_dir(out_dir) -> Path:
+    """Claim a fresh run directory; suffix on same-second collisions so
+    two jobs can never silently merge their artifacts into one directory."""
+    base = Path(out_dir)
+    stamp = time.strftime("%Y%m%dT%H%M%S")
+    base.mkdir(parents=True, exist_ok=True)
+    candidate = base / stamp
+    suffix = 1
+    while True:
+        try:
+            candidate.mkdir(exist_ok=False)
+            return candidate
+        except FileExistsError:
+            candidate = base / f"{stamp}-{suffix}"
+            suffix += 1
+
+
 def write_artifacts(results: pd.DataFrame, qc_report, task, config, out_dir):
-    out = Path(out_dir) / time.strftime("%Y%m%dT%H%M%S")
-    out.mkdir(parents=True, exist_ok=True)
+    out = _claim_run_dir(out_dir)
     results.to_parquet(out / "results.parquet")
     results.to_csv(out / "results.csv", index=False)
 
@@ -85,11 +132,17 @@ def write_artifacts(results: pd.DataFrame, qc_report, task, config, out_dir):
     if has_track:
         group_cols.append("track")
 
-    leaderboard = _leaderboard_entries(results, task, group_cols)
+    leaderboard = _attach_training_provenance(
+        _leaderboard_entries(results, task, group_cols),
+        config,
+    )
 
     dataset_group_cols = group_cols + ["held_out_key"] if "held_out_key" in results.columns else []
     dataset_leaderboard = (
-        _leaderboard_entries(results, task, dataset_group_cols)
+        _attach_training_provenance(
+            _leaderboard_entries(results, task, dataset_group_cols),
+            config,
+        )
         if dataset_group_cols else []
     )
 
@@ -101,9 +154,14 @@ def write_artifacts(results: pd.DataFrame, qc_report, task, config, out_dir):
     return str(out)
 
 
-def write_inference_artifacts(records: list[dict], config: dict, out_dir):
-    out = Path(out_dir) / time.strftime("%Y%m%dT%H%M%S")
-    out.mkdir(parents=True, exist_ok=True)
+def write_inference_artifacts(
+    records: list[dict],
+    config: dict,
+    out_dir,
+    *,
+    evidence: dict | None = None,
+):
+    out = _claim_run_dir(out_dir)
     frame = pd.DataFrame.from_records(records)
     frame.to_parquet(out / "inference_results.parquet")
     frame.to_csv(out / "inference_results.csv", index=False)
@@ -115,6 +173,54 @@ def write_inference_artifacts(records: list[dict], config: dict, out_dir):
         out / "inference_benchmark.json",
     )
     _dump(config, out / "inference_run_config.json")
+    if evidence is not None:
+        prediction_records = list(evidence.get("prediction_records") or [])
+        metric_contributions = list(evidence.get("metric_contributions") or [])
+        curve_segment_refs = list(evidence.get("curve_segment_refs") or [])
+        _dump(
+            {
+                "schema_version": "1.0.0",
+                "job_id": str(config.get("job_id") or ""),
+                "case_id": str(config.get("case_id") or ""),
+                "profile_name": str(config.get("profile_name") or ""),
+                "records": prediction_records,
+            },
+            out / "prediction_records.json",
+        )
+        _dump(
+            {
+                "schema_version": "1.0.0",
+                "job_id": str(config.get("job_id") or ""),
+                "records": metric_contributions,
+            },
+            out / "metric_contributions.json",
+        )
+        _dump(
+            {
+                "schema_version": "1.0.0",
+                "job_id": str(config.get("job_id") or ""),
+                "records": curve_segment_refs,
+            },
+            out / "curve_segment_refs.json",
+        )
+        _dump(
+            {
+                "schema_version": "1.0.0",
+                "case_id": str(config.get("case_id") or ""),
+                "profile_name": str(config.get("profile_name") or ""),
+                "inference_job_id": str(config.get("job_id") or ""),
+                "datasets": list(config.get("datasets") or []),
+                "candidate_ids": sorted({
+                    str(item.get("candidate_id") or "")
+                    for item in prediction_records
+                    if item.get("candidate_id")
+                }),
+                "prediction_record_count": len(prediction_records),
+                "curve_segment_ref_count": len(curve_segment_refs),
+                "curve_artifacts": list(evidence.get("curve_artifacts") or []),
+            },
+            out / "inference_evidence_manifest.json",
+        )
     return str(out)
 
 

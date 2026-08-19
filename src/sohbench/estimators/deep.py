@@ -53,6 +53,10 @@ class _DeepBase:
 
     feature_mode: str = "unified"
     backend: str = "pytorch"
+    method_family: str = "sequence_learning"
+    pairing_mode: str = "recommended"
+    preferred_featureset: str = "full"
+    data_granularity: str = "cycle_sequence"
 
     def __init__(self, W: int = 8, n_max: int = 20_000, seed: int = 0,
                  epochs: int = 30, lr: float = 1e-3) -> None:

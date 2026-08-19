@@ -1,0 +1,15 @@
+# Normalize all text files to LF in the repository so a Windows<->macOS
+# migration can never dirty the tree with line-ending churn again.
+* text=auto eol=lf
+
+# Windows-only helpers keep CRLF on checkout.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary artifacts — never normalize.
+*.pkl binary
+*.parquet binary
+*.sqlite3 binary
+*.png binary
+*.jpg binary
+*.woff2 binary

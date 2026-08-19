@@ -25,6 +25,7 @@ OPTIONAL_FRONTEND_FILES = (
     "inference_benchmark.json",
     "inference_run_config.json",
     "model_catalog.json",
+    "recommendation_summary.json",
 )
 
 CORE_CONFIG_KEYS = {

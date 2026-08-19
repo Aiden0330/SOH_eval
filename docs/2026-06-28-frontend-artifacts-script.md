@@ -42,7 +42,7 @@
 
 ## 接入新数据源和新算法
 
-1. 把新数据源处理为 `D:\battery_SOH\data\processed\*_features.pkl`，字段满足 `dataset / cell_id / cycle_index / soh` 等数据契约。
+1. 把新数据源处理为 `D:\SOH_eval\data\processed\*_features.pkl`，字段满足 `dataset / cell_id / cycle_index / soh` 等数据契约。
 2. 运行 benchmark，使用 `--datasets all` 或显式指定数据集，生成新的 `runs/<run_id>/results.parquet`。
 3. 如果是新增算法或新增数据集，直接把该 run 作为额外 `--source-run` 传入本脚本。
 4. 脚本会生成新的归档 run，并同步到 `frontend/app/data/`，前端刷新后即可选择数据集并比较算法。

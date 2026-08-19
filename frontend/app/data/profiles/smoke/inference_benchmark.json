@@ -7,24 +7,38 @@
       "estimator": "smoke_linear_decay",
       "n_samples": 42,
       "load_ms": 0.9279000005335547,
-      "monotonicity_violation_rate": 0.0,
-      "value_range_violation": 0.0,
-      "mae": 0.009560466200466168,
-      "rmse": 0.011141843518974709,
-      "mean_bias_error": 0.002403356643356328,
+      "monotonicity_violation_rate": null,
+      "value_range_violation": null,
+      "mae": null,
+      "rmse": null,
+      "mean_bias_error": null,
       "predict_ms": 5.698200002370868,
       "ms_per_1000_samples": 135.67142862787782,
       "samples_per_second": 7370.74865440401,
-      "status": "succeeded",
-      "error": ""
+      "status": "invalidated",
+      "error": "标签泄漏：模型输入包含真实 SOH 或其确定性派生字段；该模型及其既有测评指标不再可用",
+      "invalidated_result": {
+        "status": "succeeded",
+        "error": "",
+        "mae": 0.009560466200466168,
+        "rmse": 0.011141843518974709,
+        "mean_bias_error": 0.002403356643356328,
+        "picp": null,
+        "monotonicity_violation_rate": 0.0,
+        "value_range_violation": 0.0
+      },
+      "validity_status": "invalidated",
+      "invalidation_reason": "标签泄漏：模型输入包含真实 SOH 或其确定性派生字段；该模型及其既有测评指标不再可用"
     }
   ],
   "summary": {
     "n_records": 1,
-    "n_succeeded": 1,
-    "fastest_model": "smoke_linear_decay_smoke_cycle_shape_loco_smoke_eval_demo_smoke_cell_01_seed0",
-    "fastest_ms_per_1000_samples": 135.67142862787782,
-    "best_transfer_model": "smoke_linear_decay_smoke_cycle_shape_loco_smoke_eval_demo_smoke_cell_01_seed0",
-    "best_transfer_mae": 0.009560466200466168
+    "n_succeeded": 0,
+    "n_invalidated": 1,
+    "fastest_model": null,
+    "fastest_ms_per_1000_samples": null,
+    "best_transfer_model": null,
+    "best_transfer_mae": null,
+    "label_safety_enforced": true
   }
 }
