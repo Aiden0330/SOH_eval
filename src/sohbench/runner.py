@@ -2,6 +2,8 @@ from __future__ import annotations
 import numpy as np, pandas as pd
 from . import metrics as M
 from .conformal import ConformalWrapper, WeightedConformalWrapper
+from .contracts import feature_columns
+from .feature_safety import is_label_source_feature
 from .features import unified_features
 from .featuresets import project
 from .method_contracts import method_contract
@@ -36,8 +38,14 @@ class BenchmarkRunner:
             is_byo = contract.feature_mode == "byo"
 
             if is_byo:
-                # BYO estimators: single pseudo-featureset, no projection
-                fs_iterations = [("(byo)", table, "byo")]
+                # BYO estimators: single pseudo-featureset, no projection.
+                # Label-source columns (the quantities SOH is computed from)
+                # are banned as model inputs on every track, so they are
+                # removed before any BYO code can observe them.
+                banned = [
+                    c for c in feature_columns(table) if is_label_source_feature(c)
+                ]
+                fs_iterations = [("(byo)", table.drop(columns=banned), "byo")]
             else:
                 # Ordinary estimators remain a free Cartesian product. Joint
                 # or gray-box methods may declare an explicit feature-profile

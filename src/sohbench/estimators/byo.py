@@ -5,6 +5,7 @@ from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from ..contracts import feature_columns
+from ..feature_safety import is_label_source_feature
 from ..preprocessing import FeatureMedianImputer
 from ..registry import register_estimator
 from .baselines import SOH_LOW, SOH_HIGH
@@ -29,7 +30,9 @@ class ByoSelectKBestRidge:
         self._imputer = FeatureMedianImputer()
 
     def fit(self, X, y, meta=None):
-        self._cols = feature_columns(X)
+        # BYO receives the full table; label-source columns (the quantities
+        # SOH is computed from) are banned as inputs on every dataset.
+        self._cols = [c for c in feature_columns(X) if not is_label_source_feature(c)]
         n_features = len(self._cols)
         k = min(self._k, n_features)
         self._pipeline = Pipeline([

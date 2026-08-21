@@ -28,7 +28,12 @@ from .frontend_publish import (
     publish_frontend_profile,
     sync_frontend_artifacts,
 )
-from .feature_safety import FeatureSafetyError, LABEL_SAFETY_CONTRACT, audit_feature_frame
+from .feature_safety import (
+    FeatureSafetyError,
+    LABEL_SAFETY_CONTRACT,
+    audit_feature_frame,
+    is_label_source_feature,
+)
 from .inference import run_inference_benchmark_with_evidence
 from .method_contracts import incompatible_pairing_reason, method_contract
 from .model_store import ModelStore
@@ -88,13 +93,14 @@ def ensure_builtin_resources() -> None:
         ),
         featuresets.FeatureSet(
             name="capacity_time",
-            candidates=["charge_capacity_max", "time_s_max", "cycle_index_feature", "cycle_fraction"],
+            # charge_capacity_max is the label source; banned as a model input
+            candidates=["time_s_max", "cycle_index_feature", "cycle_fraction"],
         ),
         featuresets.FeatureSet(
             name="electrochemical_diagnostics",
             candidates=[
                 "ic_peak_ah_per_v", "ic_peak_voltage_v", "q_win_ah", "t_win_s",
-                "voltage_span_v", "charge_energy_proxy_wh",
+                "voltage_span_v",
             ],
             family="mechanism_derived",
             mechanism_level="diagnostic_proxy",
@@ -117,8 +123,7 @@ def ensure_builtin_resources() -> None:
         featuresets.FeatureSet(
             name="degradation_kinetics",
             candidates=[
-                "cycle_sqrt", "cycle_log1p", "cumulative_capacity_proxy_ah",
-                "charge_capacity_max", "time_s_max", "arrhenius_stress_factor",
+                "cycle_sqrt", "cycle_log1p", "time_s_max", "arrhenius_stress_factor",
             ],
             family="mechanism_derived",
             mechanism_level="semi_empirical",
@@ -1522,9 +1527,13 @@ class EvaluationService:
                         f"{fs_name}: {item['reason']}" for item in audit["violations"]
                     )
             if any(getattr(est, "feature_mode", "") == "byo" for est in estimators):
+                # Audit the columns the BYO track can actually observe: the
+                # runner strips structurally banned label-source columns
+                # before any BYO estimator sees the table.
                 byo_columns = [
                     col for col in table.columns
                     if col not in ("dataset", "cell_id", "cycle_index", "soh")
+                    and not is_label_source_feature(col)
                 ]
                 audit = audit_feature_frame(table, byo_columns)
                 if audit["status"] != "passed":

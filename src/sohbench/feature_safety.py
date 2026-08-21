@@ -32,6 +32,34 @@ class FeatureSafetyError(ValueError):
     """Raised when a feature pipeline can observe or reproduce the label."""
 
 
+# Quantities the label is computed from (``soh = calibration capacity /
+# rated capacity``) plus columns derived from them.  They are structurally
+# banned as model inputs on EVERY dataset — even where the per-dataset affine
+# scan would not flag them — because they encode the labelling procedure, not
+# battery physics.  The affine/value audits stay in place as the dynamic
+# backstop for leaks that arrive under other names.
+LABEL_SOURCE_FEATURE_COLUMNS = frozenset(
+    {
+        "charge_capacity_max",
+        "capacity_ah",
+        "rated_capacity",
+        "rated_capacity_ah",
+        # derived from charge_capacity_max in the mechanism-proxy transform
+        "charge_energy_proxy_wh",
+        "cumulative_capacity_proxy_ah",
+    }
+)
+
+
+def is_label_source_feature(name: object, *, target: str = PROTECTED_TARGET) -> bool:
+    """True when *name* is a banned model input: a label-source capacity
+    column, a column derived from one, or a direct alias of the label."""
+    lowered = str(name or "").strip().lower()
+    if lowered in LABEL_SOURCE_FEATURE_COLUMNS:
+        return True
+    return bool(suspicious_feature_names([lowered], target=target))
+
+
 _AFFINE_RECONSTRUCTION_R2 = 0.995
 _AFFINE_MIN_SAMPLES = 64
 

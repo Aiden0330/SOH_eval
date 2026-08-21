@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from .contracts import ID_COLUMNS, feature_columns
+from .feature_safety import is_label_source_feature
 from .registry import register_featureset, get_featureset  # re-export for convenience
 
 __all__ = [
@@ -33,8 +34,6 @@ _MECHANISM_DERIVED_COLUMNS = {
     "cycle_sqrt",
     "cycle_log1p",
     "voltage_span_v",
-    "charge_energy_proxy_wh",
-    "cumulative_capacity_proxy_ah",
     "current_rms_proxy_a",
     "current_variability_ratio",
     "temperature_over_25c",
@@ -69,10 +68,16 @@ class FeatureSet:
         """Return candidate columns that are present as *feature* columns in *table*.
 
         ID columns (``dataset``, ``cell_id``, ``cycle_index``, ``soh``) are
-        never included even if listed in ``candidates``.
+        never included even if listed in ``candidates``.  Label-source
+        columns (``charge_capacity_max``, ``rated_capacity``/``capacity_ah``
+        and their derivatives — the quantities SOH is computed from) are
+        banned as model inputs and never selected either.
         """
         present_features = set(feature_columns(table))
-        return [c for c in self.candidates if c in present_features]
+        return [
+            c for c in self.candidates
+            if c in present_features and not is_label_source_feature(c)
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +139,7 @@ class _FullFeatureSet(FeatureSet):
         return [
             column for column in feature_columns(table)
             if column not in _MECHANISM_DERIVED_COLUMNS
+            and not is_label_source_feature(column)
         ]
 
 
@@ -161,7 +167,9 @@ register_featureset(FeatureSet(
 
 register_featureset(FeatureSet(
     name="capacity_time",
-    candidates=["charge_capacity_max", "time_s_max", "cycle_index_feature", "cycle_fraction"],
+    # charge_capacity_max is the calibration capacity the SOH label is
+    # computed from and must never be a model input (label-safety v1.1).
+    candidates=["time_s_max", "cycle_index_feature", "cycle_fraction"],
 ))
 
 
@@ -194,14 +202,13 @@ def _mechanism_proxy_transform(
     out["cycle_sqrt"] = np.sqrt(cycle)
     out["cycle_log1p"] = np.log1p(cycle)
 
-    voltage_mean = _numeric(out, "voltage_mean")
     voltage_min = _numeric(out, "voltage_min")
     voltage_max = _numeric(out, "voltage_max")
     out["voltage_span_v"] = voltage_max - voltage_min
 
-    charge_capacity = _numeric(out, "charge_capacity_max")
-    out["charge_energy_proxy_wh"] = voltage_mean * charge_capacity
-    out["cumulative_capacity_proxy_ah"] = cycle * charge_capacity
+    # charge_energy_proxy_wh / cumulative_capacity_proxy_ah were derived from
+    # charge_capacity_max — the quantity the SOH label is computed from — and
+    # are no longer produced (label-safety v1.1 structural ban).
 
     current_mean = _numeric(out, "current_mean")
     current_std = _numeric(out, "current_std")
@@ -235,7 +242,6 @@ register_featureset(FeatureSet(
         "q_win_ah",
         "t_win_s",
         "voltage_span_v",
-        "charge_energy_proxy_wh",
     ],
     family="mechanism_derived",
     mechanism_level="diagnostic_proxy",
@@ -266,8 +272,6 @@ register_featureset(FeatureSet(
     candidates=[
         "cycle_sqrt",
         "cycle_log1p",
-        "cumulative_capacity_proxy_ah",
-        "charge_capacity_max",
         "time_s_max",
         "arrhenius_stress_factor",
     ],

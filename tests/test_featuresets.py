@@ -143,11 +143,13 @@ class TestNamedFeatureSets:
         fs = get_featureset("capacity_time")
         assert fs.name == "capacity_time"
 
-    def test_full_returns_all_feature_columns(self):
+    def test_full_returns_all_feature_columns_except_label_sources(self):
         table = _full_feature_table()
         fs = get_featureset("full")
         cols = fs.columns(table)
-        expected = set(feature_columns(table))
+        # label-source columns (the quantity SOH is computed from) are
+        # structurally banned as model inputs, even for "full"
+        expected = set(feature_columns(table)) - {"charge_capacity_max"}
         assert set(cols) == expected
 
     def test_voltage_returns_only_voltage_cols_present(self):
@@ -172,7 +174,18 @@ class TestNamedFeatureSets:
         table = _full_feature_table()
         fs = get_featureset("capacity_time")
         cols = fs.columns(table)
-        assert set(cols) == {"charge_capacity_max", "time_s_max", "cycle_index_feature", "cycle_fraction"}
+        # charge_capacity_max is the label source and must never be selected
+        assert set(cols) == {"time_s_max", "cycle_index_feature", "cycle_fraction"}
+
+    def test_no_featureset_can_select_label_source_columns(self):
+        table = _full_feature_table()
+        # even a featureset that explicitly lists banned columns cannot
+        # select them — the ban is enforced in the selector itself
+        fs = FeatureSet(name="sneaky", candidates=[
+            "charge_capacity_max", "capacity_ah", "rated_capacity", "soh",
+            "voltage_mean",
+        ])
+        assert fs.columns(table) == ["voltage_mean"]
 
 
 # ---------------------------------------------------------------------------
@@ -193,10 +206,10 @@ class TestProject:
         assert "ic_peak_ah_per_v" not in result.columns
         assert "extra_col" not in result.columns
 
-    def test_project_full_keeps_all_feature_columns(self):
+    def test_project_full_keeps_all_feature_columns_except_label_sources(self):
         table = _full_feature_table()
         result = project(table, "full")
-        assert set(result.columns) == set(table.columns)
+        assert set(result.columns) == set(table.columns) - {"charge_capacity_max"}
 
     def test_project_preserves_row_count(self):
         table = _full_feature_table()
