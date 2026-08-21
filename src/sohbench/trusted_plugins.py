@@ -21,6 +21,7 @@ from .featuresets import FeatureSet
 from .feature_safety import (
     FeatureSafetyError,
     apply_transform_without_label,
+    audit_feature_frame,
     passed_label_safety,
 )
 from .metadata import DATASET_CHEMISTRY, DATASET_C_RATED_AH
@@ -91,12 +92,27 @@ class TrustedPluginStore:
             raise TrustedPluginError(f"dataset already exists: {name}")
         table.to_pickle(out_path)
 
+        # Ingestion-time label-source scan: columns that reconstruct the
+        # label are recorded on the dataset itself, once, so every downstream
+        # consumer (catalog, preflight, training gate) can see them.  The
+        # dataset is not rejected — carrying its label source is legitimate;
+        # using it as a feature is what the training/inference gates block.
+        feature_columns = [
+            col for col in table.columns
+            if col not in ("dataset", "cell_id", "cycle_index", "soh")
+        ]
+        ingest_audit = audit_feature_frame(table, feature_columns)
+        label_source_columns = sorted(
+            {item["column"] for item in ingest_audit["violations"]}
+        )
+
         resource = {
             "name": name,
             "kind": "dataset",
             "path": str(out_path),
             "rows": int(len(table)),
             "columns": list(map(str, table.columns)),
+            "label_source_columns": label_source_columns,
             "source_filename": filename,
         }
         self._upsert_catalog("datasets", resource)
@@ -198,8 +214,13 @@ class TrustedPluginStore:
                 raise TrustedPluginError(f"feature transform {name!r} changed row count")
             _validate_dataset_table(transformed)
             missing = [col for col in candidates if col not in transformed.columns]
-            if missing:
-                raise TrustedPluginError(f"feature transform {name!r} did not create columns: {missing}")
+            for col in missing:
+                # Candidate columns the transform could not derive on this
+                # dataset (absent source signals) stay materialized as NaN so
+                # per-model compatibility can block exactly the affected
+                # models, instead of one passthrough column failing the whole
+                # job before any model runs.
+                transformed[col] = float("nan")
             if plugin is not None:
                 plugin.label_safety = audit
             out = transformed

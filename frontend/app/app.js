@@ -360,7 +360,13 @@ async function fetchJson(url, fallback) {
   const response = await fetch(url);
   if (!response.ok) {
     if (arguments.length > 1) return fallback;
-    throw new Error(`HTTP ${response.status}`);
+    let detail = "";
+    try {
+      detail = String((await response.json())?.error || "");
+    } catch (_) {
+      detail = "";
+    }
+    throw new Error(detail ? `${detail}（HTTP ${response.status}）` : `HTTP ${response.status}`);
   }
   return response.json();
 }

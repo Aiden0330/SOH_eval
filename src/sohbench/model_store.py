@@ -52,8 +52,20 @@ class LoadedModel:
         ]
 
     def compatibility(self, table: pd.DataFrame) -> dict:
-        missing = [col for col in self.feature_columns() if col not in table.columns]
-        return {"ok": not missing, "missing_feature_columns": missing}
+        feature_columns = self.feature_columns()
+        missing = [col for col in feature_columns if col not in table.columns]
+        # A column materialized as all-NaN (a transform whose source signals
+        # are absent from this dataset) is missing in every way that matters
+        # for prediction; report it so preflight can filter the combination.
+        all_nan = [
+            col for col in feature_columns
+            if col in table.columns and bool(table[col].isna().all())
+        ]
+        return {
+            "ok": not missing and not all_nan,
+            "missing_feature_columns": missing,
+            "all_nan_feature_columns": all_nan,
+        }
 
     def predict(self, table: pd.DataFrame, meta: pd.DataFrame | None = None) -> np.ndarray:
         self._ensure_compatible(table)
@@ -85,9 +97,16 @@ class LoadedModel:
         return np.asarray(lo, dtype=float), np.asarray(hi, dtype=float)
 
     def _ensure_compatible(self, table: pd.DataFrame) -> None:
-        missing = self.compatibility(table)["missing_feature_columns"]
-        if missing:
-            raise ModelStoreError(f"missing feature columns for {self.name}: {missing}")
+        report = self.compatibility(table)
+        if report["missing_feature_columns"]:
+            raise ModelStoreError(
+                f"missing feature columns for {self.name}: {report['missing_feature_columns']}"
+            )
+        if report["all_nan_feature_columns"]:
+            raise ModelStoreError(
+                f"feature columns are all-NaN on this dataset for {self.name} "
+                f"(source signals absent): {report['all_nan_feature_columns']}"
+            )
 
     def _ensure_label_safe(self, table: pd.DataFrame) -> None:
         target = str(self.manifest.get("target") or "soh")

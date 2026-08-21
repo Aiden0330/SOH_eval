@@ -28,7 +28,7 @@ from .frontend_publish import (
     publish_frontend_profile,
     sync_frontend_artifacts,
 )
-from .feature_safety import LABEL_SAFETY_CONTRACT, audit_feature_frame
+from .feature_safety import FeatureSafetyError, LABEL_SAFETY_CONTRACT, audit_feature_frame
 from .inference import run_inference_benchmark_with_evidence
 from .method_contracts import incompatible_pairing_reason, method_contract
 from .model_store import ModelStore
@@ -1501,6 +1501,41 @@ class EvaluationService:
             )
             table = self.store.apply_feature_transforms(table, meta, effective_featuresets)
             estimators = [R.get_estimator(name) for name in request["estimators"]]
+            # Label-safety gate on the actual training table: passthrough
+            # featuresets and the BYO track bypass transform-level audits, so
+            # audit their concrete columns here before any model is fitted.
+            label_safety_findings: list[str] = []
+            for fs_name in dict.fromkeys(str(name) for name in request["featuresets"]):
+                try:
+                    spec = R.get_featureset(fs_name)
+                except KeyError:
+                    continue
+                candidates = [
+                    col for col in (getattr(spec, "candidates", None) or [])
+                    if col in table.columns
+                ]
+                if not candidates:
+                    continue
+                audit = audit_feature_frame(table, candidates)
+                if audit["status"] != "passed":
+                    label_safety_findings.extend(
+                        f"{fs_name}: {item['reason']}" for item in audit["violations"]
+                    )
+            if any(getattr(est, "feature_mode", "") == "byo" for est in estimators):
+                byo_columns = [
+                    col for col in table.columns
+                    if col not in ("dataset", "cell_id", "cycle_index", "soh")
+                ]
+                audit = audit_feature_frame(table, byo_columns)
+                if audit["status"] != "passed":
+                    label_safety_findings.extend(
+                        f"(byo): {item['reason']}" for item in audit["violations"]
+                    )
+            if label_safety_findings:
+                raise FeatureSafetyError(
+                    "label-safety audit blocked training: "
+                    + " ; ".join(sorted(set(label_safety_findings)))
+                )
             protocols = {name: PROTOCOLS[name]() for name in request["protocols"]}
             saved_models = []
             model_warnings = []
