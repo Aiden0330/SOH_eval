@@ -72,11 +72,13 @@ def _request_json(base_url, path, *, method="GET", payload=None, headers=None):
     request = urllib.request.Request(
         base_url + path, data=data, method=method, headers=request_headers
     )
+    # Return the HTTPMessage itself so header lookups stay case-insensitive
+    # (the legacy server title-cases header names, uvicorn lowercases them).
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
-            return response.status, dict(response.headers), json.loads(response.read().decode("utf-8"))
+            return response.status, response.headers, json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        return exc.code, dict(exc.headers), json.loads(exc.read().decode("utf-8"))
+        return exc.code, exc.headers, json.loads(exc.read().decode("utf-8"))
 
 
 def _get_json(base_url, path):
@@ -84,27 +86,47 @@ def _get_json(base_url, path):
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _serve(service):
+# Every test in this module runs against both API implementations: the legacy
+# stdlib server (sohbench.api_server) and its FastAPI replacement
+# (sohbench.api).  The FastAPI server must stay a drop-in replacement — the V1
+# frontend runs unmodified against it — so the whole suite doubles as the
+# parity gate.
+_API_IMPL = "legacy"
+
+
+@pytest.fixture(autouse=True, params=["legacy", "fastapi"])
+def api_impl(request):
+    global _API_IMPL
+    _API_IMPL = request.param
+    yield request.param
+    _API_IMPL = "legacy"
+
+
+def _start_server(service, **kwargs):
+    if _API_IMPL == "fastapi":
+        from sohbench.api import create_app
+        from sohbench.api.testing import ThreadedApiServer
+
+        server = ThreadedApiServer(create_app(service, **kwargs))
+        return server, server.base_url
     server = ThreadingHTTPServer(
-        ("127.0.0.1", 0), create_handler(service, allow_dangerous_operations=True)
+        ("127.0.0.1", 0), create_handler(service, **kwargs)
     )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server, f"http://127.0.0.1:{server.server_address[1]}"
+
+
+def _serve(service):
+    return _start_server(service, allow_dangerous_operations=True)
 
 
 def _serve_secure(service, *, token="test-token", dangerous=False):
-    server = ThreadingHTTPServer(
-        ("127.0.0.1", 0),
-        create_handler(
-            service,
-            access_token=token,
-            allow_dangerous_operations=dangerous,
-        ),
+    return _start_server(
+        service,
+        access_token=token,
+        allow_dangerous_operations=dangerous,
     )
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    return server, f"http://127.0.0.1:{server.server_address[1]}"
 
 
 def _prepare_phase21_api_case(service, tmp_path):

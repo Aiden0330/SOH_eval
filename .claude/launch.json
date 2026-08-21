@@ -4,7 +4,7 @@
     {
       "name": "api",
       "runtimeExecutable": ".venv-mac/bin/python",
-      "runtimeArgs": ["-m", "sohbench.api_server", "--enable-legacy-execution"],
+      "runtimeArgs": ["-m", "sohbench.api", "--enable-legacy-execution"],
       "port": 8001
     },
     {

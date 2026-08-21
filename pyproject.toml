@@ -3,7 +3,16 @@ name = "sohbench"
 version = "0.1.0"
 description = "SOH benchmark & evaluation harness (sub-project A)"
 requires-python = ">=3.11"
-dependencies = ["numpy", "pandas", "scikit-learn", "scipy", "pyarrow", "jsonschema"]
+dependencies = [
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "scipy",
+    "pyarrow",
+    "jsonschema",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
 
 [project.optional-dependencies]
 dev = ["pytest"]
