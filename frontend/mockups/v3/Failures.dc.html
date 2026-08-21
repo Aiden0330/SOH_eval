@@ -1,0 +1,178 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; background: #101418; font-family: -apple-system,'PingFang SC','Segoe UI','Microsoft YaHei','Noto Sans SC',sans-serif; }
+    a { color: #7FB3F2; } a:hover { color: #A8C7FB; }
+  </style>
+</helmet>
+<div style="width:1440px; background:#101418; color:#E6EAEE; font-size:13.5px; line-height:1.55;">
+  <div style="display:flex; align-items:center; gap:16px; padding:10px 22px; border-bottom:1px solid #2A333D;">
+    <div style="display:flex; align-items:center; gap:8px;"><span style="width:9px; height:9px; background:#FFB020; box-shadow:0 0 8px rgba(255,176,32,.55); display:inline-block;"></span><b style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:12px; letter-spacing:.08em;">SOHBENCH · EVAL CONSOLE</b></div>
+    <div style="display:flex; gap:2px; font-size:12px; color:#96A2AD;">
+      <span style="padding:5px 10px;">可信总览</span>
+      <span style="padding:5px 10px;">实验设计</span>
+      <span style="padding:5px 10px;">代理编排</span>
+      <span style="padding:5px 10px;">运行中心</span>
+      <span style="padding:5px 10px;">比较实验室</span>
+      <span style="padding:5px 10px;">跨域泛化</span>
+      <span style="padding:5px 10px; background:#1E262E; border:1px solid #37424E; border-radius:2px; color:#FFC24E; font-weight:600;">失败分析</span>
+      <span style="padding:5px 10px;">数据与协议</span>
+      <span style="padding:5px 10px;">模型与推理</span>
+      <span style="padding:5px 10px;">证据中心</span>
+    </div>
+    <div style="margin-left:auto; display:flex; gap:14px; align-items:center; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px;"><span style="color:#4CC38A;">● EVAL-RUNNER 在线</span><span style="color:#96A2AD;">23:58:36</span></div>
+  </div>
+  <div style="display:flex; gap:20px; padding:7px 22px; border-bottom:1px solid #2A333D; background:#171C21; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; color:#96A2AD;">
+    <span>自动切片发现 + 统计控制</span><span>弱切片 → 问题单 → 复测回路</span><span style="margin-left:auto;">案例 EV-20260819-8C21A4 · 候选 mlp × partial_window</span>
+  </div>
+
+  <div style="max-width:1500px; padding:16px 22px 22px; display:flex; flex-direction:column; gap:14px;">
+    <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:10px;">
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:12px 16px 10px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#5F6B76;">弱切片（统计控制后）</div>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:26px; font-weight:600; margin-top:3px; color:#E0C05A;">4</div>
+        <div style="font-size:10.5px; color:#96A2AD; margin-top:1px;">1 危急 · 3 警告</div>
+      </div>
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:12px 16px 10px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#5F6B76;">开放问题单</div>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:26px; font-weight:600; margin-top:3px;">2</div>
+        <div style="font-size:10.5px; color:#96A2AD; margin-top:1px;">ISSUE-114 · ISSUE-117</div>
+      </div>
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:12px 16px 10px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#5F6B76;">腐蚀最大退化</div>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:26px; font-weight:600; margin-top:3px; color:#FF6369;">−9.8</div>
+        <div style="font-size:10.5px; color:#96A2AD; margin-top:1px;">量化 8-bit 档 · 技能分</div>
+      </div>
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:12px 16px 10px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#5F6B76;">最差样本 |err|</div>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:26px; font-weight:600; margin-top:3px;">0.21</div>
+        <div style="font-size:10.5px; color:#FF6369; margin-top:1px;">高估方向 · 危险侧</div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:minmax(0,1fr) 332px; gap:14px; align-items:start;">
+      <div style="display:flex; flex-direction:column; gap:14px; min-width:0;">
+        <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px;">
+          <div style="display:flex; align-items:center; gap:10px; padding:11px 15px; border-bottom:1px solid #37424E;">
+            <b style="font-size:13px;">弱切片 · 自动发现，逐条挂账</b>
+            <span style="margin-left:auto; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#5F6B76;">发现程序含 FDR 控制 — 不展示未过滤的碰运气切片</span>
+          </div>
+          <div style="overflow-x:auto;">
+            <table style="border-collapse:collapse; width:100%; min-width:920px; font-size:12.5px;">
+              <tr style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.1em; color:#5F6B76; text-align:left;">
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600;">切片</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600;">差距</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600;">影响</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600;">问题单</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600;">严重度</th>
+              </tr>
+              <tr>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><b>高循环段 &gt;800 cyc × LFP</b></td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace;">高估率 7.4%（超口径）</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; color:#96A2AD; white-space:normal; min-width:260px;">寿命末段乐观 — 危险方向；影响 snl_lfp/uconn 12% 样本</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace; color:#7FB3F2;">ISSUE-117</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9.5px; background:rgba(255,99,105,.12); color:#FF6369; border-radius:2px; padding:2px 7px;">危急</span></td>
+              </tr>
+              <tr>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;">oxford 全域（LCO/NCO 外推）</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace;">技能分 −11.4*</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; color:#96A2AD; white-space:normal; min-width:260px;">混杂折 — 见跨域页；不作显著性主张</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace; color:#5F6B76;">R-2 前瞻采集</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9.5px; background:rgba(224,192,90,.12); color:#E0C05A; border-radius:2px; padding:2px 7px;">警告</span></td>
+              </tr>
+              <tr>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;">低温标定段 · calce_cs2 subset</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace;">MAE +0.031</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; color:#96A2AD; white-space:normal; min-width:260px;">插补策略在低温段引入偏置（N-06 修复待复测）</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace; color:#7FB3F2;">ISSUE-114</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9.5px; background:rgba(224,192,90,.12); color:#E0C05A; border-radius:2px; padding:2px 7px;">警告</span></td>
+              </tr>
+              <tr>
+                <td style="padding:8px 12px;">首 50 周期 · 冷启动</td>
+                <td style="padding:8px 12px; font-family:'IBM Plex Mono',ui-monospace,monospace;">校准斜率 0.88</td>
+                <td style="padding:8px 12px; color:#96A2AD; white-space:normal; min-width:260px;">早期数据稀疏；影响所有候选，非本候选特有</td>
+                <td style="padding:8px 12px; font-family:'IBM Plex Mono',ui-monospace,monospace; color:#5F6B76;">观察</td>
+                <td style="padding:8px 12px;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9.5px; background:rgba(224,192,90,.12); color:#E0C05A; border-radius:2px; padding:2px 7px;">警告</span></td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+        <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px;">
+          <div style="display:flex; align-items:center; gap:10px; padding:11px 15px; border-bottom:1px solid #37424E;">
+            <b style="font-size:13px;">最差样本 · 逐条可溯源（点击进证据中心）</b>
+            <span style="margin-left:auto; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#5F6B76;">按 |err| 高估侧排序</span>
+          </div>
+          <div style="display:flex; gap:10px; padding:12px 15px; overflow-x:auto;">
+            <div style="min-width:190px; background:#1E262E; border:1px solid #37424E; border-radius:2px; padding:9px 11px;">
+              <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#96A2AD;">snl_lfp/C21 · cyc 1042</div>
+              <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:15px; font-weight:700; margin-top:3px;">真 0.71 → 预 <span style="color:#FF6369;">0.92</span></div>
+              <div style="display:flex; justify-content:space-between; margin-top:5px; align-items:center;"><span style="font-size:10px; color:#FF6369;">高估 +0.21</span><span style="border:1px solid #37424E; border-radius:2px; padding:2px 9px; font-size:10px; color:#96A2AD; font-weight:700;">证据</span></div>
+            </div>
+            <div style="min-width:190px; background:#1E262E; border:1px solid #37424E; border-radius:2px; padding:9px 11px;">
+              <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#96A2AD;">uconn/B07 · cyc 918</div>
+              <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:15px; font-weight:700; margin-top:3px;">真 0.76 → 预 <span style="color:#FF6369;">0.90</span></div>
+              <div style="display:flex; justify-content:space-between; margin-top:5px; align-items:center;"><span style="font-size:10px; color:#FF6369;">高估 +0.14</span><span style="border:1px solid #37424E; border-radius:2px; padding:2px 9px; font-size:10px; color:#96A2AD; font-weight:700;">证据</span></div>
+            </div>
+            <div style="min-width:190px; background:#1E262E; border:1px solid #37424E; border-radius:2px; padding:9px 11px;">
+              <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#96A2AD;">hust/5-6 · cyc 1497</div>
+              <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:15px; font-weight:700; margin-top:3px;">真 0.68 → 预 <span style="color:#FF6369;">0.79</span></div>
+              <div style="display:flex; justify-content:space-between; margin-top:5px; align-items:center;"><span style="font-size:10px; color:#FF6369;">高估 +0.11</span><span style="border:1px solid #37424E; border-radius:2px; padding:2px 9px; font-size:10px; color:#96A2AD; font-weight:700;">证据</span></div>
+            </div>
+            <div style="min-width:190px; background:#1E262E; border:1px solid #37424E; border-radius:2px; padding:9px 11px;">
+              <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#96A2AD;">calce_cs2/38 · cyc 611</div>
+              <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:15px; font-weight:700; margin-top:3px;">真 0.83 → 预 <span style="color:#E0C05A;">0.74</span></div>
+              <div style="display:flex; justify-content:space-between; margin-top:5px; align-items:center;"><span style="font-size:10px; color:#E0C05A;">低估 −0.09</span><span style="border:1px solid #37424E; border-radius:2px; padding:2px 9px; font-size:10px; color:#96A2AD; font-weight:700;">证据</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:13px 15px;">
+          <h3 style="margin:0 0 9px; font-size:12.5px; font-weight:700;">遥测腐蚀套件（并列公示，不折分）</h3>
+          <div style="display:flex; flex-direction:column; gap:7px; font-size:11.5px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span style="color:#96A2AD;">加性噪声 σ=2×</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#E6EAEE;">−2.1</span></div>
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span style="color:#96A2AD;">量化 8-bit</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#FF6369;">−9.8</span></div>
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span style="color:#96A2AD;">丢包 5%</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#E6EAEE;">−1.4</span></div>
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span style="color:#96A2AD;">时钟偏移 ±2s</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#E6EAEE;">−0.6</span></div>
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span style="color:#96A2AD;">偏置漂移 0.5%</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#E0C05A;">−4.3</span></div>
+          </div>
+          <div style="margin-top:8px; padding-top:7px; border-top:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#5F6B76;">分档退化曲线随证据包分发 · 压缩后须复测稀有段召回</div>
+        </div>
+        <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:13px 15px;">
+          <h3 style="margin:0 0 9px; font-size:12.5px; font-weight:700;">行为测试（CheckList 式）</h3>
+          <div style="display:flex; flex-direction:column; gap:6px; font-size:11.5px;">
+            <div style="display:flex; justify-content:space-between;"><span style="color:#96A2AD;">最小功能 · 典型衰减特征</span><span style="color:#4CC38A; font-family:'IBM Plex Mono',ui-monospace,monospace;">✓ 24/24</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:#96A2AD;">不变性 · 单位换算/通道重排</span><span style="color:#4CC38A; font-family:'IBM Plex Mono',ui-monospace,monospace;">✓ 18/18</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:#96A2AD;">方向性 · 容量衰减→SOH 单调降</span><span style="color:#E0C05A; font-family:'IBM Plex Mono',ui-monospace,monospace;">11/12 ⚠</span></div>
+          </div>
+        </div>
+        <div style="background:#171C21; border:1px solid rgba(224,192,90,.5); border-radius:3px; padding:13px 15px;">
+          <h3 style="margin:0 0 7px; font-size:12.5px; font-weight:700; color:#E0C05A;">ISSUE-117 · 高循环段高估</h3>
+          <div style="font-size:11.5px; color:#96A2AD; line-height:1.7;">寿命末段乐观是本平台定义的危险方向。挂账 → 复测集固化该切片 → 修复后须过回归门方可晋级。</div>
+          <div style="margin-top:8px; display:flex; gap:7px;">
+            <span style="background:#FFB020; color:#101418; border-radius:2px; padding:5px 12px; font-size:11px; font-weight:700;">固化为复测集</span>
+            <span style="border:1px solid #37424E; border-radius:2px; padding:5px 12px; font-size:11px; font-weight:700; color:#96A2AD;">指派</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

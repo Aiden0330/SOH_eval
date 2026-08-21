@@ -1,0 +1,274 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap">
+  <style>
+    body { margin: 0; background: #F4F7FA; font-family: Inter,'Noto Sans SC','PingFang SC','Microsoft YaHei','Segoe UI',sans-serif; }
+    a { color: #2563EB; } a:hover { color: #1E3A5F; }
+  </style>
+</helmet>
+<div style="width:1440px; background:#F4F7FA; color:#0F172A; font-size:13px; line-height:1.5; display:grid; grid-template-columns:196px minmax(0,1fr);">
+
+  <!-- ============ SIDENAV (V1 vocabulary, V3 IA: 10 pages grouped) ============ -->
+  <div style="background:#071827; color:#D5E2ED; padding:18px 12px 14px; display:flex; flex-direction:column; gap:14px;">
+    <div style="display:flex; gap:10px; align-items:center; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,.12);">
+      <div style="width:38px; height:38px; border-radius:8px; background:#22C55E; color:#052E16; display:grid; place-items:center; font-weight:800; font-size:11px;">SOH</div>
+      <div>
+        <strong style="display:block; font-size:15px; color:#FFFFFF; line-height:1.2;">Evidence Bench</strong>
+        <span style="display:block; color:#42BEEA; font-size:11px; margin-top:3px;">V3 · 可信测评编排</span>
+      </div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:4px;">
+      <span style="margin:2px 10px; color:#688095; font-weight:700; font-size:10px; letter-spacing:1px;">案例流程</span>
+      <div style="min-height:40px; border-radius:8px; background:#0B3048; color:#FFFFFF; box-shadow:inset 4px 0 0 #22B8F0; display:flex; align-items:center; gap:8px; padding:0 10px; font-weight:700; font-size:13px;">可信总览</div>
+      <div style="min-height:40px; border-radius:8px; color:#CBD5E1; display:flex; align-items:center; gap:8px; padding:0 10px; font-weight:700; font-size:13px;">实验设计</div>
+      <div style="min-height:40px; border-radius:8px; color:#CBD5E1; display:flex; align-items:center; gap:8px; padding:0 10px; font-weight:700; font-size:13px;">代理编排 <span style="margin-left:auto; font-size:9px; background:#0B4867; color:#7FDFFF; border-radius:4px; padding:2px 5px; font-family:'JetBrains Mono',monospace;">RUN</span></div>
+      <div style="min-height:40px; border-radius:8px; color:#CBD5E1; display:flex; align-items:center; gap:8px; padding:0 10px; font-weight:700; font-size:13px;">运行中心</div>
+      <span style="margin:8px 10px 2px; color:#688095; font-weight:700; font-size:10px; letter-spacing:1px;">分析</span>
+      <div style="min-height:40px; border-radius:8px; color:#CBD5E1; display:flex; align-items:center; padding:0 10px; font-weight:700; font-size:13px;">比较实验室</div>
+      <div style="min-height:40px; border-radius:8px; color:#CBD5E1; display:flex; align-items:center; padding:0 10px; font-weight:700; font-size:13px;">跨域泛化</div>
+      <div style="min-height:40px; border-radius:8px; color:#CBD5E1; display:flex; align-items:center; padding:0 10px; font-weight:700; font-size:13px;">失败分析</div>
+      <span style="margin:8px 10px 2px; color:#688095; font-weight:700; font-size:10px; letter-spacing:1px;">资产与治理</span>
+      <div style="min-height:40px; border-radius:8px; color:#CBD5E1; display:flex; align-items:center; padding:0 10px; font-weight:700; font-size:13px;">数据与协议</div>
+      <div style="min-height:40px; border-radius:8px; color:#CBD5E1; display:flex; align-items:center; padding:0 10px; font-weight:700; font-size:13px;">模型与推理</div>
+      <div style="min-height:40px; border-radius:8px; color:#CBD5E1; display:flex; align-items:center; padding:0 10px; font-weight:700; font-size:13px;">证据中心</div>
+    </div>
+    <div style="margin-top:auto; border:1px solid rgba(255,255,255,.14); border-radius:8px; padding:10px 12px; background:rgba(255,255,255,.06); font-size:11.5px; line-height:1.6;">
+      <span style="color:#CBD5E1;">构建期智能 · 运行期工件</span>
+      <b style="display:block; color:#FFFFFF; margin-top:2px;">评分路径无 LLM 在环</b>
+    </div>
+  </div>
+
+  <!-- ============ WORKSPACE ============ -->
+  <div style="min-width:0; padding:10px 14px 18px; display:flex; flex-direction:column; gap:10px;">
+
+    <!-- Topbar -->
+    <div style="background:#FFFFFF; border:1px solid #D7E1EC; border-radius:9px; padding:10px 14px; display:flex; align-items:center; gap:12px; box-shadow:0 8px 24px rgba(20,45,70,.06);">
+      <div>
+        <div style="color:#1E3A5F; font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:800; letter-spacing:.55px;">EVALUATION CASE · EV-20260819-8C21A4</div>
+        <div style="font-size:19px; font-weight:800; line-height:1.25;">可信总览 <span style="color:#64748B; font-weight:400; font-size:12.5px;">同一案例上下文 · 从代理搜索到证据签发</span></div>
+      </div>
+      <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+        <span style="border:1px solid #D7E1EC; border-radius:999px; background:#F8FAFC; padding:5px 12px; font-size:12px; font-weight:700; color:#344054;">数据源 · 当前根目录</span>
+        <span style="border-radius:999px; background:#E7F8F1; color:#0B8B62; padding:5px 12px; font-size:11px; font-weight:800; display:inline-flex; align-items:center; gap:6px;"><svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg>LIVE · API v2 · 类型 ✓</span>
+      </div>
+    </div>
+
+    <!-- Protocol / compliance bar -->
+    <div style="background:#FFFFFF; border:1px solid #D7E1EC; border-radius:9px; padding:8px 14px; display:flex; gap:18px; align-items:center; font-family:'JetBrains Mono',monospace; font-size:11px; color:#475569; flex-wrap:wrap;">
+      <span><b style="color:#1E3A5F;">协议</b> SOH-PROTO v1.0</span>
+      <span><b style="color:#1E3A5F;">预注册</b> 4be7…09d2</span>
+      <span><b style="color:#1E3A5F;">数据分区</b> dev / public / private / vault / 前瞻</span>
+      <span><b style="color:#1E3A5F;">统一口径</b> 高估率 ≤ 5% @ |err|&gt;0.05</span>
+      <span style="color:#A86B00;"><b>前瞻冻结</b> T−14d</span>
+      <span style="margin-left:auto; color:#94A3B8;">私榜定榜 · 平台复跑为准</span>
+    </div>
+
+    <!-- KPI tiles -->
+    <div style="display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:10px;">
+      <div style="background:#FFFFFF; border:1px solid #D7E1EC; border-radius:9px; padding:10px 14px;">
+        <div style="color:#64748B; font-size:10.5px; font-weight:700;"><span style="color:#2563EB; font-family:'JetBrains Mono',monospace; font-size:8.5px; letter-spacing:.5px;">排序质量</span> · 技能分 vs L0</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:24px; font-weight:700; margin-top:2px;">78.4 <span style="font-size:11px; color:#64748B; font-weight:400;">±2.1</span></div>
+        <div style="color:#0B8B62; font-size:10.5px; font-weight:700; margin-top:1px;">段位 A · 5 种子平台复跑</div>
+      </div>
+      <div style="background:#FFFFFF; border:1px solid #D7E1EC; border-radius:9px; padding:10px 14px;">
+        <div style="color:#64748B; font-size:10.5px; font-weight:700;"><span style="color:#2563EB; font-family:'JetBrains Mono',monospace; font-size:8.5px; letter-spacing:.5px;">决策效用</span> · 高估率</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:24px; font-weight:700; margin-top:2px;">3.1<span style="font-size:13px;">%</span></div>
+        <div style="color:#0B8B62; font-size:10.5px; font-weight:700; margin-top:1px;">✓ 合规 · 限 5%</div>
+      </div>
+      <div style="background:#FFFFFF; border:1px solid #D7E1EC; border-radius:9px; padding:10px 14px;">
+        <div style="color:#64748B; font-size:10.5px; font-weight:700;"><span style="color:#2563EB; font-family:'JetBrains Mono',monospace; font-size:8.5px; letter-spacing:.5px;">概率质量</span> · SmoothECE</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:24px; font-weight:700; margin-top:2px;">0.041</div>
+        <div style="color:#64748B; font-size:10.5px; margin-top:1px;">斜率 0.97 · 截距 +0.01</div>
+      </div>
+      <div style="background:#FFFFFF; border:1px solid #D7E1EC; border-radius:9px; padding:10px 14px;">
+        <div style="color:#64748B; font-size:10.5px; font-weight:700;"><span style="color:#2563EB; font-family:'JetBrains Mono',monospace; font-size:8.5px; letter-spacing:.5px;">时间行为</span> · OOD Δ</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:24px; font-weight:700; margin-top:2px;">−6.2</div>
+        <div style="color:#A86B00; font-size:10.5px; font-weight:700; margin-top:1px;">LFP 外推 · 低功效标注</div>
+      </div>
+      <div style="background:#FFFFFF; border:1px solid #D7E1EC; border-radius:9px; padding:10px 14px;">
+        <div style="color:#64748B; font-size:10.5px; font-weight:700;">构建信封 Envelope</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:24px; font-weight:700; margin-top:2px;">62<span style="font-size:13px;">%</span></div>
+        <div style="height:5px; border-radius:3px; background:#EEF3F8; margin-top:5px; overflow:hidden;"><div style="width:62%; height:5px; background:#2563EB;"></div></div>
+      </div>
+    </div>
+
+    <!-- Main 3-col: agent orchestration + leaderboard + gates rail -->
+    <div style="display:grid; grid-template-columns:360px minmax(0,1fr) 280px; gap:10px; align-items:start;">
+
+      <!-- Agent orchestration -->
+      <div style="background:#FFFFFF; border:1px solid #D7E1EC; border-radius:9px; padding:12px 14px; display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <b style="font-size:13.5px;">代理编排 · 搜索循环</b>
+          <span style="font-family:'JetBrains Mono',monospace; font-size:9.5px; background:#EEF3F8; color:#475569; border-radius:4px; padding:2px 6px;">backbone claude-fable-5 × scaffold aide-v2</span>
+        </div>
+        <!-- loop steps -->
+        <div style="display:flex; gap:4px;">
+          <div style="flex:1; background:#F8FAFC; border-bottom:2px solid #0B8B62; border-radius:6px 6px 0 0; padding:6px 8px;"><div style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#64748B;">01</div><b style="font-size:11px;">起草</b></div>
+          <div style="flex:1; background:#F8FAFC; border-bottom:2px solid #0B8B62; border-radius:6px 6px 0 0; padding:6px 8px;"><div style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#64748B;">02</div><b style="font-size:11px;">预检门</b></div>
+          <div style="flex:1; background:#E9F3FB; border-bottom:2px solid #2563EB; border-radius:6px 6px 0 0; padding:6px 8px;"><div style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#2563EB;">03</div><b style="font-size:11px; color:#1E3A5F;">运行</b></div>
+          <div style="flex:1; background:#F8FAFC; border-bottom:2px solid #D7E1EC; border-radius:6px 6px 0 0; padding:6px 8px;"><div style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#94A3B8;">04</div><b style="font-size:11px; color:#94A3B8;">观察</b></div>
+          <div style="flex:1; background:#F8FAFC; border-bottom:2px solid #D7E1EC; border-radius:6px 6px 0 0; padding:6px 8px;"><div style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#94A3B8;">05</div><b style="font-size:11px; color:#94A3B8;">精炼</b></div>
+        </div>
+        <!-- proposal cards -->
+        <div style="border:1px solid #D7E1EC; border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; gap:6px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#2563EB; font-weight:700;">提案 P-31</span>
+            <b style="font-size:12.5px;">transformer × ic_dva + 局部窗重采样</b>
+            <span style="margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:9px; background:#FFF7E3; color:#A86B00; border-radius:4px; padding:2px 6px;">自治 A1 · 人工配置启动</span>
+          </div>
+          <div style="color:#475569; font-size:11.5px;">研究者假设：IC 峰漂移特征在 LFP 平台段欠采样 — 消融显示该代码块影响最大，仅精炼此块。</div>
+          <div style="display:flex; gap:10px; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#64748B;">
+            <span>自评 dev MAE 0.093</span><span>泄漏卫兵 ✓</span><span>数据使用卫兵 ✓</span><span>预算 0.8 GPU·h</span>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; margin-top:2px;">
+            <span style="background:#1E3A5F; color:#FFFFFF; border-radius:6px; padding:5px 14px; font-size:11.5px; font-weight:700;">批准入队</span>
+            <span style="border:1px solid #D7E1EC; border-radius:6px; padding:5px 14px; font-size:11.5px; font-weight:700; color:#475569;">驳回</span>
+            <span style="color:#94A3B8; font-size:10px;">代理起草 · 人签发</span>
+          </div>
+        </div>
+        <div style="border:1px solid #D7E1EC; border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; background:#F8FAFC;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#2563EB; font-weight:700;">提案 P-30</span>
+            <b style="font-size:12.5px;">gbdt × degradation_kinetics 特征修剪</b>
+            <span style="margin-left:auto; font-size:9.5px; background:#E7F8F1; color:#0B8B62; border-radius:4px; padding:2px 6px; font-weight:800;">已批准 · 运行中</span>
+          </div>
+          <div style="display:flex; gap:10px; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#64748B;">
+            <span>训练种子 0/1/2</span><span>构建 2/3</span><span>P99 单步 41ms</span>
+          </div>
+        </div>
+        <!-- envelope -->
+        <div style="display:flex; flex-direction:column; gap:5px; border-top:1px solid #EEF3F8; padding-top:8px;">
+          <div style="display:flex; justify-content:space-between; font-size:11px;"><span style="color:#64748B;">构建信封 · 12h × 1 GPU · 超限作废</span><span style="font-family:'JetBrains Mono',monospace; color:#0F172A;">7.4h / 12h</span></div>
+          <div style="height:6px; border-radius:3px; background:#EEF3F8; overflow:hidden;"><div style="width:62%; height:6px; background:#2563EB;"></div></div>
+          <div style="display:flex; justify-content:space-between; font-size:11px;"><span style="color:#64748B;">Token 花销（成本列公示）</span><span style="font-family:'JetBrains Mono',monospace; color:#0F172A;">2.1M / 5M</span></div>
+          <div style="height:6px; border-radius:3px; background:#EEF3F8; overflow:hidden;"><div style="width:42%; height:6px; background:#16A34A;"></div></div>
+        </div>
+      </div>
+
+      <!-- Leaderboard -->
+      <div style="background:#FFFFFF; border:1px solid #D7E1EC; border-radius:9px; padding:12px 14px; min-width:0;">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+          <b style="font-size:13.5px;">案例榜单 · 私榜定榜</b>
+          <span style="font-size:10px; background:#EEF3F8; color:#475569; border-radius:999px; padding:3px 8px; font-weight:700;">基线阶梯常驻 · L0–L2 非竞争，L3 即榜上提交</span>
+          <span style="margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:10px; color:#94A3B8;">噪声带 ±2.1 · 段位内并列</span>
+        </div>
+        <table style="border-collapse:collapse; width:100%; font-size:12px;">
+          <tr style="color:#64748B; font-family:'JetBrains Mono',monospace; font-size:9.5px; text-align:left;">
+            <th style="padding:6px 8px; border-bottom:1px solid #D7E1EC; font-weight:600;">段位</th>
+            <th style="padding:6px 8px; border-bottom:1px solid #D7E1EC; font-weight:600;">组合 · 骨干×脚手架</th>
+            <th style="padding:6px 8px; border-bottom:1px solid #D7E1EC; font-weight:600; text-align:right;">技能分</th>
+            <th style="padding:6px 8px; border-bottom:1px solid #D7E1EC; font-weight:600; text-align:right;">自评→私榜</th>
+            <th style="padding:6px 8px; border-bottom:1px solid #D7E1EC; font-weight:600; text-align:right;">高估率</th>
+            <th style="padding:6px 8px; border-bottom:1px solid #D7E1EC; font-weight:600;">徽章</th>
+          </tr>
+          <tr style="background:rgba(37,99,235,.05);">
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; box-shadow:inset 3px 0 0 #2563EB;"><span style="font-family:'JetBrains Mono',monospace; font-weight:700; color:#1E3A5F;">A1</span></td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;"><b>mlp × partial_window</b> <span style="color:#94A3B8; font-size:10px;">人工 · 训练种子 0-2</span></td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace; font-weight:700;">78.4 <span style="color:#94A3B8; font-weight:400; font-size:10px;">±2.1</span></td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace; color:#0B8B62;">−0.6</td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace;">3.1%</td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;"><span style="font-size:9px; background:#E7F8F1; color:#0B8B62; border-radius:4px; padding:2px 6px; font-weight:800;">已复跑</span></td>
+          </tr>
+          <tr style="background:rgba(37,99,235,.05);">
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;"><span style="font-family:'JetBrains Mono',monospace; font-weight:700; color:#1E3A5F;">A1</span></td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;"><b>P-29 · transformer × ic_dva</b> <span style="color:#94A3B8; font-size:10px;">代理构建 · fable-5×aide-v2 · A1</span></td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace; font-weight:700;">76.8 <span style="color:#94A3B8; font-weight:400; font-size:10px;">±3.0</span></td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace; color:#C32626; font-weight:700;">−4.2 ⚠</td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace;">4.4%</td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;"><span style="font-size:9px; background:#FFF7E3; color:#A86B00; border-radius:4px; padding:2px 6px; font-weight:800;">泛化差距复核</span></td>
+          </tr>
+          <tr>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;"><span style="font-family:'JetBrains Mono',monospace; font-weight:700; color:#475569;">B3</span></td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;">gbdt × ic_dva <span style="color:#94A3B8; font-size:10px;">人工 · 训练种子 0-2</span></td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace;">74.1 <span style="color:#94A3B8; font-size:10px;">±1.6</span></td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace; color:#0B8B62;">−0.9</td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace;">2.7%</td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;"><span style="font-size:9px; background:#E7F8F1; color:#0B8B62; border-radius:4px; padding:2px 6px; font-weight:800;">已复跑</span></td>
+          </tr>
+          <tr style="color:#64748B;">
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;"><span style="font-family:'JetBrains Mono',monospace;">L2</span></td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;">商品代理基线 · AIDE+MLZero <span style="font-size:10px;">~$100 算力</span></td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace;">71.3</td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace;">−2.8</td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace;">4.9%</td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;"><span style="font-size:9px; background:#EEF3F8; color:#475569; border-radius:4px; padding:2px 6px; font-weight:800;">非竞争</span></td>
+          </tr>
+          <tr style="color:#64748B;">
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;"><span style="font-family:'JetBrains Mono',monospace;">L1</span></td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;">经典 AutoML 基线 · AutoGluon-TS</td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace;">69.8</td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace;">−1.1</td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace;">3.8%</td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;"><span style="font-size:9px; background:#EEF3F8; color:#475569; border-radius:4px; padding:2px 6px; font-weight:800;">非竞争</span></td>
+          </tr>
+          <tr style="color:#64748B;">
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;"><span style="font-family:'JetBrains Mono',monospace;">L0</span></td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;">在役基线 · ridge × full <span style="font-size:10px;">技能分锚点</span></td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace;">0.0</td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace;">—</td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8; text-align:right; font-family:'JetBrains Mono',monospace; color:#C32626;">8.9% ⚠</td>
+            <td style="padding:7px 8px; border-bottom:1px solid #EEF3F8;"><span style="font-size:9px; background:#EEF3F8; color:#475569; border-radius:4px; padding:2px 6px; font-weight:800;">锚点</span></td>
+          </tr>
+          <tr style="color:#94A3B8; font-style:italic;">
+            <td style="padding:7px 8px;"><span style="font-family:'JetBrains Mono',monospace;">⌀</span></td>
+            <td style="padding:7px 8px;">金丝雀 · 随机预测器</td>
+            <td style="padding:7px 8px; text-align:right; font-family:'JetBrains Mono',monospace;">−41.2</td>
+            <td style="padding:7px 8px; text-align:right; font-family:'JetBrains Mono',monospace;">+0.1</td>
+            <td style="padding:7px 8px; text-align:right; font-family:'JetBrains Mono',monospace;">—</td>
+            <td style="padding:7px 8px;"><span style="font-size:9px; background:#EEF3F8; color:#94A3B8; border-radius:4px; padding:2px 6px; font-weight:800;">非竞争 · 哨兵</span></td>
+          </tr>
+        </table>
+        <div style="margin-top:8px; font-family:'JetBrains Mono',monospace; font-size:10px; color:#94A3B8; border-top:1px solid #EEF3F8; padding-top:7px;">口径注记：同段位先后不构成排序主张 · 自评→私榜 = dev 自评 − 平台私榜（泛化差距，公示列，复核阈 |Δ|&gt;3.0 预注册）· 本期功效：可分辨最小差 1.8 · 段位由噪声带 ±2.1 贪心分组</div>
+      </div>
+
+      <!-- Gates rail -->
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="background:#FFFFFF; border:1px solid #D7E1EC; border-radius:9px; padding:12px 14px;">
+          <b style="font-size:13px;">门禁 · 评分前置</b>
+          <div style="display:flex; flex-direction:column; gap:7px; margin-top:9px; font-size:11.5px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span>泄漏审计（8 项留痕）</span><span style="font-family:'JetBrains Mono',monospace; font-size:10px; background:#E7F8F1; color:#0B8B62; border-radius:4px; padding:2px 7px; font-weight:800;">8/8 ✓</span></div>
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span>分区隔离 · 电芯级</span><span style="font-family:'JetBrains Mono',monospace; font-size:10px; background:#E7F8F1; color:#0B8B62; border-radius:4px; padding:2px 7px; font-weight:800;">✓</span></div>
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span>口径合规 · 高估率</span><span style="font-family:'JetBrains Mono',monospace; font-size:10px; background:#E7F8F1; color:#0B8B62; border-radius:4px; padding:2px 7px; font-weight:800;">✓</span></div>
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span>混淆变体 Δ（记忆化）</span><span style="font-family:'JetBrains Mono',monospace; font-size:10px; background:#E7F8F1; color:#0B8B62; border-radius:4px; padding:2px 7px; font-weight:800;">+0.4</span></div>
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span>回归门 · 版本升级</span><span style="font-family:'JetBrains Mono',monospace; font-size:10px; background:#FFF7E3; color:#A86B00; border-radius:4px; padding:2px 7px; font-weight:800;">待复核</span></div>
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span>奖励攻击审计 · 前三名</span><span style="font-family:'JetBrains Mono',monospace; font-size:10px; background:#EEF3F8; color:#475569; border-radius:4px; padding:2px 7px; font-weight:800;">定榜前</span></div>
+          </div>
+          <div style="margin-top:9px; border-top:1px solid #EEF3F8; padding-top:7px; font-family:'JetBrains Mono',monospace; font-size:10px; color:#64748B; line-height:1.8;">TEST A 同电芯·后期 <b style="color:#0F172A;">84.1</b> · TEST B 新电芯·未来 <b style="color:#0F172A;">78.4</b><br><span style="color:#94A3B8;">并排公示 · 私榜主数即 TEST B（部署忠实）</span></div>
+        </div>
+        <div style="background:#FFFFFF; border:1px solid #D7E1EC; border-radius:9px; padding:12px 14px;">
+          <b style="font-size:13px;">证据与签发</b>
+          <div style="margin-top:8px; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#475569; line-height:1.9;">
+            EvidencePack EP-0027<br>
+            sha256 91c4…7aa0 · 42 文件<br>
+            平台签名 ✓ · 审计员签名 ✓<br>
+            RFC3161 时间戳 ✓
+          </div>
+          <div style="margin-top:8px; display:flex; gap:6px;">
+            <span style="background:#1E3A5F; color:#FFFFFF; border-radius:6px; padding:5px 12px; font-size:11px; font-weight:700;">离线校验</span>
+            <span style="border:1px solid #D7E1EC; border-radius:6px; padding:5px 12px; font-size:11px; font-weight:700; color:#475569;">导出</span>
+          </div>
+          <div style="margin-top:9px; border-top:1px dashed #D7E1EC; padding-top:7px; font-size:10px; color:#94A3B8;">测评通过 ≠ 部署认证 — 每份代理构建工件均携带此声明（防 safety-washing）。</div>
+        </div>
+        <div style="background:#FFFFFF; border:1px dashed #D7E1EC; border-radius:9px; padding:10px 14px;">
+          <div style="font-size:10px; font-weight:800; color:#C32626; letter-spacing:.5px;">宣称区 · 未复现隔离</div>
+          <div style="font-size:11px; color:#64748B; margin-top:5px;">厂商 X · 宣称 MAE 0.061 · 邀约复现第 37/90 天</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

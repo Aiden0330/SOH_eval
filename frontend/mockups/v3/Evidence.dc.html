@@ -1,0 +1,160 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@700;900&display=swap">
+  <style>
+    body { margin: 0; background: #101418; font-family: -apple-system,'PingFang SC','Segoe UI','Microsoft YaHei','Noto Sans SC',sans-serif; }
+    a { color: #7FB3F2; } a:hover { color: #A8C7FB; }
+  </style>
+</helmet>
+<div style="width:1440px; background:#101418; color:#E6EAEE; font-size:13.5px; line-height:1.55;">
+  <div style="display:flex; align-items:center; gap:16px; padding:10px 22px; border-bottom:1px solid #2A333D;">
+    <div style="display:flex; align-items:center; gap:8px;"><span style="width:9px; height:9px; background:#FFB020; box-shadow:0 0 8px rgba(255,176,32,.55); display:inline-block;"></span><b style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:12px; letter-spacing:.08em;">SOHBENCH · EVAL CONSOLE</b></div>
+    <div style="display:flex; gap:2px; font-size:12px; color:#96A2AD;">
+      <span style="padding:5px 10px;">可信总览</span>
+      <span style="padding:5px 10px;">实验设计</span>
+      <span style="padding:5px 10px;">代理编排</span>
+      <span style="padding:5px 10px;">运行中心</span>
+      <span style="padding:5px 10px;">比较实验室</span>
+      <span style="padding:5px 10px;">跨域泛化</span>
+      <span style="padding:5px 10px;">失败分析</span>
+      <span style="padding:5px 10px;">数据与协议</span>
+      <span style="padding:5px 10px;">模型与推理</span>
+      <span style="padding:5px 10px; background:#1E262E; border:1px solid #37424E; border-radius:2px; color:#FFC24E; font-weight:600;">证据中心</span>
+    </div>
+    <div style="margin-left:auto; display:flex; gap:14px; align-items:center; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px;"><span style="color:#4CC38A;">● EVAL-RUNNER 在线</span><span style="color:#96A2AD;">23:59:58</span></div>
+  </div>
+  <div style="display:flex; gap:20px; padding:7px 22px; border-bottom:1px solid #2A333D; background:#171C21; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; color:#96A2AD;">
+    <span>证据包 = 主张—论证—证据（安全论证结构）</span><span>签发视图为方向三文档形态（浅色 · 可打印）</span><span style="margin-left:auto;">案例 EV-20260819-8C21A4</span>
+  </div>
+
+  <div style="max-width:1500px; padding:16px 22px 22px; display:grid; grid-template-columns:300px minmax(0,1fr); gap:14px; align-items:start;">
+
+    <!-- Pack list rail -->
+    <div style="display:flex; flex-direction:column; gap:14px;">
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px;">
+        <div style="padding:11px 15px; border-bottom:1px solid #37424E;"><b style="font-size:12.5px;">证据包</b></div>
+        <div style="display:flex; flex-direction:column;">
+          <div style="padding:10px 15px; border-bottom:1px solid #2A333D; background:rgba(255,176,32,.06); box-shadow:inset 3px 0 0 #FFB020;">
+            <div style="display:flex; justify-content:space-between; align-items:center;"><b style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:12px;">EP-0027</b><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9.5px; background:rgba(76,195,138,.12); color:#4CC38A; border-radius:2px; padding:2px 7px;">双签 ✓</span></div>
+            <div style="font-size:10.5px; color:#96A2AD; margin-top:3px;">mlp × partial_window · 42 文件 · RFC3161 ✓</div>
+          </div>
+          <div style="padding:10px 15px; border-bottom:1px solid #2A333D;">
+            <div style="display:flex; justify-content:space-between; align-items:center;"><b style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:12px; color:#96A2AD;">EP-0026</b><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9.5px; background:rgba(224,192,90,.12); color:#E0C05A; border-radius:2px; padding:2px 7px;">待审计签</span></div>
+            <div style="font-size:10.5px; color:#5F6B76; margin-top:3px;">P-29 transformer × ic_dva · 复核中</div>
+          </div>
+          <div style="padding:10px 15px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;"><b style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:12px; color:#96A2AD;">EP-0025</b><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9.5px; background:rgba(76,195,138,.12); color:#4CC38A; border-radius:2px; padding:2px 7px;">双签 ✓</span></div>
+            <div style="font-size:10.5px; color:#5F6B76; margin-top:3px;">gbdt × ic_dva · 已归档</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:13px 15px;">
+        <h3 style="margin:0 0 9px; font-size:12.5px; font-weight:700;">包清单 EP-0027</h3>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10.5px; line-height:1.95; color:#96A2AD;">
+          <b style="color:#E6EAEE;">manifest.json</b> · 4 KB<br>
+          ├ 协议快照 4be7…09d2<br>
+          ├ 逐样本判定 33,012 行（私榜分区）<br>
+          ├ 全套曲线 DET/校准/退化<br>
+          ├ 种子明细 ×5 复跑<br>
+          ├ 代理转录 T-8841<br>
+          └ 签名链 平台+审计员
+        </div>
+        <div style="margin-top:9px; display:flex; gap:7px;">
+          <span style="background:#FFB020; color:#101418; border-radius:2px; padding:5px 12px; font-size:11px; font-weight:700;">sohbench verify</span>
+          <span style="border:1px solid #37424E; border-radius:2px; padding:5px 12px; font-size:11px; font-weight:700; color:#96A2AD;">导出 PDF</span>
+        </div>
+      </div>
+      <div style="border:1px dashed #37424E; border-radius:3px; padding:11px 15px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#FF6369;">宣称区 · 未复现隔离</div>
+        <div style="font-size:11px; color:#96A2AD; margin-top:5px;">厂商 X 宣称 MAE 0.061 · vendor claim · 邀约第 37/90 天</div>
+      </div>
+    </div>
+
+    <!-- Main: the D3 document form embedded (signing view) + sample evidence -->
+    <div style="display:flex; flex-direction:column; gap:14px; min-width:0;">
+      <div style="background:#F2F1EC; border:1px solid #2A333D; border-radius:3px; padding:22px 26px; color:#17211C;">
+        <div style="text-align:center; border-bottom:3px double #17211C; padding-bottom:12px;">
+          <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9.5px; letter-spacing:.3em; color:#0B5B3B;">签发视图 · 方向三文档形态（浅色 · 随包导出）</div>
+          <div style="font-family:'Noto Serif SC',serif; font-size:21px; font-weight:900; margin-top:5px;">SOH 评测安全论证 · EP-0027</div>
+          <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#5C6961; margin-top:4px;">sha256 91c4…7aa0 · 42 文件 · 协议 4be7…09d2</div>
+        </div>
+        <div style="display:grid; grid-template-columns:minmax(0,1fr) 168px; gap:18px; margin-top:14px; align-items:start;">
+          <div>
+            <div style="border:1px solid #0B5B3B; padding:10px 14px; background:#F4F8F5;">
+              <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9px; letter-spacing:.2em; color:#0B5B3B;">主张 CLAIM C-1</div>
+              <div style="font-size:13px; font-weight:700; margin-top:3px;">mlp × partial_window 于 LODO 私榜段位 A1（78.4 ±2.1，锚 L0=0），高估率 3.1% 合规，准予进入前瞻期评审。</div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:9px; font-size:11.5px;">
+              <div style="border:1px solid #C9CFC9; padding:8px 11px;"><b style="font-size:11px; color:#5C6961;">论证 A-1.1 · 排序</b><div style="margin-top:3px;">技能分锚 L0=0；越过 L1 商品线（Δ8.6 &gt; 噪声带，Holm p&lt;0.01）</div><div style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:9.5px; color:#0B5B3B; margin-top:4px;">E-04 leaderboard.parquet</div></div>
+              <div style="border:1px solid #C9CFC9; padding:8px 11px;"><b style="font-size:11px; color:#5C6961;">论证 A-1.2 · 概率</b><div style="margin-top:3px;">校准中度：斜率 0.97 · SmoothECE 0.041</div><div style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:9.5px; color:#0B5B3B; margin-top:4px;">E-07 reliability.json</div></div>
+              <div style="border:1px solid #C9CFC9; padding:8px 11px;"><b style="font-size:11px; color:#5C6961;">论证 A-1.3 · 时间行为</b><div style="margin-top:3px;">TEST A 84.1 / TEST B 78.4 并排；主数即 TEST B</div><div style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:9.5px; color:#0B5B3B; margin-top:4px;">E-09 ood_slices.json</div></div>
+              <div style="border:1px solid #C9CFC9; padding:8px 11px;"><b style="font-size:11px; color:#5C6961;">遗留风险 R-2</b><div style="margin-top:3px;">LFP 外推低功效 → 前瞻采集计划</div><div style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:9.5px; color:#8A6D1C; margin-top:4px;">附录 · 采集中</div></div>
+            </div>
+            <div style="margin-top:10px; border-top:3px double #17211C; padding-top:7px; font-size:10px; color:#8B958D;">平台签名 ✓ · 审计员签名 ✓ · RFC3161 ✓ — <b style="color:#B23A2E;">测评通过 ≠ 部署认证</b>；再训练依 PCCP 重入预注册验收电池。</div>
+          </div>
+          <svg viewBox="0 0 150 150" role="img" aria-label="签发印章：已签发 EP-0027 双签" style="width:138px; height:138px; opacity:.92; transform:rotate(-7deg); margin:0 auto;">
+            <circle cx="75" cy="75" r="70" fill="none" stroke="#B23A2E" stroke-width="4"/>
+            <circle cx="75" cy="75" r="52" fill="none" stroke="#B23A2E" stroke-width="1.5"/>
+            <text x="75" y="70" text-anchor="middle" font-size="20" fill="#B23A2E" font-weight="900" font-family="'Noto Serif SC',serif">已签发</text>
+            <text x="75" y="92" text-anchor="middle" font-size="10" fill="#B23A2E" font-family="'IBM Plex Mono',monospace">EP-0027 · 双签</text>
+          </svg>
+        </div>
+      </div>
+
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px;">
+        <div style="display:flex; align-items:center; gap:10px; padding:11px 15px; border-bottom:1px solid #37424E;">
+          <b style="font-size:13px;">样本与曲线 · 逐预测溯源</b>
+          <span style="margin-left:auto; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#5F6B76;">sample → record → contribution 血缘链</span>
+        </div>
+        <div style="display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:14px; padding:12px 15px;">
+          <div>
+            <svg viewBox="0 0 620 190" role="img" aria-label="SOH 轨迹：真值虚线参考，预测琥珀实线带置信区间，刷选区联动证据列表" style="width:100%; height:auto; display:block;">
+              <line x1="40" y1="20" x2="40" y2="158" stroke="#37424E" stroke-width="1"/>
+              <line x1="40" y1="158" x2="600" y2="158" stroke="#37424E" stroke-width="1"/>
+              <line x1="40" y1="66" x2="600" y2="66" stroke="#242E38" stroke-width="1"/>
+              <line x1="40" y1="112" x2="600" y2="112" stroke="#242E38" stroke-width="1"/>
+              <text x="34" y="24" font-size="9" fill="#5F6B76" text-anchor="end" font-family="IBM Plex Mono,monospace">1.0</text>
+              <text x="34" y="116" font-size="9" fill="#5F6B76" text-anchor="end" font-family="IBM Plex Mono,monospace">0.8</text>
+              <polygon points="40,52 180,62 320,78 460,102 600,124 600,140 460,116 320,92 180,74 40,64" fill="#C98500" opacity="0.16"/>
+              <polyline points="40,58 180,68 320,84 460,108 600,131" fill="none" stroke="#5F6B76" stroke-width="1.8" stroke-dasharray="5 4"/>
+              <polyline points="40,58 180,67 320,86 460,110 600,133" fill="none" stroke="#C98500" stroke-width="2"/>
+              <rect x="380" y="16" width="120" height="142" fill="#FFB020" opacity="0.07"/>
+              <line x1="380" y1="16" x2="380" y2="158" stroke="#FFB020" stroke-width="1.5" opacity="0.5"/>
+              <line x1="500" y1="16" x2="500" y2="158" stroke="#FFB020" stroke-width="1.5" opacity="0.5"/>
+              <circle cx="460" cy="110" r="4" fill="#C98500" stroke="#101418" stroke-width="1.5"/>
+              <text x="46" y="176" font-size="9" fill="#5F6B76" font-family="IBM Plex Mono,monospace">cycle 0 – 1500 · 刷选 820–1100 → 右侧记录联动</text>
+              <text x="600" y="176" font-size="9" fill="#5F6B76" text-anchor="end" font-family="IBM Plex Mono,monospace">虚线 真值参考 · 实线 预测 · 面 95%CI</text>
+            </svg>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:7px;">
+            <div style="background:#1E262E; border:1px solid #37424E; border-radius:2px; padding:8px 11px;">
+              <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#96A2AD;">hust/5-6 · cyc 1042</div>
+              <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:13px; font-weight:700; margin-top:2px;">真 0.843 · 预 0.851 · CI ±0.021</div>
+              <div style="font-size:10px; color:#5F6B76; margin-top:3px;">V/I/T ✓ · IC ✓ · DVA ✓ · 特征窗高亮</div>
+            </div>
+            <div style="background:#1E262E; border:1px solid #37424E; border-radius:2px; padding:8px 11px;">
+              <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#96A2AD;">血缘</div>
+              <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10.5px; color:#7FB3F2; line-height:1.8;">sample S-88412<br>→ RawSegmentRef 7f…<br>→ PredictionRecord PR-51<br>→ MetricContribution 0.0009</div>
+            </div>
+            <span style="border:1px solid #37424E; border-radius:2px; padding:5px 12px; font-size:11px; font-weight:700; color:#96A2AD; text-align:center;">打开逐样本证据画布</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

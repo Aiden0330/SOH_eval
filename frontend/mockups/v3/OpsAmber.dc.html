@@ -1,0 +1,262 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; background: #101418; font-family: -apple-system,'PingFang SC','Segoe UI','Microsoft YaHei','Noto Sans SC',sans-serif; }
+    a { color: #7FB3F2; } a:hover { color: #A8C7FB; }
+  </style>
+</helmet>
+<div style="width:1440px; background:#101418; color:#E6EAEE; font-size:13.5px; line-height:1.55;">
+
+  <!-- SysBar -->
+  <div style="display:flex; align-items:center; gap:16px; padding:10px 22px; border-bottom:1px solid #2A333D;">
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span style="width:9px; height:9px; background:#FFB020; box-shadow:0 0 8px rgba(255,176,32,.55); display:inline-block;"></span>
+      <b style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:12px; letter-spacing:.08em;">SOHBENCH · EVAL CONSOLE</b>
+    </div>
+    <div style="display:flex; gap:2px; font-size:12px; color:#96A2AD;">
+      <span style="padding:5px 10px; background:#1E262E; border:1px solid #37424E; border-radius:2px; color:#FFC24E; font-weight:600;">可信总览</span>
+      <span style="padding:5px 10px;">实验设计</span>
+      <span style="padding:5px 10px;">代理编排</span>
+      <span style="padding:5px 10px;">运行中心</span>
+      <span style="padding:5px 10px;">比较实验室</span>
+      <span style="padding:5px 10px;">跨域泛化</span>
+      <span style="padding:5px 10px;">失败分析</span>
+      <span style="padding:5px 10px;">数据与协议</span>
+      <span style="padding:5px 10px;">模型与推理</span>
+      <span style="padding:5px 10px;">证据中心</span>
+    </div>
+    <div style="margin-left:auto; display:flex; gap:14px; align-items:center; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px;">
+      <span style="color:#4CC38A;">● EVAL-RUNNER 在线 · Worker 2/2</span>
+      <span style="color:#96A2AD;">2026-08-19 23:47:12</span>
+    </div>
+  </div>
+
+  <!-- ProtoBar (compliance line - never hidden) -->
+  <div style="display:flex; gap:20px; padding:7px 22px; border-bottom:1px solid #2A333D; background:#171C21; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; color:#96A2AD;">
+    <span>协议 SOH-PROTO v1.0</span>
+    <span>预注册 4be7…09d2</span>
+    <span>事件库 E-2026Q3 v1.2 · 6 数据集 · 178,680 样本</span>
+    <span>口径 高估率≤5%@|err|&gt;0.05</span>
+    <span style="color:#FFC24E;">前瞻冻结 T−14d 06:12:48</span>
+    <span style="margin-left:auto;">私榜定榜 · 平台复跑为准</span>
+  </div>
+
+  <div style="max-width:1500px; padding:16px 22px 22px; display:flex; flex-direction:column; gap:14px;">
+
+    <!-- Tiles -->
+    <div style="display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:10px;">
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:12px 16px 10px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#5F6B76;">技能分 VS L0 在役</div>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:26px; font-weight:600; margin-top:3px;">78.4 <span style="font-size:10.5px; color:#5F6B76; font-weight:400;">±2.1</span></div>
+        <div style="font-size:10.5px; color:#96A2AD; margin-top:1px;">TEST A 同电芯后期 <span style="color:#E6EAEE; font-family:'IBM Plex Mono',ui-monospace,monospace;">84.1</span> · 本数即 TEST B 部署忠实</div>
+      </div>
+      <div style="background:#171C21; border:1px solid rgba(255,176,32,.4); border-radius:3px; padding:12px 16px 10px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#5F6B76;">高估率 · 口径内</div>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:26px; font-weight:600; margin-top:3px; color:#FFC24E;">3.1%</div>
+        <div style="font-size:10.5px; color:#96A2AD; margin-top:1px;">限 5.0% · SOH 高估为危险方向</div>
+      </div>
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:12px 16px 10px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#5F6B76;">SMOOTHECE 校准</div>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:26px; font-weight:600; margin-top:3px;">0.041</div>
+        <div style="font-size:10.5px; color:#96A2AD; margin-top:1px;">斜率 0.97 · 禁用定箱 ECE</div>
+      </div>
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:12px 16px 10px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#5F6B76;">OOD Δ 留出化学</div>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:26px; font-weight:600; margin-top:3px;">−6.2</div>
+        <div style="font-size:10.5px; color:#E0C05A; margin-top:1px;">低功效 · 事件数不足</div>
+      </div>
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:12px 16px 10px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#5F6B76;">构建信封 12H×1GPU</div>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:26px; font-weight:600; margin-top:3px;">62%</div>
+        <div style="height:8px; border-radius:2px; background:#242E38; margin-top:5px; overflow:hidden;"><div style="width:62%; height:8px; background:#4CC38A;"></div></div>
+      </div>
+    </div>
+
+    <!-- Two-col: main board + 332px rail -->
+    <div style="display:grid; grid-template-columns:minmax(0,1fr) 332px; gap:14px; align-items:start;">
+
+      <!-- Left column -->
+      <div style="display:flex; flex-direction:column; gap:14px; min-width:0;">
+
+        <!-- Leaderboard board -->
+        <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px;">
+          <div style="display:flex; align-items:center; gap:10px; padding:11px 15px; border-bottom:1px solid #37424E;">
+            <b style="font-size:13px;">案例榜单 · EV-20260819-8C21A4 · 私榜</b>
+            <span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9.5px; background:#1E262E; border:1px solid #37424E; border-radius:2px; padding:2px 7px; color:#96A2AD;">基线阶梯常驻</span>
+            <span style="margin-left:auto; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#5F6B76;">噪声带 ±2.1</span>
+          </div>
+          <div style="overflow-x:auto;">
+            <table style="border-collapse:collapse; width:100%; min-width:960px; font-size:12.5px;">
+              <tr style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.1em; color:#5F6B76; text-align:left;">
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600;">段位</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600;">组合 · 骨干×脚手架</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600;">自治</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600; text-align:right;">技能分</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600; text-align:right;">自评→私榜</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600; text-align:right;">高估率</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600; text-align:right;">SMOOTHECE</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600; text-align:right;">GPU·H</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600;">徽章</th>
+              </tr>
+              <tr style="background:rgba(255,176,32,.06);">
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; box-shadow:inset 3px 0 0 #FFB020;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-weight:700; color:#FFC24E;">A1</span></td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><b>mlp × partial_window</b> <span style="color:#5F6B76; font-size:10.5px;">人工 · 训练种子 0-2</span></td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10.5px; color:#96A2AD;">—</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:15px; font-weight:700;">78.4 <span style="font-size:10.5px; color:#5F6B76; font-weight:400;">±2.1</span></td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; color:#4CC38A;">−0.6</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">3.1%</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">0.041</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">1.9</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9.5px; background:rgba(76,195,138,.12); color:#4CC38A; border-radius:2px; padding:2px 7px;">已复跑</span></td>
+              </tr>
+              <tr style="background:rgba(255,176,32,.06);">
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-weight:700; color:#FFC24E;">A1</span></td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><b>P-29 transformer × ic_dva</b> <span style="color:#5F6B76; font-size:10.5px;">代理构建 · fable-5 × aide-v2</span></td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10.5px; color:#FFC24E;">A1</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:15px; font-weight:700;">76.8 <span style="font-size:10.5px; color:#5F6B76; font-weight:400;">±3.0</span></td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; color:#FF6369; font-weight:700;">−4.2</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">4.4%</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">0.058</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">6.2</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9.5px; background:rgba(224,192,90,.12); color:#E0C05A; border-radius:2px; padding:2px 7px;">泛化差距复核</span></td>
+              </tr>
+              <tr>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-weight:700; color:#96A2AD;">B3</span></td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;">gbdt × ic_dva <span style="color:#5F6B76; font-size:10.5px;">人工 · 训练种子 0-2</span></td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10.5px; color:#96A2AD;">—</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">74.1 <span style="font-size:10.5px; color:#5F6B76;">±1.6</span></td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; color:#4CC38A;">−0.9</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">2.7%</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">0.044</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">0.4</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9.5px; background:rgba(76,195,138,.12); color:#4CC38A; border-radius:2px; padding:2px 7px;">已复跑</span></td>
+              </tr>
+              <tr style="color:#96A2AD;">
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace;">L2</span></td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;">商品代理基线 AIDE+MLZero <span style="color:#5F6B76; font-size:10.5px;">~$100 算力</span></td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10.5px;">A0</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">71.3</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">−2.8</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">4.9%</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">0.066</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">4.0</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9.5px; background:#1E262E; border:1px solid #37424E; color:#96A2AD; border-radius:2px; padding:2px 7px;">非竞争</span></td>
+              </tr>
+              <tr style="color:#96A2AD;">
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace;">L1</span></td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;">经典 AutoML 基线 AutoGluon-TS</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10.5px;">—</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">69.8</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">−1.1</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">3.8%</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">0.052</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">0.5</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9.5px; background:#1E262E; border:1px solid #37424E; color:#96A2AD; border-radius:2px; padding:2px 7px;">非竞争</span></td>
+              </tr>
+              <tr style="color:#96A2AD;">
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace;">L0</span></td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;">在役基线 ridge × full <span style="color:#5F6B76; font-size:10.5px;">技能分锚点</span></td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10.5px;">—</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">0.0</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">—</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; color:#FF6369;">8.9% ⚠</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">0.114</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">0.1</td>
+                <td style="padding:8px 12px; border-bottom:1px solid #2A333D;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9.5px; background:#1E262E; border:1px solid #37424E; color:#96A2AD; border-radius:2px; padding:2px 7px;">锚点</span></td>
+              </tr>
+              <tr style="color:#5F6B76; font-style:italic;">
+                <td style="padding:8px 12px;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace;">⌀</span></td>
+                <td style="padding:8px 12px;">金丝雀 · 随机预测器（恒驻）</td>
+                <td style="padding:8px 12px; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10.5px;">—</td>
+                <td style="padding:8px 12px; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">−41.2</td>
+                <td style="padding:8px 12px; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">+0.1</td>
+                <td style="padding:8px 12px; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">—</td>
+                <td style="padding:8px 12px; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">—</td>
+                <td style="padding:8px 12px; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace;">—</td>
+                <td style="padding:8px 12px;"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9.5px; background:#1E262E; border:1px solid #37424E; color:#5F6B76; border-radius:2px; padding:2px 7px;">非竞争 · 哨兵</span></td>
+              </tr>
+            </table>
+          </div>
+          <div style="padding:9px 15px; border-top:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; color:#5F6B76;">口径注记：同段位先后不构成排序主张 · 自评→私榜 = 泛化差距（本榜最具安全含义的一列，复核阈 |Δ|&gt;3.0 预注册）· 功效：本期可分辨最小差 1.8 · 金丝雀偏离 &gt; 噪声带即冻结榜单</div>
+        </div>
+
+        <!-- Agent transcript CodeBlock -->
+        <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px;">
+          <div style="display:flex; align-items:center; gap:10px; padding:11px 15px; border-bottom:1px solid #37424E;">
+            <b style="font-size:13px;">代理转录 · 全程留痕（审计可回放）</b>
+            <span style="margin-left:auto; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#5F6B76;">P-31 · 循环 4/8</span>
+          </div>
+          <div style="margin:12px 15px 14px; background:#0C1013; border-radius:2px; padding:10px 12px; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; line-height:1.75; overflow-x:auto; white-space:pre;"><span style="color:#7FB3F2;">23:41:02 [research]</span> <span style="color:#E6EAEE;">假设：IC 峰漂移在 LFP 平台段欠采样 → 提议局部窗重采样</span>
+<span style="color:#7FB3F2;">23:41:19 [develop ]</span> <span style="color:#E6EAEE;">改写 featureset/ic_dva.py 采样块（消融定位，仅此一块）</span>
+<span style="color:#4CC38A;">23:42:05 [guard   ]</span> <span style="color:#4CC38A;">泄漏卫兵 ✓ 预处理仅折内拟合 · 数据使用卫兵 ✓ 无越区读取</span>
+<span style="color:#FFC24E;">23:42:11 [envelope]</span> <span style="color:#FFC24E;">预算 7.4/12 GPU·h · token 2.1M/5M · 超限即作废</span>
+<span style="color:#7FB3F2;">23:44:56 [observe ]</span> <span style="color:#E6EAEE;">dev MAE 0.093（自评）· 待平台私榜复跑 → 泛化差距列</span></div>
+        </div>
+      </div>
+
+      <!-- Right rail 332px -->
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:13px 15px;">
+          <h3 style="margin:0 0 9px; font-size:12.5px; font-weight:700;">代理搜索 · 构建→冻结→评分</h3>
+          <div style="display:flex; gap:3px;">
+            <div style="flex:1; background:#1E262E; border-bottom:2px solid #4CC38A; padding:7px 9px;"><div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9px; letter-spacing:.1em; color:#5F6B76;">BUILD</div><b style="font-size:11px;">构建</b></div>
+            <div style="flex:1; background:#242E38; border-bottom:2px solid #FFB020; padding:7px 9px;"><div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9px; letter-spacing:.1em; color:#FFC24E;">FREEZE</div><b style="font-size:11px; color:#FFC24E;">冻结</b></div>
+            <div style="flex:1; background:#1E262E; padding:7px 9px;"><div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9px; letter-spacing:.1em; color:#5F6B76;">SCORE</div><b style="font-size:11px; color:#5F6B76;">评分</b></div>
+          </div>
+          <div style="margin-top:10px; display:flex; flex-direction:column; gap:7px; font-size:11.5px; color:#96A2AD;">
+            <div style="display:flex; justify-content:space-between;"><span>P-31 局部窗重采样</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#FFC24E;">待人签发</span></div>
+            <div style="display:flex; justify-content:space-between;"><span>P-30 特征修剪</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#4CC38A;">运行 2/3</span></div>
+            <div style="display:flex; justify-content:space-between;"><span>P-28 序列长度扫描</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#5F6B76;">已并入 P-30</span></div>
+          </div>
+          <div style="margin-top:10px; display:flex; gap:7px;">
+            <span style="background:#FFB020; color:#101418; border-radius:2px; padding:6px 13px; font-size:11.5px; font-weight:700;">签发 P-31</span>
+            <span style="border:1px solid #37424E; border-radius:2px; padding:6px 13px; font-size:11.5px; font-weight:700; color:#96A2AD;">驳回</span>
+          </div>
+          <div style="margin-top:9px; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#5F6B76;">代理起草 · 人签发 — 评分路径不含任何代理写入</div>
+        </div>
+
+        <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:13px 15px;">
+          <h3 style="margin:0 0 9px; font-size:12.5px; font-weight:700;">门禁 · 评分前置</h3>
+          <div style="display:flex; flex-direction:column; gap:6px; font-size:11.5px;">
+            <div style="display:flex; justify-content:space-between;"><span style="color:#96A2AD;">泄漏审计 8 项留痕</span><span style="color:#4CC38A; font-family:'IBM Plex Mono',ui-monospace,monospace;">✓ 8/8</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:#96A2AD;">分区隔离 · 电芯级</span><span style="color:#4CC38A; font-family:'IBM Plex Mono',ui-monospace,monospace;">✓</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:#96A2AD;">混淆变体 Δ 记忆化</span><span style="color:#4CC38A; font-family:'IBM Plex Mono',ui-monospace,monospace;">+0.4</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:#96A2AD;">回归门 · 版本升级</span><span style="color:#E0C05A; font-family:'IBM Plex Mono',ui-monospace,monospace;">… 待复核</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:#96A2AD;">奖励攻击审计</span><span style="color:#5F6B76; font-family:'IBM Plex Mono',ui-monospace,monospace;">定榜前</span></div>
+          </div>
+        </div>
+
+        <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:13px 15px;">
+          <h3 style="margin:0 0 9px; font-size:12.5px; font-weight:700;">证据包 EP-0027</h3>
+          <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; line-height:1.9; color:#96A2AD;">
+            sha256 <span style="color:#E6EAEE;">91c4…7aa0</span> · 42 文件<br>
+            平台签名 <span style="color:#4CC38A;">✓</span> · 审计员签名 <span style="color:#4CC38A;">✓</span><br>
+            RFC3161 <span style="color:#4CC38A;">✓</span> · 转录与谱系留存 <span style="color:#4CC38A;">✓</span>
+          </div>
+          <div style="margin-top:9px; padding-top:8px; border-top:1px solid #2A333D; font-size:10.5px; color:#5F6B76;">测评通过 ≠ 部署认证 — 代理构建工件恒带此声明。</div>
+        </div>
+
+        <div style="border:1px dashed #37424E; border-radius:3px; padding:11px 15px;">
+          <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#FF6369;">宣称区 · 未复现隔离</div>
+          <div style="font-size:11.5px; color:#96A2AD; margin-top:5px;">厂商 X · 宣称 MAE 0.061 · 邀约第 37/90 天</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

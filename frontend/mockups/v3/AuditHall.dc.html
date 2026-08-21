@@ -1,0 +1,271 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600;700&display=swap">
+  <style>
+    body { margin: 0; background: #F2F1EC; font-family: 'Noto Sans SC','PingFang SC','Microsoft YaHei','Segoe UI',sans-serif; }
+    a { color: #0B5B3B; } a:hover { color: #17211C; }
+  </style>
+</helmet>
+<div style="width:1440px; background:#F2F1EC; color:#17211C; font-size:13px; line-height:1.6; padding:26px 0 34px;">
+
+  <div style="display:grid; grid-template-columns:200px 880px minmax(0,1fr); gap:22px; padding:0 30px;">
+
+    <!-- ===== Left: lifecycle ribbon (8 stages, PCCP return) ===== -->
+    <div style="padding-top:8px;">
+      <div style="font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.16em; color:#6B7A72; margin-bottom:10px;">评测生命周期 · 8 阶段</div>
+      <div style="display:flex; flex-direction:column; gap:2px;">
+        <div style="border-left:3px solid #0B5B3B; padding:7px 10px; background:#FFFFFF;"><b style="font-size:11.5px;">01 任务契约</b><div style="font-size:10px; color:#6B7A72;">预注册 · 先于结果</div></div>
+        <div style="border-left:3px solid #0B5B3B; padding:7px 10px; background:#FFFFFF;"><b style="font-size:11.5px;">02 数据治理</b><div style="font-size:10px; color:#6B7A72;">数据说明书 · 标签溯源</div></div>
+        <div style="border-left:3px solid #0B5B3B; padding:7px 10px; background:#FFFFFF;"><b style="font-size:11.5px;">03 切分</b><div style="font-size:10px; color:#6B7A72;">时间×实体 · 禁运期</div></div>
+        <div style="border-left:3px solid #0B5B3B; padding:7px 10px; background:#FFFFFF;"><b style="font-size:11.5px;">04 泄漏审计</b><div style="font-size:10px; color:#6B7A72;">八类逐项 · 留痕</div></div>
+        <div style="border-left:3px solid #0B5B3B; padding:7px 10px; background:#FFFFFF;"><b style="font-size:11.5px;">05 评分</b><div style="font-size:10px; color:#6B7A72;">对基线 · 四性质</div></div>
+        <div style="border-left:3px solid #0B5B3B; padding:7px 10px; background:#FFFFFF;"><b style="font-size:11.5px;">06 压力与切片</b><div style="font-size:10px; color:#6B7A72;">留站 · 腐蚀 · 近 OOD</div></div>
+        <div style="border-left:3px solid #B4881F; padding:7px 10px; background:#FFF9EA;"><b style="font-size:11.5px;">07 统计</b><div style="font-size:10px; color:#8A6D1C;">进行中 · 段位裁定</div></div>
+        <div style="border-left:3px solid #C9CFC9; padding:7px 10px; background:#FFFFFF; color:#8B958D;"><b style="font-size:11.5px;">08 报告与签发</b><div style="font-size:10px;">证据包 · 双签</div></div>
+      </div>
+      <div style="margin-top:10px; border:1px dashed #B9C2BA; padding:8px 10px; font-size:10px; color:#6B7A72; line-height:1.7;">↺ PCCP 回路：再训练自动重入<b style="color:#17211C;">预注册验收电池</b>，通过方可晋级（promotion）。</div>
+      <div style="margin-top:14px; border-top:1px solid #C9CFC9; padding-top:10px; font-family:'JetBrains Mono',monospace; font-size:9.5px; color:#6B7A72; line-height:1.9;">
+        协议 SOH-PROTO v1.0<br>预注册 4be7…09d2<br>任务契约 = 数据版本<br>+ 切分 + 度量定义<br>（版本化 · 可引用）
+      </div>
+    </div>
+
+    <!-- ===== Center: the safety-case document ===== -->
+    <div style="background:#FFFFFF; border:1px solid #C9CFC9; box-shadow:0 0 0 4px #FFFFFF, 0 0 0 5px #C9CFC9; padding:34px 44px 30px;">
+
+      <!-- Masthead -->
+      <div style="text-align:center; border-bottom:3px double #17211C; padding-bottom:16px;">
+        <div style="font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.3em; color:#0B5B3B;">SOH EVIDENCE BENCH · V3 · 安全论证文档</div>
+        <div style="font-family:'Noto Serif SC',serif; font-size:27px; font-weight:900; margin-top:6px; letter-spacing:.04em;">SOH 评测安全论证 · 案例 EV-20260819-8C21A4</div>
+        <div style="font-size:12px; color:#5C6961; margin-top:6px;">主张—论证—证据 结构 · 界面即证据包正文 · 每一屏都是最终签发文档的一节</div>
+      </div>
+
+      <!-- 01 task contract -->
+      <div style="display:grid; grid-template-columns:64px minmax(0,1fr); gap:14px; padding:20px 0 16px; border-bottom:1px solid #E2E5E0;">
+        <div style="font-family:'Noto Serif SC',serif; font-size:24px; font-weight:900; color:#0B5B3B;">壹</div>
+        <div>
+          <b style="font-size:14.5px;">任务契约（预注册 · 冻结）</b>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 24px; margin-top:8px; font-size:12px;">
+            <div style="display:flex; justify-content:space-between; border-bottom:1px dotted #C9CFC9; padding:3px 0;"><span style="color:#5C6961;">目标量</span><span style="font-family:'JetBrains Mono',monospace;">SOH ∈ [0,1] · 连续回归</span></div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px dotted #C9CFC9; padding:3px 0;"><span style="color:#5C6961;">成本比 c(高估):c(低估)</span><span style="font-family:'JetBrains Mono',monospace;">5 : 1 · 非对称评分</span></div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px dotted #C9CFC9; padding:3px 0;"><span style="color:#5C6961;">统一口径</span><span style="font-family:'JetBrains Mono',monospace;">高估率 ≤ 5% @ |err|&gt;0.05</span></div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px dotted #C9CFC9; padding:3px 0;"><span style="color:#5C6961;">切分策略</span><span style="font-family:'JetBrains Mono',monospace;">时间×电芯实体 · 禁运≥1 周期</span></div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px dotted #C9CFC9; padding:3px 0;"><span style="color:#5C6961;">度量套件</span><span style="font-family:'JetBrains Mono',monospace;">MAE·MASE·SmoothECE·净效益</span></div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px dotted #C9CFC9; padding:3px 0;"><span style="color:#5C6961;">分区</span><span style="font-family:'JetBrains Mono',monospace;">dev/public/private/vault/前瞻</span></div>
+          </div>
+          <div style="margin-top:7px; font-size:10.5px; color:#8B958D;">高估（乐观方向）为危险方向 — 依非对称评分惯例（PHM08 迟报重罚同构）。标签构造（窗宽/步长）亦为契约冻结项。</div>
+        </div>
+      </div>
+
+      <!-- 02 claim-argument-evidence -->
+      <div style="display:grid; grid-template-columns:64px minmax(0,1fr); gap:14px; padding:18px 0 16px; border-bottom:1px solid #E2E5E0;">
+        <div style="font-family:'Noto Serif SC',serif; font-size:24px; font-weight:900; color:#0B5B3B;">贰</div>
+        <div>
+          <b style="font-size:14.5px;">主张与论证</b>
+          <div style="margin-top:8px; border:1px solid #0B5B3B; padding:12px 16px; background:#F4F8F5;">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.2em; color:#0B5B3B;">主张 CLAIM C-1</div>
+            <div style="font-size:14px; font-weight:700; margin-top:3px;">候选 mlp × partial_window 在跨数据集（LODO）私榜达段位 A，且满足高估率口径，可晋级前瞻期评审。</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
+            <div style="border:1px solid #E2E5E0; padding:10px 13px;">
+              <div style="font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.2em; color:#5C6961;">论证 ARGUMENT A-1.1</div>
+              <div style="font-size:12px; margin-top:4px;">技能分 78.4 ±2.1 显著优于 L1 经典 AutoML 基线（Δ=8.6 &gt; 噪声带 2.1 · Holm 校正后 p&lt;0.01）。</div>
+              <div style="margin-top:6px; font-family:'JetBrains Mono',monospace; font-size:10px; color:#0B5B3B;">证据 E-04 leaderboard.parquet · sha 22e1…9c04</div>
+            </div>
+            <div style="border:1px solid #E2E5E0; padding:10px 13px;">
+              <div style="font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.2em; color:#5C6961;">论证 ARGUMENT A-1.2</div>
+              <div style="font-size:12px; margin-top:4px;">校准达「中度」层级：斜率 0.97 · 截距 +0.01 · SmoothECE 0.041（禁用定箱 ECE）。可靠性图带置信带见右。</div>
+              <div style="margin-top:6px; font-family:'JetBrains Mono',monospace; font-size:10px; color:#0B5B3B;">证据 E-07 reliability.json · sha 8d02…44b7</div>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:14px; margin-top:10px; align-items:start;">
+            <div style="border:1px solid #E2E5E0; padding:10px 13px;">
+              <div style="font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.2em; color:#5C6961;">论证 ARGUMENT A-1.3 · 部署忠实</div>
+              <div style="font-size:12px; margin-top:4px;">TEST A（同电芯·后期周期）84.1 与 TEST B（新电芯·未来期）78.4 并排公示；<b>榜单主数即 TEST B（LODO=新电芯，部署忠实）</b>。近 OOD（新化学体系）Δ −6.2，标注低功效。</div>
+              <div style="margin-top:6px; font-family:'JetBrains Mono',monospace; font-size:10px; color:#0B5B3B;">证据 E-09 ood_slices.json · sha 5f7a…c2e8</div>
+              <div style="margin-top:8px; border-top:1px dotted #C9CFC9; padding-top:7px; font-size:11px; color:#5C6961;">遗留风险 R-2：LFP 外推样本不足 — 转入前瞻期采集计划（阶段 08 附录）。</div>
+            </div>
+            <div style="border:1px solid #E2E5E0; padding:10px 13px 6px;">
+              <div style="font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.2em; color:#5C6961;">图 E-07 · 可靠性图（置信带）</div>
+              <svg viewBox="0 0 300 150" role="img" aria-label="可靠性图：横轴预测 SOH 分位，纵轴观测频率；校准曲线贴近对角线，高分位段轻微高估，带置信带" style="width:100%; height:auto; display:block; margin-top:4px;">
+                <line x1="34" y1="10" x2="34" y2="122" stroke="#E2E5E0" stroke-width="1"/>
+                <line x1="34" y1="122" x2="286" y2="122" stroke="#E2E5E0" stroke-width="1"/>
+                <polygon points="34,118 96,90 158,63 220,38 286,13 286,23 220,48 158,73 96,100 34,126" fill="#0B5B3B" opacity="0.12"/>
+                <line x1="34" y1="122" x2="286" y2="10" stroke="#8B958D" stroke-width="1.6" stroke-dasharray="5 4"/>
+                <polyline points="34,122 96,96 158,69 220,44 286,18" fill="none" stroke="#0B5B3B" stroke-width="2"/>
+                <text x="38" y="18" font-size="9" fill="#5C6961">观测频率</text>
+                <text x="286" y="136" font-size="9" fill="#8B958D" text-anchor="end">预测 SOH 分位 · 虚线=理想 · 曲线略低=轻微高估</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 03 agent search ledger -->
+      <div style="display:grid; grid-template-columns:64px minmax(0,1fr); gap:14px; padding:18px 0 16px; border-bottom:1px solid #E2E5E0;">
+        <div style="font-family:'Noto Serif SC',serif; font-size:24px; font-weight:900; color:#0B5B3B;">叁</div>
+        <div>
+          <b style="font-size:14.5px;">代理搜索台账（代理起草 · 人签发）</b>
+          <div style="font-size:11px; color:#5C6961; margin-top:3px;">构建期智能，运行期工件 — 评分路径无代理写入；全程转录与谱系留存，按需审计。构建信封 12h×1GPU，超限作废。</div>
+          <table style="border-collapse:collapse; width:100%; font-size:12px; margin-top:9px;">
+            <tr style="font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.1em; color:#5C6961; text-align:left;">
+              <th style="padding:6px 8px; border-bottom:1.5px solid #17211C; font-weight:600;">台账</th>
+              <th style="padding:6px 8px; border-bottom:1.5px solid #17211C; font-weight:600;">提案 · 骨干×脚手架</th>
+              <th style="padding:6px 8px; border-bottom:1.5px solid #17211C; font-weight:600;">卫兵</th>
+              <th style="padding:6px 8px; border-bottom:1.5px solid #17211C; font-weight:600; text-align:right;">自评 dev</th>
+              <th style="padding:6px 8px; border-bottom:1.5px solid #17211C; font-weight:600;">裁定</th>
+            </tr>
+            <tr>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0; font-family:'JetBrains Mono',monospace; color:#5C6961;">L-031</td>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0;">P-31 局部窗重采样 <span style="color:#8B958D; font-size:10.5px;">fable-5×aide-v2 · A1</span></td>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#0B5B3B;">泄漏✓ 数据✓</td>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0; text-align:right; font-family:'JetBrains Mono',monospace;">MAE 0.093</td>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0;"><span style="border:1.5px solid #B4881F; color:#8A6D1C; font-size:10px; font-weight:700; padding:2px 8px; letter-spacing:.1em;">待签发</span></td>
+            </tr>
+            <tr>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0; font-family:'JetBrains Mono',monospace; color:#5C6961;">L-030</td>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0;">P-30 特征修剪 gbdt × degradation_kinetics</td>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#0B5B3B;">泄漏✓ 数据✓</td>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0; text-align:right; font-family:'JetBrains Mono',monospace;">MAE 0.099</td>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0;"><span style="border:1.5px solid #0B5B3B; color:#0B5B3B; font-size:10px; font-weight:700; padding:2px 8px; letter-spacing:.1em;">已签发 · 运行</span></td>
+            </tr>
+            <tr>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0; font-family:'JetBrains Mono',monospace; color:#5C6961;">L-029</td>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0;">P-29 transformer × ic_dva <span style="color:#8B958D; font-size:10.5px;">fable-5×aide-v2 · A1</span></td>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#0B5B3B;">泄漏✓ 数据✓</td>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0; text-align:right; font-family:'JetBrains Mono',monospace;">MAE 0.089</td>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0;"><span style="border:1.5px solid #B23A2E; color:#B23A2E; font-size:10px; font-weight:700; padding:2px 8px; letter-spacing:.1em;">已上榜 · 复核中</span></td>
+            </tr>
+            <tr>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0; font-family:'JetBrains Mono',monospace; color:#5C6961;">L-028</td>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0;">P-28 序列长度扫描 <span style="color:#8B958D; font-size:10.5px;">并入 P-30</span></td>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#0B5B3B;">泄漏✓</td>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0; text-align:right; font-family:'JetBrains Mono',monospace;">—</td>
+              <td style="padding:7px 8px; border-bottom:1px solid #E2E5E0;"><span style="border:1.5px solid #C9CFC9; color:#8B958D; font-size:10px; font-weight:700; padding:2px 8px; letter-spacing:.1em;">归档</span></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- 04 statistics & bands -->
+      <div style="display:grid; grid-template-columns:64px minmax(0,1fr); gap:14px; padding:18px 0 16px; border-bottom:1px solid #E2E5E0;">
+        <div style="font-family:'Noto Serif SC',serif; font-size:24px; font-weight:900; color:#0B5B3B;">肆</div>
+        <div>
+          <b style="font-size:14.5px;">统计与段位裁定</b>
+          <table style="border-collapse:collapse; width:100%; font-size:12px; margin-top:9px;">
+            <tr style="font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.1em; color:#5C6961; text-align:left;">
+              <th style="padding:6px 8px; border-bottom:1.5px solid #17211C; font-weight:600;">段位</th>
+              <th style="padding:6px 8px; border-bottom:1.5px solid #17211C; font-weight:600;">组合</th>
+              <th style="padding:6px 8px; border-bottom:1.5px solid #17211C; font-weight:600; text-align:right;">技能分 · 95%CI</th>
+              <th style="padding:6px 8px; border-bottom:1.5px solid #17211C; font-weight:600; text-align:right;">自评→私榜</th>
+              <th style="padding:6px 8px; border-bottom:1.5px solid #17211C; font-weight:600; text-align:right;">高估率</th>
+            </tr>
+            <tr style="background:#F4F8F5;">
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0; font-family:'JetBrains Mono',monospace; font-weight:700; color:#0B5B3B;">A1</td>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0;"><b>mlp × partial_window</b></td>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0; text-align:right; font-family:'JetBrains Mono',monospace; font-weight:700;">78.4 ±2.1</td>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0; text-align:right; font-family:'JetBrains Mono',monospace; color:#0B5B3B;">−0.6</td>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0; text-align:right; font-family:'JetBrains Mono',monospace;">3.1%</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0; font-family:'JetBrains Mono',monospace; font-weight:700; color:#0B5B3B;">A1 <span style="color:#B23A2E;">⚠</span></td>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0;">P-29 transformer × ic_dva <span style="color:#8B958D; font-size:10.5px;">代理构建 · 复核中</span></td>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0; text-align:right; font-family:'JetBrains Mono',monospace;">76.8 ±3.0</td>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0; text-align:right; font-family:'JetBrains Mono',monospace; color:#B23A2E; font-weight:700;">−4.2 ⚠</td>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0; text-align:right; font-family:'JetBrains Mono',monospace;">4.4%</td>
+            </tr>
+            <tr style="color:#5C6961;">
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0; font-family:'JetBrains Mono',monospace;">L1</td>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0;">经典 AutoML 基线（常驻·非竞争）</td>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0; text-align:right; font-family:'JetBrains Mono',monospace;">69.8 ±1.4</td>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0; text-align:right; font-family:'JetBrains Mono',monospace;">−1.1</td>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0; text-align:right; font-family:'JetBrains Mono',monospace;">3.8%</td>
+            </tr>
+            <tr style="color:#5C6961;">
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0; font-family:'JetBrains Mono',monospace;">L0</td>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0;">在役基线 ridge × full（技能分锚点 = 0）</td>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0; text-align:right; font-family:'JetBrains Mono',monospace;">0.0</td>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0; text-align:right; font-family:'JetBrains Mono',monospace;">—</td>
+              <td style="padding:6px 8px; border-bottom:1px solid #E2E5E0; text-align:right; font-family:'JetBrains Mono',monospace; color:#B23A2E;">8.9% ⚠</td>
+            </tr>
+            <tr style="color:#8B958D; font-style:italic;">
+              <td style="padding:6px 8px; font-family:'JetBrains Mono',monospace;">⌀</td>
+              <td style="padding:6px 8px;">金丝雀 · 随机预测器（非竞争 · 哨兵）</td>
+              <td style="padding:6px 8px; text-align:right; font-family:'JetBrains Mono',monospace;">−41.2 ±0.4</td>
+              <td style="padding:6px 8px; text-align:right; font-family:'JetBrains Mono',monospace;">+0.1</td>
+              <td style="padding:6px 8px; text-align:right; font-family:'JetBrains Mono',monospace;">—</td>
+            </tr>
+          </table>
+          <div style="margin-top:8px; font-size:11px; color:#5C6961; line-height:1.8;">程序（预注册）：5 种子平台复跑 · 按电芯聚类 bootstrap ×10,000 · Holm 校正 · 段位=噪声带 ±2.1 贪心分组，<b style="color:#17211C;">段位内先后不构成排序主张</b>。功效声明：本期样本可分辨最小差 1.8；A1 组内 mlp 与 P-29 <b style="color:#17211C;">统计不可分</b>（ROPE 实用等价概率 0.71），页面如实陈述而非强行排序。</div>
+        </div>
+      </div>
+
+      <!-- 05 issuance -->
+      <div style="display:grid; grid-template-columns:64px minmax(0,1fr); gap:14px; padding:18px 0 4px;">
+        <div style="font-family:'Noto Serif SC',serif; font-size:24px; font-weight:900; color:#0B5B3B;">伍</div>
+        <div style="display:grid; grid-template-columns:minmax(0,1fr) 210px; gap:16px; align-items:start;">
+          <div>
+            <b style="font-size:14.5px;">证据包与签发</b>
+            <div style="margin-top:8px; font-family:'JetBrains Mono',monospace; font-size:11px; line-height:2; color:#3C4A42;">
+              EvidencePack EP-0027 · sha256 91c4…7aa0 · 42 文件<br>
+              manifest ✓ · 协议快照 ✓ · 逐样本判定 ✓ · 全套曲线 ✓ · 种子明细 ✓ · 代理转录 ✓<br>
+              平台签名 ✓ 2026-08-19 · 审计员签名 ✓ 2026-08-19 · RFC3161 ✓
+            </div>
+            <div style="margin-top:8px; display:flex; gap:8px;">
+              <span style="background:#17211C; color:#FFFFFF; padding:6px 16px; font-size:11.5px; font-weight:700; letter-spacing:.08em;">sohbench verify · 离线复核</span>
+              <span style="border:1px solid #C9CFC9; padding:6px 16px; font-size:11.5px; font-weight:700; color:#3C4A42;">导出 PDF</span>
+            </div>
+            <div style="margin-top:10px; border-top:3px double #17211C; padding-top:8px; font-size:10.5px; color:#8B958D;">本文档为测评证据，<b style="color:#B23A2E;">测评通过 ≠ 部署认证</b>；再训练依 PCCP 重入预注册验收电池，越退化阈即拦截。勘误永久留存，受影响成绩自动重算并标注。</div>
+          </div>
+          <div style="text-align:center; padding-top:6px;">
+            <svg viewBox="0 0 150 150" role="img" aria-label="签发印章：SOH 证据台 · 已签发" style="width:150px; height:150px; opacity:.92; transform:rotate(-7deg);">
+              <circle cx="75" cy="75" r="70" fill="none" stroke="#B23A2E" stroke-width="4"/>
+              <circle cx="75" cy="75" r="52" fill="none" stroke="#B23A2E" stroke-width="1.5"/>
+              <path id="sealArc" d="M 75 20 A 55 55 0 1 1 74.9 20" fill="none"/>
+              <text font-size="13" fill="#B23A2E" font-weight="700" letter-spacing="4"><textPath href="#sealArc" xlink:href="#sealArc" startOffset="6%">SOH EVIDENCE BENCH · 证 据 签 发</textPath></text>
+              <text x="75" y="70" text-anchor="middle" font-size="20" fill="#B23A2E" font-weight="900" font-family="'Noto Serif SC',serif">已签发</text>
+              <text x="75" y="92" text-anchor="middle" font-size="10" fill="#B23A2E" font-family="'JetBrains Mono',monospace">EP-0027 · 双签</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Right: margin annotations ===== -->
+    <div style="padding-top:8px; display:flex; flex-direction:column; gap:12px;">
+      <div style="font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.16em; color:#6B7A72;">批注 · 审计边栏</div>
+      <div style="background:#FFF9EA; border:1px solid #E4D6A8; padding:10px 12px; font-size:11.5px; line-height:1.7;">
+        <b style="font-size:11px; color:#8A6D1C;">审计员 · 阶段 07</b><br>
+        P-29 泛化差距 −4.2 超复核阈（|Δ|&gt;3.0，预注册）：验证过拟合嫌疑（选择差距）。建议 top-k 提交替代 argmax；复核未决期间段位加注 ⚠，维持或调整以复核结论为准。
+        <div style="margin-top:5px; font-family:'JetBrains Mono',monospace; font-size:9.5px; color:#8A6D1C;">ISSUE-114 · 打开</div>
+      </div>
+      <div style="background:#FFFFFF; border:1px solid #C9CFC9; padding:10px 12px; font-size:11.5px; line-height:1.7;">
+        <b style="font-size:11px; color:#0B5B3B;">代理备注 · L-031</b><br>
+        消融定位：仅 IC 采样块贡献显著；其余代码块未触碰。混淆变体 Δ +0.4，记忆化嫌疑低。
+        <div style="margin-top:5px; font-family:'JetBrains Mono',monospace; font-size:9.5px; color:#6B7A72;">转录 T-8841 · 留存</div>
+      </div>
+      <div style="background:#FFFFFF; border:1px dashed #C9CFC9; padding:10px 12px; font-size:11.5px; line-height:1.7; color:#5C6961;">
+        <b style="font-size:11px; color:#B23A2E;">宣称区（未复现隔离）</b><br>
+        厂商 X 宣称 MAE 0.061 — 列为 vendor claim，待平台协议复现；邀约第 37/90 天。
+      </div>
+      <div style="background:#FFFFFF; border:1px solid #C9CFC9; padding:10px 12px; font-size:10.5px; line-height:1.8; color:#5C6961;">
+        <b style="font-size:11px; color:#17211C;">本页四性质覆盖</b><br>
+        排序 → 贰 A-1.1<br>概率 → 贰 A-1.2<br>决策效用 → 壹 口径 + 伍<br>时间行为 → 贰 A-1.3
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

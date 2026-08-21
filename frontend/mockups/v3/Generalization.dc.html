@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; background: #101418; font-family: -apple-system,'PingFang SC','Segoe UI','Microsoft YaHei','Noto Sans SC',sans-serif; }
+    a { color: #7FB3F2; } a:hover { color: #A8C7FB; }
+  </style>
+</helmet>
+<div style="width:1440px; background:#101418; color:#E6EAEE; font-size:13.5px; line-height:1.55;">
+  <div style="display:flex; align-items:center; gap:16px; padding:10px 22px; border-bottom:1px solid #2A333D;">
+    <div style="display:flex; align-items:center; gap:8px;"><span style="width:9px; height:9px; background:#FFB020; box-shadow:0 0 8px rgba(255,176,32,.55); display:inline-block;"></span><b style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:12px; letter-spacing:.08em;">SOHBENCH · EVAL CONSOLE</b></div>
+    <div style="display:flex; gap:2px; font-size:12px; color:#96A2AD;">
+      <span style="padding:5px 10px;">可信总览</span>
+      <span style="padding:5px 10px;">实验设计</span>
+      <span style="padding:5px 10px;">代理编排</span>
+      <span style="padding:5px 10px;">运行中心</span>
+      <span style="padding:5px 10px;">比较实验室</span>
+      <span style="padding:5px 10px; background:#1E262E; border:1px solid #37424E; border-radius:2px; color:#FFC24E; font-weight:600;">跨域泛化</span>
+      <span style="padding:5px 10px;">失败分析</span>
+      <span style="padding:5px 10px;">数据与协议</span>
+      <span style="padding:5px 10px;">模型与推理</span>
+      <span style="padding:5px 10px;">证据中心</span>
+    </div>
+    <div style="margin-left:auto; display:flex; gap:14px; align-items:center; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px;"><span style="color:#4CC38A;">● EVAL-RUNNER 在线</span><span style="color:#96A2AD;">23:57:58</span></div>
+  </div>
+  <div style="display:flex; gap:20px; padding:7px 22px; border-bottom:1px solid #2A333D; background:#171C21; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; color:#96A2AD;">
+    <span>TEST A 同电芯·后期 / TEST B 新电芯·未来 并排公示</span><span>近 OOD 优先于远 OOD</span><span style="margin-left:auto;">案例 EV-20260819-8C21A4</span>
+  </div>
+
+  <div style="max-width:1500px; padding:16px 22px 22px; display:flex; flex-direction:column; gap:14px;">
+    <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:10px;">
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:12px 16px 10px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#5F6B76;">TEST A · 同电芯后期</div>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:26px; font-weight:600; margin-top:3px;">84.1</div>
+        <div style="font-size:10.5px; color:#96A2AD; margin-top:1px;">重现性口径</div>
+      </div>
+      <div style="background:#171C21; border:1px solid rgba(255,176,32,.4); border-radius:3px; padding:12px 16px 10px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#5F6B76;">TEST B · 新电芯未来</div>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:26px; font-weight:600; margin-top:3px; color:#FFC24E;">78.4</div>
+        <div style="font-size:10.5px; color:#96A2AD; margin-top:1px;">部署忠实 · 榜单主数</div>
+      </div>
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:12px 16px 10px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#5F6B76;">近 OOD Δ · 留出化学</div>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:26px; font-weight:600; margin-top:3px;">−6.2</div>
+        <div style="font-size:10.5px; color:#E0C05A; margin-top:1px;">低功效 · 事件数不足</div>
+      </div>
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:12px 16px 10px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#5F6B76;">化学体系折</div>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:26px; font-weight:600; margin-top:3px;">3</div>
+        <div style="font-size:10.5px; color:#E0C05A; margin-top:1px;">2 折混杂标记</div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:minmax(0,1fr) 332px; gap:14px; align-items:start;">
+      <div style="display:flex; flex-direction:column; gap:14px; min-width:0;">
+        <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px;">
+          <div style="display:flex; align-items:center; gap:10px; padding:11px 15px; border-bottom:1px solid #37424E;">
+            <b style="font-size:13px;">LODO 矩阵 · 留出数据集 × 候选（技能分）</b>
+            <span style="margin-left:auto; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#5F6B76;">单元格 = 该数据集作 held-out 时的技能分</span>
+          </div>
+          <div style="overflow-x:auto;">
+            <table style="border-collapse:collapse; width:100%; min-width:900px; font-size:12px;">
+              <tr style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.1em; color:#5F6B76; text-align:left;">
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600;">HELD-OUT</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600;">化学</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600; text-align:right;">mlp × pw</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600; text-align:right;">P-29 tfm × ic_dva</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600; text-align:right;">gbdt × ic_dva</th>
+                <th style="padding:8px 12px; border-bottom:1px solid #37424E; font-weight:600;">功效</th>
+              </tr>
+              <tr><td style="padding:7px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace;">nasa</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; color:#96A2AD;">LCO</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.18);">81.9</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.10);">78.0</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.12);">77.4</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; font-size:10.5px; color:#4CC38A;">✓</td></tr>
+              <tr><td style="padding:7px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace;">calce_cs2</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; color:#96A2AD;">LCO</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.16);">80.3</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.15);">79.8</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.09);">75.9</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; font-size:10.5px; color:#4CC38A;">✓</td></tr>
+              <tr><td style="padding:7px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace;">hust</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; color:#96A2AD;">LFP</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.13);">79.0</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.11);">77.5</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.07);">71.0</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; font-size:10.5px; color:#4CC38A;">✓</td></tr>
+              <tr><td style="padding:7px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace;">oxford</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; color:#96A2AD;">LCO/NCO</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.08);">74.6</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.05);">71.8</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.06);">71.3</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; font-size:10.5px; color:#E0C05A;">低</td></tr>
+              <tr><td style="padding:7px 12px; border-bottom:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace;">snl_lfp</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; color:#96A2AD;">LFP</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.12);">77.2</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.14);">78.7</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.10);">74.5</td><td style="padding:7px 12px; border-bottom:1px solid #2A333D; font-size:10.5px; color:#4CC38A;">✓</td></tr>
+              <tr><td style="padding:7px 12px; font-family:'IBM Plex Mono',ui-monospace,monospace;">uconn</td><td style="padding:7px 12px; color:#96A2AD;">LFP</td><td style="padding:7px 12px; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.11);">77.4</td><td style="padding:7px 12px; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.09);">75.0</td><td style="padding:7px 12px; text-align:right; font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(201,133,0,.08);">74.5</td><td style="padding:7px 12px; font-size:10.5px; color:#4CC38A;">✓</td></tr>
+            </table>
+          </div>
+          <div style="padding:9px 15px; border-top:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; color:#5F6B76;">色深 = 技能分（单色琥珀标度）· oxford 折事件数不足 → 「低功效」标注，不参与显著性主张</div>
+        </div>
+
+        <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px;">
+          <div style="display:flex; align-items:center; gap:10px; padding:11px 15px; border-bottom:1px solid #37424E;">
+            <b style="font-size:13px;">化学体系外推 · chemistry-out 折</b>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; padding:12px 15px;">
+            <div style="background:#1E262E; border:1px solid #37424E; border-radius:2px; padding:10px 12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;"><b style="font-size:12px;">留出 LFP</b><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#4CC38A;">3 数据集 ✓</span></div>
+              <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:20px; font-weight:600; margin-top:4px;">−6.2</div>
+              <div style="font-size:10.5px; color:#96A2AD;">hust · snl_lfp · uconn 轮换</div>
+            </div>
+            <div style="background:#1E262E; border:1px solid rgba(224,192,90,.5); border-radius:2px; padding:10px 12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;"><b style="font-size:12px;">留出 LCO</b><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#E0C05A;">混杂 ⚠</span></div>
+              <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:20px; font-weight:600; margin-top:4px; color:#96A2AD;">−9.8*</div>
+              <div style="font-size:10.5px; color:#E0C05A;">跨 2 数据集但同实验室 — 实验室/化学混杂</div>
+            </div>
+            <div style="background:#1E262E; border:1px solid rgba(224,192,90,.5); border-radius:2px; padding:10px 12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;"><b style="font-size:12px;">留出 LCO/NCO</b><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#E0C05A;">混杂 ⚠</span></div>
+              <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:20px; font-weight:600; margin-top:4px; color:#96A2AD;">−11.4*</div>
+              <div style="font-size:10.5px; color:#E0C05A;">仅 1 数据集（oxford）— 折已标记不作主张</div>
+            </div>
+          </div>
+          <div style="padding:9px 15px; border-top:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; color:#5F6B76;">* 混杂折的 Δ 仅作观察记录 — 与运行器 chemistry-out 告警一致：held-out 化学体系跨数据集不足时自动标记</div>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:13px 15px;">
+          <h3 style="margin:0 0 9px; font-size:12.5px; font-weight:700;">漂移分型（本期观察）</h3>
+          <div style="display:flex; flex-direction:column; gap:6px; font-size:11.5px;">
+            <div style="display:flex; justify-content:space-between;"><span style="color:#96A2AD;">协变量漂移 · 新化学/新工况</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#E0C05A;">主要来源</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:#96A2AD;">先验漂移 · 老化率分布</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#96A2AD;">轻微</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:#96A2AD;">概念漂移 · 标定协议变化</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#4CC38A;">未检出</span></div>
+          </div>
+        </div>
+        <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:13px 15px;">
+          <h3 style="margin:0 0 9px; font-size:12.5px; font-weight:700;">切片校准 · 斜率</h3>
+          <div style="display:flex; flex-direction:column; gap:6px; font-size:11.5px; color:#96A2AD;">
+            <div style="display:flex; justify-content:space-between;"><span>LFP 切片</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#E6EAEE;">0.98</span></div>
+            <div style="display:flex; justify-content:space-between;"><span>LCO 切片</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#E6EAEE;">0.95</span></div>
+            <div style="display:flex; justify-content:space-between;"><span>高循环段（&gt;800 cyc）</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#E0C05A;">0.89 ⚠</span></div>
+          </div>
+          <div style="margin-top:8px; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#5F6B76;">子群校准差异 → 失败分析页问题单</div>
+        </div>
+        <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:13px 15px;">
+          <h3 style="margin:0 0 9px; font-size:12.5px; font-weight:700;">前瞻期</h3>
+          <div style="font-size:11.5px; color:#96A2AD; line-height:1.7;">冻结日 T−14d 封存容器；对冻结后新采集周期评分。前瞻成绩为年度旗舰排名唯一依据。</div>
+          <div style="margin-top:8px; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#FFC24E;">LFP 外推样本采集计划已挂账 R-2</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

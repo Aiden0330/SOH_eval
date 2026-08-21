@@ -1,0 +1,130 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; background: #101418; font-family: -apple-system,'PingFang SC','Segoe UI','Microsoft YaHei','Noto Sans SC',sans-serif; }
+    a { color: #7FB3F2; } a:hover { color: #A8C7FB; }
+  </style>
+</helmet>
+<div style="width:1440px; background:#101418; color:#E6EAEE; font-size:13.5px; line-height:1.55;">
+  <div style="display:flex; align-items:center; gap:16px; padding:10px 22px; border-bottom:1px solid #2A333D;">
+    <div style="display:flex; align-items:center; gap:8px;"><span style="width:9px; height:9px; background:#FFB020; box-shadow:0 0 8px rgba(255,176,32,.55); display:inline-block;"></span><b style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:12px; letter-spacing:.08em;">SOHBENCH · EVAL CONSOLE</b></div>
+    <div style="display:flex; gap:2px; font-size:12px; color:#96A2AD;">
+      <span style="padding:5px 10px;">可信总览</span>
+      <span style="padding:5px 10px;">实验设计</span>
+      <span style="padding:5px 10px;">代理编排</span>
+      <span style="padding:5px 10px;">运行中心</span>
+      <span style="padding:5px 10px; background:#1E262E; border:1px solid #37424E; border-radius:2px; color:#FFC24E; font-weight:600;">比较实验室</span>
+      <span style="padding:5px 10px;">跨域泛化</span>
+      <span style="padding:5px 10px;">失败分析</span>
+      <span style="padding:5px 10px;">数据与协议</span>
+      <span style="padding:5px 10px;">模型与推理</span>
+      <span style="padding:5px 10px;">证据中心</span>
+    </div>
+    <div style="margin-left:auto; display:flex; gap:14px; align-items:center; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px;"><span style="color:#4CC38A;">● EVAL-RUNNER 在线</span><span style="color:#96A2AD;">23:56:45</span></div>
+  </div>
+  <div style="display:flex; gap:20px; padding:7px 22px; border-bottom:1px solid #2A333D; background:#171C21; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; color:#96A2AD;">
+    <span>比较仅在同口径运行点有效</span><span>配对检验 · Holm 校正 · 预注册程序</span><span style="margin-left:auto;">案例 EV-20260819-8C21A4</span>
+  </div>
+
+  <div style="max-width:1500px; padding:16px 22px 22px; display:flex; flex-direction:column; gap:14px;">
+    <div style="display:flex; gap:10px; align-items:center;">
+      <span style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; color:#5F6B76;">对比对象</span>
+      <span style="background:#242E38; border:1px solid #C98500; color:#FFC24E; border-radius:2px; padding:5px 12px; font-size:12px; font-weight:600;">A · mlp × partial_window</span>
+      <span style="color:#5F6B76;">vs</span>
+      <span style="background:#242E38; border:1px solid #3987E5; color:#7FB3F2; border-radius:2px; padding:5px 12px; font-size:12px; font-weight:600;">B · P-29 transformer × ic_dva（代理构建）</span>
+      <span style="margin-left:auto; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; color:#5F6B76;">同一 LODO 私榜 · 同一口径 · 同一种子集</span>
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px;">
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:12px 16px 10px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#5F6B76;">Δ 技能分（A − B）</div>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:26px; font-weight:600; margin-top:3px;">+1.6 <span style="font-size:10.5px; color:#5F6B76; font-weight:400;">95%CI [−0.9, +4.1]</span></div>
+        <div style="font-size:10.5px; color:#E0C05A; margin-top:1px;">跨零 — 统计不可分</div>
+      </div>
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:12px 16px 10px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#5F6B76;">ROPE 实用等价概率</div>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:26px; font-weight:600; margin-top:3px;">0.62</div>
+        <div style="font-size:10.5px; color:#96A2AD; margin-top:1px;">等价域 ±2.0 · A 胜概率 0.38</div>
+      </div>
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:12px 16px 10px;">
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.14em; color:#5F6B76;">口径匹配</div>
+        <div style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:26px; font-weight:600; margin-top:3px; color:#4CC38A;">✓</div>
+        <div style="font-size:10.5px; color:#96A2AD; margin-top:1px;">两者均于 高估率≤5% 运行点取数</div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:minmax(0,1fr) 332px; gap:14px; align-items:start;">
+      <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; min-width:0;">
+        <div style="display:flex; align-items:center; gap:10px; padding:11px 15px; border-bottom:1px solid #37424E;">
+          <b style="font-size:13px;">逐数据集配对比较 · 留出集 MAE</b>
+          <span style="margin-left:auto; display:flex; gap:14px; align-items:center; font-size:10.5px; color:#96A2AD;"><span><svg width="18" height="6" aria-hidden="true"><rect width="18" height="6" fill="#C98500"/></svg> A mlp×pw</span><span><svg width="18" height="6" aria-hidden="true"><rect width="18" height="6" fill="#3987E5"/></svg> B P-29</span></span>
+        </div>
+        <div style="padding:12px 15px;">
+          <svg viewBox="0 0 980 300" role="img" aria-label="六个留出数据集上 A 与 B 的 MAE 配对柱状图，A 为琥珀，B 为蓝色" style="width:100%; height:auto; display:block;">
+            <line x1="70" y1="20" x2="70" y2="256" stroke="#37424E" stroke-width="1"/>
+            <line x1="70" y1="256" x2="960" y2="256" stroke="#37424E" stroke-width="1"/>
+            <line x1="70" y1="196" x2="960" y2="196" stroke="#242E38" stroke-width="1"/>
+            <line x1="70" y1="136" x2="960" y2="136" stroke="#242E38" stroke-width="1"/>
+            <line x1="70" y1="76" x2="960" y2="76" stroke="#242E38" stroke-width="1"/>
+            <text x="62" y="260" font-size="10" fill="#5F6B76" text-anchor="end" font-family="IBM Plex Mono,monospace">0</text>
+            <text x="62" y="200" font-size="10" fill="#5F6B76" text-anchor="end" font-family="IBM Plex Mono,monospace">.05</text>
+            <text x="62" y="140" font-size="10" fill="#5F6B76" text-anchor="end" font-family="IBM Plex Mono,monospace">.10</text>
+            <text x="62" y="80" font-size="10" fill="#5F6B76" text-anchor="end" font-family="IBM Plex Mono,monospace">.15</text>
+            <rect x="100" y="146" width="34" height="110" fill="#C98500" rx="2"/><rect x="140" y="132" width="34" height="124" fill="#3987E5" rx="2"/>
+            <text x="137" y="274" font-size="11" fill="#96A2AD" text-anchor="middle">nasa</text>
+            <text x="117" y="140" font-size="9.5" fill="#E6EAEE" text-anchor="middle" font-family="IBM Plex Mono,monospace">.092</text>
+            <rect x="240" y="158" width="34" height="98" fill="#C98500" rx="2"/><rect x="280" y="151" width="34" height="105" fill="#3987E5" rx="2"/>
+            <text x="277" y="274" font-size="11" fill="#96A2AD" text-anchor="middle">calce_cs2</text>
+            <rect x="380" y="122" width="34" height="134" fill="#C98500" rx="2"/><rect x="420" y="112" width="34" height="144" fill="#3987E5" rx="2"/>
+            <text x="417" y="274" font-size="11" fill="#96A2AD" text-anchor="middle">hust</text>
+            <rect x="520" y="160" width="34" height="96" fill="#C98500" rx="2"/><rect x="560" y="150" width="34" height="106" fill="#3987E5" rx="2"/>
+            <text x="557" y="274" font-size="11" fill="#96A2AD" text-anchor="middle">oxford</text>
+            <rect x="660" y="139" width="34" height="117" fill="#C98500" rx="2"/><rect x="700" y="146" width="34" height="110" fill="#3987E5" rx="2"/>
+            <text x="697" y="274" font-size="11" fill="#96A2AD" text-anchor="middle">snl_lfp</text>
+            <rect x="800" y="130" width="34" height="126" fill="#C98500" rx="2"/><rect x="840" y="122" width="34" height="134" fill="#3987E5" rx="2"/>
+            <text x="837" y="274" font-size="11" fill="#96A2AD" text-anchor="middle">uconn</text>
+            <text x="960" y="290" font-size="10" fill="#5F6B76" text-anchor="end" font-family="IBM Plex Mono,monospace">MAE ↓ 越低越好 · 值标注仅首组，悬停出全部</text>
+          </svg>
+        </div>
+        <div style="padding:9px 15px; border-top:1px solid #2A333D; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; color:#5F6B76;">A 胜 5 / B 胜 1（与跨域页 LODO 矩阵逐折一致）· 按电芯聚类配对 bootstrap · Holm 校正后无显著单集差异 · 本期功效声明见总览</div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:13px 15px;">
+          <h3 style="margin:0 0 9px; font-size:12.5px; font-weight:700;">结论卡（如实陈述）</h3>
+          <div style="font-size:12px; color:#E6EAEE; line-height:1.7;">A 与 B 在本期私榜<b style="color:#FFC24E;">统计不可分</b>（同段位 A1）。B 携带泛化差距复核 ⚠。建议：两者同入前瞻期；复核未决前不作先后主张。</div>
+          <div style="margin-top:9px; display:flex; gap:7px;">
+            <span style="background:#FFB020; color:#101418; border-radius:2px; padding:6px 13px; font-size:11.5px; font-weight:700;">同入前瞻期</span>
+            <span style="border:1px solid #37424E; border-radius:2px; padding:6px 13px; font-size:11.5px; font-weight:700; color:#96A2AD;">写入证据包</span>
+          </div>
+        </div>
+        <div style="background:#171C21; border:1px solid #2A333D; border-radius:3px; padding:13px 15px;">
+          <h3 style="margin:0 0 9px; font-size:12.5px; font-weight:700;">检验程序（预注册）</h3>
+          <div style="display:flex; flex-direction:column; gap:6px; font-size:11.5px; color:#96A2AD;">
+            <div style="display:flex; justify-content:space-between;"><span>配对单位</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#E6EAEE;">held-out 数据集 × 种子</span></div>
+            <div style="display:flex; justify-content:space-between;"><span>重采样</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#E6EAEE;">电芯聚类 ×10,000</span></div>
+            <div style="display:flex; justify-content:space-between;"><span>多重比较</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#E6EAEE;">Holm</span></div>
+            <div style="display:flex; justify-content:space-between;"><span>等价域 ROPE</span><span style="font-family:'IBM Plex Mono',ui-monospace,monospace; color:#E6EAEE;">±2.0 技能分</span></div>
+          </div>
+        </div>
+        <div style="border:1px dashed #37424E; border-radius:3px; padding:11px 15px; font-size:11px; color:#5F6B76;">页面不提供「挑好看的单点」视图 — 全阈值扫描曲线随证据包分发。</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
