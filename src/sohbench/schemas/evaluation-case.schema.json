@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sohbench.local/schemas/evaluation-case.schema.json",
+  "title": "SOH Evaluation Case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "title",
+    "profile_name",
+    "idempotency_key",
+    "source_class",
+    "lifecycle_state",
+    "version",
+    "created_at",
+    "updated_at",
+    "execution",
+    "candidates",
+    "saved_combinations",
+    "active_saved_combination_id",
+    "evidence_selection",
+    "evidence_coverage",
+    "verdict",
+    "review",
+    "context_binding"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.3.0"},
+    "id": {"type": "string", "pattern": "^EV-[A-Za-z0-9][A-Za-z0-9_-]{2,63}$"},
+    "title": {"type": "string", "minLength": 1, "maxLength": 200},
+    "profile_name": {"type": "string", "minLength": 1, "maxLength": 128},
+    "idempotency_key": {"type": "string", "minLength": 1, "maxLength": 240},
+    "source_class": {"enum": ["measured", "simulated", "demo"]},
+    "lifecycle_state": {"enum": ["draft", "active", "completed", "failed", "archived"]},
+    "version": {"type": "integer", "minimum": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "execution": {"$ref": "#/$defs/execution"},
+    "candidates": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {"$ref": "#/$defs/candidate"}
+    },
+    "saved_combinations": {
+      "type": "array",
+      "maxItems": 512,
+      "items": {"$ref": "#/$defs/savedCombination"}
+    },
+    "active_saved_combination_id": {"type": "string", "maxLength": 160},
+    "evidence_selection": {"$ref": "#/$defs/evidenceSelection"},
+    "evidence_coverage": {"$ref": "#/$defs/evidenceCoverage"},
+    "verdict": {"$ref": "#/$defs/verdict"},
+    "review": {"$ref": "#/$defs/review"},
+    "context_binding": {"$ref": "#/$defs/contextBinding"}
+  },
+  "$defs": {
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "training_job_id", "inference_job_id", "run_id", "failure_reason"],
+      "properties": {
+        "state": {"enum": ["idle", "queued", "running", "completed", "failed"]},
+        "training_job_id": {"type": "string", "maxLength": 500},
+        "inference_job_id": {"type": "string", "maxLength": 500},
+        "run_id": {"type": "string", "maxLength": 500},
+        "failure_reason": {"type": "string", "maxLength": 500}
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "model", "featureset", "role", "model_artifact_id", "run_id"],
+      "properties": {
+        "candidate_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,127}$"},
+        "model": {"type": "string", "minLength": 1, "maxLength": 160},
+        "featureset": {"type": "string", "minLength": 1, "maxLength": 160},
+        "role": {"enum": ["candidate", "champion", "baseline"]},
+        "model_artifact_id": {"type": "string", "maxLength": 200},
+        "run_id": {"type": "string", "maxLength": 200}
+      }
+    },
+    "savedCombination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "saved_combination_id", "source_stage", "validation_kind", "label",
+        "candidate", "training_job_id", "inference_job_id", "run_id",
+        "training_datasets", "target_dataset", "dataset_snapshot_id", "protocol",
+        "criterion_set_version", "metrics", "verdict_result", "saved_at"
+      ],
+      "properties": {
+        "saved_combination_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,159}$"},
+        "source_stage": {"enum": ["training", "inference"]},
+        "validation_kind": {"enum": ["training_internal", "replay", "cross_dataset"]},
+        "label": {"type": "string", "minLength": 1, "maxLength": 240},
+        "candidate": {"$ref": "#/$defs/candidate"},
+        "training_job_id": {"type": "string", "maxLength": 500},
+        "inference_job_id": {"type": "string", "maxLength": 500},
+        "run_id": {"type": "string", "maxLength": 500},
+        "training_datasets": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {"type": "string", "minLength": 1, "maxLength": 500},
+          "uniqueItems": true
+        },
+        "target_dataset": {"type": "string", "maxLength": 500},
+        "dataset_snapshot_id": {"type": "string", "maxLength": 500},
+        "protocol": {"type": "string", "maxLength": 160},
+        "criterion_set_version": {"type": "string", "maxLength": 160},
+        "metrics": {"type": "object"},
+        "verdict_result": {"enum": ["pending", "pass", "fail", "conditional", "not_applicable"]},
+        "saved_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "cycleValue": {
+      "oneOf": [
+        {"type": "integer"},
+        {"type": "string", "minLength": 1, "maxLength": 160},
+        {"type": "null"}
+      ]
+    },
+    "curveRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["record_id", "source_uri", "signals", "availability", "missing_reason"],
+      "properties": {
+        "record_id": {"type": "string", "maxLength": 1000},
+        "source_uri": {"type": "string", "maxLength": 1000},
+        "signals": {"type": "array", "maxItems": 16, "items": {"type": "string", "minLength": 1, "maxLength": 500}, "uniqueItems": true},
+        "availability": {"enum": ["unknown", "available", "missing", "not_generated", "forbidden"]},
+        "missing_reason": {"type": "string", "maxLength": 1000}
+      }
+    },
+    "evidenceSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "comparison_id", "candidate_id", "dataset", "dataset_snapshot_id", "split_assignment_id",
+        "slice_id", "asset_id", "sample_id", "cycle_id", "evidence_tab", "compare_cycle_ids", "curve_ref"
+      ],
+      "properties": {
+        "comparison_id": {"type": "string", "maxLength": 500},
+        "candidate_id": {"type": "string", "maxLength": 500},
+        "dataset": {"type": "string", "maxLength": 500},
+        "dataset_snapshot_id": {"type": "string", "maxLength": 500},
+        "split_assignment_id": {"type": "string", "maxLength": 500},
+        "slice_id": {"type": "string", "maxLength": 500},
+        "asset_id": {"type": "string", "maxLength": 500},
+        "sample_id": {"type": "string", "maxLength": 500},
+        "cycle_id": {"$ref": "#/$defs/cycleValue"},
+        "evidence_tab": {"enum": ["overview", "raw", "icdv", "features", "contribution"]},
+        "compare_cycle_ids": {"type": "array", "maxItems": 3, "items": {"$ref": "#/$defs/cycleValue"}, "uniqueItems": true},
+        "curve_ref": {"$ref": "#/$defs/curveRef"}
+      }
+    },
+    "coverageItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "required", "available", "missing_reason"],
+      "properties": {
+        "kind": {"type": "string", "minLength": 1, "maxLength": 80},
+        "required": {"type": "boolean"},
+        "available": {"type": "boolean"},
+        "missing_reason": {"type": "string", "maxLength": 500}
+      }
+    },
+    "evidenceCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "available_count", "required_count", "items"],
+      "properties": {
+        "state": {"enum": ["empty", "incomplete", "complete"]},
+        "available_count": {"type": "integer", "minimum": 0},
+        "required_count": {"type": "integer", "minimum": 0},
+        "items": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/coverageItem"}}
+      }
+    },
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["criterion_set_version", "result", "scope", "observed", "thresholds", "reasons", "updated_at"],
+      "properties": {
+        "criterion_set_version": {"type": "string", "maxLength": 160},
+        "result": {"enum": ["pending", "pass", "fail", "conditional", "not_applicable"]},
+        "scope": {"type": "string", "minLength": 1, "maxLength": 160},
+        "observed": {"type": "object"},
+        "thresholds": {"type": "object"},
+        "reasons": {"type": "array", "maxItems": 32, "items": {"type": "string", "minLength": 1, "maxLength": 500}, "uniqueItems": true},
+        "updated_at": {"type": "string", "maxLength": 80}
+      }
+    },
+    "contextBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding_id", "generation", "case_id", "stage", "source",
+        "training_job_id", "inference_job_id", "run_id", "saved_combination_id",
+        "candidate_id", "model", "featureset", "model_artifact_id",
+        "training_datasets", "target_datasets", "active_dataset",
+        "dataset_snapshot_id", "protocol"
+      ],
+      "properties": {
+        "binding_id": {"type": "string", "pattern": "^ctx@sha256:[a-f0-9]{64}$"},
+        "generation": {"type": "integer", "minimum": 1},
+        "case_id": {"type": "string", "pattern": "^EV-[A-Za-z0-9][A-Za-z0-9_-]{2,63}$"},
+        "stage": {"enum": ["design", "training", "inference"]},
+        "source": {"enum": ["case_execution", "saved_combination"]},
+        "training_job_id": {"type": "string", "maxLength": 500},
+        "inference_job_id": {"type": "string", "maxLength": 500},
+        "run_id": {"type": "string", "maxLength": 500},
+        "saved_combination_id": {"type": "string", "maxLength": 160},
+        "candidate_id": {"type": "string", "maxLength": 500},
+        "model": {"type": "string", "maxLength": 160},
+        "featureset": {"type": "string", "maxLength": 160},
+        "model_artifact_id": {"type": "string", "maxLength": 200},
+        "training_datasets": {"type": "array", "maxItems": 32, "items": {"type": "string", "minLength": 1, "maxLength": 500}, "uniqueItems": true},
+        "target_datasets": {"type": "array", "maxItems": 32, "items": {"type": "string", "minLength": 1, "maxLength": 500}, "uniqueItems": true},
+        "active_dataset": {"type": "string", "maxLength": 500},
+        "dataset_snapshot_id": {"type": "string", "maxLength": 500},
+        "protocol": {"type": "string", "maxLength": 160}
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "reviewer", "note", "updated_at"],
+      "properties": {
+        "state": {"enum": ["not_started", "in_review", "approved", "rejected"]},
+        "reviewer": {"type": "string", "maxLength": 160},
+        "note": {"type": "string", "maxLength": 2000},
+        "updated_at": {"type": "string", "maxLength": 80}
+      }
+    }
+  }
+}

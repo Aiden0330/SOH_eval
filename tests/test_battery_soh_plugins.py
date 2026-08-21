@@ -1,0 +1,305 @@
+import json
+import os
+import subprocess
+import sys
+import threading
+import urllib.request
+from http.server import ThreadingHTTPServer
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+from sohbench import registry as R
+from sohbench.api_server import create_handler
+from sohbench.battery_soh_plugins import register_battery_soh_plugins
+from sohbench.evaluation_service import EvaluationService
+from sohbench.trusted_plugins import TrustedPluginStore
+
+
+def _write_fake_battery_soh_root(root):
+    model_dir = root / "soh_core" / "models"
+    model_dir.mkdir(parents=True)
+    (root / "soh_core" / "__init__.py").write_text("", encoding="utf-8")
+    (model_dir / "__init__.py").write_text("", encoding="utf-8")
+    (model_dir / "tabular_ensemble.py").write_text(
+        """
+import numpy as np
+
+
+class TabularSOHEnsemble:
+    def __init__(self, random_state=2026):
+        self.random_state = random_state
+        self.mean_ = 0.95
+
+    def fit(self, features, target):
+        self.mean_ = float(np.mean(target))
+        return self
+
+    def predict(self, features, calibration_offset=0.0):
+        return np.full(features.shape[0], self.mean_ + calibration_offset)
+
+    def structure_signature(self):
+        return ("fake",)
+""".strip(),
+        encoding="utf-8",
+    )
+
+
+def _sample_frame():
+    rows = []
+    for cell in ["c1", "c2"]:
+        for cycle in range(6):
+            rows.append(
+                {
+                    "dataset": "demo",
+                    "cell_id": cell,
+                    "cycle_index": cycle,
+                    "soh": 1.0 - 0.01 * cycle,
+                    "voltage_mean": 3.7 - 0.02 * cycle,
+                    "resistance_proxy": 0.02 + 0.001 * cycle,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _post_json(base_url, path, payload):
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        base_url + path,
+        data=data,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _serve(service):
+    server = ThreadingHTTPServer(
+        ("127.0.0.1", 0), create_handler(service, allow_dangerous_operations=True)
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, f"http://127.0.0.1:{server.server_address[1]}"
+
+
+def test_register_battery_soh_plugins_adds_catalog_resources_and_runs(tmp_path):
+    battery_root = tmp_path / "battery_SOH"
+    _write_fake_battery_soh_root(battery_root)
+    store = TrustedPluginStore(tmp_path / "plugins", tmp_path / "data")
+
+    result = register_battery_soh_plugins(store, battery_root=battery_root, replace=True)
+
+    assert result["estimator"]["name"] == "battery_soh_tabular_ensemble"
+    assert result["featureset"]["name"] == "battery_soh_operational"
+    catalog = store.catalog()
+    assert any(item["name"] == "battery_soh_tabular_ensemble" for item in catalog["estimators"])
+    assert any(item["name"] == "battery_soh_operational" for item in catalog["featuresets"])
+
+    table = _sample_frame()
+    transformed = store.apply_feature_transforms(table, pd.DataFrame(), ["battery_soh_operational"])
+    for column in [
+        "battery_soh_cycle_norm",
+        "battery_soh_voltage_sag",
+        "battery_soh_resistance_growth",
+    ]:
+        assert column in transformed.columns
+
+    estimator_cls = R.get_estimator("battery_soh_tabular_ensemble")
+    estimator = estimator_cls().fit(transformed, transformed["soh"].to_numpy(), pd.DataFrame())
+    pred = estimator.predict(transformed.iloc[:3], pd.DataFrame())
+    assert pred.shape == (3,)
+    assert np.isfinite(pred).all()
+
+
+def test_register_battery_soh_plugins_normalizes_relative_root(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    battery_root = Path("battery_SOH")
+    _write_fake_battery_soh_root(battery_root)
+    store = TrustedPluginStore(tmp_path / "plugins", tmp_path / "data")
+
+    result = register_battery_soh_plugins(store, battery_root=battery_root, replace=True)
+    estimator_catalog = json.loads((tmp_path / "plugins" / "catalog.json").read_text(encoding="utf-8"))[
+        "estimators"
+    ]
+
+    assert Path(result["battery_soh_root"]).is_absolute()
+    assert repr(str(Path(result["battery_soh_root"]))) in (tmp_path / "plugins" / "estimators" / "battery_soh_tabular_ensemble.py").read_text(
+        encoding="utf-8"
+    )
+    assert Path(estimator_catalog[0]["path"]).is_absolute()
+
+
+def test_api_import_battery_soh_plugins_registers_resources(tmp_path):
+    battery_root = tmp_path / "battery_SOH"
+    _write_fake_battery_soh_root(battery_root)
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    server, base_url = _serve(service)
+    try:
+        response = _post_json(
+            base_url,
+            "/api/import/battery-soh-plugins",
+            {"battery_soh_root": str(battery_root), "replace": True},
+        )
+    finally:
+        server.shutdown()
+
+    assert response["ok"] is True
+    assert response["plugins"]["estimator"]["name"] == "battery_soh_tabular_ensemble"
+    assert response["plugins"]["featureset"]["name"] == "battery_soh_operational"
+
+
+def test_inference_job_replays_featureset_transforms_for_trained_models(tmp_path):
+    battery_root = tmp_path / "battery_SOH"
+    _write_fake_battery_soh_root(battery_root)
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.import_battery_soh_plugins(battery_soh_root=battery_root, replace=True)
+    service.store.upload_dataset(
+        "demo",
+        "demo.csv",
+        _sample_frame().to_csv(index=False).encode("utf-8"),
+        replace=True,
+    )
+    train_job = service.create_job(
+        {
+            "datasets": ["demo"],
+            "estimators": ["battery_soh_tabular_ensemble"],
+            "featuresets": ["battery_soh_operational"],
+            "protocols": ["loco"],
+            "seeds": [0],
+        },
+        start=False,
+    )
+    train_job = service.run_job_inline(train_job["id"])
+    assert train_job["status"] == "succeeded"
+    assert train_job["saved_models"]
+
+    inference_job = service.create_inference_job(
+        {"datasets": ["demo"], "models": train_job["saved_models"]},
+        start=False,
+    )
+    inference_job = service.run_inference_job_inline(inference_job["id"])
+
+    assert inference_job["status"] == "succeeded"
+    payload = json.loads((tmp_path / inference_job["raw_run_dir"] / "inference_benchmark.json").read_text())
+    assert payload["summary"]["n_succeeded"] == len(train_job["saved_models"])
+    assert {record["status"] for record in payload["records"]} == {"succeeded"}
+
+
+def test_trusted_plugin_model_pickle_loads_in_fresh_process(tmp_path):
+    battery_root = tmp_path / "battery_SOH"
+    _write_fake_battery_soh_root(battery_root)
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.import_battery_soh_plugins(battery_soh_root=battery_root, replace=True)
+    service.store.upload_dataset(
+        "demo",
+        "demo.csv",
+        _sample_frame().to_csv(index=False).encode("utf-8"),
+        replace=True,
+    )
+    train_job = service.create_job(
+        {
+            "datasets": ["demo"],
+            "estimators": ["battery_soh_tabular_ensemble"],
+            "featuresets": ["battery_soh_operational"],
+            "protocols": ["loco"],
+            "seeds": [0],
+        },
+        start=False,
+    )
+    train_job = service.run_job_inline(train_job["id"])
+    model_name = train_job["saved_models"][0]
+
+    code = f"""
+import json
+import pandas as pd
+from sohbench.evaluation_service import EvaluationService
+
+svc = EvaluationService(
+    data_dir={str(tmp_path / 'data')!r},
+    work_dir={str(tmp_path / 'work')!r},
+    runs_dir={str(tmp_path / 'runs')!r},
+    frontend_data_dir={str(tmp_path / 'frontend_data')!r},
+)
+loaded = svc.model_store.load_model({model_name!r})
+frame = pd.DataFrame({{
+    'dataset': ['demo', 'demo'],
+    'cell_id': ['c1', 'c1'],
+    'cycle_index': [0, 1],
+    'soh': [1.0, 0.99],
+    'battery_soh_cycle_norm': [0.0, 0.2],
+    'battery_soh_voltage_sag': [0.0, 0.02],
+    'battery_soh_resistance_growth': [0.0, 0.001],
+}})
+pred = loaded.predict(frame, pd.DataFrame())
+print(json.dumps({{'n': len(pred)}}))
+"""
+    env = {**os.environ, "PYTHONPATH": str((Path(__file__).parents[1] / "src").resolve())}
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        text=True,
+        capture_output=True,
+        env=env,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["n"] == 2
+
+
+def test_replacing_battery_soh_plugins_twice_still_saves_training_models(tmp_path):
+    battery_root = tmp_path / "battery_SOH"
+    _write_fake_battery_soh_root(battery_root)
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.import_battery_soh_plugins(battery_soh_root=battery_root, replace=True)
+
+    restarted = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    restarted.import_battery_soh_plugins(battery_soh_root=battery_root, replace=True)
+    restarted.store.upload_dataset(
+        "demo",
+        "demo.csv",
+        _sample_frame().to_csv(index=False).encode("utf-8"),
+        replace=True,
+    )
+
+    train_job = restarted.create_job(
+        {
+            "datasets": ["demo"],
+            "estimators": ["battery_soh_tabular_ensemble"],
+            "featuresets": ["battery_soh_operational"],
+            "protocols": ["loco"],
+            "seeds": [0],
+        },
+        start=False,
+    )
+    train_job = restarted.run_job_inline(train_job["id"])
+
+    assert train_job["status"] == "succeeded"
+    assert train_job["saved_models"]
+    assert train_job["model_warnings"] == []
