@@ -24,14 +24,20 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "processed"
 # listed capacity columns (calibration capacity / rated capacity), confirmed
 # by per-dataset affine fits (R² >= 0.998).  nasa / calce_cs2 / snl_lfp use a
 # separate calibration measurement and carry no reconstruction column.
+#
+# Reviewed 2026-08-21 (Ah-window coverage rule): q_win_ah is flagged where
+# the "partial" window integrates >= 90% of full capacity — measured median
+# coverage: hust 97.7%, snl_lfp 94.4%, uconn 95.2%.  At that DOD the window
+# integral is the calibration capacity under another name.  oxford (71.7%)
+# stays a warning, calce_cs2 (2.8%) is a genuine partial window.
 EXPECTED_LABEL_SOURCE_COLUMNS = {
-    "hust": ["charge_capacity_max"],
+    "hust": ["charge_capacity_max", "q_win_ah"],
     "oxford": ["charge_capacity_max"],
-    "uconn": ["charge_capacity_max"],
+    "uconn": ["charge_capacity_max", "q_win_ah"],
     "rwth_isea_public": ["capacity_ah"],
     "nasa": [],
     "calce_cs2": [],
-    "snl_lfp": [],
+    "snl_lfp": ["q_win_ah"],
 }
 
 ID_COLUMNS = ("dataset", "cell_id", "cycle_index", "soh")

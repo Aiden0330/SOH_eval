@@ -37,3 +37,44 @@ def test_small_samples_are_skipped():
     # Below the 64-sample floor the affine check must not fire (smoke fixtures).
     audit = audit_feature_frame(_frame(n=40), ["capacity_like"])
     assert audit["status"] == "passed"
+
+
+def _window_frame(coverage: float, n=400, seed=0):
+    """Table where q_win_ah integrates *coverage* of the full capacity."""
+    rng = np.random.default_rng(seed)
+    soh = np.linspace(1.0, 0.7, n) + rng.normal(0.0, 0.002, n)
+    capacity = soh * 1.1
+    return pd.DataFrame(
+        {
+            "dataset": ["demo"] * n,
+            "cell_id": ["c1"] * n,
+            "soh": soh,
+            "charge_capacity_max": capacity,
+            # Enough relative noise to stay under the affine R² threshold —
+            # the DOD rule, not the affine fit, must catch the full window.
+            "q_win_ah": capacity * coverage + rng.normal(0.0, 0.05, n),
+        }
+    )
+
+
+def test_full_range_ah_window_is_blocked():
+    # A "partial" window integrating ~97% of full capacity IS the label source.
+    audit = audit_feature_frame(_window_frame(0.97), ["q_win_ah"])
+    assert audit["status"] == "blocked"
+    kinds = {(item["column"], item["kind"]) for item in audit["violations"]}
+    assert ("q_win_ah", "full_range_ah_window") in kinds
+
+
+def test_typical_partial_window_passes():
+    # 45% DOD is normal practice (LFP: plateau region) — no finding at all.
+    audit = audit_feature_frame(_window_frame(0.45), ["q_win_ah"])
+    assert audit["status"] == "passed"
+    assert not audit["warnings"]
+
+
+def test_wide_partial_window_warns_but_runs():
+    # Between typical (40–50%) and the 90% bound: warn, do not block.
+    audit = audit_feature_frame(_window_frame(0.72), ["q_win_ah"])
+    assert audit["status"] == "passed"
+    kinds = {(item["column"], item["kind"]) for item in audit["warnings"]}
+    assert ("q_win_ah", "wide_ah_window") in kinds

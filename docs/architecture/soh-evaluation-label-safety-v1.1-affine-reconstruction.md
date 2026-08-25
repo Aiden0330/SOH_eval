@@ -13,7 +13,7 @@
 | uconn | charge_capacity_max | 0.99892 | 标签来源列 |
 | rwth_isea_public | capacity_ah | 0.99976 | 标签来源列 |
 | nasa / calce_cs2 / snl_lfp | —（最高 0.979） | — | 独立标定，无重构列 |
-| 合法物理特征上限 | q_win_ah | ≤ 0.983 | 不误伤 |
+| 合法物理特征上限 | q_win_ah | ≤ 0.983 | 不误伤（后续修订见 §6：R² 逃逸但窗口覆盖全量程） |
 
 阈值据此定为 **R² ≥ 0.995（逐数据集分组拟合）· 样本下限 64**。
 已发布主结果（mlp × partial_window 等）不受此泄漏影响。
@@ -55,3 +55,47 @@
 - 训练门禁实测：byo/capacity_time × hust 请求被拒，错误信息含列名、分组、R² 与斜率。
 - 推理门禁实测：`gpr_degradation_kinetics` 于 rwth 被 all-NaN 拦截；
   轨迹面板错误信息现透传服务端原因（fetchJson 修复）。
+
+## 6. 修订（2026-08-21）：结构性禁用 + Ah 窗口 DOD 规则
+
+### 6.1 标签来源列结构性禁用（commit a549470）
+
+仿射检测是"逐数据集判定"，但标签来源列在任何数据集上都不该做模型输入。
+`feature_safety.LABEL_SOURCE_FEATURE_COLUMNS` 静态封禁：
+`charge_capacity_max`、`capacity_ah`、`rated_capacity(_ah)`，以及由其派生的
+`charge_energy_proxy_wh`、`cumulative_capacity_proxy_ah`（transform 已不再生成）。
+执行点：`FeatureSet.columns()` / `full` 选择器 / BYO（`byo.py` 输入过滤）/ runner。
+候选列同步收缩：capacity_time 4→3、degradation_kinetics 6→4、
+electrochemical_diagnostics 6→5。效果：hust × capacity_time 等组合以净化后
+特征恢复可跑；仿射/数值审计保留为动态兜底（防换名混入）。
+
+### 6.2 Ah 积分窗口覆盖率规则（本节为 §1 表末行的修订）
+
+领域规则（评审确认）：**部分窗口 Ah 积分（`q_win_ah`）是合法健康特征，但窗口
+DOD 必须 < 90%**；常规实践为 40–50% 窗口（LFP 取电压平台区）。窗口覆盖
+（近）全量程时，其积分即标定容量 — 即使逐循环散布让仿射 R² 低于 0.995 逃逸。
+
+实测中位覆盖率（q_win_ah / charge_capacity_max，逐数据集）：
+
+| 数据集 | 中位覆盖率 | 判定 |
+|---|---|---|
+| hust | 97.7% | 违规（full_range_ah_window，阻断） |
+| uconn | 95.2% | 违规（阻断） |
+| snl_lfp | 94.4% | 违规（阻断） |
+| oxford | 71.7% | 警告（wide_ah_window，可跑） |
+| calce_cs2 | 2.8% | 真实部分窗口，通过 |
+| nasa | —（无重叠有效行） | 跳过 |
+
+实现：`feature_safety._window_coverage_findings`，接入 `audit_feature_frame`
+（四层执行点自动继承）。阈值：**阻断 ≥ 90% · 警告 > 60% · 样本下限 64 ·
+逐数据集中位数**（窗口是数据集级采集属性，不做池化拟合）。警告经
+`_training_feature_profile` 透出到组合预检（黄色不阻断）。
+
+泄漏清单更新：hust / uconn / snl_lfp 追加 `q_win_ah`（见
+`tests/test_label_leak_inventory.py` 评审注记）。注意：v1.1 曾以
+"q_win_ah R² ≤ 0.983 不误伤"作为合法特征上限证据 — 该结论仅对 calce/oxford
+类真实部分窗口成立；hust/snl/uconn 的 q_win_ah 属全量程积分，按本规则封禁，
+其 partial_window 历史成绩并入 §4 的历史工件清算范围。
+
+验收（2026-08-21）：全量后端测试通过；预检实测三档行为 —
+hust × partial_window 阻断（≈98%）、oxford 警告可跑（≈72%）、calce_cs2 通过。

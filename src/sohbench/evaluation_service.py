@@ -2676,6 +2676,7 @@ def _training_feature_profile(
 
     label_safety = audit_feature_frame(table, selected)
     errors.extend(item["reason"] for item in label_safety["violations"])
+    warnings.extend(item["reason"] for item in label_safety.get("warnings", []))
 
     for dataset in datasets:
         frame = table[table["dataset"].astype(str) == str(dataset)]

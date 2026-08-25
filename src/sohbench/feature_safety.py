@@ -60,6 +60,88 @@ def is_label_source_feature(name: object, *, target: str = PROTECTED_TARGET) -> 
     return bool(suspicious_feature_names([lowered], target=target))
 
 
+# Partial-window Ah integration (``q_win_ah``) is a legitimate health
+# indicator ONLY while the window stays genuinely partial.  Once the window
+# covers (nearly) the full SOC range its integral converges to the
+# calibration capacity — the label source — even when per-cycle spread keeps
+# it below the affine R² threshold.  Domain rule (reviewed 2026-08-21):
+# window depth-of-discharge must stay below 90 % of full capacity; typical
+# practice is a 40–50 % window (for LFP: the voltage-plateau region).
+PARTIAL_WINDOW_CAPACITY_COLUMNS = frozenset({"q_win_ah"})
+_WINDOW_REFERENCE_COLUMNS = ("charge_capacity_max", "capacity_ah")
+PARTIAL_WINDOW_MAX_DOD_FRACTION = 0.90
+PARTIAL_WINDOW_TYPICAL_DOD_FRACTION = 0.60
+_WINDOW_MIN_SAMPLES = 64
+
+
+def _window_coverage_findings(
+    table: pd.DataFrame,
+    selected: list[str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Audit Ah-window columns for full-SOC-range coverage, per dataset.
+
+    Returns ``(violations, warnings)``.  Coverage is the median ratio of the
+    window integral to the full charge capacity within one dataset (window
+    definitions are per-dataset acquisition properties, so no pooled fit).
+    """
+    window_columns = [c for c in selected if c in PARTIAL_WINDOW_CAPACITY_COLUMNS]
+    if not window_columns:
+        return [], []
+    reference = next(
+        (c for c in _WINDOW_REFERENCE_COLUMNS if c in table.columns), None
+    )
+    if reference is None:
+        return [], []
+    violations: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    if "dataset" in table.columns:
+        dataset_values = table["dataset"].astype(str).to_numpy()
+        groups = [(name, dataset_values == name) for name in pd.unique(dataset_values)]
+    else:
+        groups = [("all", np.ones(len(table), dtype=bool))]
+    for column in window_columns:
+        values = pd.to_numeric(table[column], errors="coerce").to_numpy(dtype=float)
+        capacity = pd.to_numeric(table[reference], errors="coerce").to_numpy(dtype=float)
+        for group_name, group_mask in groups:
+            mask = (
+                group_mask
+                & np.isfinite(values)
+                & np.isfinite(capacity)
+                & (capacity > 0.0)
+                & (values >= 0.0)
+            )
+            if int(mask.sum()) < _WINDOW_MIN_SAMPLES:
+                continue
+            coverage = float(np.median(values[mask] / capacity[mask]))
+            if coverage >= PARTIAL_WINDOW_MAX_DOD_FRACTION:
+                violations.append(
+                    {
+                        "column": column,
+                        "kind": "full_range_ah_window",
+                        "reason": (
+                            f"feature column {column!r} integrates ≈{coverage:.0%} of full "
+                            f"capacity on {group_name!r} — an Ah window covering ≥"
+                            f"{PARTIAL_WINDOW_MAX_DOD_FRACTION:.0%} DOD is the calibration "
+                            "capacity (the label source); keep the window below 90% DOD "
+                            "(typical practice: 40–50%)"
+                        ),
+                    }
+                )
+            elif coverage > PARTIAL_WINDOW_TYPICAL_DOD_FRACTION:
+                warnings.append(
+                    {
+                        "column": column,
+                        "kind": "wide_ah_window",
+                        "reason": (
+                            f"feature column {column!r} integrates ≈{coverage:.0%} of full "
+                            f"capacity on {group_name!r} — wider than the typical 40–50% "
+                            "DOD partial window (LFP: plateau region); allowed below 90%"
+                        ),
+                    }
+                )
+    return violations, warnings
+
+
 _AFFINE_RECONSTRUCTION_R2 = 0.995
 _AFFINE_MIN_SAMPLES = 64
 
@@ -194,12 +276,21 @@ def audit_feature_frame(
                         }
                     )
                     break
+    # Ah-window coverage: a "partial" window that integrates (nearly) the
+    # full SOC range is the calibration capacity under another name, even
+    # when spread keeps it under the affine R² threshold.
+    flagged = {item["column"] for item in violations}
+    window_violations, window_warnings = _window_coverage_findings(
+        table, [c for c in selected if c not in flagged]
+    )
+    violations.extend(window_violations)
     return {
         "contract": LABEL_SAFETY_CONTRACT,
         "target": target,
         "status": "blocked" if violations else "passed",
         "checked_columns": selected,
         "violations": violations,
+        "warnings": window_warnings,
     }
 
 
