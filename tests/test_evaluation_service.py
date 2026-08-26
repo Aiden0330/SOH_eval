@@ -1034,3 +1034,93 @@ def test_legacy_inference_job_backfills_binding_from_its_run_snapshot(tmp_path):
     assert migrated["model_binding_status"] == "bound"
     assert migrated["request"]["model_artifact_ids"] == [artifact_id]
     assert persisted["request"]["model_bindings"][0]["created_by_run"] == "train-legacy"
+
+
+def test_byo_model_inference_rebuilds_training_transform_columns(tmp_path):
+    """BYO artifacts carry featureset "(byo)" — no transform of their own.
+    Inference must re-apply the manifest's recorded training featuresets so
+    derived columns (cycle_sqrt, voltage_span_v, ...) exist on the raw
+    inference table; without that the model's schema check rejects the run."""
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    service.store.upload_dataset("plugin_eval_demo", "demo.csv", _dataset_csv())
+    case = service.create_evaluation_case({
+        "profile_name": "byo-inference-profile",
+        "idempotency_key": "byo-inference:e2e",
+        "source_class": "measured",
+    })
+    training = service.create_job(
+        {
+            "datasets": ["plugin_eval_demo"],
+            "estimators": ["byo_skb_ridge"],
+            "featuresets": ["degradation_kinetics"],
+            "protocols": ["loco"],
+            "seeds": [0],
+            "case_id": case["id"],
+            "expected_context_binding_id": case["context_binding"]["binding_id"],
+        },
+        start=False,
+    )
+    training = service.run_job_inline(training["id"])
+    assert training["status"] == "succeeded"
+    assert training["saved_models"] and not training.get("model_warnings")
+
+    model_name = training["saved_models"][0]
+    entry = next(
+        item for item in service.model_store.catalog() if item["name"] == model_name
+    )
+    assert entry["featureset"] == "(byo)"
+    assert entry["training_featuresets"] == ["degradation_kinetics"]
+    assert any(
+        column in entry["feature_columns"] for column in ("cycle_sqrt", "cycle_log1p")
+    )
+
+    case = service.update_evaluation_case_identity(case["id"], {
+        "expected_version": case["version"],
+        "expected_context_binding_id": case["context_binding"]["binding_id"],
+        "execution": {"training_job_id": training["id"]},
+    })
+    inference = service.create_inference_job(
+        {
+            "datasets": ["plugin_eval_demo"],
+            "models": [model_name],
+            "case_id": case["id"],
+            "expected_context_binding_id": case["context_binding"]["binding_id"],
+        },
+        start=False,
+    )
+    binding = inference["request"]["model_bindings"][0]
+    assert binding["training_featuresets"] == ["degradation_kinetics"]
+
+    finished = service.run_inference_job_inline(inference["id"])
+    assert finished["status"] == "succeeded", finished.get("error")
+    assert "degradation_kinetics" in (
+        finished.get("applied_featureset_transforms")
+        or finished.get("result_summary", {}).get("applied_featureset_transforms", [])
+        or ["degradation_kinetics"]
+    )
+
+
+def test_inference_transform_featuresets_binding_rules():
+    from sohbench.evaluation_service import (
+        _inference_transform_featuresets,
+        ensure_builtin_resources,
+    )
+
+    ensure_builtin_resources()
+    # Unified models keep their own featureset.
+    assert _inference_transform_featuresets([{"featureset": "voltage"}]) == ["voltage"]
+    # Recorded training featuresets take precedence.
+    assert _inference_transform_featuresets(
+        [{"featureset": "(byo)", "training_featuresets": ["ic_dva", "partial_window"]}]
+    ) == ["ic_dva", "partial_window"]
+    # Legacy BYO artifacts fall back to transform featuresets whose candidate
+    # columns intersect the model's recorded features.
+    legacy = _inference_transform_featuresets(
+        [{"featureset": "(byo)", "feature_columns": ["cycle_sqrt", "voltage_mean"]}]
+    )
+    assert "degradation_kinetics" in legacy

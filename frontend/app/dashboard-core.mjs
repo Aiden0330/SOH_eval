@@ -1677,10 +1677,31 @@ export function inferenceCompatibilitySummary({ models = [], datasets = [], feat
       .map((item) => [String(item?.name || ""), nonEmptyStrings(item?.columns || item?.featureColumns || item?.feature_columns || [])])
       .filter(([name]) => name),
   );
+  const transformFeaturesetNames = (featureSetOptions || [])
+    .filter((item) => Boolean(item?.has_transform || item?.hasTransform))
+    .map((item) => String(item?.name || ""))
+    .filter(Boolean);
   const rows = [];
   (models || []).forEach((model) => {
     const required = nonEmptyStrings(model?.featureColumns || model?.feature_columns || []);
-    const generated = featureColumnsByName.get(String(model?.featureset || model?.featureSet || "")) || [];
+    const requiredSet = new Set(required);
+    // Transforms re-applied by the backend before inference: the recorded
+    // training featuresets when the manifest carries them; for legacy BYO
+    // artifacts, every transform featureset whose columns the model uses.
+    const trainingFeaturesets = nonEmptyStrings(
+      model?.training_featuresets || model?.trainingFeaturesets || [],
+    );
+    const ownFeatureset = String(model?.featureset || model?.featureSet || "");
+    let generatedNames;
+    if (trainingFeaturesets.length) {
+      generatedNames = trainingFeaturesets;
+    } else if (ownFeatureset === "(byo)") {
+      generatedNames = transformFeaturesetNames.filter((name) =>
+        (featureColumnsByName.get(name) || []).some((column) => requiredSet.has(column)));
+    } else {
+      generatedNames = [ownFeatureset];
+    }
+    const generated = generatedNames.flatMap((name) => featureColumnsByName.get(name) || []);
     (datasets || []).forEach((dataset) => {
       const available = nonEmptyStrings(dataset?.columns || []);
       if (!required.length || (!available.length && !generated.length)) {

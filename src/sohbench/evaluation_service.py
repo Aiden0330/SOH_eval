@@ -1568,6 +1568,11 @@ class EvaluationService:
                     "model_kind": "pickle",
                     "estimator": str(record["estimator"]),
                     "featureset": fs_name,
+                    # The transforms that produced the training table; needed
+                    # to rebuild derived feature columns at inference-only
+                    # (BYO models have no reconstructable featureset of their
+                    # own — this list is their feature recipe).
+                    "training_featuresets": list(effective_featuresets),
                     "feature_columns": feature_columns(train_table),
                     "input_columns": list(map(str, train_table.columns)),
                     "target": "soh",
@@ -1698,9 +1703,7 @@ class EvaluationService:
             model_bindings = list(request.get("model_bindings") or [])
             if len(model_bindings) != len(request["models"]):
                 raise RuntimeError("inference job has no complete immutable model binding")
-            inferred_featuresets = _string_list(
-                item.get("featureset") for item in model_bindings
-            )
+            inferred_featuresets = _inference_transform_featuresets(model_bindings)
             table = self.store.apply_feature_transforms(table, meta, inferred_featuresets)
             dataset_snapshot_ids = {
                 name: f"dataset-snapshot@sha256:{_sha256_path(self.data_dir / 'processed' / f'{name}_features.pkl')}"
@@ -2556,6 +2559,36 @@ class EvaluationService:
             _write_json_atomic(self.retest_runs_dir / f"{run['id']}.json", run)
 
 
+def _inference_transform_featuresets(model_bindings: list[dict]) -> list[str]:
+    """Featureset transforms to re-apply before inference-only evaluation.
+
+    Unified models re-apply their own featureset's transform.  BYO models
+    self-select features at training time and carry featureset ``"(byo)"``,
+    which names no transform — re-apply the training request's featuresets
+    when the manifest recorded them (``training_featuresets``); for legacy
+    artifacts without the field, fall back to every transform-bearing
+    featureset whose candidate columns intersect the model's recorded
+    feature columns.
+    """
+    names: list[str] = []
+    for item in model_bindings:
+        featureset = str(item.get("featureset") or "")
+        recorded = [str(x) for x in (item.get("training_featuresets") or []) if str(x)]
+        if recorded:
+            names.extend(recorded)
+        elif featureset == "(byo)":
+            needed = {str(column) for column in item.get("feature_columns") or []}
+            for name, registered in sorted(R._FEATURESETS.items()):
+                if getattr(registered, "transform", None) is None:
+                    continue
+                candidates = {str(c) for c in getattr(registered, "candidates", []) or []}
+                if needed & candidates:
+                    names.append(name)
+        elif featureset:
+            names.append(featureset)
+    return list(dict.fromkeys(names))
+
+
 def _immutable_model_binding(item: dict) -> dict:
     """Keep only immutable model identity and lineage fields in a job request."""
     return {
@@ -2563,6 +2596,8 @@ def _immutable_model_binding(item: dict) -> dict:
         "artifact_id": str(item.get("artifact_id") or ""),
         "estimator": str(item.get("estimator") or ""),
         "featureset": str(item.get("featureset") or "full"),
+        "training_featuresets": _string_list(item.get("training_featuresets") or []),
+        "feature_columns": _string_list(item.get("feature_columns") or []),
         "created_by_run": str(item.get("created_by_run") or ""),
         "trained_on": _string_list(item.get("trained_on") or []),
         "protocol": str(item.get("protocol") or ""),

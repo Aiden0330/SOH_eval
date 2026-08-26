@@ -1451,6 +1451,48 @@ function entry(estimator, featureset, mae, opts = {}) {
 }
 
 {
+  // BYO artifacts: the backend re-applies the manifest's recorded training
+  // featuresets (legacy manifests: every transform featureset whose columns
+  // the model uses), so their derived columns count as generated here too.
+  const featureSets = [
+    {
+      name: "degradation_kinetics",
+      has_transform: true,
+      columns: ["cycle_sqrt", "cycle_log1p", "time_s_max", "arrhenius_stress_factor"],
+    },
+    { name: "partial_window", has_transform: false, columns: ["q_win_ah", "t_win_s"] },
+  ];
+  const datasets = [{
+    name: "snl_lfp",
+    columns: ["dataset", "cell_id", "soh", "cycle_index", "time_s_max", "q_win_ah"],
+  }];
+  const recorded = inferenceCompatibilitySummary({
+    models: [{
+      name: "byo_recorded",
+      featureset: "(byo)",
+      training_featuresets: ["degradation_kinetics"],
+      featureColumns: ["cycle_sqrt", "cycle_log1p", "time_s_max"],
+    }],
+    datasets,
+    featureSets,
+  });
+  assert.equal(recorded.status, "ok");
+  assert.deepEqual(recorded.rows[0].missingColumns, []);
+
+  const legacy = inferenceCompatibilitySummary({
+    models: [{
+      name: "byo_legacy",
+      featureset: "(byo)",
+      featureColumns: ["cycle_sqrt", "time_s_max"],
+    }],
+    datasets,
+    featureSets,
+  });
+  assert.equal(legacy.status, "ok");
+  assert.deepEqual(legacy.rows[0].missingColumns, []);
+}
+
+{
   const models = [
     { name: "ridge_voltage", featureColumns: ["voltage_mean"], trainedOn: ["calce_cs2"], sourceChemistries: ["LCO"] },
     { name: "ridge_full", featureColumns: ["voltage_mean", "ambient_temp_c"], trainedOn: ["calce_cs2"], sourceChemistries: ["LCO"] },

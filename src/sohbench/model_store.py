@@ -302,6 +302,9 @@ class ModelStore:
             "manifest_path": str(manifest_path),
             "estimator": manifest.get("estimator"),
             "featureset": manifest.get("featureset"),
+            "training_featuresets": [
+                str(item) for item in manifest.get("training_featuresets", []) if str(item)
+            ],
             "feature_columns": list(manifest.get("feature_columns", [])),
             "trained_on": list(manifest.get("trained_on", [])),
             "created_by_run": manifest.get("created_by_run"),
