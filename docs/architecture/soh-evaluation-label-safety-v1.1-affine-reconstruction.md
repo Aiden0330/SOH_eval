@@ -99,3 +99,24 @@ DOD 必须 < 90%**；常规实践为 40–50% 窗口（LFP 取电压平台区）
 
 验收（2026-08-21）：全量后端测试通过；预检实测三档行为 —
 hust × partial_window 阻断（≈98%）、oxford 警告可跑（≈72%）、calce_cs2 通过。
+
+### 6.3 长期修复（2026-08-25）：从原始曲线重建真正的部分窗口
+
+`scripts/rebuild_partial_window_features.py` 从 `data/raw/` 原始曲线重新积分
+三个 LFP 数据集的 `q_win_ah` / `t_win_s`，窗口取平台区并经扫描标定使
+中位覆盖率落入 40–50% 档：
+
+| 数据集 | 积分段 | 新窗口 | 覆盖率（改前→改后） | R²(q_win, 满容量) |
+|---|---|---|---|---|
+| hust | 5C CC 快充段 | [3.30, 3.52] V | 97.7% → 48.7% | 0.37 |
+| snl_lfp | 0.5C 充电段 | [3.30, 3.38] V | 94.4% → 50.7% | ~0.01 |
+| uconn | 1C RPT ref_chg CC 段 | [3.30, 3.37] V | 95.2% → 52.2% | 0.80 |
+
+三数据集 100% 行匹配（hust 146,122 / snl_lfp 64,905 / uconn 2,855），
+重建后审计零违规零警告。uconn 的 RPT↔cycle_index 映射 =
+`cumsum(Num Cycles)`（逐 cell 校验，不吻合则拒写）。原表备份于
+`data/processed/backup_pre_partial_window_fix/`；`data/curves/<ds>.json`
+的 `feature_window` 与 `data/manifest.json` 的 processed sha256 同步更新。
+泄漏清单相应回撤 q_win_ah 条目（评审注记在测试文件内）。
+基于旧全量程 q_win 的历史模型工件仍属 §4 清算范围 — 新旧 q_win 语义不同，
+旧模型不得在新表上继续使用。

@@ -25,19 +25,26 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "processed"
 # by per-dataset affine fits (R² >= 0.998).  nasa / calce_cs2 / snl_lfp use a
 # separate calibration measurement and carry no reconstruction column.
 #
-# Reviewed 2026-08-21 (Ah-window coverage rule): q_win_ah is flagged where
-# the "partial" window integrates >= 90% of full capacity — measured median
-# coverage: hust 97.7%, snl_lfp 94.4%, uconn 95.2%.  At that DOD the window
-# integral is the calibration capacity under another name.  oxford (71.7%)
-# stays a warning, calce_cs2 (2.8%) is a genuine partial window.
+# Reviewed 2026-08-21 (Ah-window coverage rule): q_win_ah was flagged where
+# the "partial" window integrated >= 90% of full capacity (hust 97.7%,
+# snl_lfp 94.4%, uconn 95.2% median coverage) — at that DOD the window
+# integral is the calibration capacity under another name.
+#
+# Reviewed 2026-08-25 (window rebuild): q_win_ah/t_win_s on hust, snl_lfp and
+# uconn were re-integrated from raw curves with genuinely partial LFP-plateau
+# windows (scripts/rebuild_partial_window_features.py — hust [3.30,3.52]V on
+# the 5C CC charge, snl_lfp [3.30,3.38]V at 0.5C, uconn [3.30,3.37]V on the
+# 1C RPT ref charge).  Median coverage now 48.7% / 50.7% / 52.2%, so the
+# q_win_ah findings are gone by construction.  oxford (71.7%) remains a
+# warning, calce_cs2 (2.8%) was always a genuine partial window.
 EXPECTED_LABEL_SOURCE_COLUMNS = {
-    "hust": ["charge_capacity_max", "q_win_ah"],
+    "hust": ["charge_capacity_max"],
     "oxford": ["charge_capacity_max"],
-    "uconn": ["charge_capacity_max", "q_win_ah"],
+    "uconn": ["charge_capacity_max"],
     "rwth_isea_public": ["capacity_ah"],
     "nasa": [],
     "calce_cs2": [],
-    "snl_lfp": ["q_win_ah"],
+    "snl_lfp": [],
 }
 
 ID_COLUMNS = ("dataset", "cell_id", "cycle_index", "soh")
