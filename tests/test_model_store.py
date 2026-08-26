@@ -204,3 +204,38 @@ def test_loaded_model_rejects_renamed_exact_label_complement_at_inference(tmp_pa
 
     with pytest.raises(ModelStoreError, match="inference blocked"):
         loaded.predict(table)
+
+
+def test_windows_era_catalog_paths_relocate_to_local_store(tmp_path):
+    """B7 portability: catalogs migrated from Windows store D:\\ absolute or
+    backslash-relative paths.  The files exist locally; the entries must
+    relocate so replace-save (archive) and load_artifact keep working."""
+    base = tmp_path / "models"
+    store = ModelStore(base)
+    saved = store.save_training_model("legacy_model", ConstantModel(0.9), _manifest("legacy_model"))
+
+    # Rewrite the catalog the way the Windows-era pipeline left it.
+    catalog = json.loads((base / "model_catalog.json").read_text(encoding="utf-8"))
+    for item in catalog["models"]:
+        item["path"] = r"D:\SOH_eval\work\trusted_plugins\models\legacy_model"
+        item["model_path"] = r"D:\SOH_eval\work\trusted_plugins\models\legacy_model\model.pkl"
+        item["manifest_path"] = (
+            r"D:\SOH_eval\work\trusted_plugins\models\legacy_model\model_manifest.json"
+        )
+    (base / "model_catalog.json").write_text(json.dumps(catalog), encoding="utf-8")
+
+    reopened = ModelStore(base)
+    entry = reopened.catalog()[0]
+    assert entry["model_path"].startswith(str(base))
+
+    # The stale entry must load by its immutable artifact id...
+    loaded = reopened.load_artifact(saved["artifact_id"])
+    assert loaded.predict(_table(), None) is not None
+
+    # ...and replace-save must archive the old bytes instead of crashing on
+    # the dead Windows path (this was the "0 saved model artifacts" bug).
+    replaced = reopened.save_training_model(
+        "legacy_model", ConstantModel(0.8), _manifest("legacy_model"), replace=True
+    )
+    assert replaced["artifact_id"] != saved["artifact_id"]
+    assert reopened.load_artifact(saved["artifact_id"]) is not None  # archived copy

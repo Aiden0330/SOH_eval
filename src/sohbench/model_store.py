@@ -9,7 +9,7 @@ import shutil
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 import numpy as np
@@ -326,7 +326,11 @@ class ModelStore:
     def _read_catalog(self) -> dict:
         if not self.catalog_path.exists():
             return {"models": []}
-        return json.loads(self.catalog_path.read_text(encoding="utf-8"))
+        catalog = json.loads(self.catalog_path.read_text(encoding="utf-8"))
+        for item in catalog.get("models", []):
+            if isinstance(item, dict):
+                _relocate_stale_paths(item, self.base_dir)
+        return catalog
 
     def _read_invalidations(self) -> dict[str, dict]:
         if not self.invalidations_path.exists():
@@ -461,6 +465,54 @@ class ModelStore:
             return item if _model_artifact_id(item) == artifact_id else None
         except OSError:
             return None
+
+
+def _stored_path_parts(value: object) -> tuple[str, ...]:
+    """Split a catalog path that may come from another OS.
+
+    Windows-era catalogs store ``D:\\SOH_eval\\...`` absolute paths and
+    ``work\\trusted_plugins\\...`` backslash-relative paths; on POSIX those
+    are single opaque filenames, so parse them with the Windows rules when
+    they contain a backslash or a drive prefix.
+    """
+    text = str(value or "")
+    if not text:
+        return ()
+    if "\\" in text or re.match(r"^[A-Za-z]:", text):
+        return PureWindowsPath(text).parts
+    return PurePosixPath(text).parts
+
+
+def _relocate_stale_paths(item: dict, base_dir: Path) -> None:
+    """Repair catalog entries migrated from another machine (B7 debt).
+
+    When a stored path does not resolve on this machine but the same package
+    exists under the local store, point the entry at the local files.  The
+    path suffix after the store's ``models`` directory is preserved so both
+    top-level packages and ``_artifacts`` archive files relocate correctly.
+    Entries whose files exist nowhere are left untouched (they stay
+    unloadable, exactly as before).
+    """
+
+    def local_candidate(parts: tuple[str, ...], *, is_dir: bool) -> Path | None:
+        if not parts:
+            return None
+        anchor = base_dir.name  # "models"
+        if anchor in parts[:-1]:
+            index = len(parts) - 1 - parts[:-1][::-1].index(anchor)
+            suffix = parts[index:]
+        else:
+            keep = 1 if is_dir else 2
+            suffix = parts[-keep:]
+        return base_dir.joinpath(*suffix) if suffix else None
+
+    for key in ("model_path", "manifest_path", "path"):
+        stored = str(item.get(key) or "")
+        if not stored or Path(stored).exists():
+            continue
+        candidate = local_candidate(_stored_path_parts(stored), is_dir=key == "path")
+        if candidate is not None and candidate.exists():
+            item[key] = str(candidate)
 
 
 def _model_artifact_id(item: dict) -> str:
