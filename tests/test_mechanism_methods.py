@@ -60,8 +60,6 @@ def test_mechanism_proxy_transform_is_target_free_and_finite_when_sources_exist(
         "cycle_sqrt",
         "cycle_log1p",
         "voltage_span_v",
-        "charge_energy_proxy_wh",
-        "cumulative_capacity_proxy_ah",
         "current_rms_proxy_a",
         "current_variability_ratio",
         "temperature_over_25c",
@@ -69,6 +67,11 @@ def test_mechanism_proxy_transform_is_target_free_and_finite_when_sources_exist(
     ):
         assert column in transformed
         assert np.isfinite(transformed[column]).all()
+    # Label-safety structural ban: proxies derived from charge_capacity_max
+    # (the calibration capacity the SOH label is computed from) are no longer
+    # produced at all.
+    assert "charge_energy_proxy_wh" not in transformed
+    assert "cumulative_capacity_proxy_ah" not in transformed
 
 
 def test_full_featureset_is_stable_when_sibling_profile_adds_derived_columns():
