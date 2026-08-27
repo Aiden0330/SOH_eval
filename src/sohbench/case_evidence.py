@@ -954,16 +954,57 @@ class EvidenceDerivationService:
     def _curve_state(self, manifest: dict, selection: dict) -> tuple[Path | None, bool]:
         dataset = str(selection.get("dataset") or "")
         curve_key = _curve_record_key(selection)
+        found: tuple[Path | None, bool] = (None, False)
         for item in manifest.get("curve_artifacts") or []:
             if str(item.get("dataset") or "") != dataset:
                 continue
             source = Path(str(item.get("source") or ""))
             if source.is_file() and curve_key:
-                return source, _json_object_has_key(source, curve_key)
-        local = self.frontend_data_dir.parent / "battery-dashboard" / "data" / f"{dataset}_curves.json"
-        if local.is_file() and curve_key:
-            return local, _json_object_has_key(local, curve_key)
-        return None, False
+                found = (source, _json_object_has_key(source, curve_key))
+                break
+        if not found[1]:
+            local = self.frontend_data_dir.parent / "battery-dashboard" / "data" / f"{dataset}_curves.json"
+            if local.is_file() and curve_key:
+                candidate = (local, _json_object_has_key(local, curve_key))
+                found = candidate if candidate[1] or found[0] is None else found
+        if not found[1]:
+            # The pre-converted extracts cover only sampled cells/cycles;
+            # extract the requested cycle from the local raw acquisition
+            # files when the dataset supports it.
+            generated = self._materialize_raw_curve(dataset, curve_key)
+            if generated is not None:
+                return generated, True
+        return found
+
+    def _materialize_raw_curve(self, dataset: str, curve_key: str) -> Path | None:
+        """On-demand raw-curve extraction into a per-record cache file.
+
+        Each extracted record gets its own file so its content digest — and
+        therefore every recorded ``CurveSegmentRef.source_uri`` — stays
+        stable regardless of later extractions.
+        """
+        if self.data_dir is None or not curve_key:
+            return None
+        extractor = _RAW_CURVE_EXTRACTORS.get(dataset)
+        if extractor is None:
+            return None
+        safe_key = "".join(
+            ch if ch.isalnum() or ch in "._-" else "_" for ch in curve_key
+        )
+        out_path = self.data_dir / "curves" / "generated" / dataset / f"{safe_key}.json"
+        if out_path.is_file():
+            return out_path
+        try:
+            curve = extractor(self.data_dir, curve_key)
+        except Exception:
+            return None
+        if not curve:
+            return None
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(
+            json.dumps({curve_key: curve}, ensure_ascii=False), encoding="utf-8"
+        )
+        return out_path
 
 
 def derive_verdict(
@@ -1239,6 +1280,44 @@ def _sample_id(dataset: str, asset: object, cycle: object) -> str:
     return f"{dataset}:{asset}:{cycle}"
 
 
+@lru_cache(maxsize=4)
+def _load_hust_raw_cell(path_value: str, _mtime_ns: int) -> dict:
+    import pickle
+
+    with open(path_value, "rb") as handle:
+        payload = pickle.load(handle)
+    cell_name = Path(path_value).stem
+    return (payload.get(cell_name) or {}).get("data") or {}
+
+
+def _extract_hust_raw_curve(data_dir: Path, curve_key: str) -> dict | None:
+    """Extract one cycle's t/V/I series from the HUST per-cell raw pickle."""
+    cell, _, cycle_text = curve_key.partition("|")
+    try:
+        cycle_number = int(float(cycle_text))
+    except (TypeError, ValueError):
+        return None
+    path = data_dir / "raw" / "hust" / "our_data" / f"{cell}.pkl"
+    if not path.is_file():
+        return None
+    cycles = _load_hust_raw_cell(str(path), path.stat().st_mtime_ns)
+    frame = cycles.get(cycle_number)
+    if frame is None or not len(frame):
+        return None
+    ordered = frame.sort_values("Time (s)")
+    return {
+        "t_s": [float(v) for v in ordered["Time (s)"]],
+        "voltage_v": [float(v) for v in ordered["Voltage (V)"]],
+        "current_a": [float(v) / 1000.0 for v in ordered["Current (mA)"]],
+    }
+
+
+# Datasets whose raw acquisition files are local and per-cycle extractable.
+_RAW_CURVE_EXTRACTORS = {
+    "hust": _extract_hust_raw_curve,
+}
+
+
 def _curve_record_key(selection: dict) -> str:
     asset = selection.get("asset_id")
     cycle = selection.get("cycle_id")
@@ -1440,6 +1519,13 @@ def _feature_contract(curve_path: Path, dataset: str) -> dict:
         candidate = curve_path.with_name(f"{name}.json")
         if candidate != curve_path and candidate not in candidates:
             candidates.append(candidate)
+    # Generated per-record curves live in curves/generated/<dataset>/ and
+    # inherit the dataset contract from the parent curve store.
+    for name in (alias, dataset_name):
+        for ancestor in (curve_path.parent.parent, curve_path.parent.parent.parent):
+            candidate = ancestor / f"{name}.json"
+            if candidate != curve_path and candidate not in candidates:
+                candidates.append(candidate)
     for candidate in candidates:
         payload = _read_json(candidate, {})
         window = _finite_window(payload.get("feature_window"))

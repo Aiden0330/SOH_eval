@@ -683,3 +683,54 @@ def test_case_uses_bound_inference_job_for_trajectory_and_raw_curves(tmp_path):
     assert curves["feature_window"]["cycle_time_s"] == [0.0, 720.0]
     assert curves["feature_curves"][0]["scope"] == "full_cycle"
     assert curves["feature_curves"][2]["scope"] == "cycle_context"
+
+
+def test_hust_raw_curve_fallback_materializes_missing_extract(tmp_path):
+    """Pre-converted curve extracts cover only sampled cells; a prediction
+    record outside the grid must fall back to the local raw acquisition file
+    and materialize a stable per-record curve cache."""
+    import pandas as pd
+    import pickle as _pickle
+
+    from sohbench.case_evidence import EvidenceDerivationService
+
+    raw_dir = tmp_path / "data" / "raw" / "hust" / "our_data"
+    raw_dir.mkdir(parents=True)
+    frame = pd.DataFrame({
+        "Status": ["Constant current charge"] * 4,
+        "Cycle number": [7] * 4,
+        "Current (mA)": [5500.0, 5500.0, 5500.0, 5500.0],
+        "Voltage (V)": [3.1, 3.3, 3.45, 3.52],
+        "Capacity (mAh)": [0.0, 300.0, 700.0, 900.0],
+        "Time (s)": [0.0, 120.0, 240.0, 360.0],
+    })
+    with open(raw_dir / "9-9.pkl", "wb") as handle:
+        _pickle.dump({"9-9": {"rul": 0, "dq": {}, "data": {7: frame}}}, handle)
+
+    service = EvidenceDerivationService(
+        tmp_path / "frontend_data",
+        data_dir=tmp_path / "data",
+    )
+    path, available = service._curve_state(
+        {"curve_artifacts": []},
+        {"dataset": "hust", "asset_id": "9-9", "cycle_id": 7},
+    )
+    assert available and path is not None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    curve = payload["9-9|7"]
+    assert curve["voltage_v"] == [3.1, 3.3, 3.45, 3.52]
+    assert curve["current_a"] == [5.5, 5.5, 5.5, 5.5]
+
+    # Second resolution reuses the cache file (stable digest for refs).
+    again, available_again = service._curve_state(
+        {"curve_artifacts": []},
+        {"dataset": "hust", "asset_id": "9-9", "cycle_id": 7},
+    )
+    assert available_again and again == path
+
+    # Unknown cells/datasets still report unavailable.
+    _, missing = service._curve_state(
+        {"curve_artifacts": []},
+        {"dataset": "hust", "asset_id": "no-such-cell", "cycle_id": 1},
+    )
+    assert not missing
