@@ -463,6 +463,36 @@ export interface SavedCombinationsRequest {
   [key: string]: unknown;
 }
 
+export interface SearchJobRecord {
+  id: string;
+  kind?: string | null;
+  status?: "queued" | "running" | "succeeded" | "failed" | null;
+  created_at?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  error?: string | null;
+  request?: Record<string, unknown> | null;
+  progress?: string[] | null;
+  report?: Record<string, unknown> | null;
+  result_summary?: Record<string, unknown> | null;
+  [key: string]: unknown;
+}
+
+export interface SearchJobRequest {
+  inner_datasets?: string[] | null;
+  outer_dataset?: string | null;
+  estimators?: string[] | null;
+  featuresets?: string[] | null;
+  top_k?: number | null;
+  seeds?: number[] | null;
+  [key: string]: unknown;
+}
+
+export interface SearchJobsResponse {
+  jobs: SearchJobRecord[];
+  [key: string]: unknown;
+}
+
 export interface SessionResponse {
   access_token: string;
   legacy_execution_enabled: boolean;
@@ -585,6 +615,9 @@ export interface ApiOperations {
   "GET /api/inference-jobs/{job_id}": { response: JobRecord };
   "GET /api/jobs/{job_id}": { response: JobRecord };
   "POST /api/training/preflight": { request?: TrainingPreflightRequest | null; response: TrainingPreflightResponse };
+  "GET /api/search-jobs": { response: SearchJobsResponse };
+  "POST /api/search-jobs": { request?: SearchJobRequest | null; response: SearchJobRecord };
+  "GET /api/search-jobs/{job_id}": { response: SearchJobRecord };
   "POST /api/upload/dataset": { request?: UploadPluginRequest | null; response: UploadResponse };
   "POST /api/upload/algorithm": { request?: UploadPluginRequest | null; response: UploadResponse };
   "POST /api/upload/featureset": { request?: UploadPluginRequest | null; response: UploadResponse };

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>SOH 评测案例工作台</title>
 <link rel="icon" href="data:," />
-<link rel="stylesheet" href="styles.css?v=phase46-label-safety-20260817a" />
+<link rel="stylesheet" href="styles.css?v=phase47-agent-search-20260827a" />
 </head>
 <body>
 <div class="app-shell">
@@ -30,6 +30,7 @@
           <button class="side-mode" type="button" data-side-mode="datasets"><span class="nav-icon"></span><span class="nav-copy"><b>数据集信息</b><small>规模与迁移边界</small></span></button>
           <button class="side-mode" type="button" data-side-mode="diagnostics"><span class="nav-icon"></span><span class="nav-copy"><b>可信洞察</b><small>总览与建议</small></span></button>
           <button class="side-mode" type="button" data-side-mode="models"><span class="nav-icon"></span><span class="nav-copy"><b>资源管理</b><small>算法包与接入</small></span></button>
+          <button class="side-mode" type="button" data-side-mode="search"><span class="nav-icon"></span><span class="nav-copy"><b>智能搜索</b><small>门禁内组合寻优</small></span></button>
         </div>
       </details>
     </nav>
@@ -455,6 +456,20 @@
       </div>
       </section>
 
+      <section class="dataset-catalog-card mode-panel" id="agent-search-panel" data-mode-panel="search" hidden>
+        <div class="section-head">
+          <div>
+            <h2>智能搜索</h2>
+            <p class="desc">在标签安全门禁与验证协议内自动寻优算法 × 特征组合：内环数据集参与搜索并按最差数据集 MAE 排名；外环数据集全程隔离，仅对 top-k 做一次性泛化声明。</p>
+          </div>
+          <span class="api-state">协议门禁</span>
+        </div>
+        <div class="job-state" id="agent-search-state" aria-live="polite">等待配置搜索</div>
+        <div class="agent-search-config" id="agent-search-config"></div>
+        <div class="agent-search-results" id="agent-search-results"></div>
+        <div class="agent-search-history" id="agent-search-history"></div>
+      </section>
+
       <section class="audit-workbench mode-panel" id="audit-workbench" data-mode-panel="audit" hidden>
         <header class="fusion-casebar">
           <div class="fusion-case-context">
@@ -582,6 +597,6 @@
   </div>
   <div class="battery-asset-body" id="battery-asset-body"></div>
 </aside>
-<script type="module" src="app.js?v=phase46-label-safety-20260817a"></script>
+<script type="module" src="app.js?v=phase47-agent-search-20260827a"></script>
 </body>
 </html>

@@ -310,6 +310,36 @@ class TrainingJobRequest(TrainingPreflightRequest):
     expected_context_binding_id: str | None = None
 
 
+class SearchJobRequest(ApiModel):
+    """Protocol-gated agent search: inner pool is searchable, the outer
+    dataset is held out for a single-shot generalization claim."""
+
+    inner_datasets: list[str] | None = None
+    outer_dataset: str | None = None
+    estimators: list[str] | None = None
+    featuresets: list[str] | None = None
+    top_k: int | None = None
+    seeds: list[int] | None = None
+
+
+class SearchJobRecord(ApiModel):
+    id: str
+    kind: str | None = None
+    status: Literal["queued", "running", "succeeded", "failed"] | None = None
+    created_at: str | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+    error: str | None = None
+    request: dict[str, Any] | None = None
+    progress: list[str] | None = None
+    report: dict[str, Any] | None = None
+    result_summary: dict[str, Any] | None = None
+
+
+class SearchJobsResponse(ApiModel):
+    jobs: list[SearchJobRecord]
+
+
 class InferenceJobRequest(ApiModel):
     models: list[str] | None = None
     datasets: list[str] | None = None

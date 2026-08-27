@@ -181,14 +181,17 @@ class EvaluationService:
         self.inference_jobs_dir = self.work_dir / "inference_jobs"
         self.examples_dir = self.work_dir / "examples"
         self.retest_runs_dir = self.work_dir / "retest_runs"
+        self.search_jobs_dir = self.work_dir / "search_jobs"
         self.jobs_dir.mkdir(parents=True, exist_ok=True)
         self.inference_jobs_dir.mkdir(parents=True, exist_ok=True)
         self.examples_dir.mkdir(parents=True, exist_ok=True)
         self.retest_runs_dir.mkdir(parents=True, exist_ok=True)
+        self.search_jobs_dir.mkdir(parents=True, exist_ok=True)
         self._example_lock = threading.RLock()
         self._job_lock = threading.RLock()
         self._inference_job_lock = threading.RLock()
         self._retest_run_lock = threading.RLock()
+        self._search_job_lock = threading.RLock()
         self.store = TrustedPluginStore(
             self.work_dir,
             self.data_dir,
@@ -2062,6 +2065,125 @@ class EvaluationService:
             except (json.JSONDecodeError, ValueError):
                 continue
         return sorted(jobs, key=_job_sort_key, reverse=True)
+
+    # ------------------------------------------------------------------
+    # Agent search jobs (protocol-gated algorithm x featureset selection)
+    # ------------------------------------------------------------------
+
+    def create_search_job(self, payload: dict, *, start: bool = True) -> dict:
+        inner = _string_list(payload.get("inner_datasets") or [])
+        outer = str(payload.get("outer_dataset") or "").strip()
+        estimators = _string_list(payload.get("estimators") or [])
+        featuresets = _string_list(payload.get("featuresets") or [])
+        if not inner:
+            raise ValueError("inner_datasets is required for an agent search")
+        if not outer:
+            raise ValueError("outer_dataset is required for an agent search")
+        if outer in inner:
+            raise ValueError("outer dataset must not appear in the inner search pool")
+        if not estimators:
+            raise ValueError("estimators is required for an agent search")
+        if not featuresets:
+            raise ValueError("featuresets is required for an agent search")
+        for name in estimators:
+            R.get_estimator(name)
+        for name in featuresets:
+            R.get_featureset(name)
+        top_k = int(payload.get("top_k") or 3)
+        seeds = [int(seed) for seed in (payload.get("seeds") or [0])]
+        job_id = time.strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:8]
+        job = {
+            "id": job_id,
+            "kind": "agent_search",
+            "status": "queued",
+            "created_at": _now(),
+            "request": {
+                "inner_datasets": inner,
+                "outer_dataset": outer,
+                "estimators": estimators,
+                "featuresets": featuresets,
+                "top_k": max(1, top_k),
+                "seeds": seeds,
+                "protocol": "loco",
+            },
+            "progress": [],
+        }
+        self._save_search_job(job)
+        if start:
+            thread = threading.Thread(
+                target=self.run_search_job_inline, args=(job_id,), daemon=True
+            )
+            thread.start()
+        return job
+
+    def run_search_job_inline(self, job_id: str) -> dict:
+        from .agent_search import AgentSearch, GridPolicy
+
+        job = self.get_search_job(job_id)
+        job.update({"status": "running", "started_at": _now()})
+        self._save_search_job(job)
+
+        def log(message: str) -> None:
+            job["progress"].append(f"{_now()} {message}".strip())
+            self._save_search_job(job)
+
+        try:
+            request = job["request"]
+            search = AgentSearch(
+                self,
+                inner_datasets=request["inner_datasets"],
+                outer_dataset=request["outer_dataset"],
+                seeds=request.get("seeds") or [0],
+                top_k=int(request.get("top_k") or 3),
+            )
+            report = search.run(
+                GridPolicy(request["estimators"], request["featuresets"]),
+                log=log,
+            )
+            job.update(
+                {
+                    "status": "succeeded",
+                    "finished_at": _now(),
+                    "report": report,
+                    "result_summary": {
+                        "candidates_scored": len(report.get("ranking") or []),
+                        "candidates_excluded": len(report.get("excluded") or []),
+                        "best_candidate": (report.get("ranking") or [{}])[0].get("candidate", ""),
+                        "best_outer_mae": (report.get("outer_claims") or [{}])[0].get("outer_mae"),
+                    },
+                }
+            )
+        except Exception as exc:  # noqa: BLE001 - job records carry the failure
+            job.update(
+                {
+                    "status": "failed",
+                    "finished_at": _now(),
+                    "error": str(exc),
+                    "traceback": traceback.format_exc(),
+                }
+            )
+        self._save_search_job(job)
+        return job
+
+    def get_search_job(self, job_id: str) -> dict:
+        path = self.search_jobs_dir / f"{job_id}.json"
+        if not path.is_file():
+            raise KeyError(job_id)
+        with self._search_job_lock:
+            return json.loads(path.read_text(encoding="utf-8"))
+
+    def list_search_jobs(self) -> list[dict]:
+        jobs = []
+        for path in sorted(self.search_jobs_dir.glob("*.json"), reverse=True):
+            try:
+                jobs.append(self.get_search_job(path.stem))
+            except (json.JSONDecodeError, ValueError, KeyError):
+                continue
+        return sorted(jobs, key=_job_sort_key, reverse=True)
+
+    def _save_search_job(self, job: dict) -> None:
+        with self._search_job_lock:
+            _write_json_atomic(self.search_jobs_dir / f"{job['id']}.json", job)
 
     def _normalize_request(self, payload: dict) -> dict:
         datasets = _string_list(payload.get("datasets") or ["all"])

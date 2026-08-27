@@ -331,6 +331,29 @@ def create_app(
         return _json(service.create_inference_job(data, start=True), 202)
 
     # ------------------------------------------------------------------
+    # Agent search jobs
+    # ------------------------------------------------------------------
+
+    @app.get("/api/search-jobs", responses={200: {"model": schemas.SearchJobsResponse}, 500: err})
+    def search_jobs():
+        return _json({"jobs": service.list_search_jobs()})
+
+    @app.get(
+        "/api/search-jobs/{job_id}",
+        responses={200: {"model": schemas.SearchJobRecord}, 404: err},
+    )
+    def search_job(job_id: str):
+        return _json(service.get_search_job(job_id))
+
+    @app.post(
+        "/api/search-jobs",
+        status_code=202,
+        responses={202: {"model": schemas.SearchJobRecord}, 400: err, 403: err},
+    )
+    def create_search_job(payload: schemas.SearchJobRequest | None = None):
+        return _json(service.create_search_job(_dump(payload), start=True), 202)
+
+    # ------------------------------------------------------------------
     # Uploads / examples / import / packaging
     # ------------------------------------------------------------------
 

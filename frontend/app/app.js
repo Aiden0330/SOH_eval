@@ -55,7 +55,7 @@ import {
   trainingJobRuntimeState,
   trajectoryContextConsistency,
   auditCandidateViewProjection,
-} from "./dashboard-core.mjs?v=phase46-label-safety-20260817a";
+} from "./dashboard-core.mjs?v=phase47-agent-search-20260827a";
 
 const $ = (id) => document.getElementById(id);
 const URL_PARAMS = new URLSearchParams(location.search);
@@ -100,7 +100,7 @@ let DATA = null;
 let activeFs = null;
 let activeDatasets = null;
 const INITIAL_MODE = URL_PARAMS.get("mode");
-const APP_MODES = new Set(["training", "inference", "recommendations", "models", "datasets", "diagnostics", "audit"]);
+const APP_MODES = new Set(["training", "inference", "recommendations", "models", "datasets", "diagnostics", "audit", "search"]);
 let activeMode = APP_MODES.has(INITIAL_MODE) ? INITIAL_MODE : "training";
 let scoped = null;
 let CATALOG = null;
@@ -514,6 +514,7 @@ function render() {
   if (activeMode === "models") renderModelLibrary();
   if (activeMode === "datasets") renderDatasetCatalogPage(dsOptions);
   if (activeMode === "recommendations") renderRecommendationPanel();
+  if (activeMode === "search") renderAgentSearchPanel();
   renderAuditWorkspace();
   renderTaskHistoryDrawer();
   renderAcceptanceDetailDrawer(lb);
@@ -4554,7 +4555,7 @@ function renderPipelineNavigation(navigationMode = activeMode) {
     }
   });
   const tools = document.querySelector(".sidenav-tools");
-  if (tools && ["datasets", "diagnostics", "models", "recommendations"].includes(navigationMode)) tools.open = true;
+  if (tools && ["datasets", "diagnostics", "models", "recommendations", "search"].includes(navigationMode)) tools.open = true;
 }
 
 function renderTaskHistoryDrawer() {
@@ -5864,7 +5865,218 @@ async function activateMode(mode) {
   render();
   if (mode === "models" || mode === "inference") await loadFullModelCatalog();
   if (mode === "audit") await loadReviewWorkspace({ force: true });
+  if (mode === "search") await loadAgentSearchJobs();
   render();
+}
+
+// ---------------------------------------------------------------------------
+// 智能搜索（protocol-gated agent search）
+// ---------------------------------------------------------------------------
+
+let AGENT_SEARCH = { selection: null, job: null, history: [], polling: false };
+
+async function loadAgentSearchJobs() {
+  try {
+    const resp = await fetch(`${API_BASE}/api/search-jobs`);
+    if (!resp.ok) return;
+    const body = await resp.json();
+    AGENT_SEARCH.history = body.jobs || [];
+    const active = AGENT_SEARCH.history.find((job) => ["queued", "running"].includes(job.status));
+    if (active && !AGENT_SEARCH.polling) {
+      AGENT_SEARCH.job = active;
+      pollAgentSearchJob(active.id);
+    }
+  } catch {
+    /* browse-only or backend down: panel renders without history */
+  }
+}
+
+function agentSearchSelection() {
+  if (!AGENT_SEARCH.selection) {
+    AGENT_SEARCH.selection = {
+      inner: new Set(),
+      outer: "",
+      estimators: new Set(["ridge", "extra_trees", "gbdt"]),
+      featuresets: new Set(["voltage", "ic_dva", "partial_window_norm"]),
+      topK: 3,
+    };
+  }
+  return AGENT_SEARCH.selection;
+}
+
+function renderAgentSearchPanel() {
+  const config = $("agent-search-config");
+  if (!config) return;
+  const selection = agentSearchSelection();
+  const datasets = (CATALOG?.datasets || []).map((item) => item.name);
+  const estimators = (CATALOG?.estimators || []).map((item) => item.name);
+  const featuresets = (CATALOG?.featuresets || []).map((item) => item.name);
+  const executionEnabled = Boolean(CATALOG) && API_SESSION.legacyExecutionEnabled;
+  const busy = AGENT_SEARCH.job && ["queued", "running"].includes(AGENT_SEARCH.job.status);
+
+  const checkboxGroup = (name, values, selected) => values.map((value) => `
+    <label class="agent-search-option"><input type="checkbox" data-search-group="${name}" value="${value}" ${selected.has(value) ? "checked" : ""} ${busy ? "disabled" : ""}/> <span>${value}</span></label>`).join("");
+  const outerOptions = ['<option value="">请选择外环数据集</option>']
+    .concat(datasets.map((value) => `<option value="${value}" ${selection.outer === value ? "selected" : ""}>${value}</option>`))
+    .join("");
+
+  config.innerHTML = `
+    <div class="run-config-grid">
+      <fieldset><legend>内环数据集 · 参与搜索</legend>${checkboxGroup("inner", datasets, selection.inner)}</fieldset>
+      <fieldset><legend>外环数据集 · 单次泛化声明</legend>
+        <select id="search-outer-dataset" ${busy ? "disabled" : ""}>${outerOptions}</select>
+        <small>外环数据集在搜索全程隔离，只对 top-k 评测一次。</small>
+      </fieldset>
+      <fieldset><legend>算法候选</legend>${checkboxGroup("estimators", estimators, selection.estimators)}</fieldset>
+      <fieldset><legend>特征方案候选</legend>${checkboxGroup("featuresets", featuresets, selection.featuresets)}</fieldset>
+      <label class="agent-search-topk"><span>Top-K 外环声明</span>
+        <input id="search-top-k" type="number" min="1" max="10" value="${selection.topK}" ${busy ? "disabled" : ""}/></label>
+      <button id="start-agent-search" class="primary-action" type="button">启动智能搜索</button>
+    </div>`;
+
+  config.querySelectorAll("[data-search-group]").forEach((input) => {
+    input.onchange = () => {
+      const group = input.dataset.searchGroup;
+      const target = group === "inner" ? selection.inner : (group === "estimators" ? selection.estimators : selection.featuresets);
+      if (input.checked) target.add(input.value); else target.delete(input.value);
+      renderAgentSearchPanel();
+    };
+  });
+  const outerSelect = config.querySelector("#search-outer-dataset");
+  if (outerSelect) outerSelect.onchange = () => { selection.outer = outerSelect.value; renderAgentSearchPanel(); };
+  const topKInput = config.querySelector("#search-top-k");
+  if (topKInput) topKInput.onchange = () => { selection.topK = Math.max(1, parseInt(topKInput.value, 10) || 3); };
+
+  const validationError = !selection.inner.size
+    ? "请选择至少 1 个内环数据集"
+    : (!selection.outer
+      ? "请选择外环数据集"
+      : (selection.inner.has(selection.outer)
+        ? "外环数据集不能出现在内环搜索池中"
+        : (!selection.estimators.size || !selection.featuresets.size ? "请选择算法与特征候选" : "")));
+  const start = config.querySelector("#start-agent-search");
+  start.disabled = !executionEnabled || busy || Boolean(validationError);
+  start.title = !executionEnabled
+    ? "当前为仅浏览模式，请使用可信本机执行方式启动后端"
+    : (busy ? "搜索进行中" : validationError);
+  start.onclick = start.disabled ? null : startAgentSearch;
+
+  const state = $("agent-search-state");
+  if (state) {
+    if (busy) {
+      state.textContent = `搜索进行中 · ${AGENT_SEARCH.job.id}`;
+      state.className = "job-state running";
+    } else if (validationError) {
+      state.textContent = validationError;
+      state.className = "job-state";
+    } else {
+      state.textContent = executionEnabled ? "配置就绪，可启动搜索" : "仅浏览模式：可查看历史搜索结果";
+      state.className = "job-state ready";
+    }
+  }
+  renderAgentSearchResults();
+  renderAgentSearchHistory();
+}
+
+async function startAgentSearch() {
+  const selection = agentSearchSelection();
+  try {
+    const job = await postJson("/api/search-jobs", {
+      inner_datasets: [...selection.inner],
+      outer_dataset: selection.outer,
+      estimators: [...selection.estimators],
+      featuresets: [...selection.featuresets],
+      top_k: selection.topK,
+    });
+    AGENT_SEARCH.job = job;
+    pollAgentSearchJob(job.id);
+    renderAgentSearchPanel();
+  } catch (error) {
+    const state = $("agent-search-state");
+    if (state) { state.textContent = `搜索启动失败：${error.message}`; state.className = "job-state fail"; }
+  }
+}
+
+function pollAgentSearchJob(jobId) {
+  AGENT_SEARCH.polling = true;
+  const tick = async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/search-jobs/${encodeURIComponent(jobId)}`);
+      if (resp.ok) {
+        const job = await resp.json();
+        AGENT_SEARCH.job = job;
+        if (["succeeded", "failed"].includes(job.status)) {
+          AGENT_SEARCH.polling = false;
+          await loadAgentSearchJobs();
+          if (activeMode === "search") renderAgentSearchPanel();
+          return;
+        }
+      }
+    } catch { /* transient — keep polling */ }
+    if (activeMode === "search") renderAgentSearchPanel();
+    setTimeout(tick, 2000);
+  };
+  setTimeout(tick, 1200);
+}
+
+function renderAgentSearchResults() {
+  const host = $("agent-search-results");
+  if (!host) return;
+  const job = AGENT_SEARCH.job;
+  if (!job) { host.innerHTML = ""; return; }
+  const progress = (job.progress || []).slice(-8).map((line) => `<div>${line}</div>`).join("");
+  if (["queued", "running"].includes(job.status)) {
+    host.innerHTML = `<h3>搜索进度</h3><div class="agent-search-log">${progress || "正在准备…"}</div>`;
+    return;
+  }
+  if (job.status === "failed") {
+    host.innerHTML = `<h3>搜索失败</h3><div class="agent-search-log">${job.error || "未知错误"}</div>`;
+    return;
+  }
+  const report = job.report || {};
+  const rankingRows = (report.ranking || []).map((item, index) => `
+    <tr><td>${index + 1}</td><td>${item.candidate}</td>
+      <td>${Number(item.mae_worst).toFixed(4)}</td><td>${Number(item.mae_mean).toFixed(4)}</td></tr>`).join("");
+  const outerRows = (report.outer_claims || []).map((item) => `
+    <tr><td>${item.candidate}</td><td>${item.outer_dataset}</td><td>${Number(item.outer_mae).toFixed(4)}</td></tr>`).join("");
+  const excluded = (report.excluded || []).map((item) => `
+    <li><b>${item.candidate}</b> — ${(item.reasons || []).join("；") || "被门禁拒绝"}</li>`).join("");
+  host.innerHTML = `
+    <h3>内环排名（最差数据集 MAE · ${(report.inner_datasets || []).join(" + ")}）</h3>
+    <div class="dataset-catalog-table-wrap"><table class="dataset-catalog-table">
+      <thead><tr><th>#</th><th>候选组合</th><th>最差 MAE</th><th>平均 MAE</th></tr></thead>
+      <tbody>${rankingRows || '<tr><td colspan="4">无通过门禁的候选</td></tr>'}</tbody></table></div>
+    <h3>外环声明（单次 LODO · 持出 ${report.outer_dataset || ""}）</h3>
+    <div class="dataset-catalog-table-wrap"><table class="dataset-catalog-table">
+      <thead><tr><th>候选组合</th><th>外环数据集</th><th>外环 MAE</th></tr></thead>
+      <tbody>${outerRows || '<tr><td colspan="3">无外环声明</td></tr>'}</tbody></table></div>
+    ${excluded ? `<h3>门禁拦截</h3><ul class="agent-search-excluded">${excluded}</ul>` : ""}
+    <p class="dataset-catalog-footnote">完整性：外环数据集在搜索期间不可见（${report.integrity ? "已由后端记录" : "—"}）；约束来源：${report.integrity?.constraint_oracle || "训练预检"}。</p>`;
+}
+
+function renderAgentSearchHistory() {
+  const host = $("agent-search-history");
+  if (!host) return;
+  const rows = (AGENT_SEARCH.history || []).slice(0, 8).map((job) => {
+    const summary = job.result_summary || {};
+    const active = AGENT_SEARCH.job?.id === job.id;
+    return `<tr data-search-job="${job.id}" class="${active ? "active" : ""}">
+      <td>${job.id}</td><td>${job.status}</td>
+      <td>${(job.request?.inner_datasets || []).join(",")} → ${job.request?.outer_dataset || ""}</td>
+      <td>${summary.best_candidate || "—"}</td>
+      <td>${summary.best_outer_mae != null ? Number(summary.best_outer_mae).toFixed(4) : "—"}</td></tr>`;
+  }).join("");
+  host.innerHTML = rows
+    ? `<h3>历史搜索</h3><div class="dataset-catalog-table-wrap"><table class="dataset-catalog-table">
+        <thead><tr><th>任务</th><th>状态</th><th>内环 → 外环</th><th>最优组合</th><th>最优外环 MAE</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`
+    : "";
+  host.querySelectorAll("[data-search-job]").forEach((row) => {
+    row.onclick = () => {
+      const job = (AGENT_SEARCH.history || []).find((item) => item.id === row.dataset.searchJob);
+      if (job) { AGENT_SEARCH.job = job; renderAgentSearchPanel(); }
+    };
+  });
 }
 
 async function continueTrainingToInference(job = currentTrainingJob()) {
