@@ -15,9 +15,9 @@ DATASET_C_RATED_AH = {
     "calce_cs2": 1.1, # CALCE CS2 prismatic LiCoO2
     "hust": 1.1,      # HUST A123 18650 LFP
     "oxford": 0.74,   # Oxford ORA Kokam pouch, graphite/LCO-NCO
-    "snl_lfp": float("nan"),
-    "uconn": float("nan"),
-    "rwth_isea_public": float("nan"),
+    "snl_lfp": 1.1,   # SNL/BatteryLife A123 18650 LFP (data/curves/snl_lfp.json)
+    "uconn": 1.1,     # UConn-ISU-ILCC LithiumWerks APR18650M1B LFP (data/curves/uconn.json)
+    "rwth_isea_public": float("nan"),  # field storage cells; nameplate unconfirmed
 }
 DATASET_LABEL_SOURCE = {  # all reference-discharge calibrated capacity
     "nasa": "calibration_capacity", "calce_cs2": "calibration_capacity",

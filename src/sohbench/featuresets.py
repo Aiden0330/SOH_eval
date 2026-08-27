@@ -139,6 +139,7 @@ class _FullFeatureSet(FeatureSet):
         return [
             column for column in feature_columns(table)
             if column not in _MECHANISM_DERIVED_COLUMNS
+            and column not in _PARTIAL_WINDOW_DERIVED_COLUMNS
             and not is_label_source_feature(column)
         ]
 
@@ -170,6 +171,66 @@ register_featureset(FeatureSet(
     # charge_capacity_max is the calibration capacity the SOH label is
     # computed from and must never be a model input (label-safety v1.1).
     candidates=["time_s_max", "cycle_index_feature", "cycle_fraction"],
+))
+
+_PARTIAL_WINDOW_DERIVED_COLUMNS = {"q_win_frac", "t_win_frac"}
+
+
+def _partial_window_norm_transform(
+    table: pd.DataFrame,
+    meta: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Dimensionless partial-window health indicators (transferable HIs).
+
+    Absolute window features do not transfer across cell formats and
+    C-rates — LODO evidence: extra_trees x partial_window scored 0.069
+    inner but 0.401 on the held-out dataset, because q_win_ah carries the
+    cell's Ah scale.  These fractions remove the scale:
+
+    - ``q_win_frac``  = q_win_ah / c_rated_ah   (rated capacity from meta;
+      rated is nameplate, not the calibration capacity the label uses)
+    - ``t_win_frac``  = t_win_s / time_s_max    (fraction of charge time)
+
+    Label-safety note: q_win_frac inherits its window from q_win_ah, whose
+    coverage is audited at ingestion and preflight (DOD < 90% rule); a
+    full-range window would surface through the per-dataset affine gate on
+    q_win_frac itself (rated is constant per cell).
+    """
+    out = table.copy()
+    q_win = _numeric(out, "q_win_ah")
+
+    rated = np.full(len(out), np.nan, dtype=float)
+    if meta is not None and "c_rated_ah" in getattr(meta, "columns", ()):
+        separator = "\x1f"
+        lookup: dict[str, float] = {}
+        for dataset, cell, value in zip(
+            meta.get("dataset", []), meta.get("cell_id", []), meta["c_rated_ah"]
+        ):
+            try:
+                lookup[f"{dataset}{separator}{cell}"] = float(value)
+            except (TypeError, ValueError):
+                continue
+        if lookup and "dataset" in out.columns and "cell_id" in out.columns:
+            keys = out["dataset"].astype(str) + separator + out["cell_id"].astype(str)
+            rated = pd.to_numeric(keys.map(lookup), errors="coerce").to_numpy(dtype=float)
+    rated = np.where(np.isfinite(rated) & (rated > 0.0), rated, np.nan)
+    out["q_win_frac"] = q_win / rated
+
+    t_win = _numeric(out, "t_win_s")
+    t_max = _numeric(out, "time_s_max")
+    t_max = np.where(np.isfinite(t_max) & (t_max > 0.0), t_max, np.nan)
+    out["t_win_frac"] = t_win / t_max
+    return out
+
+
+register_featureset(FeatureSet(
+    name="partial_window_norm",
+    candidates=["q_win_frac", "t_win_frac"],
+    description=(
+        "无量纲部分窗口健康因子：窗口容量/额定容量、窗口时长/充电时长 —— "
+        "跨电芯规格与倍率可迁移（L1 可迁移 HI）。"
+    ),
+    transform=_partial_window_norm_transform,
 ))
 
 

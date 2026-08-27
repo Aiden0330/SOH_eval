@@ -234,3 +234,59 @@ class TestProject:
         result = project(table, "voltage")
         assert "cycle_index" not in result.columns
         assert "dataset" in result.columns
+
+
+def test_partial_window_norm_produces_dimensionless_transferable_his():
+    import pandas as pd
+
+    from sohbench.featuresets import _partial_window_norm_transform
+    from sohbench.registry import get_featureset
+
+    table = pd.DataFrame({
+        "dataset": ["a", "a", "b"],
+        "cell_id": ["c1", "c1", "c9"],
+        "cycle_index": [0, 1, 0],
+        "soh": [1.0, 0.99, 1.0],
+        "q_win_ah": [0.50, 0.49, 25.0],
+        "t_win_s": [900.0, 890.0, 1800.0],
+        "time_s_max": [3600.0, 3600.0, 7200.0],
+    })
+    meta = pd.DataFrame({
+        "dataset": ["a", "b"],
+        "cell_id": ["c1", "c9"],
+        "c_rated_ah": [1.1, 50.0],
+    })
+    out = _partial_window_norm_transform(table, meta)
+    # Different absolute scales (1.1Ah cell vs 50Ah cell) land on the same
+    # dimensionless range — the transferable-HI point.
+    assert out["q_win_frac"].round(4).tolist() == [0.4545, 0.4455, 0.5]
+    assert out["t_win_frac"].round(4).tolist() == [0.25, 0.2472, 0.25]
+
+    featureset = get_featureset("partial_window_norm")
+    assert featureset.columns(out) == ["q_win_frac", "t_win_frac"]
+
+    # Missing rated capacity degrades to NaN, never to a wrong scale.
+    missing = _partial_window_norm_transform(table, meta.iloc[:1])
+    assert missing["q_win_frac"].isna().tolist() == [False, False, True]
+
+
+def test_full_featureset_excludes_partial_window_derived_columns():
+    import pandas as pd
+
+    from sohbench.featuresets import _partial_window_norm_transform
+    from sohbench.registry import get_featureset
+
+    table = pd.DataFrame({
+        "dataset": ["a"] * 4,
+        "cell_id": ["c1"] * 4,
+        "cycle_index": [0, 1, 2, 3],
+        "soh": [1.0, 0.99, 0.98, 0.97],
+        "voltage_mean": [3.5, 3.49, 3.48, 3.47],
+        "q_win_ah": [0.5, 0.49, 0.48, 0.47],
+        "t_win_s": [900.0] * 4,
+        "time_s_max": [3600.0] * 4,
+    })
+    meta = pd.DataFrame({"dataset": ["a"], "cell_id": ["c1"], "c_rated_ah": [1.1]})
+    transformed = _partial_window_norm_transform(table, meta)
+    full = get_featureset("full")
+    assert full.columns(transformed) == full.columns(table)

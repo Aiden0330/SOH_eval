@@ -97,6 +97,15 @@ def ensure_builtin_resources() -> None:
             candidates=["time_s_max", "cycle_index_feature", "cycle_fraction"],
         ),
         featuresets.FeatureSet(
+            name="partial_window_norm",
+            candidates=["q_win_frac", "t_win_frac"],
+            description=(
+                "无量纲部分窗口健康因子：窗口容量/额定容量、窗口时长/充电时长 —— "
+                "跨电芯规格与倍率可迁移（L1 可迁移 HI）。"
+            ),
+            transform=featuresets._partial_window_norm_transform,
+        ),
+        featuresets.FeatureSet(
             name="electrochemical_diagnostics",
             candidates=[
                 "ic_peak_ah_per_v", "ic_peak_voltage_v", "q_win_ah", "t_win_s",
