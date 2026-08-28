@@ -113,7 +113,19 @@ hust × partial_window 阻断（≈98%）、oxford 警告可跑（≈72%）、ca
 | uconn | 1C RPT ref_chg CC 段 | [3.30, 3.37] V | 95.2% → 52.2% | 0.80 |
 
 三数据集 100% 行匹配（hust 146,122 / snl_lfp 64,905 / uconn 2,855），
-重建后审计零违规零警告。uconn 的 RPT↔cycle_index 映射 =
+重建后审计零违规零警告。
+
+**calce_cs2 修订（2026-08-27）**：v1.1 曾以"calce 覆盖率 2.8% = 真实部分窗口"
+为例 —— 实为**分母失真**：calce 的 `charge_capacity_max` 来自 Arbin 文件级累计
+`Charge_Capacity(Ah)`（均值 20.7 Ah、最大 67 Ah，对 1.1 Ah 电芯显然非单循环量），
+旧 [3.6, 4.1] 窗口实际积分约 75% 循环充电量。已按 [3.85, 4.05] V（LCO 0.5C
+中段）重建：CS2 中位 q_win/额定 = 0.434、CX2 = 0.337（CX2 额定 1.35 Ah，
+metadata 增加逐电芯前缀覆盖）。行对齐采用 ccm 序列指纹匹配 + 占位防重
+（错配不可能发生；未对齐行置 NaN）：12,612/15,411 对齐，其余为 txt 记录仪
+电芯（CS2_8/CS2_21）与指纹不吻合文件。
+**审计盲区（待办）**：窗口覆盖率审计以表内 `charge_capacity_max` 为参考 ——
+参考列本身失真时审计"假干净"（calce 即此例）。TODO：参考量稳健化
+（逐循环充电吞吐或额定容量兜底）。uconn 的 RPT↔cycle_index 映射 =
 `cumsum(Num Cycles)`（逐 cell 校验，不吻合则拒写）。原表备份于
 `data/processed/backup_pre_partial_window_fix/`；`data/curves/<ds>.json`
 的 `feature_window` 与 `data/manifest.json` 的 processed sha256 同步更新。

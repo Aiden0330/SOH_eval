@@ -25,8 +25,10 @@ from __future__ import annotations
 import argparse
 import glob
 import hashlib
+import io
 import json
 import pickle
+import re
 import shutil
 import sys
 import zipfile
@@ -52,9 +54,24 @@ WINDOWS = {
         "window": (3.30, 3.37),
         "note": "LFP plateau, 1C RPT reference charge (ref_chg CC segment)",
     },
+    # calce's old [3.6, 4.1] window integrated ~75% of the true cycle charge;
+    # the historical 2.8% "coverage" was an artifact of the file-cumulative
+    # Charge_Capacity(Ah) column corrupting charge_capacity_max.
+    #
+    # Coverage floor rationale (reviewed 2026-08-27): rows are joined by
+    # exact ccm-sequence fingerprints with overlap guards, so misjoins are
+    # impossible — unmatched rows keep NaN windows (missing, never wrong).
+    # ~7% of rows are the two txt-logger cells (CS2_8, CS2_21) with no Arbin
+    # xlsx at all, and ~10% sit in files whose fingerprints don't align
+    # (pipeline-trimmed cycles / preliminary tests), giving ~82% coverage.
+    "calce_cs2": {
+        "window": (3.85, 4.05),
+        "note": "LCO mid-charge window at 0.5C (CS2/CX2 Arbin cells; unaligned rows NaN)",
+        "min_match": 0.80,
+    },
 }
 
-CURVE_CONFIG_NAMES = {"hust": "hust", "snl_lfp": "snl_lfp", "uconn": "uconn"}
+CURVE_CONFIG_NAMES = {"hust": "hust", "snl_lfp": "snl_lfp", "uconn": "uconn", "calce_cs2": "calce"}
 
 
 def _window_integral(v: np.ndarray, q: np.ndarray, t: np.ndarray, lo: float, hi: float):
@@ -174,6 +191,123 @@ def _iter_uconn(data_dir: Path, lo: float, hi: float, processed: pd.DataFrame):
             yield cell, cycle_index, q_win, t_win
 
 
+def _calce_date_key(name: str) -> tuple[int, int, int]:
+    match = re.search(r"_(\d{1,2})_(\d{1,2})_(\d{2})\.(?:xlsx|txt)$", name)
+    if not match:
+        return (9999, 0, 0)
+    month, day, year = (int(match.group(i)) for i in (1, 2, 3))
+    return (2000 + year, month, day)
+
+
+def _iter_calce(data_dir: Path, lo: float, hi: float, processed: pd.DataFrame):
+    """Arbin xlsx cells joined by ccm-sequence alignment, not file ordering.
+
+    charge_capacity_max in the processed table is the per-cycle max of the
+    file-cumulative Charge_Capacity(Ah), which makes each raw file's
+    per-cycle ccm sequence a unique fingerprint.  Every file is located in
+    the processed cell's ccm array by exact subsequence match — robust to
+    whatever file ordering the original pipeline used and to files it
+    dropped.  Files that match nowhere (or ambiguously) leave their cycles
+    NaN rather than joining wrongly.
+    """
+    for zip_path in sorted(glob.glob(str(data_dir / "raw" / "calce" / "*.zip"))):
+        cell = Path(zip_path).stem
+        cell_rows = processed[processed["cell_id"].astype(str) == cell].sort_values("cycle_index")
+        if not len(cell_rows):
+            continue
+        archive = zipfile.ZipFile(zip_path)
+        files = sorted(n for n in archive.namelist() if n.endswith(".xlsx"))
+        if not files:
+            print(f"  [calce_cs2] {cell}: no Arbin xlsx (txt logger) — leaving NaN")
+            continue
+        target = pd.to_numeric(cell_rows["charge_capacity_max"], errors="coerce").to_numpy(float)
+        cycle_ids = cell_rows["cycle_index"].astype(int).to_numpy()
+        claimed = np.zeros(len(target), dtype=bool)
+        matched_cycles = 0
+        unmatched_files = []
+
+        parsed: list[tuple[str, np.ndarray, list[tuple[float, float]]]] = []
+        for entry in files:
+            with archive.open(entry) as handle:
+                data = io.BytesIO(handle.read())
+            excel = pd.ExcelFile(data, engine="calamine")
+            sheet = next(
+                (s for s in excel.sheet_names if s.lower().startswith("channel")), None
+            )
+            if sheet is None:
+                continue
+            frame = excel.parse(sheet)
+            sequence: list[float] = []
+            integrals: list[tuple[float, float]] = []
+            for _local_cycle, group in sorted(frame.groupby("Cycle_Index"), key=lambda kv: kv[0]):
+                sequence.append(
+                    float(pd.to_numeric(group["Charge_Capacity(Ah)"], errors="coerce").max())
+                )
+                charge = group[pd.to_numeric(group["Current(A)"], errors="coerce") > 0.01]
+                if len(charge) < 5:
+                    integrals.append((np.nan, np.nan))
+                    continue
+                integrals.append(_window_integral(
+                    pd.to_numeric(charge["Voltage(V)"], errors="coerce").to_numpy(float),
+                    pd.to_numeric(charge["Charge_Capacity(Ah)"], errors="coerce").to_numpy(float),
+                    pd.to_numeric(charge["Test_Time(s)"], errors="coerce").to_numpy(float),
+                    lo,
+                    hi,
+                ))
+            parsed.append((entry, np.asarray(sequence, dtype=float), integrals))
+
+        def positions_matching(probe: np.ndarray, *, unclaimed_only: bool = False):
+            length = len(probe)
+            hits = []
+            for start in range(0, len(target) - length + 1):
+                if unclaimed_only and claimed[start:start + length].any():
+                    continue
+                window = target[start:start + length]
+                finite = np.isfinite(window) & np.isfinite(probe)
+                if finite.sum() < max(1, int(0.9 * length)):
+                    continue
+                if np.max(np.abs(window[finite] - probe[finite])) <= 0.02:
+                    hits.append(start)
+            return hits
+
+        def assign(start: int, probe_slice: slice, integrals, entry_probe):
+            nonlocal matched_cycles
+            span = len(entry_probe[probe_slice])
+            claimed[start:start + span] = True
+            for offset_index, (q_win, t_win) in enumerate(integrals[probe_slice]):
+                yield cell, int(cycle_ids[start + offset_index]), q_win, t_win
+            matched_cycles += span
+
+        # Pass 1: whole-file exact spans (the common case).
+        leftovers = []
+        for entry, probe, integrals in parsed:
+            if len(probe) < 3:
+                leftovers.append((entry, probe, integrals))
+                continue
+            hits = positions_matching(probe)
+            if len(hits) == 1 and not claimed[hits[0]:hits[0] + len(probe)].any():
+                yield from assign(hits[0], slice(None), integrals, probe)
+            else:
+                leftovers.append((entry, probe, integrals))
+
+        # Pass 2: remaining files (including tiny preliminary ones) matched
+        # against still-unclaimed slots only.
+        for entry, probe, integrals in leftovers:
+            if not len(probe):
+                unmatched_files.append(entry)
+                continue
+            hits = positions_matching(probe, unclaimed_only=True)
+            if len(hits) == 1:
+                yield from assign(hits[0], slice(None), integrals, probe)
+            else:
+                unmatched_files.append(entry)
+        note = f", {len(unmatched_files)} file(s) unmatched" if unmatched_files else ""
+        print(
+            f"  [calce_cs2] {cell}: aligned {matched_cycles}/{len(cell_rows)} cycles"
+            f" across {len(files)} files{note}"
+        )
+
+
 # ---------------------------------------------------------------------------
 
 
@@ -191,6 +325,8 @@ def rebuild_dataset(name: str, data_dir: Path, *, dry_run: bool) -> dict:
         iterator = _iter_snl(data_dir, lo, hi)
     elif name == "uconn":
         iterator = _iter_uconn(data_dir, lo, hi, table)
+    elif name == "calce_cs2":
+        iterator = _iter_calce(data_dir, lo, hi, table)
     else:
         raise SystemExit(f"no raw iterator for dataset {name}")
 
@@ -222,9 +358,11 @@ def rebuild_dataset(name: str, data_dir: Path, *, dry_run: bool) -> dict:
             f"{name}: rebuilt q_win_ah STILL violates label safety — window too wide?\n"
             + "\n".join(report["audit_violations"])
         )
-    if matched < 0.95 * len(table):
+    min_match = float(WINDOWS[name].get("min_match", 0.95))
+    if matched < min_match * len(table):
         raise SystemExit(
-            f"{name}: only {matched}/{len(table)} rows matched raw curves — join is broken, refusing to write"
+            f"{name}: only {matched}/{len(table)} rows matched raw curves "
+            f"(floor {min_match:.0%}) — join is broken, refusing to write"
         )
     if dry_run:
         return report

@@ -36,7 +36,15 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "processed"
 # the 5C CC charge, snl_lfp [3.30,3.38]V at 0.5C, uconn [3.30,3.37]V on the
 # 1C RPT ref charge).  Median coverage now 48.7% / 50.7% / 52.2%, so the
 # q_win_ah findings are gone by construction.  oxford (71.7%) remains a
-# warning, calce_cs2 (2.8%) was always a genuine partial window.
+# warning.
+#
+# Reviewed 2026-08-27 (calce correction): calce's "2.8% coverage" was a
+# denominator artifact — its charge_capacity_max is the file-cumulative
+# Arbin Charge_Capacity(Ah), not a per-cycle quantity, so the coverage
+# audit was fooled ("false clean"); the old [3.6, 4.1] window actually
+# integrated ~75% of the cycle charge.  q_win rebuilt on [3.85, 4.05] V
+# (true coverage ~43% of rated).  The audit's reference-robustness gap is
+# a documented TODO in the label-safety doc §6.3.
 EXPECTED_LABEL_SOURCE_COLUMNS = {
     "hust": ["charge_capacity_max"],
     "oxford": ["charge_capacity_max"],

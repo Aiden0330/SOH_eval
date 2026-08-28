@@ -25,10 +25,18 @@ DATASET_LABEL_SOURCE = {  # all reference-discharge calibrated capacity
     "snl_lfp": "calibration_capacity", "uconn": "calibration_capacity",
     "rwth_isea_public": "calibration_capacity",
 }
+# Cell-prefix overrides for datasets that mix cell formats: CALCE CX2 cells
+# are 1.35 Ah prismatic vs the CS2 series' 1.1 Ah.
+CELL_PREFIX_C_RATED_AH = {
+    ("calce_cs2", "CX2_"): 1.35,
+}
 
 def build_meta(table: pd.DataFrame) -> pd.DataFrame:
     cells = table[["dataset", "cell_id"]].drop_duplicates().reset_index(drop=True)
     cells["chemistry"] = cells["dataset"].map(DATASET_CHEMISTRY).fillna("unknown")
     cells["c_rated_ah"] = cells["dataset"].map(DATASET_C_RATED_AH)
+    for (dataset, prefix), rated in CELL_PREFIX_C_RATED_AH.items():
+        mask = (cells["dataset"] == dataset) & cells["cell_id"].astype(str).str.startswith(prefix)
+        cells.loc[mask, "c_rated_ah"] = rated
     cells["label_source"] = cells["dataset"].map(DATASET_LABEL_SOURCE).fillna("unknown")
     return cells
