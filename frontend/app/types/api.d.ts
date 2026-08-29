@@ -483,6 +483,8 @@ export interface SearchJobRequest {
   outer_dataset?: string | null;
   estimators?: string[] | null;
   featuresets?: string[] | null;
+  policy?: "grid" | "llm" | null;
+  window_targets?: number[] | null;
   top_k?: number | null;
   seeds?: number[] | null;
   [key: string]: unknown;

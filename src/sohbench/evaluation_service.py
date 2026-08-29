@@ -2089,6 +2089,21 @@ class EvaluationService:
             R.get_estimator(name)
         for name in featuresets:
             R.get_featureset(name)
+        policy = str(payload.get("policy") or "grid").strip().lower()
+        if policy not in {"grid", "llm"}:
+            raise ValueError(f"unknown search policy: {policy}")
+        if policy == "llm":
+            from .llm_policy import llm_transport_status
+
+            status = llm_transport_status()
+            if not status["available"]:
+                raise ValueError(f"AI 策略不可用 — {status['detail']}")
+        window_targets = [
+            float(target) for target in (payload.get("window_targets") or [])
+        ]
+        for target in window_targets:
+            if not 0.1 <= target <= 0.9:
+                raise ValueError(f"window target out of range: {target}")
         top_k = int(payload.get("top_k") or 3)
         seeds = [int(seed) for seed in (payload.get("seeds") or [0])]
         job_id = time.strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:8]
@@ -2102,6 +2117,8 @@ class EvaluationService:
                 "outer_dataset": outer,
                 "estimators": estimators,
                 "featuresets": featuresets,
+                "window_targets": window_targets,
+                "policy": policy,
                 "top_k": max(1, top_k),
                 "seeds": seeds,
                 "protocol": "loco",
@@ -2136,10 +2153,22 @@ class EvaluationService:
                 seeds=request.get("seeds") or [0],
                 top_k=int(request.get("top_k") or 3),
             )
-            report = search.run(
-                GridPolicy(request["estimators"], request["featuresets"]),
-                log=log,
-            )
+            if str(request.get("policy") or "grid") == "llm":
+                from .llm_policy import LLMPolicy
+
+                policy = LLMPolicy(
+                    estimators=request["estimators"],
+                    featuresets=request["featuresets"],
+                    inner_datasets=request["inner_datasets"],
+                    window_targets_allowed=True,
+                )
+            else:
+                policy = GridPolicy(
+                    request["estimators"],
+                    request["featuresets"],
+                    request.get("window_targets") or None,
+                )
+            report = search.run(policy, log=log)
             job.update(
                 {
                     "status": "succeeded",

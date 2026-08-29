@@ -78,3 +78,77 @@ def test_grid_policy_converges_after_one_round():
     assert first == [Candidate("ridge", "voltage")]
     _History.rounds = [{"round": 0}]
     assert policy.propose(_History()) == []
+
+
+def test_llm_policy_parses_validates_and_converges():
+    from sohbench.agent_search import SearchHistory
+    from sohbench.llm_policy import LLMPolicy
+
+    responses = iter([
+        # Round 1: two valid proposals, one unknown name, one duplicate.
+        '{"proposals": [{"estimator": "ridge", "featureset": "voltage"},'
+        ' {"estimator": "gbdt", "featureset": "partial_window_norm", "window_target": 0.45},'
+        ' {"estimator": "nope", "featureset": "voltage"},'
+        ' {"estimator": "ridge", "featureset": "voltage"}],'
+        ' "reasoning": "start broad", "stop": false}',
+        # Round 2: converged.
+        '{"proposals": [], "reasoning": "plateaued", "stop": true}',
+    ])
+    policy = LLMPolicy(
+        estimators=["ridge", "gbdt"],
+        featuresets=["voltage", "partial_window_norm"],
+        inner_datasets=["a", "b"],
+        transport=lambda prompt: next(responses),
+    )
+    history = SearchHistory()
+    first = policy.propose(history)
+    assert [c.key() for c in first] == ["ridge×voltage", "gbdt×partial_window_norm@w45%"]
+    assert policy.log_entries[0]["rejected"]
+    history.rounds.append({"round": 0, "scores": [], "excluded": []})
+    assert policy.propose(history) == []
+    assert policy.log_entries[1]["stop"] is True
+
+
+def test_llm_policy_transport_failure_converges_not_crashes():
+    from sohbench.agent_search import SearchHistory
+    from sohbench.llm_policy import LLMPolicy
+
+    def broken(prompt):
+        raise RuntimeError("no credentials")
+
+    policy = LLMPolicy(
+        estimators=["ridge"], featuresets=["voltage"], inner_datasets=["a"],
+        transport=broken,
+    )
+    assert policy.propose(SearchHistory()) == []
+    assert "no credentials" in policy.log_entries[0]["error"]
+
+
+def test_llm_search_job_requires_available_transport(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    from sohbench import llm_policy
+    from sohbench.evaluation_service import EvaluationService
+
+    data_dir = Path(__file__).resolve().parents[1] / "data"
+    service = EvaluationService(
+        data_dir=data_dir,
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    monkeypatch.setattr(
+        llm_policy, "llm_transport_status",
+        lambda: {"available": False, "transport": None, "detail": "no Claude credentials"},
+    )
+    with pytest.raises(ValueError, match="AI 策略不可用"):
+        service.create_search_job(
+            {
+                "inner_datasets": ["soh_quickstart_demo"],
+                "outer_dataset": "smoke_eval_demo",
+                "estimators": ["ridge"],
+                "featuresets": ["voltage"],
+                "policy": "llm",
+            },
+            start=False,
+        )

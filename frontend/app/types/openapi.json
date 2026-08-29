@@ -6776,6 +6776,35 @@
             ],
             "title": "Featuresets"
           },
+          "policy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "grid",
+                  "llm"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy"
+          },
+          "window_targets": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Targets"
+          },
           "top_k": {
             "anyOf": [
               {

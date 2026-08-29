@@ -318,6 +318,8 @@ class SearchJobRequest(ApiModel):
     outer_dataset: str | None = None
     estimators: list[str] | None = None
     featuresets: list[str] | None = None
+    policy: Literal["grid", "llm"] | None = None
+    window_targets: list[float] | None = None
     top_k: int | None = None
     seeds: list[int] | None = None
 

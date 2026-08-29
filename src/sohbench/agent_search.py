@@ -287,19 +287,21 @@ class AgentSearch:
             proposals = policy.propose(history)
             if not proposals:
                 break
-            entry = {"round": round_index, "proposed": len(proposals), "scores": []}
+            entry = {"round": round_index, "proposed": len(proposals), "scores": [], "excluded": []}
             for candidate in proposals:
                 admitted, reasons, warnings = self._admit(candidate, self.inner_datasets)
                 if not admitted:
-                    excluded.append(
-                        {"candidate": candidate.key(), "reasons": reasons}
-                    )
+                    exclusion = {"candidate": candidate.key(), "reasons": reasons}
+                    excluded.append(exclusion)
+                    entry["excluded"].append(exclusion)
                     log(f"  [gate] {candidate.key()} excluded: {reasons[:1]}")
                     continue
                 try:
                     score = self._score_inner(candidate)
                 except WindowGateError as exc:
-                    excluded.append({"candidate": candidate.key(), "reasons": [str(exc)]})
+                    exclusion = {"candidate": candidate.key(), "reasons": [str(exc)]}
+                    excluded.append(exclusion)
+                    entry["excluded"].append(exclusion)
                     log(f"  [gate] {candidate.key()} excluded: {exc}")
                     continue
                 score["preflight_warnings"] = warnings
@@ -334,6 +336,8 @@ class AgentSearch:
 
         return {
             "schema_version": "1.0.0",
+            "policy": type(policy).__name__,
+            "policy_log": list(getattr(policy, "log_entries", []) or []),
             "inner_datasets": self.inner_datasets,
             "outer_dataset": self.outer_dataset,
             "protocol": {"inner": self.protocol, "outer": "lodo"},

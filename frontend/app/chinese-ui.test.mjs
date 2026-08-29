@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const CACHE_VERSION = "phase47-agent-search-20260827a";
+const CACHE_VERSION = "phase48-llm-policy-20260827a";
 const html = readFileSync(join(here, "index.html"), "utf8");
 const app = readFileSync(join(here, "app.js"), "utf8");
 const css = readFileSync(join(here, "styles.css"), "utf8");

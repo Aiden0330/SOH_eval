@@ -55,7 +55,7 @@ import {
   trainingJobRuntimeState,
   trajectoryContextConsistency,
   auditCandidateViewProjection,
-} from "./dashboard-core.mjs?v=phase47-agent-search-20260827a";
+} from "./dashboard-core.mjs?v=phase48-llm-policy-20260827a";
 
 const $ = (id) => document.getElementById(id);
 const URL_PARAMS = new URLSearchParams(location.search);
@@ -5899,6 +5899,8 @@ function agentSearchSelection() {
       estimators: new Set(["ridge", "extra_trees", "gbdt"]),
       featuresets: new Set(["voltage", "ic_dva", "partial_window_norm"]),
       topK: 3,
+      policy: "grid",
+      windowTargets: "",
     };
   }
   return AGENT_SEARCH.selection;
@@ -5929,6 +5931,15 @@ function renderAgentSearchPanel() {
       </fieldset>
       <fieldset><legend>算法候选</legend>${checkboxGroup("estimators", estimators, selection.estimators)}</fieldset>
       <fieldset><legend>特征方案候选</legend>${checkboxGroup("featuresets", featuresets, selection.featuresets)}</fieldset>
+      <fieldset><legend>搜索策略</legend>
+        <select id="search-policy" ${busy ? "disabled" : ""}>
+          <option value="grid" ${selection.policy === "grid" ? "selected" : ""}>网格搜索（确定性）</option>
+          <option value="llm" ${selection.policy === "llm" ? "selected" : ""}>AI Agent（Claude 提案 · 门禁内迭代）</option>
+        </select>
+        <small>AI Agent 策略由 Claude 逐轮提案并读取上一轮成绩；所有硬门禁与外环隔离不变。需要后端具备 Claude 凭据。</small>
+      </fieldset>
+      <label class="agent-search-window-targets"><span>窗口覆盖率目标（可选，逗号分隔，如 0.45,0.60 · 需窗口库）</span>
+        <input id="search-window-targets" type="text" value="${selection.windowTargets}" placeholder="留空 = 不搜索窗口" ${busy ? "disabled" : ""}/></label>
       <label class="agent-search-topk"><span>Top-K 外环声明</span>
         <input id="search-top-k" type="number" min="1" max="10" value="${selection.topK}" ${busy ? "disabled" : ""}/></label>
       <button id="start-agent-search" class="primary-action" type="button">启动智能搜索</button>
@@ -5946,6 +5957,10 @@ function renderAgentSearchPanel() {
   if (outerSelect) outerSelect.onchange = () => { selection.outer = outerSelect.value; renderAgentSearchPanel(); };
   const topKInput = config.querySelector("#search-top-k");
   if (topKInput) topKInput.onchange = () => { selection.topK = Math.max(1, parseInt(topKInput.value, 10) || 3); };
+  const policySelect = config.querySelector("#search-policy");
+  if (policySelect) policySelect.onchange = () => { selection.policy = policySelect.value; };
+  const windowTargetsInput = config.querySelector("#search-window-targets");
+  if (windowTargetsInput) windowTargetsInput.onchange = () => { selection.windowTargets = windowTargetsInput.value.trim(); };
 
   const validationError = !selection.inner.size
     ? "请选择至少 1 个内环数据集"
@@ -5981,11 +5996,17 @@ function renderAgentSearchPanel() {
 async function startAgentSearch() {
   const selection = agentSearchSelection();
   try {
+    const windowTargets = (selection.windowTargets || "")
+      .split(",")
+      .map((value) => parseFloat(value.trim()))
+      .filter((value) => Number.isFinite(value));
     const job = await postJson("/api/search-jobs", {
       inner_datasets: [...selection.inner],
       outer_dataset: selection.outer,
       estimators: [...selection.estimators],
       featuresets: [...selection.featuresets],
+      policy: selection.policy || "grid",
+      window_targets: windowTargets,
       top_k: selection.topK,
     });
     AGENT_SEARCH.job = job;
@@ -6041,7 +6062,14 @@ function renderAgentSearchResults() {
     <tr><td>${item.candidate}</td><td>${item.outer_dataset}</td><td>${Number(item.outer_mae).toFixed(4)}</td></tr>`).join("");
   const excluded = (report.excluded || []).map((item) => `
     <li><b>${item.candidate}</b> — ${(item.reasons || []).join("；") || "被门禁拒绝"}</li>`).join("");
+  const policyRounds = (report.policy_log || []).filter((entry) => entry.reasoning || entry.error);
+  const policyBlock = policyRounds.length
+    ? `<h3>Agent 推理轮次（${report.policy || ""}）</h3><ol class="agent-search-policy-log">${policyRounds.map((entry) => `
+        <li><b>第 ${Number(entry.round) + 1} 轮</b> ${entry.error ? `策略错误：${entry.error}` : entry.reasoning}
+          ${entry.proposed?.length ? `<br/><small>提案：${entry.proposed.join("、")}</small>` : ""}</li>`).join("")}</ol>`
+    : "";
   host.innerHTML = `
+    ${policyBlock}
     <h3>内环排名（最差数据集 MAE · ${(report.inner_datasets || []).join(" + ")}）</h3>
     <div class="dataset-catalog-table-wrap"><table class="dataset-catalog-table">
       <thead><tr><th>#</th><th>候选组合</th><th>最差 MAE</th><th>平均 MAE</th></tr></thead>
