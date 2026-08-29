@@ -85,6 +85,24 @@ Policy.propose(history) ──候选──▶ 约束 oracle（training_preflight
 - 报告 JSON：admitted / excluded(+原因) / ranking / outer_claims / integrity 声明。
 - LLM policy、超参内层优化器、适配期动作为后续迭代。
 
+## 4.5 窗口参数化 v1 交付与实验结论（2026-08-27）
+
+交付：`sohbench.raw_windows`（四数据集原始充电曲线统一迭代器，calce 指纹对齐内置）、
+`sohbench.window_bank`（0.05 V 格点 78 窗/循环预积分，parquet 存储；
+`select_bounds` 无标签选界；`apply_bank_window` 替换 + 复审计）、
+`scripts/build_window_bank.py`、agent_search 的 `window_target` 维度
+（候选形如 `ridge×partial_window_norm@w45%`，逐数据集选界写入报告溯源）。
+
+**实测结论（内环 calce+snl · 外环 hust 单次）**：
+1. 仅按覆盖率选界会选中拐点/边缘窗（同覆盖率窗口多解，snl@30% 选到平台以下
+   [3.00,3.35]）→ 已加入**电荷密度偏好**（fraction/V，即平台区，仍无标签）。
+2. 密度修正后调优窗仍逊于手工标定窗（worst 0.128 vs 0.078；外环 0.166 vs
+   0.089）：0.05 V 格点无法表达实测最优的 0.07–0.08 V 亚格点窗
+   （snl [3.30,3.38]、uconn [3.30,3.37]）。
+**结论**：手工逐数据集标定窗保持当前最优；调优维度成为可用研究仪器但需
+细化（平台邻域 0.01–0.02 V 格点，或直接以边界为搜索维度）后才可能反超。
+负结果由嵌套协议诚实计量 — 这正是本装置的目的。
+
 ## 5. 验收与风险
 
 - 验收：单测（tiny 数据集全流程 + 门禁出局路径）；一次真实 LFP 搜索

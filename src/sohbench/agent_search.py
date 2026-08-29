@@ -45,9 +45,20 @@ from .tasks import SOHEstimationTask
 class Candidate:
     estimator: str
     featureset: str
+    # Tuned-window dimension: when set, q_win/t_win are substituted from the
+    # window bank at per-dataset bounds chosen (label-free) so the median
+    # q_win / rated-capacity fraction lands on this target.
+    window_target: float | None = None
 
     def key(self) -> str:
-        return f"{self.estimator}×{self.featureset}"
+        base = f"{self.estimator}×{self.featureset}"
+        if self.window_target is not None:
+            base += f"@w{int(round(self.window_target * 100))}%"
+        return base
+
+
+class WindowGateError(RuntimeError):
+    """A tuned-window candidate failed a hard gate (bank missing or audit)."""
 
 
 @dataclass
@@ -69,14 +80,26 @@ class Policy(Protocol):
 
 
 class GridPolicy:
-    """One round: the full estimator x featureset grid. Converges after it."""
+    """One round: the full estimator x featureset grid. Converges after it.
 
-    def __init__(self, estimators: list[str], featuresets: list[str]):
+    ``window_targets`` adds tuned-window candidates (estimator x
+    partial_window_norm at each coverage target) on top of the plain grid.
+    """
+
+    def __init__(
+        self,
+        estimators: list[str],
+        featuresets: list[str],
+        window_targets: list[float] | None = None,
+    ):
         self.grid = [
             Candidate(estimator, featureset)
             for estimator in estimators
             for featureset in featuresets
         ]
+        for target in window_targets or []:
+            for estimator in estimators:
+                self.grid.append(Candidate(estimator, "partial_window_norm", float(target)))
 
     def propose(self, history: SearchHistory) -> list[Candidate]:
         return [] if history.rounds else list(self.grid)
@@ -115,6 +138,9 @@ class AgentSearch:
         self.max_rounds = max_rounds
         self._loader = DatasetLoader(service.data_dir)
         self._table_cache: dict[tuple[str, ...], tuple[pd.DataFrame, pd.DataFrame]] = {}
+        self._bank_cache: dict[str, pd.DataFrame] = {}
+        self._bounds_cache: dict[tuple[str, float], dict] = {}
+        self.window_provenance: dict[str, dict[str, dict]] = {}
 
     # ------------------------------------------------------------------
     # constraint oracle
@@ -149,6 +175,50 @@ class AgentSearch:
             self._table_cache[cache_key] = (table, meta)
         return self._table_cache[cache_key]
 
+    def _window_bounds(self, dataset: str, target: float, meta: pd.DataFrame) -> dict:
+        from .window_bank import load_bank, select_bounds
+
+        cache_key = (dataset, round(float(target), 4))
+        if cache_key not in self._bounds_cache:
+            if dataset not in self._bank_cache:
+                try:
+                    self._bank_cache[dataset] = load_bank(self.service.data_dir, dataset)
+                except FileNotFoundError as exc:
+                    raise WindowGateError(str(exc)) from exc
+            rated_rows = meta[meta["dataset"].astype(str) == dataset]
+            rated_by_cell = {
+                str(cell): float(value)
+                for cell, value in zip(rated_rows["cell_id"], rated_rows["c_rated_ah"])
+                if pd.notna(value)
+            }
+            if not rated_by_cell:
+                raise WindowGateError(f"no rated capacities for dataset {dataset}")
+            self._bounds_cache[cache_key] = select_bounds(
+                self._bank_cache[dataset], rated_by_cell, float(target)
+            )
+        return self._bounds_cache[cache_key]
+
+    def _substitute_windows(
+        self, candidate: Candidate, table: pd.DataFrame, meta: pd.DataFrame, datasets: list[str]
+    ) -> pd.DataFrame:
+        from .feature_safety import audit_feature_frame
+        from .window_bank import apply_bank_window
+
+        provenance = self.window_provenance.setdefault(candidate.key(), {})
+        for dataset in datasets:
+            bounds = self._window_bounds(dataset, candidate.window_target, meta)
+            table = apply_bank_window(
+                table, dataset, self._bank_cache[dataset], bounds["lo_mv"], bounds["hi_mv"]
+            )
+            provenance[dataset] = dict(bounds)
+        # The DOD/label gates stay hard constraints on the ACTUAL substituted
+        # column, not just on the processed defaults preflight audited.
+        audit = audit_feature_frame(table, ["q_win_ah"])
+        if audit["violations"]:
+            reasons = "; ".join(item["reason"] for item in audit["violations"])
+            raise WindowGateError(f"tuned window failed label-safety audit: {reasons}")
+        return table
+
     def _run(
         self,
         candidate: Candidate,
@@ -156,6 +226,8 @@ class AgentSearch:
         protocol: str,
     ) -> pd.DataFrame:
         table, meta = self._load(datasets)
+        if candidate.window_target is not None:
+            table = self._substitute_windows(candidate, table, meta, datasets)
         table = self.service.store.apply_feature_transforms(
             table, meta, [candidate.featureset]
         )
@@ -181,6 +253,8 @@ class AgentSearch:
             "candidate": candidate.key(),
             "estimator": candidate.estimator,
             "featureset": candidate.featureset,
+            "window_target": candidate.window_target,
+            "window_bounds": self.window_provenance.get(candidate.key(), {}),
             "per_dataset": per_dataset,
             "mae_mean": float(np.mean(finite)) if finite else float("nan"),
             "mae_worst": float(np.max(finite)) if len(finite) == len(maes) and finite else float("nan"),
@@ -199,6 +273,7 @@ class AgentSearch:
             "outer_dataset": self.outer_dataset,
             "outer_mae": float(values.mean()) if len(values) else float("nan"),
             "folds": int(len(rows)),
+            "window_bounds": self.window_provenance.get(candidate.key(), {}),
         }
 
     # ------------------------------------------------------------------
@@ -221,7 +296,12 @@ class AgentSearch:
                     )
                     log(f"  [gate] {candidate.key()} excluded: {reasons[:1]}")
                     continue
-                score = self._score_inner(candidate)
+                try:
+                    score = self._score_inner(candidate)
+                except WindowGateError as exc:
+                    excluded.append({"candidate": candidate.key(), "reasons": [str(exc)]})
+                    log(f"  [gate] {candidate.key()} excluded: {exc}")
+                    continue
                 score["preflight_warnings"] = warnings
                 entry["scores"].append(score)
                 log(
@@ -238,13 +318,19 @@ class AgentSearch:
             ),
         )
         finalists = [
-            Candidate(item["estimator"], item["featureset"])
+            Candidate(item["estimator"], item["featureset"], item.get("window_target"))
             for item in ranking[: self.top_k]
         ]
         outer_claims = []
         for candidate in finalists:
             log(f"  [outer] {candidate.key()} on held-out {self.outer_dataset} ...")
-            outer_claims.append(self._outer_claim(candidate))
+            try:
+                outer_claims.append(self._outer_claim(candidate))
+            except WindowGateError as exc:
+                outer_claims.append(
+                    {"candidate": candidate.key(), "outer_dataset": self.outer_dataset,
+                     "outer_mae": float("nan"), "error": str(exc)}
+                )
 
         return {
             "schema_version": "1.0.0",
@@ -278,6 +364,13 @@ def main(argv=None) -> int:
     parser.add_argument("--data-dir", default="data")
     parser.add_argument("--work-dir", default="work/trusted_plugins")
     parser.add_argument("--top-k", type=int, default=3)
+    parser.add_argument(
+        "--window-targets",
+        nargs="*",
+        type=float,
+        default=None,
+        help="coverage targets (fractions of rated capacity) for tuned-window candidates; needs window banks",
+    )
     parser.add_argument("--out", default=None)
     args = parser.parse_args(argv)
 
@@ -293,7 +386,7 @@ def main(argv=None) -> int:
         outer_dataset=args.outer,
         top_k=args.top_k,
     )
-    report = search.run(GridPolicy(args.estimators, args.featuresets))
+    report = search.run(GridPolicy(args.estimators, args.featuresets, args.window_targets))
     payload = json.dumps(report, ensure_ascii=False, indent=2)
     if args.out:
         out_path = Path(args.out)
