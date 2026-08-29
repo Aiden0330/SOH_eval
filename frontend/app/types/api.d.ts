@@ -341,6 +341,21 @@ export interface LifecycleRequest {
   [key: string]: unknown;
 }
 
+export interface LlmConfigRequest {
+  provider?: string | null;
+  model?: string | null;
+  base_url?: string | null;
+  api_key?: string | null;
+  clear_api_key?: boolean | null;
+  [key: string]: unknown;
+}
+
+export interface LlmConfigResponse {
+  config: Record<string, unknown>;
+  status: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface ModelRecord {
   name?: string | null;
   artifact_id?: string | null;
@@ -620,6 +635,8 @@ export interface ApiOperations {
   "GET /api/search-jobs": { response: SearchJobsResponse };
   "POST /api/search-jobs": { request?: SearchJobRequest | null; response: SearchJobRecord };
   "GET /api/search-jobs/{job_id}": { response: SearchJobRecord };
+  "GET /api/llm-config": { response: LlmConfigResponse };
+  "POST /api/llm-config": { request?: LlmConfigRequest | null; response: LlmConfigResponse };
   "POST /api/upload/dataset": { request?: UploadPluginRequest | null; response: UploadResponse };
   "POST /api/upload/algorithm": { request?: UploadPluginRequest | null; response: UploadResponse };
   "POST /api/upload/featureset": { request?: UploadPluginRequest | null; response: UploadResponse };

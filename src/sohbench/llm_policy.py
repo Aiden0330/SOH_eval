@@ -67,7 +67,60 @@ def _profile_on_disk() -> bool:
     return (Path.home() / ".config" / "anthropic").is_dir()
 
 
-def llm_transport_status() -> dict:
+CONFIG_FILENAME = "llm_config.json"
+CONFIG_FIELDS = ("provider", "model", "base_url", "api_key")
+
+
+def load_llm_config(work_dir: str | Path) -> dict:
+    path = Path(work_dir) / CONFIG_FILENAME
+    if not path.is_file():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {key: str(payload.get(key) or "") for key in CONFIG_FIELDS}
+
+
+def save_llm_config(work_dir: str | Path, payload: dict) -> dict:
+    """Merge-and-persist connection settings; the key is write-only.
+
+    An empty/absent ``api_key`` keeps the stored one; ``clear_api_key`` wipes
+    it.  The file is chmod 0600 — it holds a credential.
+    """
+    current = load_llm_config(work_dir)
+    updated = dict(current)
+    for key in ("provider", "model", "base_url"):
+        if key in payload:
+            updated[key] = str(payload.get(key) or "").strip()
+    if payload.get("clear_api_key"):
+        updated["api_key"] = ""
+    elif str(payload.get("api_key") or "").strip():
+        updated["api_key"] = str(payload["api_key"]).strip()
+    path = Path(work_dir) / CONFIG_FILENAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(updated, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+    return masked_llm_config(updated)
+
+
+def masked_llm_config(config: dict) -> dict:
+    return {
+        "provider": str(config.get("provider") or "anthropic"),
+        "model": str(config.get("model") or ""),
+        "base_url": str(config.get("base_url") or ""),
+        "has_api_key": bool(str(config.get("api_key") or "").strip()),
+    }
+
+
+def llm_transport_status(config: dict | None = None) -> dict:
+    config = config or {}
+    if str(config.get("api_key") or "").strip():
+        target = str(config.get("base_url") or "") or "api.anthropic.com"
+        return {"available": True, "transport": "sdk", "detail": f"workbench key → {target}"}
     if os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"):
         return {"available": True, "transport": "sdk", "detail": "environment credentials"}
     if _profile_on_disk():
@@ -79,27 +132,38 @@ def llm_transport_status() -> dict:
         "available": False,
         "transport": None,
         "detail": (
-            "no Claude credentials: set ANTHROPIC_API_KEY (or run `ant auth login`) "
-            "in the API server's environment, or install the claude CLI"
+            "no Claude credentials: save an API key in the panel's AI 连接设置, "
+            "set ANTHROPIC_API_KEY (or run `ant auth login`) in the API server's "
+            "environment, or install the claude CLI"
         ),
     }
 
 
-def _invoke_sdk(prompt: str) -> str:
+def _invoke_sdk(prompt: str, config: dict | None = None) -> str:
     import anthropic
 
-    client = anthropic.Anthropic()
+    config = config or {}
+    kwargs = {}
+    if str(config.get("api_key") or "").strip():
+        kwargs["api_key"] = str(config["api_key"]).strip()
+    if str(config.get("base_url") or "").strip():
+        kwargs["base_url"] = str(config["base_url"]).strip()
+    client = anthropic.Anthropic(**kwargs)
     response = client.messages.create(
-        model=LLM_MODEL,
+        model=str(config.get("model") or "").strip() or LLM_MODEL,
         max_tokens=16000,
         messages=[{"role": "user", "content": prompt}],
     )
     return "".join(block.text for block in response.content if block.type == "text")
 
 
-def _invoke_cli(prompt: str) -> str:
+def _invoke_cli(prompt: str, config: dict | None = None) -> str:
+    command = ["claude", "-p", prompt, "--output-format", "json"]
+    model = str((config or {}).get("model") or "").strip()
+    if model:
+        command[1:1] = ["--model", model]
     completed = subprocess.run(
-        ["claude", "-p", prompt, "--output-format", "json"],
+        command,
         capture_output=True,
         text=True,
         timeout=300,
@@ -110,13 +174,13 @@ def _invoke_cli(prompt: str) -> str:
     return str(payload.get("result") or "")
 
 
-def default_transport(prompt: str) -> str:
-    status = llm_transport_status()
+def default_transport(prompt: str, config: dict | None = None) -> str:
+    status = llm_transport_status(config)
     if not status["available"]:
         raise RuntimeError(f"LLM policy unavailable: {status['detail']}")
     if status["transport"] == "cli":
-        return _invoke_cli(prompt)
-    return _invoke_sdk(prompt)
+        return _invoke_cli(prompt, config)
+    return _invoke_sdk(prompt, config)
 
 
 def _extract_json(text: str) -> dict:
@@ -142,11 +206,13 @@ class LLMPolicy:
     window_targets_allowed: bool = True
     max_rounds: int = DEFAULT_MAX_ROUNDS
     transport: object | None = None
+    config: dict | None = None
     log_entries: list[dict] = field(default_factory=list)
 
     def __post_init__(self):
         if self.transport is None:
-            self.transport = default_transport
+            connection = self.config
+            self.transport = lambda prompt: default_transport(prompt, connection)
 
     def _history_payload(self, history) -> str:
         scored = list(history.scored().values())

@@ -2093,9 +2093,9 @@ class EvaluationService:
         if policy not in {"grid", "llm"}:
             raise ValueError(f"unknown search policy: {policy}")
         if policy == "llm":
-            from .llm_policy import llm_transport_status
+            from .llm_policy import llm_transport_status, load_llm_config
 
-            status = llm_transport_status()
+            status = llm_transport_status(load_llm_config(self.work_dir))
             if not status["available"]:
                 raise ValueError(f"AI 策略不可用 — {status['detail']}")
         window_targets = [
@@ -2154,13 +2154,14 @@ class EvaluationService:
                 top_k=int(request.get("top_k") or 3),
             )
             if str(request.get("policy") or "grid") == "llm":
-                from .llm_policy import LLMPolicy
+                from .llm_policy import LLMPolicy, load_llm_config
 
                 policy = LLMPolicy(
                     estimators=request["estimators"],
                     featuresets=request["featuresets"],
                     inner_datasets=request["inner_datasets"],
                     window_targets_allowed=True,
+                    config=load_llm_config(self.work_dir),
                 )
             else:
                 policy = GridPolicy(
@@ -2213,6 +2214,24 @@ class EvaluationService:
     def _save_search_job(self, job: dict) -> None:
         with self._search_job_lock:
             _write_json_atomic(self.search_jobs_dir / f"{job['id']}.json", job)
+
+    def get_llm_config(self) -> dict:
+        from .llm_policy import llm_transport_status, load_llm_config, masked_llm_config
+
+        config = load_llm_config(self.work_dir)
+        return {
+            "config": masked_llm_config(config),
+            "status": llm_transport_status(config),
+        }
+
+    def set_llm_config(self, payload: dict) -> dict:
+        from .llm_policy import llm_transport_status, load_llm_config, save_llm_config
+
+        masked = save_llm_config(self.work_dir, payload or {})
+        return {
+            "config": masked,
+            "status": llm_transport_status(load_llm_config(self.work_dir)),
+        }
 
     def _normalize_request(self, payload: dict) -> dict:
         datasets = _string_list(payload.get("datasets") or ["all"])

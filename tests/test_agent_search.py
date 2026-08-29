@@ -139,7 +139,7 @@ def test_llm_search_job_requires_available_transport(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(
         llm_policy, "llm_transport_status",
-        lambda: {"available": False, "transport": None, "detail": "no Claude credentials"},
+        lambda config=None: {"available": False, "transport": None, "detail": "no Claude credentials"},
     )
     with pytest.raises(ValueError, match="AI 策略不可用"):
         service.create_search_job(
@@ -152,3 +152,33 @@ def test_llm_search_job_requires_available_transport(tmp_path, monkeypatch):
             },
             start=False,
         )
+
+
+def test_llm_config_roundtrip_masks_and_persists_key(tmp_path):
+    from sohbench.evaluation_service import EvaluationService
+    from sohbench.llm_policy import load_llm_config
+
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    initial = service.get_llm_config()
+    assert initial["config"]["has_api_key"] is False
+
+    saved = service.set_llm_config({
+        "model": "claude-opus-5",
+        "base_url": "https://gateway.example/v1",
+        "api_key": "sk-test-123",
+    })
+    assert saved["config"]["has_api_key"] is True
+    assert "sk-test" not in str(saved)  # the key is never echoed
+    assert saved["status"]["available"] is True
+    assert load_llm_config(tmp_path / "work")["api_key"] == "sk-test-123"
+
+    # Empty key keeps the stored one; clear_api_key wipes it.
+    kept = service.set_llm_config({"model": "claude-opus-5", "api_key": ""})
+    assert kept["config"]["has_api_key"] is True
+    cleared = service.set_llm_config({"clear_api_key": True})
+    assert cleared["config"]["has_api_key"] is False

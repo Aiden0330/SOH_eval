@@ -42,6 +42,7 @@ DANGEROUS_POST_PATHS = {
     "/api/jobs",
     "/api/inference-jobs",
     "/api/search-jobs",
+    "/api/llm-config",
     "/api/examples/quickstart",
     "/api/import/battery-dashboard",
     "/api/import/battery-soh-plugins",

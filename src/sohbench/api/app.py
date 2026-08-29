@@ -353,6 +353,17 @@ def create_app(
     def create_search_job(payload: schemas.SearchJobRequest | None = None):
         return _json(service.create_search_job(_dump(payload), start=True), 202)
 
+    @app.get("/api/llm-config", responses={200: {"model": schemas.LlmConfigResponse}, 500: err})
+    def llm_config():
+        return _json(service.get_llm_config())
+
+    @app.post(
+        "/api/llm-config",
+        responses={200: {"model": schemas.LlmConfigResponse}, 400: err, 403: err},
+    )
+    def set_llm_config(payload: schemas.LlmConfigRequest | None = None):
+        return _json(service.set_llm_config(_dump(payload)))
+
     # ------------------------------------------------------------------
     # Uploads / examples / import / packaging
     # ------------------------------------------------------------------

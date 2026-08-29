@@ -55,7 +55,7 @@ import {
   trainingJobRuntimeState,
   trajectoryContextConsistency,
   auditCandidateViewProjection,
-} from "./dashboard-core.mjs?v=phase48-llm-policy-20260827a";
+} from "./dashboard-core.mjs?v=phase49-llm-config-20260829a";
 
 const $ = (id) => document.getElementById(id);
 const URL_PARAMS = new URLSearchParams(location.search);
@@ -515,6 +515,14 @@ function render() {
   if (activeMode === "datasets") renderDatasetCatalogPage(dsOptions);
   if (activeMode === "recommendations") renderRecommendationPanel();
   if (activeMode === "search") renderAgentSearchPanel();
+  const openSearch = $("open-agent-search");
+  if (openSearch) {
+    openSearch.onclick = () => {
+      const selection = agentSearchSelection();
+      if (resourceSelection.datasets.size) selection.inner = new Set(resourceSelection.datasets);
+      activateMode("search");
+    };
+  }
   renderAuditWorkspace();
   renderTaskHistoryDrawer();
   renderAcceptanceDetailDrawer(lb);
@@ -5873,9 +5881,13 @@ async function activateMode(mode) {
 // 智能搜索（protocol-gated agent search）
 // ---------------------------------------------------------------------------
 
-let AGENT_SEARCH = { selection: null, job: null, history: [], polling: false };
+let AGENT_SEARCH = { selection: null, job: null, history: [], polling: false, llm: null };
 
 async function loadAgentSearchJobs() {
+  try {
+    const configResp = await fetch(`${API_BASE}/api/llm-config`);
+    if (configResp.ok) AGENT_SEARCH.llm = await configResp.json();
+  } catch { /* config stays unknown */ }
   try {
     const resp = await fetch(`${API_BASE}/api/search-jobs`);
     if (!resp.ok) return;
@@ -5936,7 +5948,25 @@ function renderAgentSearchPanel() {
           <option value="grid" ${selection.policy === "grid" ? "selected" : ""}>网格搜索（确定性）</option>
           <option value="llm" ${selection.policy === "llm" ? "selected" : ""}>AI Agent（Claude 提案 · 门禁内迭代）</option>
         </select>
-        <small>AI Agent 策略由 Claude 逐轮提案并读取上一轮成绩；所有硬门禁与外环隔离不变。需要后端具备 Claude 凭据。</small>
+        <small>AI Agent 策略由 Claude 逐轮提案并读取上一轮成绩；所有硬门禁与外环隔离不变。</small>
+        ${renderLlmStatusLine()}
+        <details class="agent-search-llm-settings" ${AGENT_SEARCH.llm?.status?.available ? "" : "open"}>
+          <summary>AI 连接设置</summary>
+          <div class="run-config-grid">
+            <label><span>提供方</span>
+              <select id="llm-provider">
+                <option value="anthropic" ${(AGENT_SEARCH.llm?.config?.provider || "anthropic") === "anthropic" ? "selected" : ""}>Anthropic（或兼容网关）</option>
+              </select></label>
+            <label><span>模型</span>
+              <input id="llm-model" type="text" value="${AGENT_SEARCH.llm?.config?.model || ""}" placeholder="claude-opus-5（默认）"/></label>
+            <label><span>Base URL（可选，兼容网关）</span>
+              <input id="llm-base-url" type="text" value="${AGENT_SEARCH.llm?.config?.base_url || ""}" placeholder="https://api.anthropic.com"/></label>
+            <label><span>API Key（只写不回显）</span>
+              <input id="llm-api-key" type="password" value="" placeholder="${AGENT_SEARCH.llm?.config?.has_api_key ? "已保存 · 留空保持不变" : "sk-ant-..."}"/></label>
+            <button id="save-llm-config" class="secondary-action" type="button">保存 AI 设置</button>
+            ${AGENT_SEARCH.llm?.config?.has_api_key ? '<button id="clear-llm-key" class="secondary-action" type="button">清除已存 Key</button>' : ""}
+          </div>
+        </details>
       </fieldset>
       <label class="agent-search-window-targets"><span>窗口覆盖率目标（可选，逗号分隔，如 0.45,0.60 · 需窗口库）</span>
         <input id="search-window-targets" type="text" value="${selection.windowTargets}" placeholder="留空 = 不搜索窗口" ${busy ? "disabled" : ""}/></label>
@@ -5961,6 +5991,10 @@ function renderAgentSearchPanel() {
   if (policySelect) policySelect.onchange = () => { selection.policy = policySelect.value; };
   const windowTargetsInput = config.querySelector("#search-window-targets");
   if (windowTargetsInput) windowTargetsInput.onchange = () => { selection.windowTargets = windowTargetsInput.value.trim(); };
+  const saveLlm = config.querySelector("#save-llm-config");
+  if (saveLlm) saveLlm.onclick = () => saveLlmConfig(config, {});
+  const clearKey = config.querySelector("#clear-llm-key");
+  if (clearKey) clearKey.onclick = () => saveLlmConfig(config, { clear_api_key: true });
 
   const validationError = !selection.inner.size
     ? "请选择至少 1 个内环数据集"
@@ -5991,6 +6025,40 @@ function renderAgentSearchPanel() {
   }
   renderAgentSearchResults();
   renderAgentSearchHistory();
+}
+
+function renderLlmStatusLine() {
+  const status = AGENT_SEARCH.llm?.status;
+  if (!status) return "";
+  return status.available
+    ? `<small class="agent-search-llm-status ok">AI 连接可用 · ${status.transport} · ${status.detail}</small>`
+    : `<small class="agent-search-llm-status warn">AI 连接不可用：${status.detail}</small>`;
+}
+
+async function saveLlmConfig(configHost, extra) {
+  try {
+    const payload = {
+      provider: configHost.querySelector("#llm-provider")?.value || "anthropic",
+      model: configHost.querySelector("#llm-model")?.value?.trim() || "",
+      base_url: configHost.querySelector("#llm-base-url")?.value?.trim() || "",
+      ...extra,
+    };
+    const keyValue = configHost.querySelector("#llm-api-key")?.value?.trim();
+    if (keyValue) payload.api_key = keyValue;
+    AGENT_SEARCH.llm = await postJson("/api/llm-config", payload);
+    renderAgentSearchPanel();
+  } catch (error) {
+    const state = $("agent-search-state");
+    if (state) { state.textContent = `AI 设置保存失败：${error.message}`; state.className = "job-state fail"; }
+  }
+}
+
+function applyCandidateToTraining(item, report) {
+  const datasets = (report?.inner_datasets || []).filter(Boolean);
+  if (datasets.length) resourceSelection.datasets = new Set(datasets);
+  if (item.estimator) resourceSelection.estimators = new Set([item.estimator]);
+  if (item.featureset) resourceSelection.featuresets = new Set([item.featureset]);
+  activateMode("training");
 }
 
 async function startAgentSearch() {
@@ -6057,7 +6125,8 @@ function renderAgentSearchResults() {
   const report = job.report || {};
   const rankingRows = (report.ranking || []).map((item, index) => `
     <tr><td>${index + 1}</td><td>${item.candidate}</td>
-      <td>${Number(item.mae_worst).toFixed(4)}</td><td>${Number(item.mae_mean).toFixed(4)}</td></tr>`).join("");
+      <td>${Number(item.mae_worst).toFixed(4)}</td><td>${Number(item.mae_mean).toFixed(4)}</td>
+      <td><button type="button" class="secondary-action" data-apply-candidate="${index}" ${item.window_target != null ? 'title="窗口目标为研究维度，训练配置仅应用算法与特征"' : ""}>应用到训练</button></td></tr>`).join("");
   const outerRows = (report.outer_claims || []).map((item) => `
     <tr><td>${item.candidate}</td><td>${item.outer_dataset}</td><td>${Number(item.outer_mae).toFixed(4)}</td></tr>`).join("");
   const excluded = (report.excluded || []).map((item) => `
@@ -6072,14 +6141,20 @@ function renderAgentSearchResults() {
     ${policyBlock}
     <h3>内环排名（最差数据集 MAE · ${(report.inner_datasets || []).join(" + ")}）</h3>
     <div class="dataset-catalog-table-wrap"><table class="dataset-catalog-table">
-      <thead><tr><th>#</th><th>候选组合</th><th>最差 MAE</th><th>平均 MAE</th></tr></thead>
-      <tbody>${rankingRows || '<tr><td colspan="4">无通过门禁的候选</td></tr>'}</tbody></table></div>
+      <thead><tr><th>#</th><th>候选组合</th><th>最差 MAE</th><th>平均 MAE</th><th>动作</th></tr></thead>
+      <tbody>${rankingRows || '<tr><td colspan="5">无通过门禁的候选</td></tr>'}</tbody></table></div>
     <h3>外环声明（单次 LODO · 持出 ${report.outer_dataset || ""}）</h3>
     <div class="dataset-catalog-table-wrap"><table class="dataset-catalog-table">
       <thead><tr><th>候选组合</th><th>外环数据集</th><th>外环 MAE</th></tr></thead>
       <tbody>${outerRows || '<tr><td colspan="3">无外环声明</td></tr>'}</tbody></table></div>
     ${excluded ? `<h3>门禁拦截</h3><ul class="agent-search-excluded">${excluded}</ul>` : ""}
     <p class="dataset-catalog-footnote">完整性：外环数据集在搜索期间不可见（${report.integrity ? "已由后端记录" : "—"}）；约束来源：${report.integrity?.constraint_oracle || "训练预检"}。</p>`;
+  host.querySelectorAll("[data-apply-candidate]").forEach((button) => {
+    button.onclick = () => {
+      const item = (report.ranking || [])[Number(button.dataset.applyCandidate)];
+      if (item) applyCandidateToTraining(item, report);
+    };
+  });
 }
 
 function renderAgentSearchHistory() {

@@ -342,6 +342,22 @@ class SearchJobsResponse(ApiModel):
     jobs: list[SearchJobRecord]
 
 
+class LlmConfigRequest(ApiModel):
+    """AI-agent connection settings. The api_key is write-only: it is stored
+    server-side (never echoed back) and an empty value keeps the stored one."""
+
+    provider: str | None = None
+    model: str | None = None
+    base_url: str | None = None
+    api_key: str | None = None
+    clear_api_key: bool | None = None
+
+
+class LlmConfigResponse(ApiModel):
+    config: dict[str, Any]
+    status: dict[str, Any]
+
+
 class InferenceJobRequest(ApiModel):
     models: list[str] | None = None
     datasets: list[str] | None = None
