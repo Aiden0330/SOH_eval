@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const CACHE_VERSION = "phase49-llm-config-20260829a";
+const CACHE_VERSION = "phase50-adaptation-20260829a";
 const html = readFileSync(join(here, "index.html"), "utf8");
 const app = readFileSync(join(here, "app.js"), "utf8");
 const css = readFileSync(join(here, "styles.css"), "utf8");
@@ -41,6 +41,9 @@ assert.match(app, /\/api\/llm-config/);
 assert.match(app, /AI 连接设置/);
 assert.match(app, /应用到训练/);
 assert.match(trainingPanel, /id="open-agent-search"/);
+assert.match(inferencePanel, /id="open-adaptation-search"/);
+assert.match(app, /推理适配搜索/);
+assert.match(app, /应用到推理/);
 assert.match(html, /资源与洞察/);
 assert.match(html, /可信洞察/);
 assert.match(html, /资源管理/);

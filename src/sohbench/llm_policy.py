@@ -299,3 +299,126 @@ class LLMPolicy:
         if payload.get("stop"):
             return []
         return proposals
+
+
+ADAPTATION_PROMPT_TEMPLATE = """You are the adaptation policy inside a battery SOH \
+benchmark's inference-phase search.
+
+Setting: trained model artifacts are FROZEN (algorithm and features cannot \
+change). Your job is to pair models with deployment-legal adaptation \
+operators to minimize MAE on the target dataset "{target_dataset}".
+
+Operators (information channels are enforced and reported by the harness):
+- "none": the frozen model as-is.
+- "coral": align target feature distribution to the model's training \
+distribution (unlabeled statistics only).
+- "recalibration": two-parameter output correction fitted on {budget} labeled \
+calibration samples (excluded from evaluation).
+- "coral+recalibration": both.
+
+Candidate models (name · estimator · featureset · trained_on):
+{models}
+
+Search history so far (empty = round 1; prefer starting with a "none" \
+baseline for each promising model so deltas are interpretable):
+{history}
+
+Respond with ONLY a JSON object:
+{{"proposals": [{{"model": "...", "operator": "none|coral|recalibration|coral+recalibration"}}, ...],
+ "reasoning": "one short paragraph",
+ "stop": false}}
+
+Rules: at most {max_candidates} proposals; never repeat an already-scored or \
+excluded candidate; models trained on chemistry/scale similar to the target \
+usually transfer best; set "stop": true when converged."""
+
+
+@dataclass
+class AdaptationLLMPolicy:
+    """Claude-backed policy for the inference-phase adaptation search."""
+
+    models: list[dict]  # catalog-style entries: name/estimator/featureset/trained_on
+    target_dataset: str
+    calibration_budget: int
+    max_rounds: int = DEFAULT_MAX_ROUNDS
+    transport: object | None = None
+    config: dict | None = None
+    log_entries: list[dict] = field(default_factory=list)
+
+    def __post_init__(self):
+        if self.transport is None:
+            connection = self.config
+            self.transport = lambda prompt: default_transport(prompt, connection)
+
+    def propose(self, history):
+        from .adaptation import ADAPTATION_OPERATORS
+        from .agent_search import AdaptationCandidate
+
+        if len(history.rounds) >= self.max_rounds:
+            return []
+        model_lines = "\n".join(
+            f'- {item.get("name")} · {item.get("estimator")} · {item.get("featureset")}'
+            f' · trained_on={",".join(item.get("trained_on") or [])}'
+            for item in self.models
+        )
+        scored = history.scored()
+        excluded_keys = set()
+        for entry in history.rounds:
+            for item in entry.get("excluded") or []:
+                excluded_keys.add(item.get("candidate"))
+        compact_history = json.dumps(
+            {
+                "scored": [
+                    {
+                        "candidate": item["candidate"],
+                        "target_mae": item.get("target_mae"),
+                        "target_bias": item.get("target_bias"),
+                    }
+                    for item in scored.values()
+                ],
+                "excluded": sorted(excluded_keys),
+            },
+            ensure_ascii=False,
+        )
+        prompt = ADAPTATION_PROMPT_TEMPLATE.format(
+            target_dataset=self.target_dataset,
+            budget=self.calibration_budget,
+            models=model_lines,
+            history=compact_history,
+            max_candidates=MAX_CANDIDATES_PER_ROUND,
+        )
+        try:
+            payload = _extract_json(self.transport(prompt))
+        except Exception as exc:  # noqa: BLE001 - policy failure = converge
+            self.log_entries.append({"round": len(history.rounds), "error": str(exc)})
+            return []
+        known_models = {str(item.get("name")) for item in self.models}
+        seen = set(scored) | excluded_keys
+        proposals = []
+        rejected = []
+        for item in payload.get("proposals") or []:
+            model = str(item.get("model") or "")
+            operator = str(item.get("operator") or "")
+            if model not in known_models:
+                rejected.append(f"{model} (unknown model)")
+                continue
+            if operator not in ADAPTATION_OPERATORS:
+                rejected.append(f"{model} · {operator} (unknown operator)")
+                continue
+            candidate = AdaptationCandidate(model, operator)
+            if candidate.key() in seen or any(c.key() == candidate.key() for c in proposals):
+                rejected.append(f"{candidate.key()} (duplicate)")
+                continue
+            proposals.append(candidate)
+            if len(proposals) >= MAX_CANDIDATES_PER_ROUND:
+                break
+        self.log_entries.append(
+            {
+                "round": len(history.rounds),
+                "reasoning": str(payload.get("reasoning") or ""),
+                "proposed": [c.key() for c in proposals],
+                "rejected": rejected,
+                "stop": bool(payload.get("stop")),
+            }
+        )
+        return [] if payload.get("stop") else proposals

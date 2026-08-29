@@ -55,7 +55,7 @@ import {
   trainingJobRuntimeState,
   trajectoryContextConsistency,
   auditCandidateViewProjection,
-} from "./dashboard-core.mjs?v=phase49-llm-config-20260829a";
+} from "./dashboard-core.mjs?v=phase50-adaptation-20260829a";
 
 const $ = (id) => document.getElementById(id);
 const URL_PARAMS = new URLSearchParams(location.search);
@@ -519,7 +519,19 @@ function render() {
   if (openSearch) {
     openSearch.onclick = () => {
       const selection = agentSearchSelection();
+      selection.mode = "training";
       if (resourceSelection.datasets.size) selection.inner = new Set(resourceSelection.datasets);
+      activateMode("search");
+    };
+  }
+  const openAdaptation = $("open-adaptation-search");
+  if (openAdaptation) {
+    openAdaptation.onclick = () => {
+      const selection = agentSearchSelection();
+      selection.mode = "adaptation";
+      if (inferenceSelection.models.size) selection.models = [...inferenceSelection.models].join(", ");
+      const targets = [...inferenceSelection.datasets];
+      if (targets.length) selection.targetDataset = targets[0];
       activateMode("search");
     };
   }
@@ -5913,10 +5925,22 @@ function agentSearchSelection() {
       topK: 3,
       policy: "grid",
       windowTargets: "",
+      mode: "training",
+      targetDataset: "",
+      models: "",
+      operators: new Set(["none", "coral", "recalibration", "coral+recalibration"]),
+      calibBudget: 32,
     };
   }
   return AGENT_SEARCH.selection;
 }
+
+const ADAPTATION_OPERATOR_LABELS = {
+  none: "无（冻结模型基线）",
+  coral: "CORAL 特征对齐（无标签）",
+  recalibration: "输出重标定（K 个标定样本）",
+  "coral+recalibration": "CORAL + 重标定",
+};
 
 function renderAgentSearchPanel() {
   const config = $("agent-search-config");
@@ -5934,15 +5958,41 @@ function renderAgentSearchPanel() {
     .concat(datasets.map((value) => `<option value="${value}" ${selection.outer === value ? "selected" : ""}>${value}</option>`))
     .join("");
 
-  config.innerHTML = `
-    <div class="run-config-grid">
+  const isAdaptation = selection.mode === "adaptation";
+  const targetOptions = ['<option value="">请选择目标数据集</option>']
+    .concat(datasets.map((value) => `<option value="${value}" ${selection.targetDataset === value ? "selected" : ""}>${value}</option>`))
+    .join("");
+  const operatorBoxes = Object.entries(ADAPTATION_OPERATOR_LABELS).map(([value, label]) => `
+    <label class="agent-search-option"><input type="checkbox" data-search-group="operators" value="${value}" ${selection.operators.has(value) ? "checked" : ""} ${busy ? "disabled" : ""}/> <span>${label}</span></label>`).join("");
+  const trainingFields = `
       <fieldset><legend>内环数据集 · 参与搜索</legend>${checkboxGroup("inner", datasets, selection.inner)}</fieldset>
       <fieldset><legend>外环数据集 · 单次泛化声明</legend>
         <select id="search-outer-dataset" ${busy ? "disabled" : ""}>${outerOptions}</select>
         <small>外环数据集在搜索全程隔离，只对 top-k 评测一次。</small>
       </fieldset>
       <fieldset><legend>算法候选</legend>${checkboxGroup("estimators", estimators, selection.estimators)}</fieldset>
-      <fieldset><legend>特征方案候选</legend>${checkboxGroup("featuresets", featuresets, selection.featuresets)}</fieldset>
+      <fieldset><legend>特征方案候选</legend>${checkboxGroup("featuresets", featuresets, selection.featuresets)}</fieldset>`;
+  const adaptationFields = `
+      <fieldset><legend>目标数据集 · 迁移适配对象</legend>
+        <select id="search-target-dataset" ${busy ? "disabled" : ""}>${targetOptions}</select>
+        <small>模型冻结不变；适配算子只使用部署时合法可得的信息，通道全程申报。</small>
+      </fieldset>
+      <fieldset><legend>候选模型（逗号分隔；从推理页可一键携带）</legend>
+        <input id="search-models" type="text" value="${selection.models}" placeholder="model_a, model_b" ${busy ? "disabled" : ""}/>
+      </fieldset>
+      <fieldset><legend>适配算子</legend>${operatorBoxes}
+        <label class="agent-search-topk"><span>标定预算 K（重标定用，评测自动剔除）</span>
+          <input id="search-calib-budget" type="number" min="0" max="512" value="${selection.calibBudget}" ${busy ? "disabled" : ""}/></label>
+      </fieldset>`;
+  config.innerHTML = `
+    <div class="run-config-grid">
+      <fieldset><legend>搜索模式</legend>
+        <select id="search-mode" ${busy ? "disabled" : ""}>
+          <option value="training" ${!isAdaptation ? "selected" : ""}>训练组合搜索（算法 × 特征 × 窗口）</option>
+          <option value="adaptation" ${isAdaptation ? "selected" : ""}>推理适配搜索（冻结模型 × 适配算子）</option>
+        </select>
+      </fieldset>
+      ${isAdaptation ? adaptationFields : trainingFields}
       <fieldset><legend>搜索策略</legend>
         <select id="search-policy" ${busy ? "disabled" : ""}>
           <option value="grid" ${selection.policy === "grid" ? "selected" : ""}>网格搜索（确定性）</option>
@@ -5968,21 +6018,33 @@ function renderAgentSearchPanel() {
           </div>
         </details>
       </fieldset>
-      <label class="agent-search-window-targets"><span>窗口覆盖率目标（可选，逗号分隔，如 0.45,0.60 · 需窗口库）</span>
+      ${isAdaptation ? "" : `<label class="agent-search-window-targets"><span>窗口覆盖率目标（可选，逗号分隔，如 0.45,0.60 · 需窗口库）</span>
         <input id="search-window-targets" type="text" value="${selection.windowTargets}" placeholder="留空 = 不搜索窗口" ${busy ? "disabled" : ""}/></label>
       <label class="agent-search-topk"><span>Top-K 外环声明</span>
-        <input id="search-top-k" type="number" min="1" max="10" value="${selection.topK}" ${busy ? "disabled" : ""}/></label>
+        <input id="search-top-k" type="number" min="1" max="10" value="${selection.topK}" ${busy ? "disabled" : ""}/></label>`}
       <button id="start-agent-search" class="primary-action" type="button">启动智能搜索</button>
     </div>`;
 
   config.querySelectorAll("[data-search-group]").forEach((input) => {
     input.onchange = () => {
       const group = input.dataset.searchGroup;
-      const target = group === "inner" ? selection.inner : (group === "estimators" ? selection.estimators : selection.featuresets);
+      const target = group === "inner"
+        ? selection.inner
+        : (group === "estimators"
+          ? selection.estimators
+          : (group === "operators" ? selection.operators : selection.featuresets));
       if (input.checked) target.add(input.value); else target.delete(input.value);
       renderAgentSearchPanel();
     };
   });
+  const modeSelect = config.querySelector("#search-mode");
+  if (modeSelect) modeSelect.onchange = () => { selection.mode = modeSelect.value; renderAgentSearchPanel(); };
+  const targetSelect = config.querySelector("#search-target-dataset");
+  if (targetSelect) targetSelect.onchange = () => { selection.targetDataset = targetSelect.value; renderAgentSearchPanel(); };
+  const modelsInput = config.querySelector("#search-models");
+  if (modelsInput) modelsInput.onchange = () => { selection.models = modelsInput.value.trim(); renderAgentSearchPanel(); };
+  const calibInput = config.querySelector("#search-calib-budget");
+  if (calibInput) calibInput.onchange = () => { selection.calibBudget = Math.max(0, parseInt(calibInput.value, 10) || 0); };
   const outerSelect = config.querySelector("#search-outer-dataset");
   if (outerSelect) outerSelect.onchange = () => { selection.outer = outerSelect.value; renderAgentSearchPanel(); };
   const topKInput = config.querySelector("#search-top-k");
@@ -5996,13 +6058,19 @@ function renderAgentSearchPanel() {
   const clearKey = config.querySelector("#clear-llm-key");
   if (clearKey) clearKey.onclick = () => saveLlmConfig(config, { clear_api_key: true });
 
-  const validationError = !selection.inner.size
-    ? "请选择至少 1 个内环数据集"
-    : (!selection.outer
-      ? "请选择外环数据集"
-      : (selection.inner.has(selection.outer)
-        ? "外环数据集不能出现在内环搜索池中"
-        : (!selection.estimators.size || !selection.featuresets.size ? "请选择算法与特征候选" : "")));
+  const validationError = isAdaptation
+    ? (!selection.targetDataset
+      ? "请选择目标数据集"
+      : (!selection.models.trim()
+        ? "请填写候选模型（可从推理页一键携带）"
+        : (!selection.operators.size ? "请选择至少一个适配算子" : "")))
+    : (!selection.inner.size
+      ? "请选择至少 1 个内环数据集"
+      : (!selection.outer
+        ? "请选择外环数据集"
+        : (selection.inner.has(selection.outer)
+          ? "外环数据集不能出现在内环搜索池中"
+          : (!selection.estimators.size || !selection.featuresets.size ? "请选择算法与特征候选" : ""))));
   const start = config.querySelector("#start-agent-search");
   start.disabled = !executionEnabled || busy || Boolean(validationError);
   start.title = !executionEnabled
@@ -6068,15 +6136,26 @@ async function startAgentSearch() {
       .split(",")
       .map((value) => parseFloat(value.trim()))
       .filter((value) => Number.isFinite(value));
-    const job = await postJson("/api/search-jobs", {
-      inner_datasets: [...selection.inner],
-      outer_dataset: selection.outer,
-      estimators: [...selection.estimators],
-      featuresets: [...selection.featuresets],
-      policy: selection.policy || "grid",
-      window_targets: windowTargets,
-      top_k: selection.topK,
-    });
+    const payload = selection.mode === "adaptation"
+      ? {
+        mode: "adaptation",
+        target_dataset: selection.targetDataset,
+        models: selection.models.split(",").map((value) => value.trim()).filter(Boolean),
+        operators: [...selection.operators],
+        calibration_budget: selection.calibBudget,
+        policy: selection.policy || "grid",
+      }
+      : {
+        mode: "training",
+        inner_datasets: [...selection.inner],
+        outer_dataset: selection.outer,
+        estimators: [...selection.estimators],
+        featuresets: [...selection.featuresets],
+        policy: selection.policy || "grid",
+        window_targets: windowTargets,
+        top_k: selection.topK,
+      };
+    const job = await postJson("/api/search-jobs", payload);
     AGENT_SEARCH.job = job;
     pollAgentSearchJob(job.id);
     renderAgentSearchPanel();
@@ -6137,6 +6216,35 @@ function renderAgentSearchResults() {
         <li><b>第 ${Number(entry.round) + 1} 轮</b> ${entry.error ? `策略错误：${entry.error}` : entry.reasoning}
           ${entry.proposed?.length ? `<br/><small>提案：${entry.proposed.join("、")}</small>` : ""}</li>`).join("")}</ol>`
     : "";
+  if (report.mode === "adaptation") {
+    const adaptationRows = (report.ranking || []).map((item, index) => `
+      <tr><td>${index + 1}</td><td>${item.model}</td><td>${ADAPTATION_OPERATOR_LABELS[item.operator] || item.operator}</td>
+        <td>${Number(item.target_mae).toFixed(4)}</td><td>${Number(item.target_bias).toFixed(4)}</td>
+        <td>${item.provenance?.channel || ""}</td>
+        <td><button type="button" class="secondary-action" data-apply-adaptation="${index}">应用到推理</button></td></tr>`).join("");
+    const adaptationExcluded = (report.excluded || []).map((item) => `
+      <li><b>${item.candidate}</b> — ${(item.reasons || []).join("；")}</li>`).join("");
+    host.innerHTML = `
+      ${policyBlock}
+      <h3>适配排名（目标数据集 ${report.target_dataset || ""} · 冻结模型 × 适配算子）</h3>
+      <div class="dataset-catalog-table-wrap"><table class="dataset-catalog-table">
+        <thead><tr><th>#</th><th>模型</th><th>适配算子</th><th>目标 MAE</th><th>偏差</th><th>信息通道</th><th>动作</th></tr></thead>
+        <tbody>${adaptationRows || '<tr><td colspan="7">无可评测候选</td></tr>'}</tbody></table></div>
+      ${adaptationExcluded ? `<h3>被排除的候选</h3><ul class="agent-search-excluded">${adaptationExcluded}</ul>` : ""}
+      <p class="dataset-catalog-footnote">完整性：模型冻结不变；标定预算 ${report.calibration_budget} 个样本已从评测集剔除（各算子共用同一评测子集）；每个算子的信息通道全程申报。</p>`;
+    host.querySelectorAll("[data-apply-adaptation]").forEach((button) => {
+      button.onclick = () => {
+        const item = (report.ranking || [])[Number(button.dataset.applyAdaptation)];
+        if (!item) return;
+        inferenceSelection = {
+          models: new Set([item.model]),
+          datasets: new Set([report.target_dataset].filter(Boolean)),
+        };
+        activateMode("inference");
+      };
+    });
+    return;
+  }
   host.innerHTML = `
     ${policyBlock}
     <h3>内环排名（最差数据集 MAE · ${(report.inner_datasets || []).join(" + ")}）</h3>

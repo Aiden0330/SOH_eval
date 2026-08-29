@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>SOH 评测案例工作台</title>
 <link rel="icon" href="data:," />
-<link rel="stylesheet" href="styles.css?v=phase49-llm-config-20260829a" />
+<link rel="stylesheet" href="styles.css?v=phase50-adaptation-20260829a" />
 </head>
 <body>
 <div class="app-shell">
@@ -172,6 +172,7 @@
         <div class="tab-intent inference-intent">
           <span>迁移分析</span>
           <strong>关注模型在新数据集上的泛化能力、特征兼容性和推理时长。</strong>
+          <button id="open-adaptation-search" class="secondary-action" type="button" title="AI 在冻结模型上搜索部署合法的适配算子（CORAL / 输出重标定），结果可一键应用回推理">智能适配搜索</button>
         </div>
         <div class="job-state inference-job-state ready" id="inference-job-state" aria-live="polite">等待选择模型和数据集</div>
         <div class="inference-workbench">
@@ -598,6 +599,6 @@
   </div>
   <div class="battery-asset-body" id="battery-asset-body"></div>
 </aside>
-<script type="module" src="app.js?v=phase49-llm-config-20260829a"></script>
+<script type="module" src="app.js?v=phase50-adaptation-20260829a"></script>
 </body>
 </html>

@@ -314,12 +314,18 @@ class SearchJobRequest(ApiModel):
     """Protocol-gated agent search: inner pool is searchable, the outer
     dataset is held out for a single-shot generalization claim."""
 
+    mode: Literal["training", "adaptation"] | None = None
     inner_datasets: list[str] | None = None
     outer_dataset: str | None = None
     estimators: list[str] | None = None
     featuresets: list[str] | None = None
     policy: Literal["grid", "llm"] | None = None
     window_targets: list[float] | None = None
+    # adaptation mode: frozen model x deployment-legal operator on a target
+    target_dataset: str | None = None
+    models: list[str] | None = None
+    operators: list[str] | None = None
+    calibration_budget: int | None = None
     top_k: int | None = None
     seeds: list[int] | None = None
 

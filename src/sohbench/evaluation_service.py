@@ -2071,24 +2071,54 @@ class EvaluationService:
     # ------------------------------------------------------------------
 
     def create_search_job(self, payload: dict, *, start: bool = True) -> dict:
-        inner = _string_list(payload.get("inner_datasets") or [])
-        outer = str(payload.get("outer_dataset") or "").strip()
-        estimators = _string_list(payload.get("estimators") or [])
-        featuresets = _string_list(payload.get("featuresets") or [])
-        if not inner:
-            raise ValueError("inner_datasets is required for an agent search")
-        if not outer:
-            raise ValueError("outer_dataset is required for an agent search")
-        if outer in inner:
-            raise ValueError("outer dataset must not appear in the inner search pool")
-        if not estimators:
-            raise ValueError("estimators is required for an agent search")
-        if not featuresets:
-            raise ValueError("featuresets is required for an agent search")
-        for name in estimators:
-            R.get_estimator(name)
-        for name in featuresets:
-            R.get_featureset(name)
+        mode = str(payload.get("mode") or "training").strip().lower()
+        if mode not in {"training", "adaptation"}:
+            raise ValueError(f"unknown search mode: {mode}")
+        if mode == "adaptation":
+            from .adaptation import ADAPTATION_OPERATORS
+
+            target = str(payload.get("target_dataset") or "").strip()
+            models = _string_list(payload.get("models") or [])
+            operators = _string_list(payload.get("operators") or []) or list(ADAPTATION_OPERATORS)
+            if not target:
+                raise ValueError("target_dataset is required for an adaptation search")
+            if not models:
+                raise ValueError("models is required for an adaptation search")
+            unknown_operators = [op for op in operators if op not in ADAPTATION_OPERATORS]
+            if unknown_operators:
+                raise ValueError(f"unknown adaptation operators: {unknown_operators}")
+            known_models = {item["name"] for item in self.model_store.catalog()}
+            missing = [name for name in models if name not in known_models]
+            if missing:
+                raise ValueError(f"unknown models: {missing[:5]}")
+            request_extra = {
+                "mode": "adaptation",
+                "target_dataset": target,
+                "models": models,
+                "operators": operators,
+                "calibration_budget": max(0, int(payload.get("calibration_budget") or 32)),
+            }
+            inner, outer, estimators, featuresets = [], "", [], []
+        else:
+            inner = _string_list(payload.get("inner_datasets") or [])
+            outer = str(payload.get("outer_dataset") or "").strip()
+            estimators = _string_list(payload.get("estimators") or [])
+            featuresets = _string_list(payload.get("featuresets") or [])
+            if not inner:
+                raise ValueError("inner_datasets is required for an agent search")
+            if not outer:
+                raise ValueError("outer_dataset is required for an agent search")
+            if outer in inner:
+                raise ValueError("outer dataset must not appear in the inner search pool")
+            if not estimators:
+                raise ValueError("estimators is required for an agent search")
+            if not featuresets:
+                raise ValueError("featuresets is required for an agent search")
+            for name in estimators:
+                R.get_estimator(name)
+            for name in featuresets:
+                R.get_featureset(name)
+            request_extra = {"mode": "training"}
         policy = str(payload.get("policy") or "grid").strip().lower()
         if policy not in {"grid", "llm"}:
             raise ValueError(f"unknown search policy: {policy}")
@@ -2122,6 +2152,7 @@ class EvaluationService:
                 "top_k": max(1, top_k),
                 "seeds": seeds,
                 "protocol": "loco",
+                **request_extra,
             },
             "progress": [],
         }
@@ -2146,29 +2177,56 @@ class EvaluationService:
 
         try:
             request = job["request"]
-            search = AgentSearch(
-                self,
-                inner_datasets=request["inner_datasets"],
-                outer_dataset=request["outer_dataset"],
-                seeds=request.get("seeds") or [0],
-                top_k=int(request.get("top_k") or 3),
-            )
-            if str(request.get("policy") or "grid") == "llm":
-                from .llm_policy import LLMPolicy, load_llm_config
+            use_llm = str(request.get("policy") or "grid") == "llm"
+            if str(request.get("mode") or "training") == "adaptation":
+                from .agent_search import AdaptationGridPolicy, AdaptationSearch
 
-                policy = LLMPolicy(
-                    estimators=request["estimators"],
-                    featuresets=request["featuresets"],
-                    inner_datasets=request["inner_datasets"],
-                    window_targets_allowed=True,
-                    config=load_llm_config(self.work_dir),
+                search = AdaptationSearch(
+                    self,
+                    target_dataset=request["target_dataset"],
+                    calibration_budget=int(request.get("calibration_budget") or 32),
+                    top_k=int(request.get("top_k") or 3),
                 )
+                if use_llm:
+                    from .llm_policy import AdaptationLLMPolicy, load_llm_config
+
+                    requested = set(request["models"])
+                    entries = [
+                        item for item in self.model_store.catalog()
+                        if item["name"] in requested
+                    ]
+                    policy = AdaptationLLMPolicy(
+                        models=entries,
+                        target_dataset=request["target_dataset"],
+                        calibration_budget=int(request.get("calibration_budget") or 32),
+                        config=load_llm_config(self.work_dir),
+                    )
+                else:
+                    policy = AdaptationGridPolicy(request["models"], request["operators"])
             else:
-                policy = GridPolicy(
-                    request["estimators"],
-                    request["featuresets"],
-                    request.get("window_targets") or None,
+                search = AgentSearch(
+                    self,
+                    inner_datasets=request["inner_datasets"],
+                    outer_dataset=request["outer_dataset"],
+                    seeds=request.get("seeds") or [0],
+                    top_k=int(request.get("top_k") or 3),
                 )
+                if use_llm:
+                    from .llm_policy import LLMPolicy, load_llm_config
+
+                    policy = LLMPolicy(
+                        estimators=request["estimators"],
+                        featuresets=request["featuresets"],
+                        inner_datasets=request["inner_datasets"],
+                        window_targets_allowed=True,
+                        config=load_llm_config(self.work_dir),
+                    )
+                else:
+                    policy = GridPolicy(
+                        request["estimators"],
+                        request["featuresets"],
+                        request.get("window_targets") or None,
+                    )
             report = search.run(policy, log=log)
             job.update(
                 {
@@ -2179,7 +2237,11 @@ class EvaluationService:
                         "candidates_scored": len(report.get("ranking") or []),
                         "candidates_excluded": len(report.get("excluded") or []),
                         "best_candidate": (report.get("ranking") or [{}])[0].get("candidate", ""),
-                        "best_outer_mae": (report.get("outer_claims") or [{}])[0].get("outer_mae"),
+                        "best_outer_mae": (
+                            (report.get("outer_claims") or [{}])[0].get("outer_mae")
+                            if report.get("outer_claims")
+                            else (report.get("ranking") or [{}])[0].get("target_mae")
+                        ),
                     },
                 }
             )
