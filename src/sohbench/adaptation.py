@@ -136,3 +136,90 @@ def fit_recalibration(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
 
 def apply_recalibration(y_pred: np.ndarray, recal: dict) -> np.ndarray:
     return y_pred * float(recal["slope"]) + float(recal["intercept"])
+
+
+class InferenceAdapter:
+    """Applies a deployment-legal operator inside the audited inference run.
+
+    Constructed by the service when an inference job carries an
+    ``adaptation`` spec; the model artifact stays frozen — CORAL rewrites
+    the target feature columns before predict, recalibration adjusts the
+    outputs using a K-sample calibration budget whose rows are excluded
+    from every metric.  The operator, channel, fitted parameters, and
+    calibration count all land in the job record and prediction evidence.
+    """
+
+    def __init__(self, service, operator: str, calibration_budget: int = 32):
+        if operator not in ADAPTATION_OPERATORS:
+            raise ValueError(f"unknown adaptation operator: {operator}")
+        self.service = service
+        self.operator = operator
+        self.calibration_budget = max(0, int(calibration_budget))
+        self._source_cache: dict[str, np.ndarray] = {}
+
+    @property
+    def uses_recalibration(self) -> bool:
+        return "recalibration" in self.operator
+
+    def prepare(self, loaded, binding: dict, group: pd.DataFrame):
+        """Return (adapted_group, calibration_mask, adaptation_info)."""
+        info: dict = {
+            "operator": self.operator,
+            "channel": OPERATOR_CHANNELS[self.operator],
+            "calibration_budget": self.calibration_budget if self.uses_recalibration else 0,
+        }
+        adapted = group
+        if "coral" in self.operator:
+            columns = [c for c in loaded.feature_columns() if c in group.columns]
+            source = self._source_features(loaded, binding, columns)
+            coral = fit_coral(source, _feature_matrix(group, columns), columns)
+            adapted = apply_coral(group, coral)
+            info["coral_columns"] = columns
+        budget = self.calibration_budget if self.uses_recalibration else 0
+        calibration_mask, _evaluation = calibration_split(adapted, budget)
+        info["calibration_samples"] = int(calibration_mask.sum())
+        return adapted, calibration_mask, info
+
+    def recalibrate(self, group: pd.DataFrame, pred: np.ndarray, calibration_mask) -> tuple[np.ndarray, dict]:
+        truth = pd.to_numeric(group["soh"], errors="coerce").to_numpy(dtype=float)
+        recal = fit_recalibration(truth[calibration_mask], pred[calibration_mask])
+        return apply_recalibration(pred, recal), recal
+
+    def recalibrate_interval(self, interval, recal: dict):
+        if interval is None:
+            return None
+        lower = apply_recalibration(interval[0], recal)
+        upper = apply_recalibration(interval[1], recal)
+        if float(recal.get("slope", 1.0)) < 0:
+            lower, upper = upper, lower
+        return lower, upper
+
+    def _source_features(self, loaded, binding: dict, columns: list[str]) -> np.ndarray:
+        from .data import DatasetLoader
+        from .evaluation_service import _inference_transform_featuresets
+
+        cache_key = str(binding.get("artifact_id") or loaded.name)
+        if cache_key in self._source_cache:
+            return self._source_cache[cache_key]
+        trained_on = [
+            str(name) for name in (loaded.manifest.get("trained_on") or []) if str(name)
+        ]
+        if not trained_on:
+            raise ValueError(f"model {loaded.name!r} declares no training datasets for CORAL")
+        loader = DatasetLoader(self.service.data_dir)
+        names = loader.resolve_datasets(trained_on)
+        table, meta, _qc = loader.load(names)
+        pseudo_binding = {
+            "featureset": str(loaded.manifest.get("featureset") or binding.get("featureset") or "full"),
+            "training_featuresets": list(
+                loaded.manifest.get("training_featuresets")
+                or binding.get("training_featuresets")
+                or []
+            ),
+            "feature_columns": columns,
+        }
+        transforms = _inference_transform_featuresets([pseudo_binding])
+        table = self.service.store.apply_feature_transforms(table, meta, transforms)
+        features = _feature_matrix(table, columns)
+        self._source_cache[cache_key] = features
+        return features

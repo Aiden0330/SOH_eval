@@ -376,6 +376,10 @@ class InferenceJobRequest(ApiModel):
     submitted_datasets: list[str] | None = None
     skipped_datasets: list[Any] | None = None
     profile_name: str | None = None
+    # Deployment-legal adaptation applied inside the audited run:
+    # {"operator": "none|coral|recalibration|coral+recalibration",
+    #  "calibration_budget": int}
+    adaptation: dict[str, Any] | None = None
     case_id: str | None = None
     expected_context_binding_id: str | None = None
 

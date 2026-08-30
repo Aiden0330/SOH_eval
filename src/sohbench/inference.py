@@ -40,13 +40,16 @@ def run_inference_benchmark_with_evidence(
     dataset_snapshot_ids: dict[str, str] | None = None,
     evaluation_policy: str = "research_any",
     model_bindings: list[dict] | None = None,
+    adapter=None,
 ) -> tuple[list[dict], dict]:
     """Run point inference and retain canonical per-cycle evidence facts.
 
     The legacy benchmark API intentionally continues to return aggregate rows.
     This companion API performs the same predictions once and additionally
     returns PredictionRecord and metric-contribution payloads for case-scoped
-    evidence views.
+    evidence views.  ``adapter`` (sohbench.adaptation.InferenceAdapter)
+    optionally applies a deployment-legal adaptation operator; its
+    calibration rows are excluded from all metrics and flagged in evidence.
     """
     return _run_inference(
         model_store,
@@ -58,6 +61,7 @@ def run_inference_benchmark_with_evidence(
         capture_evidence=True,
         evaluation_policy=evaluation_policy,
         model_bindings=list(model_bindings or []),
+        adapter=adapter,
     )
 
 
@@ -72,6 +76,7 @@ def _run_inference(
     capture_evidence: bool,
     evaluation_policy: str = "research_any",
     model_bindings: list[dict] | None = None,
+    adapter=None,
 ) -> tuple[list[dict], dict]:
     records: list[dict] = []
     prediction_records: list[dict] = []
@@ -143,23 +148,41 @@ def _run_inference(
                 })
                 continue
             try:
+                calibration_mask = None
+                adaptation_info = None
+                if adapter is not None:
+                    scoped_group, calibration_mask, adaptation_info = adapter.prepare(
+                        loaded, binding, scoped_group
+                    )
                 group_meta = _group_meta(meta, scoped_group)
                 start = time.perf_counter()
                 pred = loaded.predict(scoped_group, group_meta)
                 predict_ms = (time.perf_counter() - start) * 1000.0
+                recal = None
+                if adapter is not None and adapter.uses_recalibration:
+                    pred, recal = adapter.recalibrate(scoped_group, pred, calibration_mask)
+                    adaptation_info = {**adaptation_info, "recalibration": recal}
+                eval_mask = (
+                    ~calibration_mask
+                    if calibration_mask is not None and calibration_mask.any()
+                    else None
+                )
                 records.append(
                     {
                         **base,
-                        **_metrics(scoped_group, pred),
+                        **_metrics(scoped_group, pred, eval_mask=eval_mask),
                         "predict_ms": float(predict_ms),
                         "ms_per_1000_samples": float(predict_ms / max(len(scoped_group), 1) * 1000.0),
                         "samples_per_second": float(len(scoped_group) / max(predict_ms / 1000.0, 1e-12)),
                         "status": "succeeded",
                         "error": "",
+                        **({"adaptation": adaptation_info} if adaptation_info else {}),
                     }
                 )
                 if capture_evidence:
                     interval = _prediction_interval(loaded, scoped_group, group_meta)
+                    if adapter is not None and recal is not None:
+                        interval = adapter.recalibrate_interval(interval, recal)
                     evidence_rows, contribution_rows = _prediction_evidence_rows(
                         scoped_group,
                         pred,
@@ -174,6 +197,7 @@ def _run_inference(
                         dataset_snapshot_id=dataset_snapshot_ids.get(dataset_name, ""),
                         split_assignment_id=split_assignment_id,
                         evaluation_scope=scope["scope"],
+                        calibration_mask=calibration_mask,
                     )
                     prediction_records.extend(evidence_rows)
                     metric_contributions.extend(contribution_rows)
@@ -313,13 +337,19 @@ def _prediction_evidence_rows(
     dataset_snapshot_id: str,
     split_assignment_id: str,
     evaluation_scope: str,
+    calibration_mask=None,
 ) -> tuple[list[dict], list[dict]]:
     count = len(group)
+    if calibration_mask is not None:
+        # Contributions normalize over the evaluated subset only; calibration
+        # rows keep their predictions but carry no metric weight.
+        count = int(count - int(np.asarray(calibration_mask).sum()))
     lower = interval[0] if interval is not None else None
     upper = interval[1] if interval is not None else None
     rows: list[dict] = []
     contributions: list[dict] = []
     for position, (_index, source) in enumerate(group.iterrows()):
+        is_calibration = bool(calibration_mask[position]) if calibration_mask is not None else False
         cell_id = str(source.get("cell_id") or "")
         cycle_index = _json_number(source.get("cycle_index"))
         true_soh = _json_number(source.get("soh"))
@@ -336,14 +366,17 @@ def _prediction_evidence_rows(
         digest_payload = f"{job_id}|{model_name}|{sample_id}".encode("utf-8")
         prediction_record_id = f"pred:{_id_token(job_id or 'inference', 32)}:{hashlib.sha256(digest_payload).hexdigest()[:24]}"
         contribution = {
-            "mae_contribution": absolute_error / max(count, 1) if absolute_error is not None else None,
+            "mae_contribution": (
+                absolute_error / max(count, 1)
+                if absolute_error is not None and not is_calibration else None
+            ),
             "rmse_squared_contribution": (
                 absolute_error * absolute_error / max(count, 1)
-                if absolute_error is not None else None
+                if absolute_error is not None and not is_calibration else None
             ),
             "picp_contribution": (
                 (1.0 if interval_covered else 0.0) / max(count, 1)
-                if interval_covered is not None else None
+                if interval_covered is not None and not is_calibration else None
             ),
         }
         feature_values = {
@@ -375,6 +408,7 @@ def _prediction_evidence_rows(
             "curve_segment_ref_id": "",
             "feature_values": feature_values,
             "metric_contributions": contribution,
+            **({"calibration_sample": True} if is_calibration else {}),
         }
         rows.append(record)
         contributions.append(
@@ -421,7 +455,12 @@ def _json_number(value):
     return int(number) if number.is_integer() else number
 
 
-def _metrics(group: pd.DataFrame, pred: np.ndarray) -> dict:
+def _metrics(group: pd.DataFrame, pred: np.ndarray, eval_mask=None) -> dict:
+    """Aggregate metrics; ``eval_mask`` excludes adaptation-calibration rows."""
+    if eval_mask is not None:
+        eval_mask = np.asarray(eval_mask, dtype=bool)
+        group = group.iloc[eval_mask]
+        pred = pred[eval_mask]
     out = {
         "monotonicity_violation_rate": M.monotonicity_violation_rate(
             pred[np.argsort(group["cycle_index"].to_numpy())]

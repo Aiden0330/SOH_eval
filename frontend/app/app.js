@@ -55,7 +55,7 @@ import {
   trainingJobRuntimeState,
   trajectoryContextConsistency,
   auditCandidateViewProjection,
-} from "./dashboard-core.mjs?v=phase51-adaptation-button-20260829a";
+} from "./dashboard-core.mjs?v=phase52-adapted-inference-20260829a";
 
 const $ = (id) => document.getElementById(id);
 const URL_PARAMS = new URLSearchParams(location.search);
@@ -5420,6 +5420,7 @@ function ensureInferencePolicyUi() {
     actions.appendChild(adapt);
     actions.appendChild(start);
   }
+  updateAdaptationChip();
   if (!$("inference-policy-note")) {
     const note = document.createElement("div");
     note.id = "inference-policy-note";
@@ -6120,6 +6121,29 @@ async function saveLlmConfig(configHost, extra) {
   }
 }
 
+let inferenceAdaptation = null;
+
+function updateAdaptationChip() {
+  const actions = document.querySelector(".inference-actions");
+  if (!actions) return;
+  let chip = $("inference-adaptation-chip");
+  if (!inferenceAdaptation) {
+    if (chip) chip.remove();
+    return;
+  }
+  if (!chip) {
+    chip = document.createElement("span");
+    chip.id = "inference-adaptation-chip";
+    chip.className = "completion-save-toggle inference-adaptation-chip";
+    actions.insertBefore(chip, $("open-adaptation-search-action") || actions.lastChild);
+  }
+  const label = ADAPTATION_OPERATOR_LABELS[inferenceAdaptation.operator] || inferenceAdaptation.operator;
+  chip.innerHTML = `<span><b>适配算子：${label}</b><small>K=${inferenceAdaptation.calibration_budget} · 标定样本不计入指标</small></span>` +
+    `<button type="button" id="clear-inference-adaptation" title="移除适配，恢复冻结模型直跑">✕</button>`;
+  const clear = chip.querySelector("#clear-inference-adaptation");
+  if (clear) clear.onclick = () => { inferenceAdaptation = null; updateAdaptationChip(); };
+}
+
 function openAdaptationSearchFromInference() {
   const selection = agentSearchSelection();
   selection.mode = "adaptation";
@@ -6248,6 +6272,9 @@ function renderAgentSearchResults() {
           models: new Set([item.model]),
           datasets: new Set([report.target_dataset].filter(Boolean)),
         };
+        inferenceAdaptation = item.operator && item.operator !== "none"
+          ? { operator: item.operator, calibration_budget: report.calibration_budget ?? 32 }
+          : null;
         activateMode("inference");
       };
     });
@@ -6393,6 +6420,7 @@ async function startInferenceEvaluationWithPolicy() {
     await ensureWritablePipelineCase();
     CURRENT_JOB = { kind: "inference", ...(await postJson("/api/inference-jobs", {
       ...payload,
+      ...(inferenceAdaptation ? { adaptation: { operator: inferenceAdaptation.operator, calibration_budget: inferenceAdaptation.calibration_budget } } : {}),
       case_id: ACTIVE_EVALUATION_CASE?.id || "",
       expected_context_binding_id: evaluationContextBindingId(),
       profile_name: ACTIVE_EVALUATION_CASE?.profile_name || activeProfileOption?.name || activeProfile || "root",
@@ -6426,6 +6454,7 @@ async function startInferenceEvaluation() {
     await ensureWritablePipelineCase();
     CURRENT_JOB = { kind: "inference", ...(await postJson("/api/inference-jobs", {
       ...payload,
+      ...(inferenceAdaptation ? { adaptation: { operator: inferenceAdaptation.operator, calibration_budget: inferenceAdaptation.calibration_budget } } : {}),
       case_id: ACTIVE_EVALUATION_CASE?.id || "",
       expected_context_binding_id: evaluationContextBindingId(),
       profile_name: ACTIVE_EVALUATION_CASE?.profile_name || activeProfileOption?.name || activeProfile || "root",

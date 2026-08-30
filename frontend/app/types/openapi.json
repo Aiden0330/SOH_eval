@@ -5480,6 +5480,18 @@
             ],
             "title": "Profile Name"
           },
+          "adaptation": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adaptation"
+          },
           "case_id": {
             "anyOf": [
               {

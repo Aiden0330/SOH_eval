@@ -1730,6 +1730,7 @@ class EvaluationService:
                 dataset_snapshot_ids=dataset_snapshot_ids,
                 evaluation_policy=request.get("evaluation_policy", "research_any"),
                 model_bindings=model_bindings,
+                adapter=self._inference_adapter(request),
             )
             curve_artifacts, curve_refs = self._inference_curve_evidence(
                 evidence["prediction_records"],
@@ -2277,6 +2278,18 @@ class EvaluationService:
         with self._search_job_lock:
             _write_json_atomic(self.search_jobs_dir / f"{job['id']}.json", job)
 
+    def _inference_adapter(self, request: dict):
+        spec = request.get("adaptation")
+        if not spec:
+            return None
+        from .adaptation import InferenceAdapter
+
+        return InferenceAdapter(
+            self,
+            str(spec.get("operator") or "none"),
+            int(spec.get("calibration_budget") or 32),
+        )
+
     def get_llm_config(self) -> dict:
         from .llm_policy import llm_transport_status, load_llm_config, masked_llm_config
 
@@ -2349,6 +2362,19 @@ class EvaluationService:
         evaluation_policy = str(payload.get("evaluation_policy") or "research_any")
         if evaluation_policy not in {"held_out_same_chemistry", "research_any"}:
             raise ValueError(f"unknown inference evaluation policy: {evaluation_policy}")
+        adaptation_request = None
+        if payload.get("adaptation"):
+            from .adaptation import ADAPTATION_OPERATORS, OPERATOR_CHANNELS
+
+            spec = payload["adaptation"] if isinstance(payload["adaptation"], dict) else {}
+            operator = str(spec.get("operator") or "").strip()
+            if operator not in ADAPTATION_OPERATORS:
+                raise ValueError(f"unknown adaptation operator: {operator!r}")
+            adaptation_request = {
+                "operator": operator,
+                "calibration_budget": max(0, int(spec.get("calibration_budget") or 32)),
+                "channel": OPERATOR_CHANNELS[operator],
+            }
         request = {
             "datasets": datasets,
             "models": models,
@@ -2363,6 +2389,8 @@ class EvaluationService:
             "submitted_datasets": _string_list(payload.get("submitted_datasets") or datasets),
             "skipped_datasets": _string_list(payload.get("skipped_datasets") or []),
         }
+        if adaptation_request:
+            request["adaptation"] = adaptation_request
         case_id = str(payload.get("case_id") or "").strip()
         profile_name = str(payload.get("profile_name") or "").strip()
         if case_id:

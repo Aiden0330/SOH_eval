@@ -285,6 +285,7 @@ export interface InferenceJobRequest {
   submitted_datasets?: string[] | null;
   skipped_datasets?: unknown[] | null;
   profile_name?: string | null;
+  adaptation?: Record<string, unknown> | null;
   case_id?: string | null;
   expected_context_binding_id?: string | null;
   [key: string]: unknown;
