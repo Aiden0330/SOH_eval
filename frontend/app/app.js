@@ -55,7 +55,7 @@ import {
   trainingJobRuntimeState,
   trajectoryContextConsistency,
   auditCandidateViewProjection,
-} from "./dashboard-core.mjs?v=phase53-adaptation-run-tag-20260830a";
+} from "./dashboard-core.mjs?v=phase54-search-context-sync-20260830a";
 
 const $ = (id) => document.getElementById(id);
 const URL_PARAMS = new URLSearchParams(location.search);
@@ -521,6 +521,7 @@ function render() {
       const selection = agentSearchSelection();
       selection.mode = "training";
       if (resourceSelection.datasets.size) selection.inner = new Set(resourceSelection.datasets);
+      selection.bridged = true;
       activateMode("search");
     };
   }
@@ -5888,11 +5889,16 @@ function updateModeUrl(mode) {
 async function activateMode(mode) {
   if (!APP_MODES.has(mode)) return;
   activeMode = mode;
+  if (mode === "search") syncAgentSearchContext();
   updateModeUrl(mode);
   render();
   if (mode === "models" || mode === "inference") await loadFullModelCatalog();
   if (mode === "audit") await loadReviewWorkspace({ force: true });
-  if (mode === "search") await loadAgentSearchJobs();
+  if (mode === "search") {
+    await loadAgentSearchJobs();
+    await loadFullModelCatalog();
+    await resolveAgentSearchModelNames();
+  }
   render();
 }
 
@@ -5937,9 +5943,86 @@ function agentSearchSelection() {
       models: "",
       operators: new Set(["none", "coral", "recalibration", "coral+recalibration"]),
       calibBudget: 32,
+      caseId: "",
+      bridged: false,
     };
   }
   return AGENT_SEARCH.selection;
+}
+
+function syncAgentSearchContext() {
+  const selection = agentSearchSelection();
+  const caseId = ACTIVE_EVALUATION_CASE?.id || "";
+  if (selection.bridged) {
+    selection.bridged = false;
+    selection.caseId = caseId;
+    return;
+  }
+  const progress = casePipelineProgress({
+    caseDocument: ACTIVE_EVALUATION_CASE || {},
+    reviewWorkspace: REVIEW_WORKSPACE || {},
+    trainingJob: currentTrainingJob(),
+    inferenceJob: currentInferenceJob(),
+  });
+  const inferenceState = progress.stages.find((stage) => stage.id === "inference")?.state || "";
+  selection.mode = ["active", "complete", "blocked"].includes(inferenceState) ? "adaptation" : "training";
+  const trainingDatasets = [...resourceSelection.datasets];
+  const nameByArtifact = new Map(
+    modelOptions(currentModelCatalog()).map((item) => [item.artifactId, item.name]),
+  );
+  const caseCandidateModels = uniq(
+    (ACTIVE_EVALUATION_CASE?.candidates || [])
+      .map((item) => nameByArtifact.get(item?.model_artifact_id) || item?.model)
+      .filter(Boolean),
+  );
+  const caseEvidenceDataset = ACTIVE_EVALUATION_CASE?.evidence_selection?.dataset || "";
+  const inferenceModels = inferenceSelection.models.size
+    ? [...inferenceSelection.models]
+    : caseCandidateModels;
+  const inferenceDatasets = inferenceSelection.datasets.size
+    ? [...inferenceSelection.datasets]
+    : (caseEvidenceDataset ? [caseEvidenceDataset] : []);
+  if (selection.caseId !== caseId) {
+    selection.inner = new Set(trainingDatasets);
+    selection.outer = "";
+    selection.models = inferenceModels.join(", ");
+    selection.targetDataset = inferenceDatasets[0] || "";
+  } else {
+    if (trainingDatasets.length) selection.inner = new Set(trainingDatasets);
+    if (selection.outer && selection.inner.has(selection.outer)) selection.outer = "";
+    if (inferenceModels.length) selection.models = inferenceModels.join(", ");
+    if (inferenceDatasets.length) selection.targetDataset = inferenceDatasets[0];
+  }
+  selection.caseId = caseId;
+}
+
+async function resolveAgentSearchModelNames() {
+  const selection = agentSearchSelection();
+  if (selection.mode !== "adaptation" || !selection.models) return;
+  const catalog = modelOptions(currentModelCatalog());
+  const byName = new Set(catalog.map((item) => item.name));
+  const nameByArtifact = new Map(catalog.map((item) => [item.artifactId, item.name]));
+  const candidates = ACTIVE_EVALUATION_CASE?.candidates || [];
+  const entries = selection.models.split(",").map((value) => value.trim()).filter(Boolean);
+  let boundNames = [];
+  if (!entries.every((value) => byName.has(value))) {
+    const jobId = ACTIVE_EVALUATION_CASE?.execution?.inference_job_id || "";
+    if (jobId) {
+      try {
+        const resp = await fetch(`${API_BASE}/api/inference-jobs/${encodeURIComponent(jobId)}`);
+        if (resp.ok) boundNames = ((await resp.json())?.request?.models || []).filter(Boolean);
+      } catch { /* keep unresolved names */ }
+    }
+  }
+  const resolved = entries.map((value) => {
+    if (byName.has(value)) return value;
+    const candidate = candidates.find(
+      (item) => item?.model === value && nameByArtifact.has(item?.model_artifact_id),
+    );
+    if (candidate) return nameByArtifact.get(candidate.model_artifact_id);
+    return boundNames.find((name) => name === value || name.startsWith(`${value}_`)) || value;
+  });
+  selection.models = uniq(resolved).join(", ");
 }
 
 const ADAPTATION_OPERATOR_LABELS = {
@@ -5952,6 +6035,7 @@ const ADAPTATION_OPERATOR_LABELS = {
 function renderAgentSearchPanel() {
   const config = $("agent-search-config");
   if (!config) return;
+  if (agentSearchSelection().caseId !== (ACTIVE_EVALUATION_CASE?.id || "")) syncAgentSearchContext();
   const selection = agentSearchSelection();
   const datasets = (CATALOG?.datasets || []).map((item) => item.name);
   const estimators = (CATALOG?.estimators || []).map((item) => item.name);
@@ -5998,6 +6082,7 @@ function renderAgentSearchPanel() {
           <option value="training" ${!isAdaptation ? "selected" : ""}>训练组合搜索（算法 × 特征 × 窗口）</option>
           <option value="adaptation" ${isAdaptation ? "selected" : ""}>推理适配搜索（冻结模型 × 适配算子）</option>
         </select>
+        <small>进入面板时自动跟随当前案例：训练页数据集 → 内环；推理页模型与数据集 → 适配对象；阶段决定默认模式。</small>
       </fieldset>
       ${isAdaptation ? adaptationFields : trainingFields}
       <fieldset><legend>搜索策略</legend>
@@ -6153,6 +6238,7 @@ function updateAdaptationChip() {
 
 function openAdaptationSearchFromInference() {
   const selection = agentSearchSelection();
+  selection.bridged = true;
   selection.mode = "adaptation";
   if (inferenceSelection.models.size) selection.models = [...inferenceSelection.models].join(", ");
   const targets = [...inferenceSelection.datasets];

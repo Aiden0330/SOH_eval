@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const CACHE_VERSION = "phase53-adaptation-run-tag-20260830a";
+const CACHE_VERSION = "phase54-search-context-sync-20260830a";
 const html = readFileSync(join(here, "index.html"), "utf8");
 const app = readFileSync(join(here, "app.js"), "utf8");
 const css = readFileSync(join(here, "styles.css"), "utf8");
@@ -189,6 +189,8 @@ assert.match(app, /renderStabilityPanel/);
 assert.match(app, new RegExp(`dashboard-core\\.mjs\\?v=${CACHE_VERSION}`));
 assert.match(app, /adaptation-tag/);
 assert.match(app, /适配：\$\{esc\(label\)\}/);
+assert.match(app, /function syncAgentSearchContext/);
+assert.match(app, /进入面板时自动跟随当前案例/);
 assert.match(app, /saved-combinations\/activate/);
 assert.match(app, /训练内评估/);
 assert.match(app, /跨数据集验证/);
