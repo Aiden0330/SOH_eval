@@ -55,7 +55,7 @@ import {
   trainingJobRuntimeState,
   trajectoryContextConsistency,
   auditCandidateViewProjection,
-} from "./dashboard-core.mjs?v=phase54-search-context-sync-20260830a";
+} from "./dashboard-core.mjs?v=phase55-search-pool-sync-20260830a";
 
 const $ = (id) => document.getElementById(id);
 const URL_PARAMS = new URLSearchParams(location.search);
@@ -521,6 +521,8 @@ function render() {
       const selection = agentSearchSelection();
       selection.mode = "training";
       if (resourceSelection.datasets.size) selection.inner = new Set(resourceSelection.datasets);
+      if (resourceSelection.estimators.size) selection.estimators = new Set(resourceSelection.estimators);
+      if (resourceSelection.featuresets.size) selection.featuresets = new Set(resourceSelection.featuresets);
       selection.bridged = true;
       activateMode("search");
     };
@@ -5993,6 +5995,8 @@ function syncAgentSearchContext() {
     if (inferenceModels.length) selection.models = inferenceModels.join(", ");
     if (inferenceDatasets.length) selection.targetDataset = inferenceDatasets[0];
   }
+  if (resourceSelection.estimators.size) selection.estimators = new Set(resourceSelection.estimators);
+  if (resourceSelection.featuresets.size) selection.featuresets = new Set(resourceSelection.featuresets);
   selection.caseId = caseId;
 }
 
@@ -6082,7 +6086,7 @@ function renderAgentSearchPanel() {
           <option value="training" ${!isAdaptation ? "selected" : ""}>训练组合搜索（算法 × 特征 × 窗口）</option>
           <option value="adaptation" ${isAdaptation ? "selected" : ""}>推理适配搜索（冻结模型 × 适配算子）</option>
         </select>
-        <small>进入面板时自动跟随当前案例：训练页数据集 → 内环；推理页模型与数据集 → 适配对象；阶段决定默认模式。</small>
+        <small>进入面板时自动跟随当前案例：训练页数据集/算法/特征 → 搜索候选池；推理页模型与数据集 → 适配对象；阶段决定默认模式。</small>
       </fieldset>
       ${isAdaptation ? adaptationFields : trainingFields}
       <fieldset><legend>搜索策略</legend>
