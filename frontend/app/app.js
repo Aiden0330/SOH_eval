@@ -55,7 +55,7 @@ import {
   trainingJobRuntimeState,
   trajectoryContextConsistency,
   auditCandidateViewProjection,
-} from "./dashboard-core.mjs?v=phase50-adaptation-20260829a";
+} from "./dashboard-core.mjs?v=phase51-adaptation-button-20260829a";
 
 const $ = (id) => document.getElementById(id);
 const URL_PARAMS = new URLSearchParams(location.search);
@@ -525,16 +525,7 @@ function render() {
     };
   }
   const openAdaptation = $("open-adaptation-search");
-  if (openAdaptation) {
-    openAdaptation.onclick = () => {
-      const selection = agentSearchSelection();
-      selection.mode = "adaptation";
-      if (inferenceSelection.models.size) selection.models = [...inferenceSelection.models].join(", ");
-      const targets = [...inferenceSelection.datasets];
-      if (targets.length) selection.targetDataset = targets[0];
-      activateMode("search");
-    };
-  }
+  if (openAdaptation) openAdaptation.onclick = openAdaptationSearchFromInference;
   renderAuditWorkspace();
   renderTaskHistoryDrawer();
   renderAcceptanceDetailDrawer(lb);
@@ -5419,6 +5410,14 @@ function ensureInferencePolicyUi() {
     saveToggle.innerHTML = `<input id="inference-save-toggle" type="checkbox" checked />` +
       `<span><b>加入已完成组合</b><small>第 3 页可选</small></span>`;
     actions.appendChild(saveToggle);
+    const adapt = document.createElement("button");
+    adapt.id = "open-adaptation-search-action";
+    adapt.type = "button";
+    adapt.className = "secondary-action";
+    adapt.textContent = "AI 智能适配";
+    adapt.title = "AI 在冻结模型上搜索部署合法的适配算子（CORAL / 输出重标定），结果可一键应用回推理";
+    adapt.onclick = openAdaptationSearchFromInference;
+    actions.appendChild(adapt);
     actions.appendChild(start);
   }
   if (!$("inference-policy-note")) {
@@ -6119,6 +6118,15 @@ async function saveLlmConfig(configHost, extra) {
     const state = $("agent-search-state");
     if (state) { state.textContent = `AI 设置保存失败：${error.message}`; state.className = "job-state fail"; }
   }
+}
+
+function openAdaptationSearchFromInference() {
+  const selection = agentSearchSelection();
+  selection.mode = "adaptation";
+  if (inferenceSelection.models.size) selection.models = [...inferenceSelection.models].join(", ");
+  const targets = [...inferenceSelection.datasets];
+  if (targets.length) selection.targetDataset = targets[0];
+  activateMode("search");
 }
 
 function applyCandidateToTraining(item, report) {
