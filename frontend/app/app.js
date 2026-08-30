@@ -55,7 +55,7 @@ import {
   trainingJobRuntimeState,
   trajectoryContextConsistency,
   auditCandidateViewProjection,
-} from "./dashboard-core.mjs?v=phase52-adapted-inference-20260829a";
+} from "./dashboard-core.mjs?v=phase53-adaptation-run-tag-20260830a";
 
 const $ = (id) => document.getElementById(id);
 const URL_PARAMS = new URLSearchParams(location.search);
@@ -5595,11 +5595,18 @@ function renderInferenceTable(rows) {
   if (!rows.length) {
     return '<div class="note">暂无推理测速数据。请先从算法包管理选择已校验模型，再在目标数据集上启动 inference-only 测评。</div>';
   }
+  const adaptationTag = (row) => {
+    const info = row.adaptation;
+    if (!info || !info.operator || info.operator === "none") return "";
+    const label = ADAPTATION_OPERATOR_LABELS[info.operator] || info.operator;
+    const budget = Number(info.calibration_budget) > 0 ? ` · K=${esc(String(info.calibration_budget))}` : "";
+    return `<small class="adaptation-tag" title="本行指标来自适配后推理；标定样本不计入指标">适配：${esc(label)}${budget}</small>`;
+  };
   const body = rows.map((row) =>
     `<tr class="${row.status === "failed" ? "failed" : ""}">` +
     `<td><span class="algo">${esc(row.model)}</span><small>${esc(row.estimator || "")}</small></td>` +
     `<td>${esc(row.dataset)}</td>` +
-    `<td>${esc(row.featureset || "full")}</td>` +
+    `<td>${esc(row.featureset || "full")}${adaptationTag(row)}</td>` +
     `<td class="tnum">${fmt(row.mae)}</td>` +
     `<td class="tnum">${fmt(row.rmse)}</td>` +
     `<td class="tnum">${fmt(row.predict_ms, 2)}</td>` +
