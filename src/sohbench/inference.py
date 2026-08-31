@@ -162,6 +162,9 @@ def _run_inference(
                 if adapter is not None and adapter.uses_recalibration:
                     pred, recal = adapter.recalibrate(scoped_group, pred, calibration_mask)
                     adaptation_info = {**adaptation_info, "recalibration": recal}
+                interval = _prediction_interval(loaded, scoped_group, group_meta)
+                if adapter is not None and recal is not None:
+                    interval = adapter.recalibrate_interval(interval, recal)
                 eval_mask = (
                     ~calibration_mask
                     if calibration_mask is not None and calibration_mask.any()
@@ -170,7 +173,7 @@ def _run_inference(
                 records.append(
                     {
                         **base,
-                        **_metrics(scoped_group, pred, eval_mask=eval_mask),
+                        **_metrics(scoped_group, pred, eval_mask=eval_mask, interval=interval),
                         "predict_ms": float(predict_ms),
                         "ms_per_1000_samples": float(predict_ms / max(len(scoped_group), 1) * 1000.0),
                         "samples_per_second": float(len(scoped_group) / max(predict_ms / 1000.0, 1e-12)),
@@ -180,9 +183,6 @@ def _run_inference(
                     }
                 )
                 if capture_evidence:
-                    interval = _prediction_interval(loaded, scoped_group, group_meta)
-                    if adapter is not None and recal is not None:
-                        interval = adapter.recalibrate_interval(interval, recal)
                     evidence_rows, contribution_rows = _prediction_evidence_rows(
                         scoped_group,
                         pred,
@@ -455,12 +455,14 @@ def _json_number(value):
     return int(number) if number.is_integer() else number
 
 
-def _metrics(group: pd.DataFrame, pred: np.ndarray, eval_mask=None) -> dict:
+def _metrics(group: pd.DataFrame, pred: np.ndarray, eval_mask=None, interval=None) -> dict:
     """Aggregate metrics; ``eval_mask`` excludes adaptation-calibration rows."""
     if eval_mask is not None:
         eval_mask = np.asarray(eval_mask, dtype=bool)
         group = group.iloc[eval_mask]
         pred = pred[eval_mask]
+        if interval is not None:
+            interval = (interval[0][eval_mask], interval[1][eval_mask])
     out = {
         "monotonicity_violation_rate": M.monotonicity_violation_rate(
             pred[np.argsort(group["cycle_index"].to_numpy())]
@@ -476,8 +478,90 @@ def _metrics(group: pd.DataFrame, pred: np.ndarray, eval_mask=None) -> dict:
                 "mean_bias_error": M.mean_bias_error(y, pred),
             }
         )
+        out.update(_extended_metrics(group, y, pred, interval))
     else:
         out.update({"mae": None, "rmse": None, "mean_bias_error": None})
+    return out
+
+
+_EOL_SOH_THRESHOLD = 0.80
+
+
+def _extended_metrics(group: pd.DataFrame, y: np.ndarray, pred: np.ndarray, interval) -> dict:
+    """Pooled MAE hides where the error lives; these answer the questions it
+    can't: which SOH band fails, which cells collapse, whether EOL timing is
+    usable, and whether the model's own intervals are honest."""
+    finite = np.isfinite(y) & np.isfinite(pred)
+    error = pred - y
+    bands = {
+        "soh_ge_90": y >= 0.90,
+        "soh_80_90": (y >= 0.80) & (y < 0.90),
+        "soh_lt_80": y < 0.80,
+    }
+    band_metrics = {}
+    for name, in_band in bands.items():
+        rows = finite & in_band
+        n = int(rows.sum())
+        band_metrics[name] = {
+            "mae": float(np.mean(np.abs(error[rows]))) if n else None,
+            "bias": float(np.mean(error[rows])) if n else None,
+            "n": n,
+        }
+    out: dict = {"band_metrics": band_metrics}
+
+    cells = group["cell_id"].astype(str).to_numpy() if "cell_id" in group.columns else None
+    cycles = group["cycle_index"].to_numpy(dtype=float) if "cycle_index" in group.columns else None
+    if cells is not None and finite.any():
+        cell_frame = pd.DataFrame({
+            "cell": cells[finite],
+            "abs_error": np.abs(error[finite]),
+        })
+        per_cell = cell_frame.groupby("cell")["abs_error"].mean()
+        worst_cell = per_cell.idxmax()
+        out.update({
+            "cell_mae_worst": float(per_cell.max()),
+            "cell_mae_worst_cell": str(worst_cell),
+            "cell_mae_p90": float(per_cell.quantile(0.9)),
+            "cells_evaluated": int(len(per_cell)),
+        })
+
+    if cells is not None and cycles is not None:
+        cycle_errors: list[float] = []
+        cells_with_true_eol = 0
+        undetected = 0
+        eol_frame = pd.DataFrame({
+            "cell": cells[finite],
+            "cycle": cycles[finite],
+            "true": y[finite],
+            "pred": pred[finite],
+        })
+        for _cell, rows in eol_frame.groupby("cell", sort=False):
+            rows = rows.sort_values("cycle")
+            true_hits = rows.loc[rows["true"] < _EOL_SOH_THRESHOLD, "cycle"]
+            if true_hits.empty:
+                continue
+            cells_with_true_eol += 1
+            pred_hits = rows.loc[rows["pred"] < _EOL_SOH_THRESHOLD, "cycle"]
+            if pred_hits.empty:
+                undetected += 1
+                continue
+            cycle_errors.append(abs(float(pred_hits.iloc[0]) - float(true_hits.iloc[0])))
+        out["eol"] = {
+            "threshold": _EOL_SOH_THRESHOLD,
+            "cells_with_true_eol": cells_with_true_eol,
+            "cells_predicted": len(cycle_errors),
+            "undetected_cells": undetected,
+            "mean_abs_cycle_error": float(np.mean(cycle_errors)) if cycle_errors else None,
+            "median_abs_cycle_error": float(np.median(cycle_errors)) if cycle_errors else None,
+        }
+
+    if interval is not None:
+        lower = np.asarray(interval[0], dtype=float)
+        upper = np.asarray(interval[1], dtype=float)
+        rows = finite & np.isfinite(lower) & np.isfinite(upper)
+        if rows.any():
+            out["picp"] = float(np.mean((lower[rows] <= y[rows]) & (y[rows] <= upper[rows])))
+            out["mean_interval_width"] = float(np.mean(upper[rows] - lower[rows]))
     return out
 
 

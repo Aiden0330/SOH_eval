@@ -7047,6 +7047,21 @@
             ],
             "title": "Calibration Budget"
           },
+          "calibration_split": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "earliest",
+                  "spread"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calibration Split"
+          },
           "top_k": {
             "anyOf": [
               {

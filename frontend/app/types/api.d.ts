@@ -506,6 +506,7 @@ export interface SearchJobRequest {
   models?: string[] | null;
   operators?: string[] | null;
   calibration_budget?: number | null;
+  calibration_split?: "earliest" | "spread" | null;
   top_k?: number | null;
   seeds?: number[] | null;
   [key: string]: unknown;

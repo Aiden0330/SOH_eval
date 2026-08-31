@@ -2076,7 +2076,7 @@ class EvaluationService:
         if mode not in {"training", "adaptation"}:
             raise ValueError(f"unknown search mode: {mode}")
         if mode == "adaptation":
-            from .adaptation import ADAPTATION_OPERATORS
+            from .adaptation import ADAPTATION_OPERATORS, CALIBRATION_SPLITS
 
             target = str(payload.get("target_dataset") or "").strip()
             models = _string_list(payload.get("models") or [])
@@ -2092,12 +2092,16 @@ class EvaluationService:
             missing = [name for name in models if name not in known_models]
             if missing:
                 raise ValueError(f"unknown models: {missing[:5]}")
+            calibration_split = str(payload.get("calibration_split") or "earliest")
+            if calibration_split not in CALIBRATION_SPLITS:
+                raise ValueError(f"unknown calibration split: {calibration_split}")
             request_extra = {
                 "mode": "adaptation",
                 "target_dataset": target,
                 "models": models,
                 "operators": operators,
                 "calibration_budget": max(0, int(payload.get("calibration_budget") or 32)),
+                "calibration_split": calibration_split,
             }
             inner, outer, estimators, featuresets = [], "", [], []
         else:
@@ -2186,6 +2190,7 @@ class EvaluationService:
                     self,
                     target_dataset=request["target_dataset"],
                     calibration_budget=int(request.get("calibration_budget") or 32),
+                    calibration_split=str(request.get("calibration_split") or "earliest"),
                     top_k=int(request.get("top_k") or 3),
                 )
                 if use_llm:
@@ -2288,6 +2293,7 @@ class EvaluationService:
             self,
             str(spec.get("operator") or "none"),
             int(spec.get("calibration_budget") or 32),
+            calibration_split=str(spec.get("calibration_split") or "earliest"),
         )
 
     def get_llm_config(self) -> dict:
@@ -2364,15 +2370,19 @@ class EvaluationService:
             raise ValueError(f"unknown inference evaluation policy: {evaluation_policy}")
         adaptation_request = None
         if payload.get("adaptation"):
-            from .adaptation import ADAPTATION_OPERATORS, OPERATOR_CHANNELS
+            from .adaptation import ADAPTATION_OPERATORS, CALIBRATION_SPLITS, OPERATOR_CHANNELS
 
             spec = payload["adaptation"] if isinstance(payload["adaptation"], dict) else {}
             operator = str(spec.get("operator") or "").strip()
             if operator not in ADAPTATION_OPERATORS:
                 raise ValueError(f"unknown adaptation operator: {operator!r}")
+            calibration_split = str(spec.get("calibration_split") or "earliest")
+            if calibration_split not in CALIBRATION_SPLITS:
+                raise ValueError(f"unknown calibration split: {calibration_split}")
             adaptation_request = {
                 "operator": operator,
                 "calibration_budget": max(0, int(spec.get("calibration_budget") or 32)),
+                "calibration_split": calibration_split,
                 "channel": OPERATOR_CHANNELS[operator],
             }
         request = {

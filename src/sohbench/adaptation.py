@@ -15,6 +15,13 @@ at deployment:
   RPT points" scenario).  Channel: K labeled target samples, which are
   EXCLUDED from evaluation.
 - ``coral+recalibration`` — both, in that order.
+- ``residual`` — ridge on the target's feature values predicting the frozen
+  model's residual, fitted on the same K-sample budget.  Feature-level, so
+  it can restore a degradation trend that output recalibration cannot.
+
+Calibration rows are drawn per ``calibration_split``: ``earliest`` (first
+cycles per cell) or ``spread`` (cycles spread over each cell's life — the
+periodic-RPT-checkup scenario).
 
 Every operator declares its information channel in ``OPERATOR_CHANNELS``;
 the adaptation search reports it, and evaluation always runs on the
@@ -29,7 +36,13 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-ADAPTATION_OPERATORS = ("none", "coral", "recalibration", "coral+recalibration")
+ADAPTATION_OPERATORS = (
+    "none",
+    "coral",
+    "recalibration",
+    "coral+recalibration",
+    "residual",
+)
 
 OPERATOR_CHANNELS = {
     "none": "frozen model only",
@@ -39,7 +52,13 @@ OPERATOR_CHANNELS = {
         "unlabeled target feature statistics + source training statistics "
         "+ K labeled target calibration samples (excluded from evaluation)"
     ),
+    "residual": (
+        "K labeled target calibration samples + target feature values "
+        "(ridge residual correction, calibration rows excluded from evaluation)"
+    ),
 }
+
+CALIBRATION_SPLITS = ("earliest", "spread")
 
 _COV_RIDGE = 1e-6
 
@@ -102,19 +121,57 @@ def apply_coral(table: pd.DataFrame, coral: dict) -> pd.DataFrame:
     return out
 
 
-def calibration_split(
-    table: pd.DataFrame, budget: int
-) -> tuple[np.ndarray, np.ndarray]:
-    """Deterministic budget: the EARLIEST cycles of each cell, round-robin.
+def _spread_order(n: int) -> np.ndarray:
+    """Deterministic pick order covering [0, n) evenly as the budget grows:
+    both endpoints first, then binary midpoints (0, n-1, mid, quarter, ...)."""
+    if n <= 0:
+        return np.zeros(0, dtype=int)
+    if n <= 2:
+        return np.arange(n, dtype=int)
+    fractions = [0.0, 1.0]
+    depth = 1
+    while len(fractions) < n:
+        step = 1.0 / (2 ** depth)
+        fractions.extend(step * k for k in range(1, 2 ** depth, 2))
+        depth += 1
+    order: list[int] = []
+    seen: set[int] = set()
+    for fraction in fractions:
+        index = int(round(fraction * (n - 1)))
+        if index not in seen:
+            seen.add(index)
+            order.append(index)
+        if len(order) == n:
+            break
+    return np.asarray(order, dtype=int)
 
-    Mirrors the deployment reality (early reference tests are what you get
-    first) and keeps the evaluation subset identical across operators.
+
+def calibration_split(
+    table: pd.DataFrame, budget: int, strategy: str = "earliest"
+) -> tuple[np.ndarray, np.ndarray]:
+    """Deterministic budget split, round-robin across cells.
+
+    ``earliest`` takes the first cycles of each cell (early reference tests
+    are what a deployment gets first).  ``spread`` takes cycles spread over
+    each cell's observed life (endpoints first, then binary midpoints) —
+    the periodic-RPT-checkup scenario, which lets output/residual
+    corrections see the degradation range instead of only the fresh plateau.
     """
+    if strategy not in CALIBRATION_SPLITS:
+        raise ValueError(f"unknown calibration split: {strategy}")
     if budget <= 0:
         return np.zeros(len(table), dtype=bool), np.ones(len(table), dtype=bool)
     frame = table.reset_index(drop=True)
     ordered = frame.sort_values(["cell_id", "cycle_index"], kind="stable")
-    rank_in_cell = ordered.groupby("cell_id", sort=False).cumcount()
+    if strategy == "earliest":
+        rank_in_cell = ordered.groupby("cell_id", sort=False).cumcount()
+    else:
+        rank_in_cell = pd.Series(0, index=ordered.index, dtype=int)
+        for _cell, indices in ordered.groupby("cell_id", sort=False).indices.items():
+            positions = np.asarray(indices, dtype=int)
+            ranks = np.empty(len(positions), dtype=int)
+            ranks[_spread_order(len(positions))] = np.arange(len(positions))
+            rank_in_cell.iloc[positions] = ranks
     priority = ordered.assign(_rank=rank_in_cell).sort_values(
         ["_rank", "cell_id", "cycle_index"], kind="stable"
     )
@@ -123,19 +180,85 @@ def calibration_split(
     return calibration, ~calibration
 
 
+# A frozen model that predicts a near-constant on the calibration set gives
+# the affine fit almost no prediction variance to lean on, so the fitted
+# slope explodes and the "correction" destroys the output scale.  Outside
+# these bounds the honest correction is intercept-only.
+_RECAL_SLOPE_BOUNDS = (0.1, 10.0)
+
+
 def fit_recalibration(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
     mask = np.isfinite(y_true) & np.isfinite(y_pred)
     if int(mask.sum()) < 4:
         raise ValueError("recalibration needs at least 4 finite calibration samples")
+    fallback = None
     if float(np.ptp(y_pred[mask])) <= 1e-9:
         slope, intercept = 1.0, float(np.mean(y_true[mask] - y_pred[mask]))
+        fallback = "intercept_only"
     else:
         slope, intercept = np.polyfit(y_pred[mask], y_true[mask], 1)
-    return {"slope": float(slope), "intercept": float(intercept), "samples": int(mask.sum())}
+        low, high = _RECAL_SLOPE_BOUNDS
+        if not np.isfinite(slope) or not np.isfinite(intercept) or not (low <= abs(slope) <= high):
+            slope, intercept = 1.0, float(np.mean(y_true[mask] - y_pred[mask]))
+            fallback = "intercept_only"
+    result = {"slope": float(slope), "intercept": float(intercept), "samples": int(mask.sum())}
+    if fallback:
+        result["fallback"] = fallback
+    return result
 
 
 def apply_recalibration(y_pred: np.ndarray, recal: dict) -> np.ndarray:
     return y_pred * float(recal["slope"]) + float(recal["intercept"])
+
+
+def fit_residual(
+    features: np.ndarray,
+    y_pred: np.ndarray,
+    y_true: np.ndarray,
+    columns: list[str],
+    *,
+    alpha: float = 1.0,
+) -> dict:
+    """Ridge on standardized target features predicting the frozen model's
+    residual (y - pred).  Unlike affine output recalibration this re-weights
+    features, so it can restore a degradation trend the frozen model missed.
+    """
+    mask = np.isfinite(y_true) & np.isfinite(y_pred) & np.isfinite(features).all(axis=1)
+    n = int(mask.sum())
+    if n < 4:
+        raise ValueError("residual correction needs at least 4 finite calibration samples")
+    residual = y_true[mask] - y_pred[mask]
+    model = {
+        "columns": list(columns),
+        "alpha": float(alpha),
+        "samples": n,
+        "intercept": float(residual.mean()),
+    }
+    if n < max(8, len(columns) + 2):
+        model.update({"mean": None, "scale": None, "coef": None, "fallback": "intercept_only"})
+        return model
+    x = features[mask]
+    mean = x.mean(axis=0)
+    scale = x.std(axis=0)
+    scale[scale <= 1e-12] = 1.0
+    z = (x - mean) / scale
+    centered = residual - residual.mean()
+    gram = z.T @ z + alpha * np.eye(z.shape[1])
+    coef = np.linalg.solve(gram, z.T @ centered)
+    model.update({"mean": mean.tolist(), "scale": scale.tolist(), "coef": coef.tolist()})
+    return model
+
+
+def apply_residual(features: np.ndarray, y_pred: np.ndarray, model: dict) -> np.ndarray:
+    correction = np.full(len(y_pred), float(model["intercept"]))
+    if model.get("coef") is not None:
+        mean = np.asarray(model["mean"], dtype=float)
+        scale = np.asarray(model["scale"], dtype=float)
+        coef = np.asarray(model["coef"], dtype=float)
+        finite = np.isfinite(features).all(axis=1)
+        z = (features[finite] - mean) / scale
+        correction[finite] = correction[finite] + z @ coef
+    return y_pred + correction
 
 
 class InferenceAdapter:
@@ -149,17 +272,29 @@ class InferenceAdapter:
     calibration count all land in the job record and prediction evidence.
     """
 
-    def __init__(self, service, operator: str, calibration_budget: int = 32):
+    def __init__(
+        self,
+        service,
+        operator: str,
+        calibration_budget: int = 32,
+        calibration_split: str = "earliest",
+    ):
         if operator not in ADAPTATION_OPERATORS:
             raise ValueError(f"unknown adaptation operator: {operator}")
+        if calibration_split not in CALIBRATION_SPLITS:
+            raise ValueError(f"unknown calibration split: {calibration_split}")
         self.service = service
         self.operator = operator
         self.calibration_budget = max(0, int(calibration_budget))
+        self.calibration_split = calibration_split
         self._source_cache: dict[str, np.ndarray] = {}
+        self._feature_columns: list[str] = []
+        self._last_correction: np.ndarray | None = None
 
     @property
     def uses_recalibration(self) -> bool:
-        return "recalibration" in self.operator
+        """True when the operator consumes the labeled calibration budget."""
+        return "recalibration" in self.operator or "residual" in self.operator
 
     def prepare(self, loaded, binding: dict, group: pd.DataFrame):
         """Return (adapted_group, calibration_mask, adaptation_info)."""
@@ -169,25 +304,46 @@ class InferenceAdapter:
             "calibration_budget": self.calibration_budget if self.uses_recalibration else 0,
         }
         adapted = group
+        self._feature_columns = [c for c in loaded.feature_columns() if c in group.columns]
         if "coral" in self.operator:
-            columns = [c for c in loaded.feature_columns() if c in group.columns]
+            columns = self._feature_columns
             source = self._source_features(loaded, binding, columns)
             coral = fit_coral(source, _feature_matrix(group, columns), columns)
             adapted = apply_coral(group, coral)
             info["coral_columns"] = columns
         budget = self.calibration_budget if self.uses_recalibration else 0
-        calibration_mask, _evaluation = calibration_split(adapted, budget)
+        calibration_mask, _evaluation = calibration_split(
+            adapted, budget, self.calibration_split
+        )
         info["calibration_samples"] = int(calibration_mask.sum())
+        if budget > 0:
+            info["calibration_split"] = self.calibration_split
         return adapted, calibration_mask, info
 
     def recalibrate(self, group: pd.DataFrame, pred: np.ndarray, calibration_mask) -> tuple[np.ndarray, dict]:
         truth = pd.to_numeric(group["soh"], errors="coerce").to_numpy(dtype=float)
+        self._last_correction = None
+        if "residual" in self.operator:
+            features = _feature_matrix(group, self._feature_columns)
+            model = fit_residual(
+                features[calibration_mask],
+                pred[calibration_mask],
+                truth[calibration_mask],
+                self._feature_columns,
+            )
+            corrected = apply_residual(features, pred, model)
+            self._last_correction = corrected - pred
+            return corrected, model
         recal = fit_recalibration(truth[calibration_mask], pred[calibration_mask])
         return apply_recalibration(pred, recal), recal
 
     def recalibrate_interval(self, interval, recal: dict):
         if interval is None:
             return None
+        if "residual" in self.operator:
+            if self._last_correction is None:
+                return interval
+            return interval[0] + self._last_correction, interval[1] + self._last_correction
         lower = apply_recalibration(interval[0], recal)
         upper = apply_recalibration(interval[1], recal)
         if float(recal.get("slope", 1.0)) < 0:

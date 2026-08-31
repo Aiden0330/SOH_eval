@@ -870,6 +870,12 @@ table.lb tbody tr.best td:first-child .rank{background:var(--primary);color:#fff
 .inference-table tr.failed td{background:var(--failbg)}
 .inference-table small{display:block;color:var(--muted);font-family:var(--mono);font-size:11px;margin-top:1px}
 .inference-table small.adaptation-tag{color:#1D6F42;font-family:inherit;font-weight:700}
+.fusion-extended-metrics{display:grid}
+.fusion-extended-metrics>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:7px;padding:6px 0;border-bottom:1px solid #EDF1F5}
+.fusion-extended-metrics>div:last-child{border-bottom:0}
+.fusion-extended-metrics span{font-size:9.5px;font-weight:700}
+.fusion-extended-metrics strong{font:900 9px var(--mono)}
+.fusion-extended-metrics small{grid-column:1 / -1;color:#75889A;font:8px var(--mono)}
 .soh-drilldown{border:1px solid #CFE0FF;border-radius:7px;background:#EEF5FF;color:var(--primary);font:inherit;font-size:11.5px;font-weight:800;padding:5px 8px;white-space:nowrap;cursor:pointer}
 .soh-drilldown:hover{border-color:var(--primary);background:#E0ECFF}
 .soh-drilldown:focus-visible{outline:2px solid var(--primary);outline-offset:2px}

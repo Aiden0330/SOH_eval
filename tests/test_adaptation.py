@@ -11,9 +11,11 @@ from sohbench.adaptation import (
     OPERATOR_CHANNELS,
     apply_coral,
     apply_recalibration,
+    apply_residual,
     calibration_split,
     fit_coral,
     fit_recalibration,
+    fit_residual,
 )
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
@@ -60,6 +62,53 @@ def test_calibration_split_takes_earliest_cycles_round_robin():
 
 def test_every_operator_declares_its_channel():
     assert set(OPERATOR_CHANNELS) == set(ADAPTATION_OPERATORS)
+
+
+def test_spread_calibration_split_covers_the_cycle_range():
+    table = pd.DataFrame({
+        "cell_id": ["c1"] * 10 + ["c2"] * 10,
+        "cycle_index": list(range(1, 11)) * 2,
+    })
+    calibration, _evaluation = calibration_split(table, 6, "spread")
+    chosen = table[calibration]
+    for cell in ("c1", "c2"):
+        cycles = sorted(chosen.loc[chosen["cell_id"] == cell, "cycle_index"])
+        # Endpoints first, then a midpoint — never six-earliest.
+        assert cycles[0] == 1 and cycles[-1] == 10
+        assert len(cycles) == 3
+    # Same table under "earliest" picks only the first cycles.
+    earliest, _ = calibration_split(table, 6, "earliest")
+    assert sorted(table[earliest]["cycle_index"]) == [1, 1, 2, 2, 3, 3]
+
+
+def test_recalibration_guard_falls_back_on_degenerate_slope():
+    rng = np.random.default_rng(3)
+    truth = np.linspace(1.0, 0.7, 40)
+    # Nearly-constant predictions: enough variance to fit, none to trust.
+    pred = 0.9 + rng.normal(0.0, 1e-6, size=40)
+    recal = fit_recalibration(truth, pred)
+    assert recal["fallback"] == "intercept_only"
+    corrected = apply_recalibration(pred, recal)
+    assert np.abs(corrected - truth).max() < 0.5  # no scale explosion
+
+
+def test_residual_correction_restores_a_missed_trend():
+    # Frozen model predicts a constant while truth declines with a feature
+    # the model ignored — affine output recalibration cannot fix this.
+    t = np.linspace(0.0, 1.0, 60)
+    truth = 1.0 - 0.3 * t
+    pred = np.full(60, 0.9)
+    features = np.column_stack([t, np.ones(60)])
+    calibration = np.zeros(60, dtype=bool)
+    calibration[:: 60 // 12] = True
+    model = fit_residual(
+        features[calibration], pred[calibration], truth[calibration], ["t", "one"]
+    )
+    corrected = apply_residual(features, pred, model)
+    baseline_mae = float(np.mean(np.abs(pred[~calibration] - truth[~calibration])))
+    corrected_mae = float(np.mean(np.abs(corrected[~calibration] - truth[~calibration])))
+    assert corrected_mae < baseline_mae / 3
+    assert model["samples"] == int(calibration.sum())
 
 
 @pytest.mark.skipif(

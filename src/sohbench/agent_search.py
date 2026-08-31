@@ -398,12 +398,18 @@ class AdaptationSearch:
         *,
         target_dataset: str,
         calibration_budget: int = 32,
+        calibration_split: str = "earliest",
         top_k: int = 3,
         max_rounds: int = 8,
     ):
+        from .adaptation import CALIBRATION_SPLITS
+
+        if calibration_split not in CALIBRATION_SPLITS:
+            raise ValueError(f"unknown calibration split: {calibration_split}")
         self.service = service
         self.target_dataset = target_dataset
         self.calibration_budget = max(0, int(calibration_budget))
+        self.calibration_split = calibration_split
         self.top_k = top_k
         self.max_rounds = max_rounds
         self._loader = DatasetLoader(service.data_dir)
@@ -428,9 +434,11 @@ class AdaptationSearch:
             OPERATOR_CHANNELS,
             apply_coral,
             apply_recalibration,
+            apply_residual,
             calibration_split,
             fit_coral,
             fit_recalibration,
+            fit_residual,
         )
         from .adaptation import _feature_matrix  # noqa: PLC2701 - shared helper
 
@@ -464,11 +472,24 @@ class AdaptationSearch:
             table = apply_coral(table, coral)
             provenance["coral_columns"] = columns
 
-        calibration_mask, evaluation_mask = calibration_split(table, self.calibration_budget)
+        calibration_mask, evaluation_mask = calibration_split(
+            table, self.calibration_budget, self.calibration_split
+        )
         predictions = loaded.predict(table, meta)
         truth = pd.to_numeric(table["soh"], errors="coerce").to_numpy(dtype=float)
 
-        if "recalibration" in candidate.operator:
+        if "residual" in candidate.operator:
+            columns = [c for c in binding.get("feature_columns") or [] if c in table.columns]
+            features = _feature_matrix(table, columns)
+            residual_model = fit_residual(
+                features[calibration_mask],
+                predictions[calibration_mask],
+                truth[calibration_mask],
+                columns,
+            )
+            predictions = apply_residual(features, predictions, residual_model)
+            provenance["residual"] = residual_model
+        elif "recalibration" in candidate.operator:
             recal = fit_recalibration(truth[calibration_mask], predictions[calibration_mask])
             predictions = apply_recalibration(predictions, recal)
             provenance["recalibration"] = recal
@@ -486,6 +507,7 @@ class AdaptationSearch:
             "target_bias": bias,
             "evaluated_samples": int(finite.sum()),
             "calibration_samples": int(calibration_mask.sum()),
+            "calibration_split": self.calibration_split,
             "provenance": provenance,
         }
 
@@ -521,6 +543,7 @@ class AdaptationSearch:
             "policy_log": list(getattr(policy, "log_entries", []) or []),
             "target_dataset": self.target_dataset,
             "calibration_budget": self.calibration_budget,
+            "calibration_split": self.calibration_split,
             "rounds": history.rounds,
             "excluded": excluded,
             "ranking": ranking,

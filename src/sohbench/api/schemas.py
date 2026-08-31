@@ -326,6 +326,7 @@ class SearchJobRequest(ApiModel):
     models: list[str] | None = None
     operators: list[str] | None = None
     calibration_budget: int | None = None
+    calibration_split: Literal["earliest", "spread"] | None = None
     top_k: int | None = None
     seeds: list[int] | None = None
 
@@ -376,7 +377,8 @@ class InferenceJobRequest(ApiModel):
     submitted_datasets: list[str] | None = None
     skipped_datasets: list[Any] | None = None
     profile_name: str | None = None
-    # Deployment-legal adaptation applied inside the audited run:
+    # Deployment-legal adaptation applied inside the audited run
+    # (optional "calibration_split": "earliest" | "spread"):
     # {"operator": "none|coral|recalibration|coral+recalibration",
     #  "calibration_budget": int}
     adaptation: dict[str, Any] | None = None
