@@ -464,9 +464,7 @@ def _metrics(group: pd.DataFrame, pred: np.ndarray, eval_mask=None, interval=Non
         if interval is not None:
             interval = (interval[0][eval_mask], interval[1][eval_mask])
     out = {
-        "monotonicity_violation_rate": M.monotonicity_violation_rate(
-            pred[np.argsort(group["cycle_index"].to_numpy())]
-        ),
+        "monotonicity_violation_rate": _per_cell_monotonicity_violation(group, pred),
         "value_range_violation": M.value_range_violation(pred),
     }
     if "soh" in group.columns:
@@ -485,6 +483,31 @@ def _metrics(group: pd.DataFrame, pred: np.ndarray, eval_mask=None, interval=Non
 
 
 _EOL_SOH_THRESHOLD = 0.80
+
+
+def _per_cell_monotonicity_violation(group: pd.DataFrame, pred: np.ndarray) -> float:
+    """Sample-weighted mean of per-cell violation rates.  A global cycle sort
+    interleaves every cell at each cycle index, so cross-cell level jumps
+    would dominate the physical (within-cell) signal."""
+    if "cell_id" not in group.columns:
+        return M.monotonicity_violation_rate(
+            pred[np.argsort(group["cycle_index"].to_numpy())]
+        )
+    cells = group["cell_id"].astype(str).to_numpy()
+    cycles = group["cycle_index"].to_numpy()
+    weighted = 0.0
+    transitions = 0
+    for cell in pd.unique(cells):
+        rows = np.flatnonzero(cells == cell)
+        if len(rows) < 2:
+            continue
+        ordered = pred[rows[np.argsort(cycles[rows], kind="stable")]]
+        finite = ordered[np.isfinite(ordered)]
+        if len(finite) < 2:
+            continue
+        weighted += M.monotonicity_violation_rate(finite) * (len(finite) - 1)
+        transitions += len(finite) - 1
+    return float(weighted / transitions) if transitions else 0.0
 
 
 def _extended_metrics(group: pd.DataFrame, y: np.ndarray, pred: np.ndarray, interval) -> dict:

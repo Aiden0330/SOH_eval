@@ -66,6 +66,21 @@ def test_interval_metrics_report_picp_and_width():
     assert abs(out["mean_interval_width"] - 0.10) < 1e-9
 
 
+def test_monotonicity_is_measured_per_cell_not_interleaved():
+    group = _declining_group()
+    # Each cell's prediction declines perfectly, but the two cells sit at
+    # different levels; a global cycle sort would interleave them and count
+    # spurious cross-cell rebounds.
+    pred = np.concatenate([np.linspace(0.95, 0.70, 40), np.linspace(1.0, 0.90, 40)])
+    out = _metrics(group, pred)
+    assert out["monotonicity_violation_rate"] == 0.0
+
+    jitter = pred.copy()
+    jitter[5] += 0.02  # one real within-cell rebound above the 0.005 tolerance
+    out = _metrics(group, jitter)
+    assert 0 < out["monotonicity_violation_rate"] < 0.05
+
+
 def test_eval_mask_slices_interval_too():
     group = _declining_group()
     pred = np.full(80, 0.93)

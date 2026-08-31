@@ -437,6 +437,7 @@ class EvaluationService:
         inference_job_id = str(execution.get("inference_job_id") or "").strip()
         authoritative_candidates: list[dict] | None = None
         authoritative_job = None
+        replace_candidate_pool = True
         if inference_job_id:
             authoritative_job = self.get_inference_job(inference_job_id)
             self._assert_job_case(authoritative_job, case_id)
@@ -446,6 +447,10 @@ class EvaluationService:
                 stage="inference",
             )
             if authoritative_job.get("status") == "succeeded":
+                # An inference run validates a subset of the case's model
+                # pool; it must not shrink the training-derived pool, so
+                # its candidates MERGE instead of replacing.
+                replace_candidate_pool = False
                 authoritative_candidates = _unique_candidate_rows(
                     item["candidate"]
                     for item in self._inference_saved_combinations(
@@ -483,7 +488,7 @@ class EvaluationService:
             payload["execution"] = execution
         if authoritative_candidates is not None:
             payload["candidates"] = authoritative_candidates
-            payload["replace_candidates"] = True
+            payload["replace_candidates"] = replace_candidate_pool
         elif "candidates" in payload:
             payload.pop("candidates", None)
             payload.pop("replace_candidates", None)
@@ -1908,7 +1913,7 @@ class EvaluationService:
                 and protocol == str(summary.get("best_protocol") or protocol)
                 else ""
             )
-            artifact = next(
+            champion_artifact = next(
                 (
                     item for item in group
                     if preferred_held_out
@@ -1916,47 +1921,62 @@ class EvaluationService:
                 ),
                 group[0],
             )
-            artifact_id = str(artifact.get("artifact_id") or "")
+            # LODO folds are not interchangeable: each fold is trained on a
+            # different dataset composition and is its own deployable model,
+            # so every fold becomes a selectable combination.  Cell-level
+            # protocols keep the single champion (77 fungible folds must not
+            # flood the case).
+            selected_artifacts = group if protocol == "lodo" else [champion_artifact]
             metrics = _flatten_saved_metrics(row.get("metrics") or {})
             verdict = derive_verdict(metrics, criterion_set_id)
-            candidate = {
-                "candidate_id": _artifact_candidate_id(artifact_id),
-                "model": estimator,
-                "featureset": featureset,
-                "role": "champion" if (
-                    estimator == str(summary.get("best_estimator") or "")
-                    and featureset == str(summary.get("best_featureset") or "")
-                    and protocol == str(summary.get("best_protocol") or protocol)
-                ) else "candidate",
-                "model_artifact_id": artifact_id,
-                "run_id": str(job.get("run_id") or job_id),
-            }
-            identity = {
-                "source_stage": "training",
-                "job_id": job_id,
-                "artifact_id": artifact_id,
-                "protocol": protocol,
-            }
-            output.append({
-                "saved_combination_id": f"combo:{_canonical_digest(identity)[:40]}",
-                "source_stage": "training",
-                "validation_kind": "training_internal",
-                "label": f"{estimator} × {featureset} · 训练内评估",
-                "candidate": candidate,
-                "training_job_id": job_id,
-                "inference_job_id": "",
-                "run_id": str(job.get("run_id") or job_id),
-                "training_datasets": training_datasets,
-                "target_dataset": "",
-                "dataset_snapshot_id": (
-                    snapshot_by_dataset.get(training_datasets[0], "")
-                    if len(training_datasets) == 1 else ""
-                ),
-                "protocol": protocol,
-                "criterion_set_version": criterion_set_id,
-                "metrics": metrics,
-                "verdict_result": verdict["result"],
-            })
+            combo_is_best = (
+                estimator == str(summary.get("best_estimator") or "")
+                and featureset == str(summary.get("best_featureset") or "")
+                and protocol == str(summary.get("best_protocol") or protocol)
+            )
+            for artifact in selected_artifacts:
+                artifact_id = str(artifact.get("artifact_id") or "")
+                held_out_key = str(artifact.get("held_out_key") or "")
+                fold_note = (
+                    f" · 留出 {held_out_key}" if protocol == "lodo" and held_out_key else ""
+                )
+                candidate = {
+                    "candidate_id": _artifact_candidate_id(artifact_id),
+                    "model": estimator,
+                    "featureset": featureset,
+                    "role": "champion" if (
+                        combo_is_best
+                        and artifact_id == str(champion_artifact.get("artifact_id") or "")
+                    ) else "candidate",
+                    "model_artifact_id": artifact_id,
+                    "run_id": str(job.get("run_id") or job_id),
+                }
+                identity = {
+                    "source_stage": "training",
+                    "job_id": job_id,
+                    "artifact_id": artifact_id,
+                    "protocol": protocol,
+                }
+                output.append({
+                    "saved_combination_id": f"combo:{_canonical_digest(identity)[:40]}",
+                    "source_stage": "training",
+                    "validation_kind": "training_internal",
+                    "label": f"{estimator} × {featureset} · 训练内评估{fold_note}",
+                    "candidate": candidate,
+                    "training_job_id": job_id,
+                    "inference_job_id": "",
+                    "run_id": str(job.get("run_id") or job_id),
+                    "training_datasets": training_datasets,
+                    "target_dataset": "",
+                    "dataset_snapshot_id": (
+                        snapshot_by_dataset.get(training_datasets[0], "")
+                        if len(training_datasets) == 1 else ""
+                    ),
+                    "protocol": protocol,
+                    "criterion_set_version": criterion_set_id,
+                    "metrics": metrics,
+                    "verdict_result": verdict["result"],
+                })
         return output
 
     def _inference_saved_combinations(self, job_id: str, criterion_set_id: str) -> list[dict]:
@@ -3078,7 +3098,10 @@ def _canonical_digest(payload: dict) -> str:
 
 
 def _artifact_candidate_id(artifact_id: str) -> str:
-    token = re.sub(r"[^A-Za-z0-9_.-]+", "-", str(artifact_id or "model")).strip("-.")
+    # Must stay byte-identical with inference.py's _candidate_id (token
+    # truncated to 48) — the evidence resolver joins candidates from both
+    # derivations on this id.
+    token = re.sub(r"[^A-Za-z0-9_.-]+", "-", str(artifact_id or "model")).strip("-.")[:48]
     return f"artifact:{token or 'model'}"
 
 

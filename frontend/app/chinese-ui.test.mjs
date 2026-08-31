@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const CACHE_VERSION = "phase56-extended-metrics-residual-20260830a";
+const CACHE_VERSION = "phase57-monotone-lodo-folds-20260830a";
 const html = readFileSync(join(here, "index.html"), "utf8");
 const app = readFileSync(join(here, "app.js"), "utf8");
 const css = readFileSync(join(here, "styles.css"), "utf8");
@@ -195,6 +195,8 @@ assert.match(app, /search-calib-split/);
 assert.match(app, /全寿命分布/);
 assert.match(app, /扩展指标/);
 assert.match(css, /fusion-extended-metrics/);
+assert.match(app, /单调平滑/);
+assert.match(app, /残差修正 \+ 单调平滑/);
 assert.match(app, /进入面板时自动跟随当前案例/);
 assert.match(app, /saved-combinations\/activate/);
 assert.match(app, /训练内评估/);

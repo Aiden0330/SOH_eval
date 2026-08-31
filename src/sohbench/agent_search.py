@@ -433,6 +433,7 @@ class AdaptationSearch:
         from .adaptation import (
             OPERATOR_CHANNELS,
             apply_coral,
+            apply_monotone,
             apply_recalibration,
             apply_residual,
             calibration_split,
@@ -493,6 +494,9 @@ class AdaptationSearch:
             recal = fit_recalibration(truth[calibration_mask], predictions[calibration_mask])
             predictions = apply_recalibration(predictions, recal)
             provenance["recalibration"] = recal
+        if "monotone" in candidate.operator:
+            predictions, monotone_info = apply_monotone(table, predictions)
+            provenance["monotone"] = monotone_info
 
         finite = evaluation_mask & np.isfinite(truth) & np.isfinite(predictions)
         if int(finite.sum()) < 8:

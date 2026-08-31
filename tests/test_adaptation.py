@@ -10,6 +10,7 @@ from sohbench.adaptation import (
     ADAPTATION_OPERATORS,
     OPERATOR_CHANNELS,
     apply_coral,
+    apply_monotone,
     apply_recalibration,
     apply_residual,
     calibration_split,
@@ -90,6 +91,28 @@ def test_recalibration_guard_falls_back_on_degenerate_slope():
     assert recal["fallback"] == "intercept_only"
     corrected = apply_recalibration(pred, recal)
     assert np.abs(corrected - truth).max() < 0.5  # no scale explosion
+
+
+def test_monotone_projection_enforces_per_cell_decline():
+    rng = np.random.default_rng(7)
+    cycles = np.arange(1, 61)
+    table = pd.DataFrame({
+        "cell_id": ["c1"] * 60 + ["c2"] * 60,
+        "cycle_index": np.concatenate([cycles, cycles]),
+    })
+    trend = np.linspace(1.0, 0.8, 60)
+    jittery = np.concatenate([
+        trend + rng.normal(0, 0.01, 60),
+        trend + rng.normal(0, 0.01, 60),
+    ])
+    smoothed, info = apply_monotone(table, jittery)
+    for cell in ("c1", "c2"):
+        values = smoothed[(table["cell_id"] == cell).to_numpy()]
+        assert (np.diff(values) <= 1e-9).all()
+    assert info["cells"] == 2
+    assert info["adjusted_fraction"] > 0
+    # The projection removes noise, it doesn't distort the trend.
+    assert np.mean(np.abs(smoothed - np.concatenate([trend, trend]))) < 0.01
 
 
 def test_residual_correction_restores_a_missed_trend():

@@ -18,6 +18,9 @@ at deployment:
 - ``residual`` — ridge on the target's feature values predicting the frozen
   model's residual, fitted on the same K-sample budget.  Feature-level, so
   it can restore a degradation trend that output recalibration cannot.
+- ``monotone`` — per-cell isotonic projection onto non-increasing SOH.
+  Label-free physical constraint; composes as ``recalibration+monotone``
+  and ``residual+monotone`` (applied after the labeled correction).
 
 Calibration rows are drawn per ``calibration_split``: ``earliest`` (first
 cycles per cell) or ``spread`` (cycles spread over each cell's life — the
@@ -42,6 +45,9 @@ ADAPTATION_OPERATORS = (
     "recalibration",
     "coral+recalibration",
     "residual",
+    "monotone",
+    "recalibration+monotone",
+    "residual+monotone",
 )
 
 OPERATOR_CHANNELS = {
@@ -55,6 +61,19 @@ OPERATOR_CHANNELS = {
     "residual": (
         "K labeled target calibration samples + target feature values "
         "(ridge residual correction, calibration rows excluded from evaluation)"
+    ),
+    "monotone": (
+        "none — output post-processing only: per-cell non-increasing SOH "
+        "enforced (physical constraint, no target information)"
+    ),
+    "recalibration+monotone": (
+        "K labeled target calibration samples (excluded from evaluation) "
+        "+ per-cell monotone projection (physical constraint, label-free)"
+    ),
+    "residual+monotone": (
+        "K labeled target calibration samples + target feature values "
+        "(ridge residual correction, calibration rows excluded from evaluation) "
+        "+ per-cell monotone projection (physical constraint, label-free)"
     ),
 }
 
@@ -249,6 +268,37 @@ def fit_residual(
     return model
 
 
+def apply_monotone(table: pd.DataFrame, y_pred: np.ndarray) -> tuple[np.ndarray, dict]:
+    """Project each cell's prediction sequence onto the non-increasing cone
+    (isotonic regression over cycle order).  SOH cannot recover, so this is a
+    label-free physical constraint, not a data channel."""
+    from sklearn.isotonic import IsotonicRegression
+
+    smoothed = np.asarray(y_pred, dtype=float).copy()
+    cells = table["cell_id"].astype(str).to_numpy()
+    cycles = pd.to_numeric(table["cycle_index"], errors="coerce").to_numpy(dtype=float)
+    n_cells = 0
+    for cell in pd.unique(cells):
+        rows = np.flatnonzero(cells == cell)
+        order = rows[np.argsort(cycles[rows], kind="stable")]
+        values = smoothed[order]
+        finite = np.isfinite(values)
+        if int(finite.sum()) < 2:
+            continue
+        iso = IsotonicRegression(increasing=False, out_of_bounds="clip")
+        values[finite] = iso.fit_transform(np.flatnonzero(finite), values[finite])
+        smoothed[order] = values
+        n_cells += 1
+    delta = smoothed - np.asarray(y_pred, dtype=float)
+    finite_delta = delta[np.isfinite(delta)]
+    info = {
+        "cells": n_cells,
+        "adjusted_fraction": float(np.mean(np.abs(finite_delta) > 1e-12)) if finite_delta.size else 0.0,
+        "mean_abs_adjustment": float(np.mean(np.abs(finite_delta))) if finite_delta.size else 0.0,
+    }
+    return smoothed, info
+
+
 def apply_residual(features: np.ndarray, y_pred: np.ndarray, model: dict) -> np.ndarray:
     correction = np.full(len(y_pred), float(model["intercept"]))
     if model.get("coef") is not None:
@@ -292,16 +342,21 @@ class InferenceAdapter:
         self._last_correction: np.ndarray | None = None
 
     @property
-    def uses_recalibration(self) -> bool:
-        """True when the operator consumes the labeled calibration budget."""
+    def _uses_labeled_budget(self) -> bool:
         return "recalibration" in self.operator or "residual" in self.operator
+
+    @property
+    def uses_recalibration(self) -> bool:
+        """True when a post-predict output step runs (labeled correction
+        and/or the label-free monotone projection)."""
+        return self._uses_labeled_budget or "monotone" in self.operator
 
     def prepare(self, loaded, binding: dict, group: pd.DataFrame):
         """Return (adapted_group, calibration_mask, adaptation_info)."""
         info: dict = {
             "operator": self.operator,
             "channel": OPERATOR_CHANNELS[self.operator],
-            "calibration_budget": self.calibration_budget if self.uses_recalibration else 0,
+            "calibration_budget": self.calibration_budget if self._uses_labeled_budget else 0,
         }
         adapted = group
         self._feature_columns = [c for c in loaded.feature_columns() if c in group.columns]
@@ -311,7 +366,7 @@ class InferenceAdapter:
             coral = fit_coral(source, _feature_matrix(group, columns), columns)
             adapted = apply_coral(group, coral)
             info["coral_columns"] = columns
-        budget = self.calibration_budget if self.uses_recalibration else 0
+        budget = self.calibration_budget if self._uses_labeled_budget else 0
         calibration_mask, _evaluation = calibration_split(
             adapted, budget, self.calibration_split
         )
@@ -321,26 +376,39 @@ class InferenceAdapter:
         return adapted, calibration_mask, info
 
     def recalibrate(self, group: pd.DataFrame, pred: np.ndarray, calibration_mask) -> tuple[np.ndarray, dict]:
-        truth = pd.to_numeric(group["soh"], errors="coerce").to_numpy(dtype=float)
+        raw = np.asarray(pred, dtype=float)
+        corrected = raw
+        result: dict = {}
         self._last_correction = None
         if "residual" in self.operator:
+            truth = pd.to_numeric(group["soh"], errors="coerce").to_numpy(dtype=float)
             features = _feature_matrix(group, self._feature_columns)
             model = fit_residual(
                 features[calibration_mask],
-                pred[calibration_mask],
+                corrected[calibration_mask],
                 truth[calibration_mask],
                 self._feature_columns,
             )
-            corrected = apply_residual(features, pred, model)
-            self._last_correction = corrected - pred
-            return corrected, model
-        recal = fit_recalibration(truth[calibration_mask], pred[calibration_mask])
-        return apply_recalibration(pred, recal), recal
+            corrected = apply_residual(features, corrected, model)
+            result = dict(model)
+        elif "recalibration" in self.operator:
+            truth = pd.to_numeric(group["soh"], errors="coerce").to_numpy(dtype=float)
+            recal = fit_recalibration(truth[calibration_mask], corrected[calibration_mask])
+            corrected = apply_recalibration(corrected, recal)
+            result = dict(recal)
+        if "monotone" in self.operator:
+            corrected, monotone_info = apply_monotone(group, corrected)
+            result["monotone"] = monotone_info
+        self._last_correction = corrected - raw
+        return corrected, result
 
     def recalibrate_interval(self, interval, recal: dict):
         if interval is None:
             return None
-        if "residual" in self.operator:
+        if "residual" in self.operator or "monotone" in self.operator:
+            # Feature-level / projection corrections have no closed affine
+            # form; shift the bounds by the realized per-row correction
+            # (width preserved).
             if self._last_correction is None:
                 return interval
             return interval[0] + self._last_correction, interval[1] + self._last_correction

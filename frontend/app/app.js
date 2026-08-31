@@ -55,7 +55,7 @@ import {
   trainingJobRuntimeState,
   trajectoryContextConsistency,
   auditCandidateViewProjection,
-} from "./dashboard-core.mjs?v=phase56-extended-metrics-residual-20260830a";
+} from "./dashboard-core.mjs?v=phase57-monotone-lodo-folds-20260830a";
 
 const $ = (id) => document.getElementById(id);
 const URL_PARAMS = new URLSearchParams(location.search);
@@ -6076,6 +6076,9 @@ const ADAPTATION_OPERATOR_LABELS = {
   recalibration: "输出重标定（K 个标定样本）",
   "coral+recalibration": "CORAL + 重标定",
   residual: "残差修正（K 样本 · 特征级）",
+  monotone: "单调平滑（物理约束 · 无标签）",
+  "recalibration+monotone": "重标定 + 单调平滑",
+  "residual+monotone": "残差修正 + 单调平滑",
 };
 
 const CALIBRATION_SPLIT_LABELS = {

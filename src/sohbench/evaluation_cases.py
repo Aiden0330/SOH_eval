@@ -775,6 +775,19 @@ def merge_case_identity(current: dict, payload: dict) -> dict:
             for item in incoming:
                 existing[item["candidate_id"]] = item
             updated["candidates"] = list(existing.values())
+            # The merged pool keeps every candidate, but the evidence view
+            # follows the authoritative run being merged in: a selection
+            # outside it would 400 against the new run's records.
+            selected_candidate = str(
+                (updated.get("evidence_selection") or {}).get("candidate_id") or ""
+            )
+            incoming_ids = {item["candidate_id"] for item in incoming}
+            if selected_candidate and selected_candidate not in incoming_ids:
+                updated["active_saved_combination_id"] = ""
+                updated["evidence_selection"] = normalize_evidence_selection({})
+                updated["evidence_coverage"] = normalize_evidence_coverage({})
+                updated["verdict"] = normalize_verdict({})
+                updated["review"] = normalize_review({})
     next_execution = updated.get("execution") or {}
     training_changed = bool(next_execution.get("training_job_id")) and (
         str(next_execution.get("training_job_id") or "")
