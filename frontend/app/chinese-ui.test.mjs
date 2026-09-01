@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const CACHE_VERSION = "phase58-wide-residual-gpr4k-20260831a";
+const CACHE_VERSION = "phase59-conformal-interval-20260831a";
 const html = readFileSync(join(here, "index.html"), "utf8");
 const app = readFileSync(join(here, "app.js"), "utf8");
 const css = readFileSync(join(here, "styles.css"), "utf8");
@@ -198,6 +198,8 @@ assert.match(css, /fusion-extended-metrics/);
 assert.match(app, /单调平滑/);
 assert.match(app, /残差修正 \+ 单调平滑/);
 assert.match(app, /宽特征残差修正/);
+assert.match(app, /search-interval-mode/);
+assert.match(app, /保形区间/);
 assert.match(app, /进入面板时自动跟随当前案例/);
 assert.match(app, /saved-combinations\/activate/);
 assert.match(app, /训练内评估/);

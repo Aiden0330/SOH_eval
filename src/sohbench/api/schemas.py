@@ -327,6 +327,7 @@ class SearchJobRequest(ApiModel):
     operators: list[str] | None = None
     calibration_budget: int | None = None
     calibration_split: Literal["earliest", "spread"] | None = None
+    interval: Literal["model", "conformal"] | None = None
     top_k: int | None = None
     seeds: list[int] | None = None
 

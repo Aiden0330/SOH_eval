@@ -92,6 +92,8 @@ OPERATOR_CHANNELS = {
 
 CALIBRATION_SPLITS = ("earliest", "spread")
 
+INTERVAL_MODES = ("model", "conformal")
+
 _COV_RIDGE = 1e-6
 
 
@@ -281,6 +283,29 @@ def fit_residual(
     return model
 
 
+def fit_conformal_interval(
+    y_true: np.ndarray, y_pred: np.ndarray, alpha: float = 0.1
+) -> dict:
+    """Split-conformal band: the finite-sample-corrected (1-alpha) quantile
+    of |y - pred| on the calibration samples.  Reuses the already-declared
+    K-label channel; coverage is marginal and assumes the calibration rows
+    are exchangeable with evaluation rows (the 'spread' split approximates
+    this — measured PICP remains the arbiter)."""
+    residuals = np.abs(np.asarray(y_true, dtype=float) - np.asarray(y_pred, dtype=float))
+    residuals = np.sort(residuals[np.isfinite(residuals)])
+    n = len(residuals)
+    if n < 10:
+        raise ValueError("conformal interval needs at least 10 finite calibration samples")
+    rank = min(n - 1, int(np.ceil((n + 1) * (1.0 - alpha))) - 1)
+    return {"quantile": float(residuals[rank]), "samples": n, "alpha": float(alpha)}
+
+
+def apply_conformal_interval(y_pred: np.ndarray, conformal: dict) -> tuple[np.ndarray, np.ndarray]:
+    q = float(conformal["quantile"])
+    pred = np.asarray(y_pred, dtype=float)
+    return pred - q, pred + q
+
+
 def wide_residual_columns(table: pd.DataFrame, model_columns: list[str]) -> list[str]:
     """Extended residual inputs: every numeric, label-safe column of the
     prepared target table (structural label-source ban enforced — a column
@@ -360,22 +385,32 @@ class InferenceAdapter:
         operator: str,
         calibration_budget: int = 32,
         calibration_split: str = "earliest",
+        interval: str = "model",
     ):
         if operator not in ADAPTATION_OPERATORS:
             raise ValueError(f"unknown adaptation operator: {operator}")
         if calibration_split not in CALIBRATION_SPLITS:
             raise ValueError(f"unknown calibration split: {calibration_split}")
+        if interval not in INTERVAL_MODES:
+            raise ValueError(f"unknown interval mode: {interval}")
         self.service = service
         self.operator = operator
         self.calibration_budget = max(0, int(calibration_budget))
         self.calibration_split = calibration_split
+        self.interval = interval
         self._source_cache: dict[str, np.ndarray] = {}
         self._feature_columns: list[str] = []
         self._last_correction: np.ndarray | None = None
+        self._last_pred: np.ndarray | None = None
+        self._conformal: dict | None = None
 
     @property
     def _uses_labeled_budget(self) -> bool:
-        return "recalibration" in self.operator or "residual" in self.operator
+        return (
+            "recalibration" in self.operator
+            or "residual" in self.operator
+            or self.interval == "conformal"
+        )
 
     @property
     def uses_recalibration(self) -> bool:
@@ -385,11 +420,19 @@ class InferenceAdapter:
 
     def prepare(self, loaded, binding: dict, group: pd.DataFrame):
         """Return (adapted_group, calibration_mask, adaptation_info)."""
+        channel = OPERATOR_CHANNELS[self.operator]
+        if self.interval == "conformal":
+            channel += (
+                "; interval: split-conformal quantile from the same K "
+                "calibration residuals"
+            )
         info: dict = {
             "operator": self.operator,
-            "channel": OPERATOR_CHANNELS[self.operator],
+            "channel": channel,
             "calibration_budget": self.calibration_budget if self._uses_labeled_budget else 0,
         }
+        if self.interval == "conformal":
+            info["interval"] = "conformal"
         adapted = group
         model_columns = [c for c in loaded.feature_columns() if c in group.columns]
         self._feature_columns = (
@@ -437,9 +480,24 @@ class InferenceAdapter:
             corrected, monotone_info = apply_monotone(group, corrected)
             result["monotone"] = monotone_info
         self._last_correction = corrected - raw
+        self._last_pred = corrected
+        self._conformal = None
+        if self.interval == "conformal":
+            truth = pd.to_numeric(group["soh"], errors="coerce").to_numpy(dtype=float)
+            self._conformal = fit_conformal_interval(
+                truth[calibration_mask], corrected[calibration_mask]
+            )
+            result["conformal"] = dict(self._conformal)
         return corrected, result
 
     def recalibrate_interval(self, interval, recal: dict):
+        if self.interval == "conformal":
+            # Pure conformal band around the final corrected prediction —
+            # replaces (or creates, for models without native intervals)
+            # the interval entirely.
+            if self._conformal is None or self._last_pred is None:
+                return interval
+            return apply_conformal_interval(self._last_pred, self._conformal)
         if interval is None:
             return None
         if "residual" in self.operator or "monotone" in self.operator:

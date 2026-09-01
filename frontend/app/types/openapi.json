@@ -7062,6 +7062,21 @@
             ],
             "title": "Calibration Split"
           },
+          "interval": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "model",
+                  "conformal"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval"
+          },
           "top_k": {
             "anyOf": [
               {

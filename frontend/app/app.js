@@ -55,7 +55,7 @@ import {
   trainingJobRuntimeState,
   trajectoryContextConsistency,
   auditCandidateViewProjection,
-} from "./dashboard-core.mjs?v=phase58-wide-residual-gpr4k-20260831a";
+} from "./dashboard-core.mjs?v=phase59-conformal-interval-20260831a";
 
 const $ = (id) => document.getElementById(id);
 const URL_PARAMS = new URLSearchParams(location.search);
@@ -5913,7 +5913,16 @@ function inferenceJobMatchesSelection(job) {
     .some((values) => Array.isArray(values) && values.length && sameValues(values, currentModels));
   const datasetMatches = [request.selected_datasets, request.submitted_datasets, request.datasets]
     .some((values) => Array.isArray(values) && values.length && sameValues(values, currentDatasets));
-  return modelMatches && datasetMatches;
+  // The adaptation spec is part of what the run measures — a different
+  // operator/budget/split/interval must re-enable a new launch, not show
+  // the stale run as "current".
+  const adaptationSignature = (spec) => (spec
+    ? [spec.operator || "none", spec.calibration_budget ?? 32,
+      spec.calibration_split || "earliest", spec.interval || "model"].join("|")
+    : "none");
+  const adaptationMatches = adaptationSignature(request.adaptation)
+    === adaptationSignature(inferenceAdaptation);
+  return modelMatches && datasetMatches && adaptationMatches;
 }
 
 function updateModeUrl(mode) {
@@ -5986,6 +5995,7 @@ function agentSearchSelection() {
       operators: new Set(["none", "coral", "recalibration", "coral+recalibration", "residual"]),
       calibBudget: 32,
       calibSplit: "earliest",
+      intervalMode: "model",
       caseId: "",
       bridged: false,
     };
@@ -6133,6 +6143,11 @@ function renderAgentSearchPanel() {
         <label class="agent-search-topk"><span>标定采样（K 个样本怎么取）</span>
           <select id="search-calib-split" ${busy ? "disabled" : ""}>${Object.entries(CALIBRATION_SPLIT_LABELS).map(([value, label]) => `
             <option value="${value}" ${selection.calibSplit === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
+        <label class="agent-search-topk"><span>区间校准</span>
+          <select id="search-interval-mode" ${busy ? "disabled" : ""}>
+            <option value="model" ${selection.intervalMode !== "conformal" ? "selected" : ""}>模型自带区间</option>
+            <option value="conformal" ${selection.intervalMode === "conformal" ? "selected" : ""}>保形区间（同一 K 样本残差）</option>
+          </select></label>
       </fieldset>`;
   config.innerHTML = `
     <div class="run-config-grid">
@@ -6198,6 +6213,8 @@ function renderAgentSearchPanel() {
   if (calibInput) calibInput.onchange = () => { selection.calibBudget = Math.max(0, parseInt(calibInput.value, 10) || 0); };
   const calibSplitSelect = config.querySelector("#search-calib-split");
   if (calibSplitSelect) calibSplitSelect.onchange = () => { selection.calibSplit = calibSplitSelect.value; };
+  const intervalSelect = config.querySelector("#search-interval-mode");
+  if (intervalSelect) intervalSelect.onchange = () => { selection.intervalMode = intervalSelect.value; };
   const outerSelect = config.querySelector("#search-outer-dataset");
   if (outerSelect) outerSelect.onchange = () => { selection.outer = outerSelect.value; renderAgentSearchPanel(); };
   const topKInput = config.querySelector("#search-top-k");
@@ -6291,7 +6308,8 @@ function updateAdaptationChip() {
     actions.insertBefore(chip, $("open-adaptation-search-action") || actions.lastChild);
   }
   const label = ADAPTATION_OPERATOR_LABELS[inferenceAdaptation.operator] || inferenceAdaptation.operator;
-  const splitNote = inferenceAdaptation.calibration_split === "spread" ? " · 全寿命分布采样" : "";
+  const splitNote = (inferenceAdaptation.calibration_split === "spread" ? " · 全寿命分布采样" : "")
+    + (inferenceAdaptation.interval === "conformal" ? " · 保形区间" : "");
   chip.innerHTML = `<span><b>适配算子：${label}</b><small>K=${inferenceAdaptation.calibration_budget}${splitNote} · 标定样本不计入指标</small></span>` +
     `<button type="button" id="clear-inference-adaptation" title="移除适配，恢复冻结模型直跑">✕</button>`;
   const clear = chip.querySelector("#clear-inference-adaptation");
@@ -6331,6 +6349,7 @@ async function startAgentSearch() {
         operators: [...selection.operators],
         calibration_budget: selection.calibBudget,
         calibration_split: selection.calibSplit || "earliest",
+        interval: selection.intervalMode || "model",
         policy: selection.policy || "grid",
       }
       : {
@@ -6408,6 +6427,7 @@ function renderAgentSearchResults() {
     const adaptationRows = (report.ranking || []).map((item, index) => `
       <tr><td>${index + 1}</td><td>${item.model}</td><td>${ADAPTATION_OPERATOR_LABELS[item.operator] || item.operator}</td>
         <td>${Number(item.target_mae).toFixed(4)}</td><td>${Number(item.target_bias).toFixed(4)}</td>
+        <td>${item.picp == null ? "—" : Number(item.picp).toFixed(3)}</td>
         <td>${item.provenance?.channel || ""}</td>
         <td><button type="button" class="secondary-action" data-apply-adaptation="${index}">应用到推理</button></td></tr>`).join("");
     const adaptationExcluded = (report.excluded || []).map((item) => `
@@ -6416,8 +6436,8 @@ function renderAgentSearchResults() {
       ${policyBlock}
       <h3>适配排名（目标数据集 ${report.target_dataset || ""} · 冻结模型 × 适配算子）</h3>
       <div class="dataset-catalog-table-wrap"><table class="dataset-catalog-table">
-        <thead><tr><th>#</th><th>模型</th><th>适配算子</th><th>目标 MAE</th><th>偏差</th><th>信息通道</th><th>动作</th></tr></thead>
-        <tbody>${adaptationRows || '<tr><td colspan="7">无可评测候选</td></tr>'}</tbody></table></div>
+        <thead><tr><th>#</th><th>模型</th><th>适配算子</th><th>目标 MAE</th><th>偏差</th><th>PICP@90</th><th>信息通道</th><th>动作</th></tr></thead>
+        <tbody>${adaptationRows || '<tr><td colspan="8">无可评测候选</td></tr>'}</tbody></table></div>
       ${adaptationExcluded ? `<h3>被排除的候选</h3><ul class="agent-search-excluded">${adaptationExcluded}</ul>` : ""}
       <p class="dataset-catalog-footnote">完整性：模型冻结不变；标定预算 ${report.calibration_budget} 个样本（${CALIBRATION_SPLIT_LABELS[report.calibration_split] || "最早期 K 个循环"}）已从评测集剔除（各算子共用同一评测子集）；每个算子的信息通道全程申报。</p>`;
     host.querySelectorAll("[data-apply-adaptation]").forEach((button) => {
@@ -6433,6 +6453,7 @@ function renderAgentSearchResults() {
             operator: item.operator,
             calibration_budget: report.calibration_budget ?? 32,
             calibration_split: report.calibration_split || "earliest",
+            interval: report.interval || "model",
           }
           : null;
         activateMode("inference");
@@ -6580,7 +6601,7 @@ async function startInferenceEvaluationWithPolicy() {
     await ensureWritablePipelineCase();
     CURRENT_JOB = { kind: "inference", ...(await postJson("/api/inference-jobs", {
       ...payload,
-      ...(inferenceAdaptation ? { adaptation: { operator: inferenceAdaptation.operator, calibration_budget: inferenceAdaptation.calibration_budget, ...(inferenceAdaptation.calibration_split ? { calibration_split: inferenceAdaptation.calibration_split } : {}) } } : {}),
+      ...(inferenceAdaptation ? { adaptation: { operator: inferenceAdaptation.operator, calibration_budget: inferenceAdaptation.calibration_budget, ...(inferenceAdaptation.calibration_split ? { calibration_split: inferenceAdaptation.calibration_split } : {}), ...(inferenceAdaptation.interval ? { interval: inferenceAdaptation.interval } : {}) } } : {}),
       case_id: ACTIVE_EVALUATION_CASE?.id || "",
       expected_context_binding_id: evaluationContextBindingId(),
       profile_name: ACTIVE_EVALUATION_CASE?.profile_name || activeProfileOption?.name || activeProfile || "root",
@@ -6614,7 +6635,7 @@ async function startInferenceEvaluation() {
     await ensureWritablePipelineCase();
     CURRENT_JOB = { kind: "inference", ...(await postJson("/api/inference-jobs", {
       ...payload,
-      ...(inferenceAdaptation ? { adaptation: { operator: inferenceAdaptation.operator, calibration_budget: inferenceAdaptation.calibration_budget, ...(inferenceAdaptation.calibration_split ? { calibration_split: inferenceAdaptation.calibration_split } : {}) } } : {}),
+      ...(inferenceAdaptation ? { adaptation: { operator: inferenceAdaptation.operator, calibration_budget: inferenceAdaptation.calibration_budget, ...(inferenceAdaptation.calibration_split ? { calibration_split: inferenceAdaptation.calibration_split } : {}), ...(inferenceAdaptation.interval ? { interval: inferenceAdaptation.interval } : {}) } } : {}),
       case_id: ACTIVE_EVALUATION_CASE?.id || "",
       expected_context_binding_id: evaluationContextBindingId(),
       profile_name: ACTIVE_EVALUATION_CASE?.profile_name || activeProfileOption?.name || activeProfile || "root",

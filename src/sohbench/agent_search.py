@@ -399,17 +399,21 @@ class AdaptationSearch:
         target_dataset: str,
         calibration_budget: int = 32,
         calibration_split: str = "earliest",
+        interval: str = "model",
         top_k: int = 3,
         max_rounds: int = 8,
     ):
-        from .adaptation import CALIBRATION_SPLITS
+        from .adaptation import CALIBRATION_SPLITS, INTERVAL_MODES
 
         if calibration_split not in CALIBRATION_SPLITS:
             raise ValueError(f"unknown calibration split: {calibration_split}")
+        if interval not in INTERVAL_MODES:
+            raise ValueError(f"unknown interval mode: {interval}")
         self.service = service
         self.target_dataset = target_dataset
         self.calibration_budget = max(0, int(calibration_budget))
         self.calibration_split = calibration_split
+        self.interval = interval
         self.top_k = top_k
         self.max_rounds = max_rounds
         self._loader = DatasetLoader(service.data_dir)
@@ -507,7 +511,22 @@ class AdaptationSearch:
             raise ValueError("too few evaluable target samples after the calibration split")
         mae = float(np.mean(np.abs(truth[finite] - predictions[finite])))
         bias = float(np.mean(predictions[finite] - truth[finite]))
+        conformal_metrics = {}
+        if self.interval == "conformal":
+            from .adaptation import fit_conformal_interval
+
+            conformal = fit_conformal_interval(
+                truth[calibration_mask], predictions[calibration_mask]
+            )
+            q = conformal["quantile"]
+            covered = np.abs(truth[finite] - predictions[finite]) <= q
+            conformal_metrics = {
+                "picp": float(np.mean(covered)),
+                "interval_width": float(2.0 * q),
+            }
+            provenance["conformal"] = conformal
         return {
+            **conformal_metrics,
             "candidate": candidate.key(),
             "model": candidate.model,
             "operator": candidate.operator,
@@ -552,6 +571,7 @@ class AdaptationSearch:
             "target_dataset": self.target_dataset,
             "calibration_budget": self.calibration_budget,
             "calibration_split": self.calibration_split,
+            "interval": self.interval,
             "rounds": history.rounds,
             "excluded": excluded,
             "ranking": ranking,

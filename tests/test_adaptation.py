@@ -14,6 +14,8 @@ from sohbench.adaptation import (
     apply_recalibration,
     apply_residual,
     calibration_split,
+    apply_conformal_interval,
+    fit_conformal_interval,
     fit_coral,
     fit_recalibration,
     fit_residual,
@@ -92,6 +94,26 @@ def test_recalibration_guard_falls_back_on_degenerate_slope():
     assert recal["fallback"] == "intercept_only"
     corrected = apply_recalibration(pred, recal)
     assert np.abs(corrected - truth).max() < 0.5  # no scale explosion
+
+
+def test_conformal_interval_covers_at_the_nominal_level():
+    rng = np.random.default_rng(11)
+    truth = np.linspace(1.0, 0.7, 2000)
+    pred = truth + rng.normal(0, 0.01, 2000)
+    calibration = np.zeros(2000, dtype=bool)
+    calibration[::10] = True  # 200 exchangeable calibration samples
+    conformal = fit_conformal_interval(truth[calibration], pred[calibration])
+    lower, upper = apply_conformal_interval(pred[~calibration], conformal)
+    y = truth[~calibration]
+    coverage = float(np.mean((lower <= y) & (y <= upper)))
+    assert 0.86 <= coverage <= 0.96          # nominal 90%, finite-sample slack
+    assert conformal["quantile"] < 0.03      # width tracks the residual scale
+    assert conformal["samples"] == 200
+
+
+def test_conformal_interval_refuses_tiny_calibration():
+    with pytest.raises(ValueError):
+        fit_conformal_interval(np.ones(5), np.ones(5))
 
 
 def test_wide_residual_columns_enforce_the_label_source_ban():
