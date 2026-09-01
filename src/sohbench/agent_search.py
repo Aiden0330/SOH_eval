@@ -481,6 +481,10 @@ class AdaptationSearch:
 
         if "residual" in candidate.operator:
             columns = [c for c in binding.get("feature_columns") or [] if c in table.columns]
+            if "residual_wide" in candidate.operator:
+                from .adaptation import wide_residual_columns
+
+                columns = wide_residual_columns(table, columns)
             features = _feature_matrix(table, columns)
             residual_model = fit_residual(
                 features[calibration_mask],

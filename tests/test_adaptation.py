@@ -17,6 +17,7 @@ from sohbench.adaptation import (
     fit_coral,
     fit_recalibration,
     fit_residual,
+    wide_residual_columns,
 )
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
@@ -91,6 +92,25 @@ def test_recalibration_guard_falls_back_on_degenerate_slope():
     assert recal["fallback"] == "intercept_only"
     corrected = apply_recalibration(pred, recal)
     assert np.abs(corrected - truth).max() < 0.5  # no scale explosion
+
+
+def test_wide_residual_columns_enforce_the_label_source_ban():
+    table = pd.DataFrame({
+        "cell_id": ["c1", "c2"],
+        "soh": [1.0, 0.9],
+        "charge_capacity_max": [1.1, 1.0],   # affine label source — banned
+        "capacity_ah": [1.1, 1.0],            # banned alias
+        "voltage_mean": [3.3, 3.31],
+        "q_win_frac": [0.45, 0.44],
+        "cycle_index": [1, 2],
+    })
+    columns = wide_residual_columns(table, ["q_win_frac"])
+    assert columns[0] == "q_win_frac"          # model columns lead
+    assert "voltage_mean" in columns and "cycle_index" in columns
+    assert "soh" not in columns
+    assert "charge_capacity_max" not in columns
+    assert "capacity_ah" not in columns
+    assert "cell_id" not in columns            # non-numeric excluded
 
 
 def test_monotone_projection_enforces_per_cell_decline():

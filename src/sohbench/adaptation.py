@@ -48,6 +48,8 @@ ADAPTATION_OPERATORS = (
     "monotone",
     "recalibration+monotone",
     "residual+monotone",
+    "residual_wide",
+    "residual_wide+monotone",
 )
 
 OPERATOR_CHANNELS = {
@@ -73,6 +75,17 @@ OPERATOR_CHANNELS = {
     "residual+monotone": (
         "K labeled target calibration samples + target feature values "
         "(ridge residual correction, calibration rows excluded from evaluation) "
+        "+ per-cell monotone projection (physical constraint, label-free)"
+    ),
+    "residual_wide": (
+        "K labeled target calibration samples + ALL label-safe target feature "
+        "columns (ridge residual correction over the extended feature set, "
+        "calibration rows excluded from evaluation)"
+    ),
+    "residual_wide+monotone": (
+        "K labeled target calibration samples + ALL label-safe target feature "
+        "columns (ridge residual correction over the extended feature set, "
+        "calibration rows excluded from evaluation) "
         "+ per-cell monotone projection (physical constraint, label-free)"
     ),
 }
@@ -268,6 +281,25 @@ def fit_residual(
     return model
 
 
+def wide_residual_columns(table: pd.DataFrame, model_columns: list[str]) -> list[str]:
+    """Extended residual inputs: every numeric, label-safe column of the
+    prepared target table (structural label-source ban enforced — a column
+    like charge_capacity_max would hand the correction the answer)."""
+    from .feature_safety import is_label_source_feature
+
+    usable = []
+    for column in table.columns:
+        if column == "soh" or is_label_source_feature(column):
+            continue
+        if not pd.api.types.is_numeric_dtype(table[column]):
+            continue
+        usable.append(column)
+    usable_set = set(usable)
+    head = [c for c in model_columns if c in usable_set]
+    tail = sorted(usable_set - set(head))
+    return head + tail
+
+
 def apply_monotone(table: pd.DataFrame, y_pred: np.ndarray) -> tuple[np.ndarray, dict]:
     """Project each cell's prediction sequence onto the non-increasing cone
     (isotonic regression over cycle order).  SOH cannot recover, so this is a
@@ -359,9 +391,14 @@ class InferenceAdapter:
             "calibration_budget": self.calibration_budget if self._uses_labeled_budget else 0,
         }
         adapted = group
-        self._feature_columns = [c for c in loaded.feature_columns() if c in group.columns]
+        model_columns = [c for c in loaded.feature_columns() if c in group.columns]
+        self._feature_columns = (
+            wide_residual_columns(group, model_columns)
+            if "residual_wide" in self.operator
+            else model_columns
+        )
         if "coral" in self.operator:
-            columns = self._feature_columns
+            columns = model_columns
             source = self._source_features(loaded, binding, columns)
             coral = fit_coral(source, _feature_matrix(group, columns), columns)
             adapted = apply_coral(group, coral)

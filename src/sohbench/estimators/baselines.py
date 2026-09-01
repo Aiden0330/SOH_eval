@@ -116,7 +116,11 @@ class GPREstimator:
     kernel (optimizer disabled) keeps per-fold fits fast across the benchmark matrix."""
     name = "gpr"; feature_mode = "unified"; backend = "sklearn"
 
-    def __init__(self, n_max: int = 800):
+    # 800 points saw <1% of the multi-dataset tables and left the posterior
+    # reverting to the prior off-manifold; 4000 keeps fit O(n^3) in seconds
+    # while covering the feature space (predict_interval is the costly path
+    # at O(n^2 * n_test), still tolerable per combination).
+    def __init__(self, n_max: int = 4000):
         self._n_max = n_max; self._scaler = StandardScaler()
         self._imputer = FeatureMedianImputer()
         kernel = ConstantKernel(1.0) * RBF(length_scale=1.0) + WhiteKernel(noise_level=1e-2)

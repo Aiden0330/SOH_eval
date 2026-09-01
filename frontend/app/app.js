@@ -55,7 +55,7 @@ import {
   trainingJobRuntimeState,
   trajectoryContextConsistency,
   auditCandidateViewProjection,
-} from "./dashboard-core.mjs?v=phase57-monotone-lodo-folds-20260830a";
+} from "./dashboard-core.mjs?v=phase58-wide-residual-gpr4k-20260831a";
 
 const $ = (id) => document.getElementById(id);
 const URL_PARAMS = new URLSearchParams(location.search);
@@ -6079,6 +6079,8 @@ const ADAPTATION_OPERATOR_LABELS = {
   monotone: "单调平滑（物理约束 · 无标签）",
   "recalibration+monotone": "重标定 + 单调平滑",
   "residual+monotone": "残差修正 + 单调平滑",
+  residual_wide: "宽特征残差修正（全部安全列）",
+  "residual_wide+monotone": "宽特征残差修正 + 单调平滑",
 };
 
 const CALIBRATION_SPLIT_LABELS = {
