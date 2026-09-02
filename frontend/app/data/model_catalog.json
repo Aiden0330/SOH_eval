@@ -1,8 +1,8 @@
 {
   "models": [
     {
-      "name": "gpr_partial_window_norm_lodo_calce_cs2_seed0",
-      "artifact_id": "model@sha256:654e0531a60f88f94240319c5fc30d639d29a117ac8160bb4fdefbbe3f5b8fbd",
+      "name": "gpr_partial_window_norm_lodo_hust_seed0",
+      "artifact_id": "model@sha256:d5ab18eb77603b55e18195a64639135df9d98639b377009dba0569c139ecf7a3",
       "estimator": "gpr",
       "featureset": "partial_window_norm",
       "training_featuresets": [
@@ -15,14 +15,14 @@
       ],
       "created_by_run": "20260902T113626-b8ac7594",
       "trained_on": [
-        "hust",
+        "calce_cs2",
         "uconn"
       ],
       "protocol": "lodo",
-      "held_out_key": "calce_cs2",
+      "held_out_key": "hust",
       "seed": 0,
-      "manifest_sha256": "4144ce24ebce209bfbb7d75838cf078fa88470d17fad06a1a77057e7e93b95e8",
-      "model_sha256": "47a4dafd65e253521fa5bb9a7af56c94e98a2bb1da7afde4b60ebfacaf362421",
+      "manifest_sha256": "79d228512b90f7ba2b46f7a214016ccbec565c571e43c6b7320ee43ed6b62101",
+      "model_sha256": "ed129deb89c32b3456c197f9edb24af56dee616fca2608d15d8689be46c1172f",
       "label_safety": {},
       "usable": true
     }

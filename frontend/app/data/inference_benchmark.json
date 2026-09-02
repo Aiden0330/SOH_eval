@@ -1,59 +1,60 @@
 {
   "records": [
     {
-      "model": "gpr_partial_window_norm_lodo_calce_cs2_seed0",
+      "model": "gpr_partial_window_norm_lodo_hust_seed0",
       "dataset": "snl_lfp",
       "featureset": "partial_window_norm",
       "estimator": "gpr",
-      "candidate_id": "artifact:model-sha256-654e0531a60f88f94240319c5fc30d639d2",
-      "model_artifact_id": "model@sha256:654e0531a60f88f94240319c5fc30d639d29a117ac8160bb4fdefbbe3f5b8fbd",
+      "candidate_id": "artifact:model-sha256-d5ab18eb77603b55e18195a64639135df9d",
+      "model_artifact_id": "model@sha256:d5ab18eb77603b55e18195a64639135df9d98639b377009dba0569c139ecf7a3",
       "n_samples": 64905,
-      "load_ms": 17.34487499925308,
+      "load_ms": 19.437333998212125,
       "evaluation_scope": "same_chemistry_transfer",
       "evaluation_reason": "\u540c\u5316\u5b66\u4f53\u7cfb\u8fc1\u79fb\uff1aLFP",
       "source_chemistries": [
+        "LCO",
         "LFP"
       ],
       "target_chemistry": "LFP",
       "monotonicity_violation_rate": 0.0,
       "value_range_violation": 0.0,
-      "mae": 0.009696985963032768,
-      "rmse": 0.013102318122758399,
-      "mean_bias_error": -0.003710002442093396,
+      "mae": 0.007306361718172928,
+      "rmse": 0.009095280465020493,
+      "mean_bias_error": -0.001931904301403174,
       "band_metrics": {
         "soh_ge_90": {
-          "mae": 0.008431040720220275,
-          "bias": -0.006052232141086997,
+          "mae": 0.006706081110952989,
+          "bias": -0.0034540858736925987,
           "n": 22161
         },
         "soh_80_90": {
-          "mae": 0.00906921211725896,
-          "bias": -0.0007300993139420752,
+          "mae": 0.007394992372131089,
+          "bias": -0.0006137812456053482,
           "n": 37039
         },
         "soh_lt_80": {
-          "mae": 0.01889668616019681,
-          "bias": -0.014193502460777201,
+          "mae": 0.009103031566594078,
+          "bias": -0.004637461776782361,
           "n": 5577
         }
       },
-      "cell_mae_worst": 0.016525119334906198,
-      "cell_mae_worst_cell": "SNL_18650_LFP_35C_0-100_0.5-2C_a",
-      "cell_mae_p90": 0.014521720023252067,
+      "cell_mae_worst": 0.010722614009652787,
+      "cell_mae_worst_cell": "SNL_18650_LFP_25C_0-100_0.5-1C_c",
+      "cell_mae_p90": 0.009388353481078124,
       "cells_evaluated": 18,
       "eol": {
         "threshold": 0.8,
         "cells_with_true_eol": 7,
         "cells_predicted": 7,
         "undetected_cells": 0,
-        "mean_abs_cycle_error": 262.7142857142857,
-        "median_abs_cycle_error": 171.0
+        "mean_abs_cycle_error": 121.57142857142857,
+        "median_abs_cycle_error": 98.0
       },
-      "picp": 0.9472961081865477,
-      "mean_interval_width": 0.049514139573863414,
-      "predict_ms": 2066.7382499959785,
-      "ms_per_1000_samples": 31.842512133055674,
-      "samples_per_second": 31404.557398657664,
+      "picp": 0.9894715716998317,
+      "mean_interval_width": 0.0463557288825196,
+      "predict_ms": 2366.1312910044217,
+      "ms_per_1000_samples": 36.455300685685565,
+      "samples_per_second": 27430.853159651957,
       "status": "succeeded",
       "error": "",
       "adaptation": {
@@ -86,7 +87,7 @@
           ],
           "alpha": 1.0,
           "samples": 128,
-          "intercept": 0.3592777041720815,
+          "intercept": -0.00412598167082262,
           "impute": [
             0.4499999999999999,
             0.48660927631162376,
@@ -148,32 +149,32 @@
             0.015761573220065325
           ],
           "coef": [
-            0.007540926302897591,
-            -0.03557148017583456,
-            -0.006456037082112737,
-            -0.006456037082112711,
-            -0.0011180236757823276,
-            -0.0022031396256607825,
-            -0.0045387601519564155,
-            -0.004538760151956568,
-            0.0030486710773661206,
-            0.019197273564068508,
-            0.007540926302896233,
-            0.009687104398169307,
-            -0.004314755736075818,
-            -0.015510053829706877,
-            0.0002116335281047698,
-            -0.01639640908917027,
-            -0.003999093902128134,
-            -0.008426001140872809
+            -0.001961812643906243,
+            -0.030489329322578987,
+            0.0036550775221889545,
+            0.003655077522188938,
+            0.005255385224738837,
+            0.006987062844953896,
+            -0.004957742078105342,
+            -0.00495774207810476,
+            0.0006424909977776664,
+            0.007464370055930226,
+            -0.0019618126439093016,
+            -0.0007374904022741056,
+            0.00138586154632072,
+            0.020879923168775454,
+            -0.0027105660806709692,
+            0.018113824742520893,
+            -0.00933046721705263,
+            0.0030681954308844515
           ],
           "monotone": {
             "cells": 18,
-            "adjusted_fraction": 0.9976735228410755,
-            "mean_abs_adjustment": 0.005947854955289286
+            "adjusted_fraction": 0.9946999460750328,
+            "mean_abs_adjustment": 0.003884161610454548
           },
           "conformal": {
-            "quantile": 0.024757069786931707,
+            "quantile": 0.0231778644412598,
             "samples": 128,
             "alpha": 0.1,
             "residual_source": "leave_one_out"
@@ -185,9 +186,9 @@
   "summary": {
     "n_records": 1,
     "n_succeeded": 1,
-    "fastest_model": "gpr_partial_window_norm_lodo_calce_cs2_seed0",
-    "fastest_ms_per_1000_samples": 31.842512133055674,
-    "best_transfer_model": "gpr_partial_window_norm_lodo_calce_cs2_seed0",
-    "best_transfer_mae": 0.009696985963032768
+    "fastest_model": "gpr_partial_window_norm_lodo_hust_seed0",
+    "fastest_ms_per_1000_samples": 36.455300685685565,
+    "best_transfer_model": "gpr_partial_window_norm_lodo_hust_seed0",
+    "best_transfer_mae": 0.007306361718172928
   }
 }
