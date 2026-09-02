@@ -182,3 +182,152 @@ def test_llm_config_roundtrip_masks_and_persists_key(tmp_path):
     assert kept["config"]["has_api_key"] is True
     cleared = service.set_llm_config({"clear_api_key": True})
     assert cleared["config"]["has_api_key"] is False
+
+
+def test_inner_ranking_penalizes_failed_folds():
+    from sohbench.agent_search import inner_ranking_key
+
+    clean_slow = {"candidate": "a", "mae_worst": 0.05, "failed_folds": 0}
+    fast_but_crashy = {"candidate": "b", "mae_worst": 0.01, "failed_folds": 3}
+    unscored = {"candidate": "c", "mae_worst": float("nan"), "failed_folds": 0}
+    ranked = sorted([unscored, fast_but_crashy, clean_slow], key=inner_ranking_key)
+    assert [item["candidate"] for item in ranked] == ["a", "b", "c"]
+
+
+def test_llm_adaptation_policy_lists_and_enforces_admitted_operators():
+    import json
+
+    from sohbench.agent_search import SearchHistory
+    from sohbench.llm_policy import AdaptationLLMPolicy
+
+    prompts = []
+
+    def transport(prompt):
+        prompts.append(prompt)
+        return json.dumps({
+            "proposals": [
+                {"model": "m1", "operator": "residual_wide+monotone"},
+                {"model": "m1", "operator": "coral"},
+            ],
+            "reasoning": "r",
+            "stop": False,
+        })
+
+    policy = AdaptationLLMPolicy(
+        models=[{"name": "m1", "estimator": "gpr", "featureset": "partial_window_norm",
+                 "trained_on": ["hust"]}],
+        target_dataset="snl_lfp",
+        calibration_budget=64,
+        transport=transport,
+        allowed_operators=["none", "residual_wide+monotone"],
+    )
+    proposals = policy.propose(SearchHistory())
+    assert [c.key() for c in proposals] == ["m1 · residual_wide+monotone"]
+    assert '"residual_wide+monotone"' in prompts[0]
+    assert '"coral"' not in prompts[0]
+    assert any("not admitted" in item for item in policy.log_entries[-1].get("rejected", []))
+
+
+def test_llm_config_file_is_created_private_and_atomically(tmp_path):
+    import os
+    import sys
+
+    from sohbench.llm_policy import CONFIG_FILENAME, save_llm_config
+
+    save_llm_config(tmp_path, {"provider": "anthropic", "api_key": "sk-test"})
+    path = tmp_path / CONFIG_FILENAME
+    assert path.is_file()
+    if sys.platform != "win32":
+        assert os.stat(path).st_mode & 0o777 == 0o600
+    assert not list(tmp_path.glob(".*.tmp"))  # temp file swapped in, not left behind
+
+
+def test_search_reports_are_json_safe():
+    import json
+
+    from sohbench.agent_search import json_safe
+
+    report = json_safe({
+        "ranking": [{"mae_worst": float("nan"), "mae_mean": np.float64(0.1), "folds": np.int64(3)}],
+        "flag": np.bool_(True),
+        "nested": [float("inf"), 1.5],
+    })
+    assert report["ranking"][0]["mae_worst"] is None
+    assert report["ranking"][0]["mae_mean"] == 0.1 and report["ranking"][0]["folds"] == 3
+    assert report["flag"] is True and report["nested"] == [None, 1.5]
+    json.dumps(report, allow_nan=False)  # what the API does — must not raise
+
+
+def test_openai_compatible_transport_posts_chat_completions(monkeypatch):
+    """The OpenAI-compatible provider must work against any ChatCompletions
+    gateway: bearer auth, /v1 join, content parsing — no SDK involved."""
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    from sohbench.llm_policy import (
+        default_transport,
+        llm_transport_status,
+        openai_chat_completions_url,
+    )
+
+    seen = {}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length") or 0)
+            seen["path"] = self.path
+            seen["auth"] = self.headers.get("Authorization")
+            seen["body"] = json.loads(self.rfile.read(length))
+            payload = json.dumps({
+                "choices": [{"message": {"role": "assistant", "content": (
+                    'ok {"proposals": [], "reasoning": "r", "stop": true}'
+                )}}],
+            }).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, *_args):  # keep pytest output clean
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address[:2]
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        config = {"provider": "openai", "model": "demo-model", "base_url": f"http://{host}:{port}", "api_key": "sk-demo"}
+        status = llm_transport_status(config)
+        assert status["available"] is True and status["transport"] == "openai"
+        text = default_transport("hello policy", config)
+        assert "proposals" in text
+        assert seen["path"] == "/v1/chat/completions"
+        assert seen["auth"] == "Bearer sk-demo"
+        assert seen["body"]["model"] == "demo-model"
+        assert seen["body"]["messages"] == [{"role": "user", "content": "hello policy"}]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert openai_chat_completions_url("https://host/v1") == "https://host/v1/chat/completions"
+    assert openai_chat_completions_url("https://host/") == "https://host/v1/chat/completions"
+    assert openai_chat_completions_url("") == "https://api.openai.com/v1/chat/completions"
+
+
+def test_openai_provider_status_requires_key_and_model(monkeypatch, tmp_path):
+    from sohbench.llm_policy import llm_transport_status, save_llm_config
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    assert llm_transport_status({"provider": "openai", "model": "m"})["available"] is False
+    missing_model = llm_transport_status({"provider": "openai", "api_key": "k"})
+    assert missing_model["available"] is False and "model" in missing_model["detail"]
+    monkeypatch.setenv("OPENAI_API_KEY", "env-key")
+    env_status = llm_transport_status({"provider": "openai", "model": "m"})
+    assert env_status["available"] is True and "OPENAI_API_KEY" in env_status["detail"]
+    saved = save_llm_config(tmp_path, {"provider": "openai", "model": "m", "api_key": "k"})
+    assert saved["provider"] == "openai" and "openai" in saved["providers"]
+    with pytest.raises(ValueError, match="unknown AI provider"):
+        save_llm_config(tmp_path, {"provider": "gemini"})

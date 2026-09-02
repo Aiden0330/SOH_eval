@@ -239,3 +239,63 @@ def test_windows_era_catalog_paths_relocate_to_local_store(tmp_path):
     )
     assert replaced["artifact_id"] != saved["artifact_id"]
     assert reopened.load_artifact(saved["artifact_id"]) is not None  # archived copy
+
+
+def test_replace_proceeds_when_the_previous_entry_has_no_files_on_disk(tmp_path):
+    """A stale catalog entry (files moved/deleted) must not block the
+    replacement: archiving used to raise and the new model silently never
+    landed, so training jobs 'succeeded' with zero artifacts."""
+    store = ModelStore(tmp_path / "models")
+    first = store.save_training_model("demo_model", PredictOnlyModel(), _manifest())
+    import shutil
+    shutil.rmtree(tmp_path / "models" / "demo_model")
+
+    second = store.save_training_model(
+        "demo_model", ConstantModel(0.5), _manifest(), replace=True
+    )
+
+    assert second["artifact_id"] != first["artifact_id"]
+    assert (tmp_path / "models" / "demo_model" / "model.pkl").exists()
+    assert [item["name"] for item in store.catalog()] == ["demo_model"]
+    assert store.catalog()[0]["artifact_id"] == second["artifact_id"]
+
+
+def test_corrupt_catalog_fails_loudly_instead_of_a_raw_traceback(tmp_path):
+    base = tmp_path / "models"
+    base.mkdir()
+    (base / "model_catalog.json").write_text('{"models": [tru', encoding="utf-8")
+    with pytest.raises(ModelStoreError, match="not valid JSON"):
+        ModelStore(base)
+
+
+def test_catalog_writes_are_serialized_across_threads(tmp_path):
+    import threading
+
+    store = ModelStore(tmp_path / "models")
+    errors = []
+
+    def save(index):
+        try:
+            store.save_training_model(f"model_{index:02d}", PredictOnlyModel(), _manifest())
+        except Exception as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=save, args=(i,)) for i in range(12)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert not errors
+    names = [item["name"] for item in ModelStore(tmp_path / "models").catalog()]
+    assert names == [f"model_{i:02d}" for i in range(12)]  # nothing lost, nothing corrupt
+
+
+def test_manifest_rejects_label_source_feature_columns(tmp_path):
+    """The structural ban must hold at the model layer too: the affine audit
+    needs 64 rows, and the demo datasets have fewer."""
+    store = ModelStore(tmp_path / "models")
+    manifest = {**_manifest(), "feature_columns": ["charge_capacity_max", "voltage_mean"]}
+    with pytest.raises(ModelStoreError, match="structurally banned"):
+        store.save_training_model("leaky_model", PredictOnlyModel(), manifest)
+    assert store.catalog() == []

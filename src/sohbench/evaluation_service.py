@@ -188,6 +188,9 @@ class EvaluationService:
         self.retest_runs_dir.mkdir(parents=True, exist_ok=True)
         self.search_jobs_dir.mkdir(parents=True, exist_ok=True)
         self._example_lock = threading.RLock()
+        # Single-flight guard for the quickstart run itself; the example
+        # record lock above is only ever held for a read/write.
+        self._quickstart_run_lock = threading.Lock()
         self._job_lock = threading.RLock()
         self._inference_job_lock = threading.RLock()
         self._retest_run_lock = threading.RLock()
@@ -218,6 +221,36 @@ class EvaluationService:
             has_executable_model_artifact=self._has_executable_model_artifact,
         )
         self._dataset_snapshot_cache: dict[str, tuple[int, int, str]] = {}
+        self._reconcile_interrupted_jobs()
+
+    def _reconcile_interrupted_jobs(self) -> None:
+        """Runners are daemon threads inside this process: any record still
+        ``queued``/``running`` when a new service starts belonged to a process
+        that is gone, and would otherwise stay "running" forever (the UI keeps
+        polling it and the bound case copies the status)."""
+        stamp = _now()
+        for directory, saver in (
+            (self.jobs_dir, self._save_job),
+            (self.inference_jobs_dir, self._save_inference_job),
+            (self.search_jobs_dir, self._save_search_job),
+            (self.examples_dir, self._save_example),
+        ):
+            for path in sorted(directory.glob("*.json")):
+                try:
+                    record = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    continue
+                if not isinstance(record, dict) or record.get("id") is None:
+                    continue
+                if record.get("status") not in {"queued", "running"}:
+                    continue
+                record["status"] = "failed"
+                record["error"] = "interrupted: the API process that ran this job exited before it finished"
+                record.setdefault("finished_at", stamp)
+                try:
+                    saver(record)
+                except OSError:
+                    continue
 
     def _has_executable_model_artifact(self, artifact_id: str) -> bool:
         try:
@@ -1347,6 +1380,8 @@ class EvaluationService:
         return job
 
     def create_quickstart_example(self, *, start: bool = True) -> dict:
+        if start and self._quickstart_run_lock.locked():
+            raise EvaluationCaseConflictError("a quickstart example is already running")
         example_id = time.strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:8]
         example = {
             "id": example_id,
@@ -1371,7 +1406,10 @@ class EvaluationService:
         return example
 
     def run_quickstart_example_inline(self, example_id: str) -> dict:
-        with self._example_lock:
+        # Holding the example *record* lock for the whole run made every
+        # other quickstart POST (which saves its record under the same
+        # lock) hang until this run finished.
+        with self._quickstart_run_lock:
             example = self.get_example(example_id)
             example.update({"status": "running", "started_at": _now()})
             self._save_example(example)
@@ -1467,7 +1505,7 @@ class EvaluationService:
             return example
 
     def get_example(self, example_id: str) -> dict:
-        path = self.examples_dir / f"{example_id}.json"
+        path = self.examples_dir / f"{_safe_entity_id(example_id)}.json"
         if not path.exists():
             raise KeyError(example_id)
         return json.loads(path.read_text(encoding="utf-8"))
@@ -1823,7 +1861,7 @@ class EvaluationService:
         return job
 
     def get_job(self, job_id: str) -> dict:
-        path = self.jobs_dir / f"{job_id}.json"
+        path = self.jobs_dir / f"{_safe_entity_id(job_id)}.json"
         if not path.exists():
             raise KeyError(job_id)
         return json.loads(path.read_text(encoding="utf-8"))
@@ -1845,7 +1883,7 @@ class EvaluationService:
         return sorted(jobs, key=_job_sort_key, reverse=True)
 
     def get_inference_job(self, job_id: str) -> dict:
-        path = self.inference_jobs_dir / f"{job_id}.json"
+        path = self.inference_jobs_dir / f"{_safe_entity_id(job_id)}.json"
         if not path.exists():
             raise KeyError(job_id)
         with self._inference_job_lock:
@@ -2231,6 +2269,7 @@ class EvaluationService:
                         target_dataset=request["target_dataset"],
                         calibration_budget=int(request.get("calibration_budget") or 32),
                         config=load_llm_config(self.work_dir),
+                        allowed_operators=list(request.get("operators") or []),
                     )
                 else:
                     policy = AdaptationGridPolicy(request["models"], request["operators"])
@@ -2289,7 +2328,7 @@ class EvaluationService:
         return job
 
     def get_search_job(self, job_id: str) -> dict:
-        path = self.search_jobs_dir / f"{job_id}.json"
+        path = self.search_jobs_dir / f"{_safe_entity_id(job_id)}.json"
         if not path.is_file():
             raise KeyError(job_id)
         with self._search_job_lock:
@@ -2340,8 +2379,23 @@ class EvaluationService:
             "status": llm_transport_status(load_llm_config(self.work_dir)),
         }
 
+    def _require_known_datasets(self, datasets: list[str]) -> None:
+        """Unknown names used to surface as FileNotFoundError deep inside the
+        pipeline (a 500 that leaked the server's data path); reject them at
+        request normalization with a 400-mapped ValueError instead."""
+        from .data import ALL_DATASETS
+
+        missing = [
+            name for name in datasets
+            if str(name).lower() not in ALL_DATASETS
+            and not (self.data_dir / "processed" / f"{name}_features.pkl").is_file()
+        ]
+        if missing:
+            raise ValueError(f"unknown datasets: {missing}")
+
     def _normalize_request(self, payload: dict) -> dict:
         datasets = _string_list(payload.get("datasets") or ["all"])
+        self._require_known_datasets(datasets)
         estimators = _string_list(payload.get("estimators") or ["ridge"])
         featuresets = _string_list(payload.get("featuresets") or ["full"])
         protocols = _string_list(payload.get("protocols") or ["loco"])
@@ -2363,6 +2417,7 @@ class EvaluationService:
 
     def _normalize_inference_request(self, payload: dict) -> dict:
         datasets = _string_list(payload.get("datasets") or ["all"])
+        self._require_known_datasets(datasets)
         models = _string_list(payload.get("models") or [])
         if not models:
             raise ValueError("at least one model is required")
@@ -3259,6 +3314,18 @@ def _optional_finite_number(value, field: str) -> float | None:
 def _now() -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S")
 
+
+
+_ENTITY_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,199}$")
+
+
+def _safe_entity_id(value) -> str:
+    """Ids resolve to ``<dir>/<id>.json``; anything that is not a plain token
+    (path separators, ``..``, backslashes on Windows) is treated as unknown."""
+    text = str(value or "")
+    if not _ENTITY_ID_RE.fullmatch(text) or ".." in text:
+        raise KeyError(text)
+    return text
 
 def _quickstart_steps() -> list[dict]:
     return [

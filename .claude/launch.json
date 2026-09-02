@@ -12,6 +12,12 @@
       "runtimeExecutable": ".venv-mac/bin/python",
       "runtimeArgs": ["-m", "http.server", "8765", "--directory", "frontend/app"],
       "port": 8765
+    },
+    {
+      "name": "api-review",
+      "runtimeExecutable": ".venv-mac/bin/python",
+      "runtimeArgs": ["-m", "sohbench.api", "--port", "8002", "--enable-legacy-execution"],
+      "port": 8002
     }
   ]
 }

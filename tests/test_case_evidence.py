@@ -148,6 +148,7 @@ def test_evidence_coverage_and_verdict_are_derived_from_server_artifacts(tmp_pat
 def test_case_scoped_thresholds_create_versioned_verdict_without_mutating_preset():
     metrics = {
         "mae": 0.0579,
+        "picp": 0.95,
         "monotonicity": 0.2986,
         "value_range": 0.0,
     }
@@ -545,6 +546,8 @@ def test_case_uses_bound_inference_job_for_trajectory_and_raw_curves(tmp_path):
         "candidate_id": "artifact:model-a",
         "model_artifact_id": "model@sha256:a",
         "mae": 0.01,
+        "picp": 0.823,
+        "mean_interval_width": 0.03,
         "monotonicity_violation_rate": 0.0,
         "value_range_violation": 0.0,
     }]})
@@ -656,6 +659,11 @@ def test_case_uses_bound_inference_job_for_trajectory_and_raw_curves(tmp_path):
 
     assert derived["selection"]["sample_id"] == "pred:infer-01:abc"
     assert derived["selection"]["cycle_id"] == 21
+    # Job-scoped verdicts read the inference benchmark: the calibration gate
+    # must see picp (0.823 < strict 0.90) and fail, not silently pass.
+    assert derived["verdict"]["observed"]["picp"] == 0.823
+    assert derived["verdict"]["result"] == "fail"
+    assert any("calibration" in reason for reason in derived["verdict"]["reasons"])
     assert derived["selection"]["curve_ref"]["availability"] == "available"
     assert trajectory["inference_job_id"] == "infer-01"
     assert trajectory["points"][0]["feature_values"]["charge_capacity_max"] == 1.07
@@ -734,3 +742,32 @@ def test_hust_raw_curve_fallback_materializes_missing_extract(tmp_path):
         {"dataset": "hust", "asset_id": "no-such-cell", "cycle_id": 1},
     )
     assert not missing
+
+
+def test_verdict_never_passes_with_an_unverifiable_criterion():
+    metrics = {"mae": 0.01, "monotonicity": 0.0, "value_range": 0.0}  # no picp
+    verdict = derive_verdict(metrics, "strict")
+    assert verdict["result"] == "pending"
+    assert "picp" not in verdict["observed"]
+    assert any("no auditable picp" in reason for reason in verdict["reasons"])
+    # A failing criterion still fails even when another one is unverifiable.
+    failing = derive_verdict({**metrics, "mae": 0.5}, "strict")
+    assert failing["result"] == "fail"
+    # Nothing observed at all stays pending.
+    assert derive_verdict({}, "strict")["result"] == "pending"
+
+
+def test_candidate_metrics_follow_the_selected_dataset():
+    from sohbench.case_evidence import _candidate_metrics, _inference_leaderboard
+
+    rows = _inference_leaderboard({"records": [
+        {"model": "m", "dataset": "calce_cs2", "estimator": "gbdt", "featureset": "voltage",
+         "model_artifact_id": "model@sha256:a", "mae": 0.30, "picp": 0.5},
+        {"model": "m", "dataset": "nasa", "estimator": "gbdt", "featureset": "voltage",
+         "model_artifact_id": "model@sha256:a", "mae": 0.01, "picp": 0.95},
+    ]})
+    candidate = {"model": "gbdt", "featureset": "voltage", "model_artifact_id": "model@sha256:a"}
+    assert _candidate_metrics(rows, candidate, "nasa")["mae"] == 0.01
+    assert _candidate_metrics(rows, candidate, "calce_cs2")["picp"] == 0.5
+    # No dataset pinned: first matching row (previous behaviour) still works.
+    assert _candidate_metrics(rows, candidate)["mae"] == 0.30

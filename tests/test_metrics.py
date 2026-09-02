@@ -45,3 +45,19 @@ def test_monotonicity_violation_rate():
 def test_value_range_violation():
     preds = np.array([0.8, 1.25, 1.35, -0.1])  # 1.35 and -0.1 out of [0,1.3)
     assert M.value_range_violation(preds, lower=0.0, upper=1.3) == pytest.approx(0.5)
+
+
+def test_per_cell_monotonicity_ignores_cross_cell_level_jumps():
+    import numpy as np
+    import pytest
+    from sohbench.metrics import per_cell_monotonicity_violation_rate, monotonicity_violation_rate
+    cells = ["a"] * 5 + ["b"] * 5
+    cycles = list(range(5)) * 2
+    pred = [1.0, 0.99, 0.98, 0.97, 0.96, 0.8, 0.79, 0.78, 0.77, 0.76]
+    assert per_cell_monotonicity_violation_rate(cells, cycles, pred) == 0.0
+    # A global cycle sort interleaves a/b at every cycle -> bogus rebounds.
+    order = np.argsort(cycles, kind="stable")
+    assert monotonicity_violation_rate(np.asarray(pred)[order]) > 0.0
+    # A real within-cell rebound is still counted (1 of 8 transitions).
+    pred[2] = 1.05
+    assert per_cell_monotonicity_violation_rate(cells, cycles, pred) == pytest.approx(1 / 8)

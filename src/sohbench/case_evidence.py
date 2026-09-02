@@ -539,7 +539,10 @@ class EvidenceDerivationService:
             ),
         }
 
-        metric_row = _candidate_metrics(leaderboard, candidate) if compatible_scope else {}
+        metric_row = (
+            _candidate_metrics(leaderboard, candidate, selection.get("dataset"))
+            if compatible_scope else {}
+        )
         criterion_set_id = str(
             payload.get("criterion_set_id")
             or criterion_base_id((case.get("verdict") or {}).get("criterion_set_version"))
@@ -1001,9 +1004,13 @@ class EvidenceDerivationService:
         if not curve:
             return None
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(
+        # Temp + rename: concurrent evidence requests must never observe (and
+        # pin the digest of) a half-written curve file.
+        temporary = out_path.with_name(f".{out_path.name}.{uuid.uuid4().hex}.tmp")
+        temporary.write_text(
             json.dumps({curve_key: curve}, ensure_ascii=False), encoding="utf-8"
         )
+        temporary.replace(out_path)
         return out_path
 
 
@@ -1026,21 +1033,34 @@ def derive_verdict(
     }
     checks = []
     reasons = []
+    unverified = []
     for name, observed_key, threshold_key, direction in (
         ("generalization", "mae", "mae_max", "max"),
         ("calibration", "picp", "picp_min", "min"),
         ("monotonicity", "monotonicity", "monotonicity_max", "max"),
         ("value_range", "value_range", "value_range_max", "max"),
     ):
+        limit = thresholds.get(threshold_key)
+        if not isinstance(limit, (int, float)):
+            continue
         value = observed.get(observed_key)
         if value is None:
+            # A criterion the set enforces but the evidence cannot show must
+            # never pass silently (job-scoped inference records once lacked
+            # picp and every calibration gate "passed").
+            unverified.append(f"{name}: no auditable {observed_key} value ({threshold_key}={limit} unverified)")
             continue
-        limit = thresholds[threshold_key]
         passed = value <= limit if direction == "max" else value >= limit
         checks.append(passed)
         if not passed:
             reasons.append(f"{name}: observed {value} violates {threshold_key}={limit}")
-    result = "pending" if not checks else ("pass" if all(checks) else "fail")
+    if checks and not all(checks):
+        result = "fail"
+    elif checks and not unverified:
+        result = "pass"
+    else:
+        result = "pending"
+    reasons.extend(unverified)
     return normalize_verdict(
         {
             "criterion_set_version": criterion_version,
@@ -1111,24 +1131,34 @@ def _sortable_cycle(value) -> tuple[int, float | str]:
         return 1, str(value or "")
 
 
-def _candidate_metrics(rows: list, candidate: dict | None) -> dict:
+def _candidate_metrics(rows: list, candidate: dict | None, dataset: str | None = None) -> dict:
     if not candidate:
         return {}
     artifact_id = str(candidate.get("model_artifact_id") or "")
-    row = next(
-        (
-            item for item in rows
-            if artifact_id
-            and str(item.get("model_artifact_id") or item.get("artifact_id") or "") == artifact_id
-        ),
-        None,
-    ) or next(
-        (
-            item for item in rows
-            if item.get("estimator") == candidate.get("model")
-            and (item.get("featureset") or "full") == (candidate.get("featureset") or "full")
-        ),
-        {},
+    dataset = str(dataset or "")
+
+    def _on_dataset(item: dict) -> bool:
+        # Inference benchmarks hold one row per (model, dataset); the verdict
+        # must read the row of the dataset the evidence is pinned on, not
+        # whichever dataset happens to sort first.  Rows without a dataset
+        # (training leaderboards) match any selection.
+        row_dataset = str(item.get("dataset") or "")
+        return not dataset or not row_dataset or row_dataset == dataset
+
+    by_artifact = [
+        item for item in rows
+        if artifact_id
+        and str(item.get("model_artifact_id") or item.get("artifact_id") or "") == artifact_id
+    ]
+    by_combo = [
+        item for item in rows
+        if item.get("estimator") == candidate.get("model")
+        and (item.get("featureset") or "full") == (candidate.get("featureset") or "full")
+    ]
+    row = (
+        next((item for item in by_artifact if _on_dataset(item)), None)
+        or next((item for item in by_combo if _on_dataset(item)), None)
+        or {}
     )
     metrics = row.get("metrics") or {}
     return {
@@ -1153,10 +1183,13 @@ def _inference_leaderboard(payload: dict) -> list[dict]:
                 "featureset": record.get("featureset") or "full",
                 "candidate_id": record.get("candidate_id") or "",
                 "model_artifact_id": record.get("model_artifact_id") or "",
+                "dataset": record.get("dataset") or "",
                 "metrics": {
                     "mae": metric("mae"),
                     "rmse": metric("rmse"),
                     "mean_bias_error": metric("mean_bias_error"),
+                    "picp": metric("picp"),
+                    "mean_interval_width": metric("mean_interval_width"),
                     "monotonicity_violation_rate": metric("monotonicity_violation_rate"),
                     "value_range_violation": metric("value_range_violation"),
                 },

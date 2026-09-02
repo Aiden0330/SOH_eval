@@ -5,13 +5,18 @@ preflight/label-safety/window gates admit or exclude, the runner scores
 under protocol, and the outer dataset remains invisible.  A wrong or
 malicious proposal can therefore waste budget but never corrupt a verdict.
 
-Transports (first available wins):
+Providers / transports (``provider`` in the workbench AI settings):
 
-1. Anthropic Python SDK (``claude-opus-5``) — used when credentials resolve
-   (``ANTHROPIC_API_KEY`` / ``ANTHROPIC_AUTH_TOKEN`` env, or an
-   ``ant auth login`` profile on disk).
-2. ``claude`` CLI in headless mode (``claude -p --output-format json``) —
-   uses the local Claude Code login.
+- ``anthropic`` (default): Anthropic Python SDK (``claude-opus-5``) when
+  credentials resolve (workbench key, ``ANTHROPIC_API_KEY`` /
+  ``ANTHROPIC_AUTH_TOKEN`` env, or an ``ant auth login`` profile on disk);
+  otherwise the ``claude`` CLI in headless mode (local Claude Code login).
+- ``openai``: any OpenAI-compatible ChatCompletions endpoint (OpenAI itself,
+  DeepSeek, Qwen/DashScope, Moonshot, vLLM/Ollama gateways, ...) over plain
+  HTTP — ``POST {base_url}/chat/completions`` with a bearer key; no SDK
+  dependency.  Credentials: workbench key or ``OPENAI_API_KEY`` (+ optional
+  ``OPENAI_BASE_URL``); the model name is mandatory because it is
+  gateway-specific.
 
 ``llm_transport_status()`` reports availability so job submission can fail
 fast with an actionable message instead of dying mid-search.
@@ -69,6 +74,13 @@ def _profile_on_disk() -> bool:
 
 CONFIG_FILENAME = "llm_config.json"
 CONFIG_FIELDS = ("provider", "model", "base_url", "api_key")
+LLM_PROVIDERS = ("anthropic", "openai")
+OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1"
+OPENAI_TIMEOUT_SECONDS = 300
+
+
+def _provider(config: dict | None) -> str:
+    return str((config or {}).get("provider") or "anthropic").strip().lower() or "anthropic"
 
 
 def load_llm_config(work_dir: str | Path) -> dict:
@@ -93,13 +105,29 @@ def save_llm_config(work_dir: str | Path, payload: dict) -> dict:
     for key in ("provider", "model", "base_url"):
         if key in payload:
             updated[key] = str(payload.get(key) or "").strip()
+    provider = str(updated.get("provider") or "anthropic").strip().lower()
+    if provider not in LLM_PROVIDERS:
+        raise ValueError(f"unknown AI provider {provider!r}; expected one of {list(LLM_PROVIDERS)}")
+    updated["provider"] = provider
     if payload.get("clear_api_key"):
         updated["api_key"] = ""
     elif str(payload.get("api_key") or "").strip():
         updated["api_key"] = str(payload["api_key"]).strip()
     path = Path(work_dir) / CONFIG_FILENAME
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(updated, ensure_ascii=False, indent=2), encoding="utf-8")
+    # Create the file 0600 from the start and swap it in atomically: a
+    # plain write_text() followed by chmod leaves a world-readable window
+    # (default umask) around a credential, and a crash mid-write would leave
+    # a truncated config behind.
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    fd = os.open(str(temporary), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(updated, ensure_ascii=False, indent=2))
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
     try:
         os.chmod(path, 0o600)
     except OSError:
@@ -109,7 +137,8 @@ def save_llm_config(work_dir: str | Path, payload: dict) -> dict:
 
 def masked_llm_config(config: dict) -> dict:
     return {
-        "provider": str(config.get("provider") or "anthropic"),
+        "provider": _provider(config),
+        "providers": list(LLM_PROVIDERS),
         "model": str(config.get("model") or ""),
         "base_url": str(config.get("base_url") or ""),
         "has_api_key": bool(str(config.get("api_key") or "").strip()),
@@ -118,6 +147,8 @@ def masked_llm_config(config: dict) -> dict:
 
 def llm_transport_status(config: dict | None = None) -> dict:
     config = config or {}
+    if _provider(config) == "openai":
+        return _openai_status(config)
     if str(config.get("api_key") or "").strip():
         target = str(config.get("base_url") or "") or "api.anthropic.com"
         return {"available": True, "transport": "sdk", "detail": f"workbench key → {target}"}
@@ -137,6 +168,103 @@ def llm_transport_status(config: dict | None = None) -> dict:
             "environment, or install the claude CLI"
         ),
     }
+
+
+def _openai_status(config: dict) -> dict:
+    model = str(config.get("model") or "").strip()
+    base_url = str(config.get("base_url") or "").strip() or os.environ.get("OPENAI_BASE_URL", "").strip() or OPENAI_DEFAULT_BASE_URL
+    has_key = bool(str(config.get("api_key") or "").strip() or os.environ.get("OPENAI_API_KEY"))
+    if not has_key:
+        return {
+            "available": False,
+            "transport": None,
+            "detail": (
+                "no OpenAI-compatible credentials: save an API key in the panel's "
+                "AI 连接设置 or set OPENAI_API_KEY in the API server's environment"
+            ),
+        }
+    if not model:
+        return {
+            "available": False,
+            "transport": None,
+            "detail": (
+                "OpenAI-compatible provider needs a model name (gateway-specific, "
+                "e.g. gpt-4o / deepseek-chat / qwen-plus) — fill in 模型 in AI 连接设置"
+            ),
+        }
+    source = "workbench key" if str(config.get("api_key") or "").strip() else "OPENAI_API_KEY"
+    return {"available": True, "transport": "openai", "detail": f"{source} → {base_url} · {model}"}
+
+
+def openai_chat_completions_url(base_url: str) -> str:
+    """Join a user-entered base URL with the chat-completions path.
+
+    Gateways document their base as either ``https://host`` or
+    ``https://host/v1``; both must resolve to ``.../v1/chat/completions``
+    (a base that already ends in ``/chat/completions`` is used verbatim)."""
+    base = str(base_url or "").strip().rstrip("/") or OPENAI_DEFAULT_BASE_URL
+    if base.endswith("/chat/completions"):
+        return base
+    if not base.endswith("/v1"):
+        base += "/v1"
+    return base + "/chat/completions"
+
+
+def _openai_message_text(payload: dict) -> str:
+    choices = payload.get("choices") or []
+    if not choices:
+        raise RuntimeError("OpenAI-compatible response carries no choices")
+    message = (choices[0] or {}).get("message") or {}
+    content = message.get("content")
+    if isinstance(content, list):  # some gateways return content parts
+        content = "".join(
+            str(part.get("text") or "") for part in content if isinstance(part, dict)
+        )
+    if not isinstance(content, str) or not content.strip():
+        raise RuntimeError("OpenAI-compatible response has empty message content")
+    return content
+
+
+def _invoke_openai(prompt: str, config: dict | None = None) -> str:
+    """OpenAI-compatible ChatCompletions over urllib (no SDK dependency)."""
+    import urllib.error
+    import urllib.request
+
+    config = config or {}
+    api_key = str(config.get("api_key") or "").strip() or os.environ.get("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("OpenAI-compatible provider: no API key configured")
+    model = str(config.get("model") or "").strip()
+    if not model:
+        raise RuntimeError("OpenAI-compatible provider: model name is required")
+    base_url = str(config.get("base_url") or "").strip() or os.environ.get("OPENAI_BASE_URL", "").strip()
+    url = openai_chat_completions_url(base_url)
+    body = json.dumps(
+        {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=OPENAI_TIMEOUT_SECONDS) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:300]
+        raise RuntimeError(f"OpenAI-compatible endpoint {url} returned HTTP {exc.code}: {detail}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"OpenAI-compatible endpoint {url} unreachable: {exc.reason}") from exc
+    return _openai_message_text(payload)
 
 
 def _invoke_sdk(prompt: str, config: dict | None = None) -> str:
@@ -178,6 +306,8 @@ def default_transport(prompt: str, config: dict | None = None) -> str:
     status = llm_transport_status(config)
     if not status["available"]:
         raise RuntimeError(f"LLM policy unavailable: {status['detail']}")
+    if status["transport"] == "openai":
+        return _invoke_openai(prompt, config)
     if status["transport"] == "cli":
         return _invoke_cli(prompt, config)
     return _invoke_sdk(prompt, config)
@@ -308,13 +438,10 @@ Setting: trained model artifacts are FROZEN (algorithm and features cannot \
 change). Your job is to pair models with deployment-legal adaptation \
 operators to minimize MAE on the target dataset "{target_dataset}".
 
-Operators (information channels are enforced and reported by the harness):
-- "none": the frozen model as-is.
-- "coral": align target feature distribution to the model's training \
-distribution (unlabeled statistics only).
-- "recalibration": two-parameter output correction fitted on {budget} labeled \
-calibration samples (excluded from evaluation).
-- "coral+recalibration": both.
+Operators (information channels are enforced and reported by the harness; \
+"K" below is the labeled calibration budget = {budget} target samples, always \
+excluded from evaluation):
+{operators}
 
 Candidate models (name · estimator · featureset · trained_on):
 {models}
@@ -324,7 +451,7 @@ baseline for each promising model so deltas are interpretable):
 {history}
 
 Respond with ONLY a JSON object:
-{{"proposals": [{{"model": "...", "operator": "none|coral|recalibration|coral+recalibration"}}, ...],
+{{"proposals": [{{"model": "...", "operator": "<one of the operator names above>"}}, ...],
  "reasoning": "one short paragraph",
  "stop": false}}
 
@@ -343,12 +470,21 @@ class AdaptationLLMPolicy:
     max_rounds: int = DEFAULT_MAX_ROUNDS
     transport: object | None = None
     config: dict | None = None
+    # Operators the search request admits; the prompt lists exactly these
+    # (with their declared channels) and proposals outside them are rejected.
+    allowed_operators: tuple[str, ...] | list[str] | None = None
     log_entries: list[dict] = field(default_factory=list)
 
     def __post_init__(self):
+        from .adaptation import ADAPTATION_OPERATORS
+
         if self.transport is None:
             connection = self.config
             self.transport = lambda prompt: default_transport(prompt, connection)
+        requested = set(self.allowed_operators or ADAPTATION_OPERATORS)
+        self.allowed_operators = tuple(
+            op for op in ADAPTATION_OPERATORS if op in requested
+        ) or tuple(ADAPTATION_OPERATORS)
 
     def propose(self, history):
         from .adaptation import ADAPTATION_OPERATORS
@@ -380,9 +516,16 @@ class AdaptationLLMPolicy:
             },
             ensure_ascii=False,
         )
+        from .adaptation import OPERATOR_CHANNELS
+
+        allowed = [op for op in ADAPTATION_OPERATORS if op in self.allowed_operators]
+        operator_lines = "\n".join(
+            f'- "{operator}": {OPERATOR_CHANNELS[operator]}' for operator in allowed
+        )
         prompt = ADAPTATION_PROMPT_TEMPLATE.format(
             target_dataset=self.target_dataset,
             budget=self.calibration_budget,
+            operators=operator_lines,
             models=model_lines,
             history=compact_history,
             max_candidates=MAX_CANDIDATES_PER_ROUND,
@@ -404,6 +547,9 @@ class AdaptationLLMPolicy:
                 continue
             if operator not in ADAPTATION_OPERATORS:
                 rejected.append(f"{model} · {operator} (unknown operator)")
+                continue
+            if operator not in self.allowed_operators:
+                rejected.append(f"{model} · {operator} (operator not admitted by this search)")
                 continue
             candidate = AdaptationCandidate(model, operator)
             if candidate.key() in seen or any(c.key() == candidate.key() for c in proposals):

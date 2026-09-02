@@ -45,6 +45,33 @@ def monotonicity_violation_rate(y_pred_ordered, rebound_tol: float = 0.005) -> f
     diffs = np.diff(yp)
     return float(np.mean(diffs > rebound_tol))
 
+def per_cell_monotonicity_violation_rate(cells, cycles, y_pred,
+                                         rebound_tol: float = 0.005) -> float:
+    """Sample-weighted mean of per-cell monotonicity violation rates.
+
+    A global cycle sort interleaves every cell at each cycle index, so on a
+    multi-cell fold (LODO / LCHO test sets, whole-dataset inference) the
+    cross-cell level jumps would swamp the physical within-cell signal.
+    Each cell is ordered by its own cycle index and weighted by its number
+    of transitions; cells with fewer than two finite predictions are skipped.
+    """
+    cells = np.asarray(cells).astype(str)
+    cycles = np.asarray(cycles, dtype=float)
+    yp = np.asarray(y_pred, dtype=float)
+    weighted = 0.0
+    transitions = 0
+    for cell in np.unique(cells):
+        rows = np.flatnonzero(cells == cell)
+        if len(rows) < 2:
+            continue
+        ordered = yp[rows[np.argsort(cycles[rows], kind="stable")]]
+        finite = ordered[np.isfinite(ordered)]
+        if len(finite) < 2:
+            continue
+        weighted += monotonicity_violation_rate(finite, rebound_tol) * (len(finite) - 1)
+        transitions += len(finite) - 1
+    return float(weighted / transitions) if transitions else 0.0
+
 def value_range_violation(y_pred, lower: float = 0.0, upper: float = 1.3) -> float:
     yp = np.asarray(y_pred, dtype=float)
     return float(np.mean((yp < lower) | (yp >= upper)))

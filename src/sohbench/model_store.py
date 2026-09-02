@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import threading
+import uuid
 import inspect
 import json
 import pickle
@@ -16,7 +18,12 @@ import numpy as np
 import pandas as pd
 
 from .contracts import ID_COLUMNS
-from .feature_safety import LABEL_SAFETY_CONTRACT, audit_feature_frame, suspicious_feature_names
+from .feature_safety import (
+    LABEL_SAFETY_CONTRACT,
+    audit_feature_frame,
+    is_label_source_feature,
+    suspicious_feature_names,
+)
 
 
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*$")
@@ -110,6 +117,15 @@ class LoadedModel:
 
     def _ensure_label_safe(self, table: pd.DataFrame) -> None:
         target = str(self.manifest.get("target") or "soh")
+        banned = [
+            column for column in self.feature_columns()
+            if is_label_source_feature(column, target=target)
+        ]
+        if banned:
+            raise ModelStoreError(
+                f"model {self.name!r} inference blocked by {LABEL_SAFETY_CONTRACT}: "
+                f"feature columns are label sources (structurally banned): {banned}"
+            )
         audit = audit_feature_frame(table, self.feature_columns(), target=target)
         if audit["status"] == "passed":
             return
@@ -125,6 +141,10 @@ class ModelStore:
         self.catalog_path = self.base_dir / "model_catalog.json"
         self.invalidations_path = self.base_dir / "artifact_invalidations.json"
         self.base_dir.mkdir(parents=True, exist_ok=True)
+        # Training jobs run on concurrent threads and every fold saves a
+        # model: catalog read-modify-write must be serialized or one job's
+        # models silently vanish from the list (last writer wins).
+        self._lock = threading.RLock()
         self._catalog = self._read_catalog()
         self._invalidations = self._read_invalidations()
 
@@ -189,6 +209,10 @@ class ModelStore:
         return _model_artifact_id(self._find(name))
 
     def catalog(self) -> list[dict]:
+        with self._lock:
+            return self._catalog_snapshot()
+
+    def _catalog_snapshot(self) -> list[dict]:
         output = []
         changed = False
         for stored in self._catalog.get("models", []):
@@ -285,6 +309,14 @@ class ModelStore:
             ensure_ascii=False,
         ).encode("utf-8")
 
+        with self._lock:
+            return self._persist_training_model(
+                name, model_dir, model_payload, manifest_payload, manifest, source, replace
+            )
+
+    def _persist_training_model(
+        self, name, model_dir, model_payload, manifest_payload, manifest, source, replace
+    ) -> dict:
         existing = self._find_optional(name)
         if existing is not None and replace:
             self._archive_artifact(existing)
@@ -329,7 +361,15 @@ class ModelStore:
     def _read_catalog(self) -> dict:
         if not self.catalog_path.exists():
             return {"models": []}
-        catalog = json.loads(self.catalog_path.read_text(encoding="utf-8"))
+        try:
+            catalog = json.loads(self.catalog_path.read_text(encoding="utf-8"))
+        except ValueError as exc:
+            raise ModelStoreError(
+                f"model catalog is not valid JSON ({self.catalog_path}): {exc}; "
+                "restore it from a backup or move it aside to start with an empty catalog"
+            ) from exc
+        if not isinstance(catalog, dict) or not isinstance(catalog.get("models", []), list):
+            raise ModelStoreError(f"model catalog has an unexpected shape: {self.catalog_path}")
         for item in catalog.get("models", []):
             if isinstance(item, dict):
                 _relocate_stale_paths(item, self.base_dir)
@@ -371,20 +411,30 @@ class ModelStore:
             )
 
     def _write_catalog(self) -> None:
-        self.catalog_path.write_text(
-            json.dumps(self._catalog, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        # Temp + rename so a concurrent reader (or a crash) never sees a
+        # truncated catalog; the lock serializes writers.
+        with self._lock:
+            payload = json.dumps(self._catalog, indent=2, ensure_ascii=False)
+            temporary = self.catalog_path.with_name(
+                f".{self.catalog_path.name}.{uuid.uuid4().hex}.tmp"
+            )
+            try:
+                temporary.write_text(payload, encoding="utf-8")
+                temporary.replace(self.catalog_path)
+            finally:
+                if temporary.exists():
+                    temporary.unlink()
 
     def _upsert(self, resource: dict) -> None:
-        items = [
-            item
-            for item in self._catalog.get("models", [])
-            if item.get("name") != resource["name"]
-        ]
-        items.append(resource)
-        self._catalog["models"] = sorted(items, key=lambda item: item["name"])
-        self._write_catalog()
+        with self._lock:
+            items = [
+                item
+                for item in self._catalog.get("models", [])
+                if item.get("name") != resource["name"]
+            ]
+            items.append(resource)
+            self._catalog["models"] = sorted(items, key=lambda item: item["name"])
+            self._write_catalog()
 
     def _find(self, name: str) -> dict:
         for item in self._catalog.get("models", []):
@@ -419,6 +469,14 @@ class ModelStore:
 
     def _archive_artifact(self, item: dict) -> None:
         """Preserve the current bytes before a logical model name is replaced."""
+        if not all(
+            Path(str(item.get(key) or "")).is_file() for key in ("model_path", "manifest_path")
+        ):
+            # Nothing on disk to preserve (stale entry whose files were
+            # moved or deleted): archiving would raise and the replacing
+            # model would silently never be saved — the job then "succeeds"
+            # with zero artifacts.  Let the replacement proceed.
+            return
         artifact_id = _model_artifact_id(item)
         digest = artifact_id.split(":", 1)[1]
         archive_dir = self.base_dir / "_artifacts" / digest
@@ -556,6 +614,14 @@ def _validate_manifest(name: str, manifest: dict) -> dict:
     if suspicious:
         raise ModelStoreError(
             f"model manifest contains label-derived or label-aliased features: {suspicious}"
+        )
+    # Structural ban (user directive 2026-08-21): the quantities SOH is
+    # computed from can never be model inputs, and the affine backstop in
+    # audit_feature_frame needs 64 rows — the demo datasets have fewer.
+    label_sources = [column for column in columns if is_label_source_feature(column, target=target)]
+    if label_sources:
+        raise ModelStoreError(
+            f"model manifest lists label-source columns as features (structurally banned): {label_sources}"
         )
     predict_contract = str(manifest.get("predict_contract") or "").strip()
     if not predict_contract.startswith("predict("):

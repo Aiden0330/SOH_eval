@@ -8,8 +8,8 @@
 
 ```bash
 # 在仓库根目录运行
-.venv/Scripts/python.exe -m http.server 8000 --directory frontend/app
-# 打开 http://localhost:8000
+python -m http.server 8765 --directory frontend/app
+# 打开 http://localhost:8765（API 默认监听 :8001，其 CORS 白名单包含 8000/8765）
 ```
 
 需要通过 HTTP 服务访问。页面使用 ES modules 并 fetch JSON 产物，直接用 `file://` 打开并不可靠。
@@ -42,7 +42,7 @@
 Phase 1 全量矩阵：
 
 ```bash
-.venv/Scripts/python.exe -m sohbench run --data-dir "D:\SOH_eval\data" \
+python -m sohbench run --data-dir ./data \
   --datasets all --estimators ridge gbdt mlp phys_resid \
   --protocols lodo --featuresets full voltage ic_dva partial_window capacity_time \
   --seeds 0 --out-dir runs
@@ -51,10 +51,21 @@ Phase 1 全量矩阵：
 Phase 2 受控初跑：
 
 ```bash
-.venv/Scripts/python.exe scripts/run_phase2_controlled.py \
-  --data-dir "D:\SOH_eval\data" \
+python scripts/run_phase2_controlled.py \
+  --data-dir ./data \
   --datasets all --featuresets partial_window ic_dva full --seeds 0 \
   --n-max 6000 --seq-epochs 8 --pinn-epochs 20 --out-dir runs
 ```
 
-`--datasets all` 会扫描项目目录 `D:\SOH_eval\data\processed\*_features.pkl`，只纳入满足 `dataset / cell_id / cycle_index / soh` 字段契约的 feature 表。后续新增同类数据集后，不需要改前端代码；重新运行 benchmark 并把四个 JSON 复制到 `frontend/app/data/` 即可。
+`--datasets all` 会扫描项目目录 `data/processed/*_features.pkl`，只纳入满足 `dataset / cell_id / cycle_index / soh` 字段契约的 feature 表。后续新增同类数据集后，不需要改前端代码；重新运行 benchmark 并把四个 JSON 复制到 `frontend/app/data/` 即可。
+
+## AI 连接设置（智能搜索 · AI Agent 策略）
+
+智能搜索面板的「AI 连接设置」把连接信息写到 `work/trusted_plugins/llm_config.json`（0600，Key 只写不回显）。提供方两种：
+
+| 提供方 | 走什么接口 | 需要填写 | 凭据来源（优先级） |
+|---|---|---|---|
+| Anthropic（Claude API / 兼容网关） | Anthropic Messages API（SDK） | 模型可选（默认 `claude-opus-5`）；Base URL 可选（如 DeepSeek 的 `https://api.deepseek.com/anthropic`） | 面板 Key → `ANTHROPIC_API_KEY` → `ant auth login` → `claude` CLI |
+| OpenAI 兼容（ChatCompletions） | `POST {base_url}/v1/chat/completions` | 模型**必填**（随网关而异，如 `deepseek-chat` / `qwen-plus`）；Base URL 可选（默认 `https://api.openai.com/v1`，带不带 `/v1` 均可） | 面板 Key → `OPENAI_API_KEY`（+ `OPENAI_BASE_URL`） |
+
+保存后面板会显示连接状态；提交 AI 策略搜索时后端再次校验，凭据缺失会立即失败并给出原因。

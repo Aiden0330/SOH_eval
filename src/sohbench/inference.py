@@ -297,12 +297,22 @@ def _evaluation_scope(manifest: dict, dataset: str, group: pd.DataFrame, *, poli
 
 
 def _group_meta(meta: pd.DataFrame | None, group: pd.DataFrame) -> pd.DataFrame | None:
+    """Per-cell metadata for the cells present in ``group``.
+
+    ``meta`` holds one row per cell while ``group`` holds cycle rows, so the
+    old ``meta.loc[group.index]`` positional lookup either raised (→ None,
+    starving plugin models that used meta at training time) or silently
+    returned unrelated cells."""
     if meta is None:
         return None
-    try:
-        return meta.loc[group.index]
-    except (KeyError, TypeError):
-        return meta if len(meta) == len(group) else None
+    if "cell_id" in meta.columns and "cell_id" in group.columns:
+        cells = set(group["cell_id"].astype(str))
+        scoped = meta[meta["cell_id"].astype(str).isin(cells)]
+        if "dataset" in meta.columns and "dataset" in group.columns:
+            datasets = set(group["dataset"].astype(str))
+            scoped = scoped[scoped["dataset"].astype(str).isin(datasets)]
+        return scoped.reset_index(drop=True)
+    return meta if len(meta) == len(group) else meta
 
 
 def _prediction_interval(loaded, group, group_meta):
@@ -493,21 +503,9 @@ def _per_cell_monotonicity_violation(group: pd.DataFrame, pred: np.ndarray) -> f
         return M.monotonicity_violation_rate(
             pred[np.argsort(group["cycle_index"].to_numpy())]
         )
-    cells = group["cell_id"].astype(str).to_numpy()
-    cycles = group["cycle_index"].to_numpy()
-    weighted = 0.0
-    transitions = 0
-    for cell in pd.unique(cells):
-        rows = np.flatnonzero(cells == cell)
-        if len(rows) < 2:
-            continue
-        ordered = pred[rows[np.argsort(cycles[rows], kind="stable")]]
-        finite = ordered[np.isfinite(ordered)]
-        if len(finite) < 2:
-            continue
-        weighted += M.monotonicity_violation_rate(finite) * (len(finite) - 1)
-        transitions += len(finite) - 1
-    return float(weighted / transitions) if transitions else 0.0
+    return M.per_cell_monotonicity_violation_rate(
+        group["cell_id"].to_numpy(), group["cycle_index"].to_numpy(), pred
+    )
 
 
 def _extended_metrics(group: pd.DataFrame, y: np.ndarray, pred: np.ndarray, interval) -> dict:

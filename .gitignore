@@ -15,3 +15,5 @@ route_log/*.log
 data/**
 !data/README.md
 !data/manifest.json
+.DS_Store
+logs/

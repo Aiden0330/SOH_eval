@@ -59,8 +59,14 @@ class WeightedConformalWrapper:
         self._q_plain: float | None = None
         self._calib_resid: np.ndarray | None = None
         self._calib_features: np.ndarray | None = None
+        self._calib_medians: np.ndarray | None = None
         self._n_calib: int = 0
         self._n_fit: int = 0
+        # True when the last predict_interval used the plain quantile
+        # instead of the density-ratio weighted one (degenerate classifier,
+        # too few calibration points, ...).  The runner records it so a
+        # "weighted_conformal" row cannot silently be an unweighted one.
+        self.last_fallback: bool = False
 
     def fit(self, X, y, meta):
         n = len(X)
@@ -86,6 +92,13 @@ class WeightedConformalWrapper:
         else:
             self._calib_features = np.asarray(Xc, dtype=float)
 
+        # Column medians for NaN imputation before the density-ratio
+        # classifier: LogisticRegression rejects NaN outright, which used to
+        # push every fold with a missing feature value onto the fallback.
+        with np.errstate(all="ignore"):
+            medians = np.nanmedian(self._calib_features, axis=0) if self._calib_features.size else np.zeros(0)
+        self._calib_medians = np.where(np.isfinite(medians), medians, 0.0)
+
         # Plain unweighted quantile (fallback)
         level = np.ceil((n_calib + 1) * (1 - self.alpha)) / n_calib
         self._q_plain = float(np.quantile(resid, min(level, 1.0), method="higher"))
@@ -100,8 +113,19 @@ class WeightedConformalWrapper:
         q_w = self._weighted_quantile(X, a)
         return center - q_w, center + q_w
 
+    def _impute(self, X: np.ndarray) -> np.ndarray:
+        X = np.asarray(X, dtype=float)
+        if self._calib_medians is None or X.ndim != 2 or X.shape[1] != self._calib_medians.shape[0]:
+            return X
+        mask = ~np.isfinite(X)
+        if mask.any():
+            X = X.copy()
+            X[mask] = np.broadcast_to(self._calib_medians, X.shape)[mask]
+        return X
+
     def _weighted_quantile(self, X_test, alpha: float) -> float:
         """Return the importance-weighted quantile of calibration residuals."""
+        self.last_fallback = True
         resid = self._calib_resid
         if resid is None or self._n_calib < 5:
             return self._q_plain
@@ -113,8 +137,9 @@ class WeightedConformalWrapper:
                 X_test_arr = X_test[cols].to_numpy(dtype=float)
             else:
                 X_test_arr = np.asarray(X_test, dtype=float)
+            X_test_arr = self._impute(X_test_arr)
 
-            X_calib = self._calib_features
+            X_calib = self._impute(self._calib_features)
             rng = np.random.default_rng(self.random_state)
             X_calib_fit = self._sample_rows(X_calib, rng)
             X_test_fit = self._sample_rows(X_test_arr, rng)
@@ -147,6 +172,7 @@ class WeightedConformalWrapper:
             w = np.clip(w, 1e-3, 1e3)
             w = w / w.sum()  # normalize
 
+            self.last_fallback = False
             return float(_weighted_quantile_1d(resid, w, 1.0 - alpha))
 
         except Exception:

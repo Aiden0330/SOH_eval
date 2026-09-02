@@ -92,7 +92,13 @@ class BenchmarkRunner:
                                 else:
                                     rec_base["ci_source"] = "native"
                                 ytr = tr[task.target].to_numpy()
-                                est.fit(tr, ytr, meta)
+                                # The label never rides inside X: built-in
+                                # estimators already select feature columns,
+                                # but a plugin estimator must not be able to
+                                # read the test-fold target off the frame.
+                                X_tr = tr.drop(columns=[task.target], errors="ignore")
+                                X_te = te.drop(columns=[task.target], errors="ignore")
+                                est.fit(X_tr, ytr, meta)
                                 if on_model_fitted is not None:
                                     on_model_fitted(
                                         estimator=est,
@@ -102,9 +108,10 @@ class BenchmarkRunner:
                                         meta=meta,
                                     )
                                 yte = te[task.target].to_numpy()
-                                yp = est.predict(te, meta)
+                                yp = est.predict(X_te, meta)
                                 row = self._point_metrics(task, yte, yp)
-                                lo, hi = est.predict_interval(te, meta)
+                                lo, hi = est.predict_interval(X_te, meta)
+                                rec_base["ci_fallback"] = bool(getattr(est, "last_fallback", False))
                                 row["picp"] = M.picp(yte, lo, hi)
                                 row.update(self._trajectory_metrics(task, te, yp))
                             except Exception as e:  # isolate failed fold
@@ -124,6 +131,16 @@ class BenchmarkRunner:
         return out
 
     def _trajectory_metrics(self, task, te, yp):
-        order = np.argsort(te["cycle_index"].to_numpy())
-        return {"monotonicity_violation_rate": M.monotonicity_violation_rate(yp[order]),
+        # Multi-cell test folds (LODO / LCHO) must be scored per cell: a
+        # global cycle sort interleaves cells and counts every cross-cell
+        # level change as a rebound, which made the physical-consistency
+        # verdict unpassable regardless of model quality.
+        if "cell_id" in te.columns:
+            mono = M.per_cell_monotonicity_violation_rate(
+                te["cell_id"].to_numpy(), te["cycle_index"].to_numpy(), yp
+            )
+        else:
+            order = np.argsort(te["cycle_index"].to_numpy())
+            mono = M.monotonicity_violation_rate(yp[order])
+        return {"monotonicity_violation_rate": mono,
                 "value_range_violation": M.value_range_violation(yp)}

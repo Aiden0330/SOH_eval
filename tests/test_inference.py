@@ -171,3 +171,22 @@ def test_safe_inference_allows_same_chemistry_and_skips_cross_chemistry(tmp_path
     assert nasa["target_chemistry"] == "LCO"
     assert hust["status"] == "skipped"
     assert hust["evaluation_scope"] == "cross_chemistry"
+
+
+def test_group_meta_returns_the_rows_of_the_cells_in_the_group():
+    from sohbench.inference import _group_meta
+
+    meta = pd.DataFrame({
+        "dataset": ["a", "a", "b"],
+        "cell_id": ["c1", "c2", "c1"],
+        "chemistry": ["LFP", "LFP", "LCO"],
+    })
+    group = pd.DataFrame({
+        "dataset": ["a"] * 4,
+        "cell_id": ["c2", "c2", "c1", "c1"],
+        "cycle_index": [1, 2, 1, 2],
+    }, index=[10, 11, 12, 13])  # positional labels that do not exist in meta
+    scoped = _group_meta(meta, group)
+    assert sorted(scoped["cell_id"]) == ["c1", "c2"]
+    assert set(scoped["dataset"]) == {"a"}
+    assert _group_meta(None, group) is None

@@ -214,3 +214,48 @@ def test_runner_calls_on_model_fitted_after_successful_fit():
     assert seen[0]["record"]["estimator"] == "tiny_estimator"
     assert np.isclose(seen[0]["estimator"].mean_, 0.99)
     assert list(seen[0]["train_table"]["cycle_index"]) == [0, 1, 2]
+
+
+def test_estimators_never_see_the_label_inside_x():
+    from sohbench.metadata import build_meta
+    seen = {}
+    class Spy:
+        name = "spy"; feature_mode = "unified"; backend = "sklearn"
+        def fit(self, X, y, meta): seen["fit"] = list(X.columns)
+        def predict(self, X, meta):
+            seen["predict"] = list(X.columns)
+            return np.full(len(X), 0.9)
+    t = _table(); meta = build_meta(t)
+    BenchmarkRunner(seeds=[0]).run(SOHEstimationTask(), table=t, meta=meta,
+                                   protocols={"loco": LeaveOneCellOut()},
+                                   estimators=[Spy])
+    assert "soh" not in seen["fit"] and "soh" not in seen["predict"]
+    assert {"f1", "f2"} <= set(seen["predict"])
+
+
+def test_multi_cell_fold_monotonicity_is_scored_per_cell():
+    """LODO test folds hold many cells; a predictor that is perfectly
+    monotone within every cell must score zero violations even though the
+    cells sit at different levels (a global cycle sort interleaves them)."""
+    from sohbench.metadata import build_meta
+    rows = []
+    for ds, offset in (("a", 0.0), ("b", 0.2)):
+        for cell in ("c1", "c2"):
+            for k in range(15):
+                rows.append((ds, f"{ds}-{cell}", k, 1.0 - 0.01 * k - offset,
+                             float(k), float(k * k)))
+    t = pd.DataFrame(rows, columns=["dataset", "cell_id", "cycle_index", "soh", "f1", "f2"])
+    class LevelShift:
+        name = "level_shift"; feature_mode = "unified"; backend = "sklearn"
+        def fit(self, X, y, meta): pass
+        def predict(self, X, meta):
+            return np.array([
+                1.0 - 0.01 * k - (0.3 if str(c).endswith("c2") else 0.0)
+                for c, k in zip(X["cell_id"], X["cycle_index"])
+            ])
+    meta = build_meta(t)
+    rs = BenchmarkRunner(seeds=[0]).run(SOHEstimationTask(), table=t, meta=meta,
+                                        protocols={"lodo": LeaveOneDatasetOut()},
+                                        estimators=[LevelShift])
+    mono = rs.loc[rs["metric"] == "monotonicity_violation_rate", "value"]
+    assert len(mono) == 2 and (mono == 0.0).all()

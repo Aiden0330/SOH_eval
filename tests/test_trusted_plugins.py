@@ -233,3 +233,33 @@ def transform(table, meta=None):
     TrustedPluginStore(base_dir=project / "plugins", data_dir=project / "data")
 
     assert get_featureset("reload_features").candidates == ["reload_cycle"]
+
+
+def test_plugin_cannot_take_a_builtin_name(tmp_path):
+    """Overriding a built-in only ever lived in the uploading process (start-up
+    skips catalog entries whose name is already registered), so jobs silently
+    fell back to the built-in after a restart.  Reserve built-in names."""
+    import sohbench.estimators.baselines  # noqa: F401  (registers ridge)
+    from sohbench import registry as R
+
+    assert "ridge" in R._ESTIMATORS
+    builtin = R._ESTIMATORS["ridge"]
+    store = TrustedPluginStore(base_dir=tmp_path / "plugins", data_dir=tmp_path / "data")
+    code = b"""
+import numpy as np
+
+class Estimator:
+    name = "ridge"
+    feature_mode = "unified"
+    backend = "external"
+
+    def fit(self, X, y, meta=None):
+        return self
+
+    def predict(self, X, meta=None):
+        return np.full(len(X), 0.9, dtype=float)
+"""
+    with pytest.raises(TrustedPluginError, match="reserved by a built-in"):
+        store.upload_estimator_plugin(name="ridge", filename="ridge.py", payload=code, replace=True)
+    assert R._ESTIMATORS["ridge"] is builtin
+    assert not list((tmp_path / "plugins").rglob("ridge.py"))  # rejected upload leaves no file

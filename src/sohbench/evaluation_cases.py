@@ -344,6 +344,24 @@ class EvaluationCaseStore:
                     "observed": combination["metrics"],
                 })
 
+            # Activating a combination rewrites candidates, evidence selection
+            # and verdict; an approval given for the previous evidence does
+            # not carry over (signing_readiness only checks review.state).
+            previous_criterion_version = str(
+                (current.get("verdict") or {}).get("criterion_set_version") or ""
+            )
+            if (updated.get("review") or {}).get("state") == "approved" and (
+                _evidence_identity(updated) != _evidence_identity(current)
+                or str(updated["verdict"].get("criterion_set_version") or "") != previous_criterion_version
+            ):
+                previous_review = updated.get("review") or {}
+                updated["review"] = normalize_review({
+                    "state": "in_review",
+                    "reviewer": previous_review.get("reviewer") or "",
+                    "note": "已切换到其他已保存组合，需要重新批准",
+                    "updated_at": _now(),
+                })
+
             _refresh_context_binding(updated, current=current)
             if _meaningful_case_state(updated) == _meaningful_case_state(current):
                 return deepcopy(current)
@@ -435,12 +453,23 @@ class EvaluationCaseStore:
                 or updated["verdict"].get("thresholds")
                 != (current.get("verdict") or {}).get("thresholds")
             )
-            if criterion_changed and (updated.get("review") or {}).get("state") == "approved":
+            # A review approval is bound to what was approved: the criterion
+            # set AND the evidence identity (candidate × dataset).  Re-pinning
+            # the evidence on another candidate or target must send an
+            # approved case back to review, otherwise a pack could be signed
+            # against an approval that was given for different evidence.
+            selection_changed = _evidence_identity(updated) != _evidence_identity(current)
+            if (criterion_changed or selection_changed) and (
+                (updated.get("review") or {}).get("state") == "approved"
+            ):
                 previous_review = updated.get("review") or {}
                 updated["review"] = normalize_review({
                     "state": "in_review",
                     "reviewer": previous_review.get("reviewer") or "",
-                    "note": "判据或阈值已变更，需要重新批准",
+                    "note": (
+                        "判据或阈值已变更，需要重新批准" if criterion_changed
+                        else "证据选择已变更（候选或数据集），需要重新批准"
+                    ),
                     "updated_at": _now(),
                 })
             _activate_draft_if_started(updated)
@@ -1184,6 +1213,14 @@ def normalize_evidence_coverage(payload: dict) -> dict:
         "required_count": len(required_items),
         "items": items,
     }
+
+
+def _evidence_identity(case: dict) -> tuple[str, str]:
+    selection = case.get("evidence_selection") or {}
+    return (
+        str(selection.get("candidate_id") or ""),
+        str(selection.get("dataset") or ""),
+    )
 
 
 def normalize_verdict(payload: dict) -> dict:

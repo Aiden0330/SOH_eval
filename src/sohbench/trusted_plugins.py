@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import threading
+import uuid
 import re
 import sys
 import hashlib
@@ -69,6 +71,7 @@ class TrustedPluginStore:
         self.estimator_dir.mkdir(parents=True, exist_ok=True)
         self.featureset_dir.mkdir(parents=True, exist_ok=True)
         (self.data_dir / "processed").mkdir(parents=True, exist_ok=True)
+        self._catalog_lock = threading.RLock()
         self._catalog = self._read_catalog()
         if load_plugins:
             self.load_trusted_plugins()
@@ -129,7 +132,9 @@ class TrustedPluginStore:
         _safe_resource_name(name)
         path = self._write_plugin_file(self.estimator_dir, filename, payload, replace=replace)
         try:
-            cls = self._load_estimator_file(path, replace=replace)
+            cls = self._load_estimator_file(
+                path, replace=replace, reserved=self._reserved_names("estimators", R._ESTIMATORS)
+            )
         except Exception:
             # A rejected upload must not leave executable Python behind.
             path.unlink(missing_ok=True)
@@ -160,6 +165,7 @@ class TrustedPluginStore:
                 fallback_name=name,
                 replace=replace,
                 enforce_label_safety=True,
+                reserved=self._reserved_names("featuresets", R._FEATURESETS),
             )
         except Exception:
             # A rejected upload must not leave executable Python behind.
@@ -392,11 +398,27 @@ class TrustedPluginStore:
         path.write_bytes(payload)
         return path
 
-    def _load_estimator_file(self, path: Path, *, replace: bool) -> type:
+    def _reserved_names(self, section: str, registry: dict) -> frozenset[str]:
+        """Registered names that are NOT plugins of this store, i.e. built-ins.
+
+        A plugin may replace an earlier plugin of the same name, but never a
+        built-in: the override only lived in the uploading process (start-up
+        skips catalog entries whose name is already registered), so jobs
+        silently switched back to the built-in after the next restart."""
+        plugins = {str(item.get("name") or "") for item in self._catalog.get(section, [])}
+        return frozenset(name for name in registry if name not in plugins)
+
+    def _load_estimator_file(
+        self, path: Path, *, replace: bool, reserved: frozenset[str] = frozenset()
+    ) -> type:
         module = _load_module(path, "estimator")
         cls = _extract_estimator_class(module)
         if not hasattr(cls, "name") or not str(cls.name):
             raise TrustedPluginError("estimator plugin must define a non-empty name")
+        if cls.name in reserved:
+            raise TrustedPluginError(
+                f"estimator name {cls.name!r} is reserved by a built-in method; choose another name"
+            )
         if not hasattr(cls, "feature_mode"):
             cls.feature_mode = "unified"
         if not hasattr(cls, "backend"):
@@ -414,9 +436,14 @@ class TrustedPluginStore:
         fallback_name: str,
         replace: bool,
         enforce_label_safety: bool = False,
+        reserved: frozenset[str] = frozenset(),
     ) -> FeaturePlugin:
         module = _load_module(path, "featureset")
         plugin = _extract_feature_plugin(module, path, fallback_name)
+        if plugin.name in reserved:
+            raise TrustedPluginError(
+                f"featureset name {plugin.name!r} is reserved by a built-in featureset; choose another name"
+            )
         if plugin.name in R._FEATURESETS and not replace:
             raise TrustedPluginError(f"featureset already registered: {plugin.name}")
         _smoke_featureset_plugin(plugin, enforce_label_safety=enforce_label_safety)
@@ -430,17 +457,27 @@ class TrustedPluginStore:
         return json.loads(self.catalog_path.read_text(encoding="utf-8"))
 
     def _write_catalog(self) -> None:
-        self.base_dir.mkdir(parents=True, exist_ok=True)
-        self.catalog_path.write_text(
-            json.dumps(self._catalog, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        with self._catalog_lock:
+            self.base_dir.mkdir(parents=True, exist_ok=True)
+            temporary = self.catalog_path.with_name(
+                f".{self.catalog_path.name}.{uuid.uuid4().hex}.tmp"
+            )
+            try:
+                temporary.write_text(
+                    json.dumps(self._catalog, indent=2, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                temporary.replace(self.catalog_path)
+            finally:
+                if temporary.exists():
+                    temporary.unlink()
 
     def _upsert_catalog(self, section: str, resource: dict) -> None:
-        items = [item for item in self._catalog.get(section, []) if item.get("name") != resource["name"]]
-        items.append(resource)
-        self._catalog[section] = sorted(items, key=lambda item: item["name"])
-        self._write_catalog()
+        with self._catalog_lock:
+            items = [item for item in self._catalog.get(section, []) if item.get("name") != resource["name"]]
+            items.append(resource)
+            self._catalog[section] = sorted(items, key=lambda item: item["name"])
+            self._write_catalog()
 
     def _catalog_item(self, section: str, name: str) -> dict | None:
         for item in self._catalog.get(section, []):

@@ -1124,3 +1124,63 @@ def test_inference_transform_featuresets_binding_rules():
         [{"featureset": "(byo)", "feature_columns": ["cycle_sqrt", "voltage_mean"]}]
     )
     assert "degradation_kinetics" in legacy
+
+
+def _bare_service(tmp_path):
+    return EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+
+
+def test_unknown_dataset_is_rejected_at_request_normalization(tmp_path):
+    service = _bare_service(tmp_path)
+    with pytest.raises(ValueError, match="unknown datasets"):
+        service._normalize_request({"datasets": ["nope"], "estimators": ["ridge"]})
+    with pytest.raises(ValueError, match="unknown datasets"):
+        service._normalize_inference_request({"datasets": ["../etc"], "models": ["x"]})
+    # "all" is resolved later by discovery and stays admissible.
+    assert service._normalize_request({"datasets": ["all"]})["datasets"] == ["all"]
+
+
+def test_entity_lookups_reject_path_like_ids(tmp_path):
+    service = _bare_service(tmp_path)
+    secret = tmp_path / "work" / "secret.json"
+    secret.write_text("{}", encoding="utf-8")
+    for bad in ("../secret", "..\\secret", "a/b", "", ".."):
+        with pytest.raises(KeyError):
+            service.get_job(bad)
+        with pytest.raises(KeyError):
+            service.get_inference_job(bad)
+        with pytest.raises(KeyError):
+            service.get_search_job(bad)
+        with pytest.raises(KeyError):
+            service.get_example(bad)
+
+
+def test_jobs_left_running_by_a_dead_process_are_failed_on_startup(tmp_path):
+    service = _bare_service(tmp_path)
+    service._save_job({"id": "job-running", "status": "running", "request": {}})
+    service._save_inference_job({"id": "infer-queued", "status": "queued", "request": {}})
+    service._save_job({"id": "job-done", "status": "succeeded", "request": {}})
+
+    restarted = _bare_service(tmp_path)
+
+    assert restarted.get_job("job-running")["status"] == "failed"
+    assert "interrupted" in restarted.get_job("job-running")["error"]
+    assert restarted.get_inference_job("infer-queued")["status"] == "failed"
+    assert restarted.get_job("job-done")["status"] == "succeeded"
+
+
+def test_second_quickstart_is_refused_while_one_is_running(tmp_path):
+    service = _bare_service(tmp_path)
+    service._quickstart_run_lock.acquire()
+    try:
+        with pytest.raises(EvaluationCaseConflictError, match="already running"):
+            service.create_quickstart_example(start=True)
+        # Creating without starting (inline runners) is still allowed.
+        assert service.create_quickstart_example(start=False)["status"] == "queued"
+    finally:
+        service._quickstart_run_lock.release()

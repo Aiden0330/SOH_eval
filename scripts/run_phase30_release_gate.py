@@ -29,15 +29,15 @@ def main() -> int:
     parser.add_argument("--criterion-set", default="exploratory")
     parser.add_argument(
         "--output-json",
-        default=r"work\trusted_plugins\phase30_release_gate_report.json",
+        default="work/trusted_plugins/phase30_release_gate_report.json",
     )
     parser.add_argument(
         "--output-md",
-        default=r"work\trusted_plugins\phase30_release_gate_report.md",
+        default="work/trusted_plugins/phase30_release_gate_report.md",
     )
     parser.add_argument(
         "--archive-dir",
-        default=r"work\trusted_plugins\release_gates\phase30",
+        default="work/trusted_plugins/release_gates/phase30",
     )
     args = parser.parse_args()
 

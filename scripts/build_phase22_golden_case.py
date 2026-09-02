@@ -14,7 +14,7 @@ def main() -> int:
     parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))
     parser.add_argument("--curve-source", default=str(DEFAULT_CURVE_SOURCE))
     parser.add_argument("--profile", default="phase22-golden-nasa")
-    parser.add_argument("--output", default=r"work\trusted_plugins\phase22_golden_summary.json")
+    parser.add_argument("--output", default="work/trusted_plugins/phase22_golden_summary.json")
     args = parser.parse_args()
 
     root = ROOT

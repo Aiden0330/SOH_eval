@@ -55,14 +55,16 @@ import {
   trainingJobRuntimeState,
   trajectoryContextConsistency,
   auditCandidateViewProjection,
-} from "./dashboard-core.mjs?v=phase59-conformal-interval-20260831a";
+} from "./dashboard-core.mjs?v=phase61-openai-provider-20260902a";
 
 const $ = (id) => document.getElementById(id);
 const URL_PARAMS = new URLSearchParams(location.search);
 const API_BASE = URL_PARAMS.get("api") || "http://localhost:8001";
 const DATA_VERSION = URL_PARAMS.get("v") || "live";
 const INITIAL_CASE_ID = String(URL_PARAMS.get("case") || "").trim();
-const DEFAULT_BATTERY_DASHBOARD_SOURCE = "D:\\battery_SOH\\dashboard";
+// No prefilled path: the old Windows default ("D:\\battery_SOH\\dashboard") was
+// misleading on every other machine; the backend validates the typed path.
+const DEFAULT_BATTERY_DASHBOARD_SOURCE = "";
 const INITIAL_PROFILE = safeProfileName(URL_PARAMS.get("profile") || localStorage.getItem("sohbench.profile") || "root");
 const CATALOG_MODEL_PREVIEW_LIMIT = 1200;
 const CATALOG_JOB_PREVIEW_LIMIT = 20;
@@ -74,6 +76,10 @@ const FS_ORDER = [
 const fmt = (v, d = 3, sign = false) =>
   v == null ? "无" : (sign && v >= 0 ? "+" : "") + v.toFixed(d);
 const uniq = (a) => [...new Set(a)];
+// Numeric cell that never renders "NaN"/"null" (missing metrics are common in
+// search reports: failed folds, label-free operators without PICP, ...).
+const fixedOrDash = (value, digits = 4) =>
+  value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : "—";
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({
   "&": "&amp;",
   "<": "&lt;",
@@ -233,13 +239,39 @@ async function load(options = {}) {
   await resolveEvaluationCaseContext();
   await hydratePipelineJobs();
   await refreshPipelineModelCatalogForJobs();
-  await reconcileHydratedPipelineCase();
+  try {
+    await reconcileHydratedPipelineCase();
+  } catch (error) {
+    // A failed case sync must not abort the whole load: the panels would
+    // keep showing the previous profile while the selector shows the new one.
+    PIPELINE_STATUS = { tone: "warn", message: `案例同步失败：${String(error?.message || error)}` };
+  }
   await hydratePipelineArtifacts();
   alignResourceSelectionToPipelineCase();
   await loadReviewWorkspace({ silent: true });
   await loadPackageReport({ silent: true });
   render();
   resumePipelinePolling();
+  await hydrateDeepLinkedMode();
+}
+
+// Deep links (?mode=search|models|inference) used to skip the loads that only
+// activateMode() performs, leaving the search panel without history and the
+// model pages with the preview catalog.
+let deepLinkHydrated = false;
+async function hydrateDeepLinkedMode() {
+  if (deepLinkHydrated) return;
+  deepLinkHydrated = true;
+  if (activeMode === "search") {
+    syncAgentSearchContext();
+    await loadAgentSearchJobs();
+    await loadFullModelCatalog();
+    await resolveAgentSearchModelNames();
+    render();
+  } else if (activeMode === "models" || activeMode === "inference") {
+    await loadFullModelCatalog();
+    render();
+  }
 }
 
 async function loadProfileIndex(suffix = "") {
@@ -803,7 +835,7 @@ function wireProfileSelector(options = []) {
     activeProfile = safeProfileName(select.value);
     localStorage.setItem("sohbench.profile", activeProfile);
     resetProfileScopedState();
-    load({ cacheBust: true });
+    load({ cacheBust: true }).catch(reportWorkbenchError);
   };
 }
 
@@ -830,6 +862,13 @@ function resetProfileScopedState() {
   PIPELINE_STATUS = { tone: "ready", message: "" };
   PIPELINE_JOBS = { training: null, inference: null };
   CURRENT_JOB = null;
+  // Adaptation chips and the search panel belong to the previous profile's
+  // models/cases; carrying them over would submit an operator for a model
+  // that does not exist here.
+  inferenceAdaptation = null;
+  AGENT_SEARCH.job = null;
+  AGENT_SEARCH.selection = null;
+  AGENT_SEARCH.history = [];
   requestedCaseId = "";
   try {
     const url = new URL(location.href);
@@ -895,7 +934,7 @@ function renderKpis(lb, dsOptions) {
     kpi("数据集范围", `${selected.length}/${dsOptions.length}`,
       `${selectedRows.toLocaleString()} 条 QC 样本`) +
     kpi(acceptance.label, acceptance.value, acceptance.hint, acceptance.color) +
-    kpi("数据 QC 通过率", qc ? (100 * qc.pass_rate).toFixed(2) + "%" : "无",
+    kpi("数据 QC 通过率", Number.isFinite(Number(qc?.pass_rate)) ? (100 * Number(qc.pass_rate)).toFixed(2) + "%" : "无",
       qc ? `剔除 ${qc.n_out} 行` : "无 QC", "var(--pass)");
 }
 
@@ -1002,12 +1041,6 @@ function renderGlobalCaseContext() {
   renderKpis(rows, dsOptions);
   renderScopeContext(dsOptions);
   renderCaseIdentity();
-}
-
-function scopePill(label, value, hint, kind) {
-  return `<div class="scope-pill ${esc(kind)}">` +
-    `<span>${esc(label)}</span><b>${esc(value)}</b><small>${esc(hint)}</small>` +
-  `</div>`;
 }
 
 function selectedDatasetNames() {
@@ -2574,7 +2607,7 @@ function auditCandidateRows() {
         },
         verdicts: {},
       }))
-      .sort((left, right) => metricMean(left, "mae") - metricMean(right, "mae"));
+      .sort((left, right) => (metricMean(left, "mae") ?? Infinity) - (metricMean(right, "mae") ?? Infinity));
   }
   const requestedModels = inferenceJob?.request?.models || [];
   const requestedDatasets = inferenceJob?.request?.submitted_datasets
@@ -2604,7 +2637,7 @@ function auditCandidateRows() {
        },
       verdicts: {},
     };
-  }).sort((left, right) => metricMean(left, "mae") - metricMean(right, "mae"));
+  }).sort((left, right) => (metricMean(left, "mae") ?? Infinity) - (metricMean(right, "mae") ?? Infinity));
 }
 
 function prepareEvidenceContext(rows = scoped?.entries || DATA?.leaderboard || []) {
@@ -4712,28 +4745,6 @@ function closeTaskHistoryDrawer() {
   renderTaskHistoryDrawer();
 }
 
-function wireAcceptanceControls() {
-  const options = acceptancePresetOptions();
-  if (!options.some((item) => item.id === acceptancePreset)) acceptancePreset = "strict";
-  const select = $("acceptance-preset");
-  if (select) {
-    select.value = acceptancePreset;
-    select.onchange = () => {
-      acceptancePreset = select.value;
-      localStorage.setItem("sohbench.acceptancePreset", acceptancePreset);
-      markEvidenceViewState();
-      render();
-    };
-  }
-  const open = $("open-acceptance-detail");
-  if (open) {
-    open.onclick = () => {
-      acceptanceDetailOpen = true;
-      renderAcceptanceDetailDrawer();
-    };
-  }
-}
-
 function renderAcceptanceDetailDrawer(rows = null) {
   const drawer = $("acceptance-detail-drawer");
   const backdrop = $("acceptance-detail-backdrop");
@@ -5532,26 +5543,6 @@ function renderInferenceCompatibilityPanel(models, dsOptions) {
     `</div>`;
 }
 
-function renderInferenceCompatibility(models, dsOptions) {
-  const node = $("inference-compatibility");
-  if (!node) return;
-  const selectedModels = models.filter((item) => inferenceSelection.models.has(item.name));
-  const selectedDatasets = dsOptions.filter((item) => inferenceSelection.datasets.has(item.name));
-  const missingFeatureModels = selectedModels.filter((item) => !(item.featureColumns || []).length);
-  node.innerHTML =
-    `<div class="panel-title"><span>推理输入</span><b>兼容性预检</b></div>` +
-    `<div class="panel-scroll">` +
-    `<div class="selector-summary">` +
-      artifactMetric("模型", `${selectedModels.length}/${models.length || 0}`, selectedModels.map((item) => item.name).slice(0, 3).join(" / ") || "暂无模型", "model") +
-      artifactMetric("目标数据集", `${selectedDatasets.length}/${dsOptions.length || 0}`, selectedDatasets.map((item) => item.name).slice(0, 3).join(" / ") || "暂无数据集", "dataset") +
-    `</div>` +
-    `<div class="compat-note ${missingFeatureModels.length ? "warn" : "ok"}">` +
-      `<b>${missingFeatureModels.length ? "需要复核特征 schema" : "可启动推理测评"}</b>` +
-      `<span>${missingFeatureModels.length ? `${missingFeatureModels.length} 个模型缺少特征列清单，运行前请确认 manifest。` : "已选择模型和目标数据集，后端会在运行时再次校验特征列。"}</span>` +
-    `</div>` +
-    `</div>`;
-}
-
 function renderInferenceInsights(summary, audit = currentInferenceAuditSummary()) {
   const node = $("inference-insights");
   if (!node) return;
@@ -5959,6 +5950,13 @@ async function activateMode(mode) {
 
 let AGENT_SEARCH = { selection: null, job: null, history: [], polling: false, llm: null };
 
+// Placeholder copy per AI provider; the backend validates the provider value
+// and resolves credentials (workbench key → env → CLI) per provider.
+const LLM_PROVIDER_HINTS = {
+  anthropic: { model: "claude-opus-5（默认）", baseUrl: "https://api.anthropic.com", apiKey: "sk-ant-..." },
+  openai: { model: "如 gpt-4o / deepseek-chat / qwen-plus（必填）", baseUrl: "https://api.openai.com/v1（或网关 /v1 地址）", apiKey: "sk-..." },
+};
+
 async function loadAgentSearchJobs() {
   try {
     const configResp = await fetch(`${API_BASE}/api/llm-config`);
@@ -6107,20 +6105,25 @@ function renderAgentSearchPanel() {
   const estimators = (CATALOG?.estimators || []).map((item) => item.name);
   const featuresets = (CATALOG?.featuresets || []).map((item) => item.name);
   const executionEnabled = Boolean(CATALOG) && API_SESSION.legacyExecutionEnabled;
-  const busy = AGENT_SEARCH.job && ["queued", "running"].includes(AGENT_SEARCH.job.status);
+  const busy = Boolean(AGENT_SEARCH.launching)
+    || (AGENT_SEARCH.job && ["queued", "running"].includes(AGENT_SEARCH.job.status));
 
+  // Everything interpolated below comes from the backend catalog, job
+  // records or free text (LLM reasoning, error strings): always escape.
   const checkboxGroup = (name, values, selected) => values.map((value) => `
-    <label class="agent-search-option"><input type="checkbox" data-search-group="${name}" value="${value}" ${selected.has(value) ? "checked" : ""} ${busy ? "disabled" : ""}/> <span>${value}</span></label>`).join("");
+    <label class="agent-search-option"><input type="checkbox" data-search-group="${name}" value="${esc(value)}" ${selected.has(value) ? "checked" : ""} ${busy ? "disabled" : ""}/> <span>${esc(value)}</span></label>`).join("");
   const outerOptions = ['<option value="">请选择外环数据集</option>']
-    .concat(datasets.map((value) => `<option value="${value}" ${selection.outer === value ? "selected" : ""}>${value}</option>`))
+    .concat(datasets.map((value) => `<option value="${esc(value)}" ${selection.outer === value ? "selected" : ""}>${esc(value)}</option>`))
     .join("");
 
   const isAdaptation = selection.mode === "adaptation";
   const targetOptions = ['<option value="">请选择目标数据集</option>']
-    .concat(datasets.map((value) => `<option value="${value}" ${selection.targetDataset === value ? "selected" : ""}>${value}</option>`))
+    .concat(datasets.map((value) => `<option value="${esc(value)}" ${selection.targetDataset === value ? "selected" : ""}>${esc(value)}</option>`))
     .join("");
   const operatorBoxes = Object.entries(ADAPTATION_OPERATOR_LABELS).map(([value, label]) => `
-    <label class="agent-search-option"><input type="checkbox" data-search-group="operators" value="${value}" ${selection.operators.has(value) ? "checked" : ""} ${busy ? "disabled" : ""}/> <span>${label}</span></label>`).join("");
+    <label class="agent-search-option"><input type="checkbox" data-search-group="operators" value="${esc(value)}" ${selection.operators.has(value) ? "checked" : ""} ${busy ? "disabled" : ""}/> <span>${esc(label)}</span></label>`).join("");
+  const llmProvider = AGENT_SEARCH.llm?.config?.provider === "openai" ? "openai" : "anthropic";
+  const llmHints = LLM_PROVIDER_HINTS[llmProvider];
   const trainingFields = `
       <fieldset><legend>内环数据集 · 参与搜索</legend>${checkboxGroup("inner", datasets, selection.inner)}</fieldset>
       <fieldset><legend>外环数据集 · 单次泛化声明</legend>
@@ -6135,11 +6138,11 @@ function renderAgentSearchPanel() {
         <small>模型冻结不变；适配算子只使用部署时合法可得的信息，通道全程申报。</small>
       </fieldset>
       <fieldset><legend>候选模型（逗号分隔；从推理页可一键携带）</legend>
-        <input id="search-models" type="text" value="${selection.models}" placeholder="model_a, model_b" ${busy ? "disabled" : ""}/>
+        <input id="search-models" type="text" value="${esc(selection.models)}" placeholder="model_a, model_b" ${busy ? "disabled" : ""}/>
       </fieldset>
       <fieldset><legend>适配算子</legend>${operatorBoxes}
         <label class="agent-search-topk"><span>标定预算 K（重标定用，评测自动剔除）</span>
-          <input id="search-calib-budget" type="number" min="0" max="512" value="${selection.calibBudget}" ${busy ? "disabled" : ""}/></label>
+          <input id="search-calib-budget" type="number" min="0" max="512" value="${esc(selection.calibBudget)}" ${busy ? "disabled" : ""}/></label>
         <label class="agent-search-topk"><span>标定采样（K 个样本怎么取）</span>
           <select id="search-calib-split" ${busy ? "disabled" : ""}>${Object.entries(CALIBRATION_SPLIT_LABELS).map(([value, label]) => `
             <option value="${value}" ${selection.calibSplit === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
@@ -6171,23 +6174,24 @@ function renderAgentSearchPanel() {
           <div class="run-config-grid">
             <label><span>提供方</span>
               <select id="llm-provider">
-                <option value="anthropic" ${(AGENT_SEARCH.llm?.config?.provider || "anthropic") === "anthropic" ? "selected" : ""}>Anthropic（或兼容网关）</option>
+                <option value="anthropic" ${llmProvider === "anthropic" ? "selected" : ""}>Anthropic（Claude API / 兼容网关）</option>
+                <option value="openai" ${llmProvider === "openai" ? "selected" : ""}>OpenAI 兼容（ChatCompletions：OpenAI / DeepSeek / Qwen / 本地网关）</option>
               </select></label>
-            <label><span>模型</span>
-              <input id="llm-model" type="text" value="${AGENT_SEARCH.llm?.config?.model || ""}" placeholder="claude-opus-5（默认）"/></label>
+            <label><span>模型${llmProvider === "openai" ? "（必填，随网关而异）" : ""}</span>
+              <input id="llm-model" type="text" value="${esc(AGENT_SEARCH.llm?.config?.model || "")}" placeholder="${esc(llmHints.model)}"/></label>
             <label><span>Base URL（可选，兼容网关）</span>
-              <input id="llm-base-url" type="text" value="${AGENT_SEARCH.llm?.config?.base_url || ""}" placeholder="https://api.anthropic.com"/></label>
+              <input id="llm-base-url" type="text" value="${esc(AGENT_SEARCH.llm?.config?.base_url || "")}" placeholder="${esc(llmHints.baseUrl)}"/></label>
             <label><span>API Key（只写不回显）</span>
-              <input id="llm-api-key" type="password" value="" placeholder="${AGENT_SEARCH.llm?.config?.has_api_key ? "已保存 · 留空保持不变" : "sk-ant-..."}"/></label>
+              <input id="llm-api-key" type="password" value="" placeholder="${AGENT_SEARCH.llm?.config?.has_api_key ? "已保存 · 留空保持不变" : esc(llmHints.apiKey)}"/></label>
             <button id="save-llm-config" class="secondary-action" type="button">保存 AI 设置</button>
             ${AGENT_SEARCH.llm?.config?.has_api_key ? '<button id="clear-llm-key" class="secondary-action" type="button">清除已存 Key</button>' : ""}
           </div>
         </details>
       </fieldset>
       ${isAdaptation ? "" : `<label class="agent-search-window-targets"><span>窗口覆盖率目标（可选，逗号分隔，如 0.45,0.60 · 需窗口库）</span>
-        <input id="search-window-targets" type="text" value="${selection.windowTargets}" placeholder="留空 = 不搜索窗口" ${busy ? "disabled" : ""}/></label>
+        <input id="search-window-targets" type="text" value="${esc(selection.windowTargets)}" placeholder="留空 = 不搜索窗口" ${busy ? "disabled" : ""}/></label>
       <label class="agent-search-topk"><span>Top-K 外环声明</span>
-        <input id="search-top-k" type="number" min="1" max="10" value="${selection.topK}" ${busy ? "disabled" : ""}/></label>`}
+        <input id="search-top-k" type="number" min="1" max="10" value="${esc(selection.topK)}" ${busy ? "disabled" : ""}/></label>`}
       <button id="start-agent-search" class="primary-action" type="button">启动智能搜索</button>
     </div>`;
 
@@ -6223,6 +6227,17 @@ function renderAgentSearchPanel() {
   if (policySelect) policySelect.onchange = () => { selection.policy = policySelect.value; };
   const windowTargetsInput = config.querySelector("#search-window-targets");
   if (windowTargetsInput) windowTargetsInput.onchange = () => { selection.windowTargets = windowTargetsInput.value.trim(); };
+  const providerSelect = config.querySelector("#llm-provider");
+  if (providerSelect) providerSelect.onchange = () => {
+    // Swap the hints in place: a full re-render would wipe what is being typed.
+    const hints = LLM_PROVIDER_HINTS[providerSelect.value] || LLM_PROVIDER_HINTS.anthropic;
+    const model = config.querySelector("#llm-model");
+    const baseUrl = config.querySelector("#llm-base-url");
+    const apiKey = config.querySelector("#llm-api-key");
+    if (model) model.placeholder = hints.model;
+    if (baseUrl) baseUrl.placeholder = hints.baseUrl;
+    if (apiKey && !AGENT_SEARCH.llm?.config?.has_api_key) apiKey.placeholder = hints.apiKey;
+  };
   const saveLlm = config.querySelector("#save-llm-config");
   if (saveLlm) saveLlm.onclick = () => saveLlmConfig(config, {});
   const clearKey = config.querySelector("#clear-llm-key");
@@ -6269,8 +6284,8 @@ function renderLlmStatusLine() {
   const status = AGENT_SEARCH.llm?.status;
   if (!status) return "";
   return status.available
-    ? `<small class="agent-search-llm-status ok">AI 连接可用 · ${status.transport} · ${status.detail}</small>`
-    : `<small class="agent-search-llm-status warn">AI 连接不可用：${status.detail}</small>`;
+    ? `<small class="agent-search-llm-status ok">AI 连接可用 · ${esc(status.transport)} · ${esc(status.detail)}</small>`
+    : `<small class="agent-search-llm-status warn">AI 连接不可用：${esc(status.detail)}</small>`;
 }
 
 async function saveLlmConfig(configHost, extra) {
@@ -6336,6 +6351,10 @@ function applyCandidateToTraining(item, report) {
 
 async function startAgentSearch() {
   const selection = agentSearchSelection();
+  if (AGENT_SEARCH.launching) return;  // double-click guard: busy derives from job status, which only exists after the POST
+  AGENT_SEARCH.launching = true;
+  const startButton = $("start-agent-search");
+  if (startButton) startButton.disabled = true;
   try {
     const windowTargets = (selection.windowTargets || "")
       .split(",")
@@ -6364,20 +6383,28 @@ async function startAgentSearch() {
       };
     const job = await postJson("/api/search-jobs", payload);
     AGENT_SEARCH.job = job;
+    AGENT_SEARCH.launching = false;
     pollAgentSearchJob(job.id);
     renderAgentSearchPanel();
   } catch (error) {
+    AGENT_SEARCH.launching = false;
+    renderAgentSearchPanel();
     const state = $("agent-search-state");
     if (state) { state.textContent = `搜索启动失败：${error.message}`; state.className = "job-state fail"; }
   }
 }
 
+const SEARCH_POLL_MAX_FAILURES = 10;
 function pollAgentSearchJob(jobId) {
+  if (AGENT_SEARCH.polling) return;
   AGENT_SEARCH.polling = true;
+  let failures = 0;
   const tick = async () => {
+    let lastError = "";
     try {
       const resp = await fetch(`${API_BASE}/api/search-jobs/${encodeURIComponent(jobId)}`);
       if (resp.ok) {
+        failures = 0;
         const job = await resp.json();
         AGENT_SEARCH.job = job;
         if (["succeeded", "failed"].includes(job.status)) {
@@ -6386,10 +6413,37 @@ function pollAgentSearchJob(jobId) {
           if (activeMode === "search") renderAgentSearchPanel();
           return;
         }
+      } else {
+        failures += 1;
+        const body = await resp.json().catch(() => ({}));
+        lastError = body.error || `HTTP ${resp.status}`;
       }
-    } catch { /* transient — keep polling */ }
-    if (activeMode === "search") renderAgentSearchPanel();
-    setTimeout(tick, 2000);
+    } catch (error) {
+      failures += 1;
+      lastError = String(error?.message || error);
+    }
+    if (failures >= SEARCH_POLL_MAX_FAILURES) {
+      // A permanent failure (e.g. a report the server cannot serialize)
+      // used to spin here forever behind "正在准备…" with the start button locked.
+      AGENT_SEARCH.polling = false;
+      AGENT_SEARCH.job = { ...(AGENT_SEARCH.job || { id: jobId }), status: "failed", error: `无法读取搜索任务状态：${lastError}` };
+      if (activeMode === "search") renderAgentSearchPanel();
+      return;
+    }
+    if (activeMode === "search") {
+      // Ticks refresh only the live regions: rebuilding the whole form every
+      // 2 s wiped the AI settings a user was typing into.
+      renderAgentSearchResults();
+      renderAgentSearchHistory();
+      const state = $("agent-search-state");
+      if (state && AGENT_SEARCH.job) {
+        state.textContent = lastError
+          ? `搜索进行中 · ${AGENT_SEARCH.job.id} · 状态读取失败（${lastError}，重试 ${failures}/${SEARCH_POLL_MAX_FAILURES}）`
+          : `搜索进行中 · ${AGENT_SEARCH.job.id}`;
+        state.className = "job-state running";
+      }
+    }
+    setTimeout(tick, Math.min(2000 * (failures + 1), 15000));
   };
   setTimeout(tick, 1200);
 }
@@ -6399,47 +6453,47 @@ function renderAgentSearchResults() {
   if (!host) return;
   const job = AGENT_SEARCH.job;
   if (!job) { host.innerHTML = ""; return; }
-  const progress = (job.progress || []).slice(-8).map((line) => `<div>${line}</div>`).join("");
+  const progress = (job.progress || []).slice(-8).map((line) => `<div>${esc(line)}</div>`).join("");
   if (["queued", "running"].includes(job.status)) {
     host.innerHTML = `<h3>搜索进度</h3><div class="agent-search-log">${progress || "正在准备…"}</div>`;
     return;
   }
   if (job.status === "failed") {
-    host.innerHTML = `<h3>搜索失败</h3><div class="agent-search-log">${job.error || "未知错误"}</div>`;
+    host.innerHTML = `<h3>搜索失败</h3><div class="agent-search-log">${esc(job.error || "未知错误")}</div>`;
     return;
   }
   const report = job.report || {};
   const rankingRows = (report.ranking || []).map((item, index) => `
-    <tr><td>${index + 1}</td><td>${item.candidate}</td>
-      <td>${Number(item.mae_worst).toFixed(4)}</td><td>${Number(item.mae_mean).toFixed(4)}</td>
+    <tr><td>${index + 1}</td><td>${esc(item.candidate)}${item.failed_folds ? ` <small class="agent-search-fold-warning">（${esc(item.failed_folds)} 个折失败）</small>` : ""}</td>
+      <td>${fixedOrDash(item.mae_worst)}</td><td>${fixedOrDash(item.mae_mean)}</td>
       <td><button type="button" class="secondary-action" data-apply-candidate="${index}" ${item.window_target != null ? 'title="窗口目标为研究维度，训练配置仅应用算法与特征"' : ""}>应用到训练</button></td></tr>`).join("");
   const outerRows = (report.outer_claims || []).map((item) => `
-    <tr><td>${item.candidate}</td><td>${item.outer_dataset}</td><td>${Number(item.outer_mae).toFixed(4)}</td></tr>`).join("");
+    <tr><td>${esc(item.candidate)}</td><td>${esc(item.outer_dataset)}</td><td>${fixedOrDash(item.outer_mae)}</td></tr>`).join("");
   const excluded = (report.excluded || []).map((item) => `
-    <li><b>${item.candidate}</b> — ${(item.reasons || []).join("；") || "被门禁拒绝"}</li>`).join("");
+    <li><b>${esc(item.candidate)}</b> — ${esc((item.reasons || []).join("；") || "被门禁拒绝")}</li>`).join("");
   const policyRounds = (report.policy_log || []).filter((entry) => entry.reasoning || entry.error);
   const policyBlock = policyRounds.length
-    ? `<h3>Agent 推理轮次（${report.policy || ""}）</h3><ol class="agent-search-policy-log">${policyRounds.map((entry) => `
-        <li><b>第 ${Number(entry.round) + 1} 轮</b> ${entry.error ? `策略错误：${entry.error}` : entry.reasoning}
-          ${entry.proposed?.length ? `<br/><small>提案：${entry.proposed.join("、")}</small>` : ""}</li>`).join("")}</ol>`
+    ? `<h3>Agent 推理轮次（${esc(report.policy || "")}）</h3><ol class="agent-search-policy-log">${policyRounds.map((entry) => `
+        <li><b>第 ${Number(entry.round) + 1} 轮</b> ${entry.error ? `策略错误：${esc(entry.error)}` : esc(entry.reasoning)}
+          ${entry.proposed?.length ? `<br/><small>提案：${esc(entry.proposed.join("、"))}</small>` : ""}</li>`).join("")}</ol>`
     : "";
   if (report.mode === "adaptation") {
     const adaptationRows = (report.ranking || []).map((item, index) => `
-      <tr><td>${index + 1}</td><td>${item.model}</td><td>${ADAPTATION_OPERATOR_LABELS[item.operator] || item.operator}</td>
-        <td>${Number(item.target_mae).toFixed(4)}</td><td>${Number(item.target_bias).toFixed(4)}</td>
-        <td>${item.picp == null ? "—" : Number(item.picp).toFixed(3)}</td>
-        <td>${item.provenance?.channel || ""}</td>
+      <tr><td>${index + 1}</td><td>${esc(item.model)}</td><td>${esc(ADAPTATION_OPERATOR_LABELS[item.operator] || item.operator)}</td>
+        <td>${fixedOrDash(item.target_mae)}</td><td>${fixedOrDash(item.target_bias)}</td>
+        <td>${fixedOrDash(item.picp, 3)}</td>
+        <td>${esc(item.provenance?.channel || "")}</td>
         <td><button type="button" class="secondary-action" data-apply-adaptation="${index}">应用到推理</button></td></tr>`).join("");
     const adaptationExcluded = (report.excluded || []).map((item) => `
-      <li><b>${item.candidate}</b> — ${(item.reasons || []).join("；")}</li>`).join("");
+      <li><b>${esc(item.candidate)}</b> — ${esc((item.reasons || []).join("；"))}</li>`).join("");
     host.innerHTML = `
       ${policyBlock}
-      <h3>适配排名（目标数据集 ${report.target_dataset || ""} · 冻结模型 × 适配算子）</h3>
+      <h3>适配排名（目标数据集 ${esc(report.target_dataset || "")} · 冻结模型 × 适配算子）</h3>
       <div class="dataset-catalog-table-wrap"><table class="dataset-catalog-table">
         <thead><tr><th>#</th><th>模型</th><th>适配算子</th><th>目标 MAE</th><th>偏差</th><th>PICP@90</th><th>信息通道</th><th>动作</th></tr></thead>
         <tbody>${adaptationRows || '<tr><td colspan="8">无可评测候选</td></tr>'}</tbody></table></div>
       ${adaptationExcluded ? `<h3>被排除的候选</h3><ul class="agent-search-excluded">${adaptationExcluded}</ul>` : ""}
-      <p class="dataset-catalog-footnote">完整性：模型冻结不变；标定预算 ${report.calibration_budget} 个样本（${CALIBRATION_SPLIT_LABELS[report.calibration_split] || "最早期 K 个循环"}）已从评测集剔除（各算子共用同一评测子集）；每个算子的信息通道全程申报。</p>`;
+      <p class="dataset-catalog-footnote">完整性：模型冻结不变；标定预算 ${esc(report.calibration_budget)} 个样本（${esc(CALIBRATION_SPLIT_LABELS[report.calibration_split] || "最早期 K 个循环")}）已从评测集剔除（各算子共用同一评测子集）；每个算子的信息通道全程申报。</p>`;
     host.querySelectorAll("[data-apply-adaptation]").forEach((button) => {
       button.onclick = () => {
         const item = (report.ranking || [])[Number(button.dataset.applyAdaptation)];
@@ -6463,16 +6517,16 @@ function renderAgentSearchResults() {
   }
   host.innerHTML = `
     ${policyBlock}
-    <h3>内环排名（最差数据集 MAE · ${(report.inner_datasets || []).join(" + ")}）</h3>
+    <h3>内环排名（最差数据集 MAE · ${esc((report.inner_datasets || []).join(" + "))}）</h3>
     <div class="dataset-catalog-table-wrap"><table class="dataset-catalog-table">
       <thead><tr><th>#</th><th>候选组合</th><th>最差 MAE</th><th>平均 MAE</th><th>动作</th></tr></thead>
       <tbody>${rankingRows || '<tr><td colspan="5">无通过门禁的候选</td></tr>'}</tbody></table></div>
-    <h3>外环声明（单次 LODO · 持出 ${report.outer_dataset || ""}）</h3>
+    <h3>外环声明（单次 LODO · 持出 ${esc(report.outer_dataset || "")}）</h3>
     <div class="dataset-catalog-table-wrap"><table class="dataset-catalog-table">
       <thead><tr><th>候选组合</th><th>外环数据集</th><th>外环 MAE</th></tr></thead>
       <tbody>${outerRows || '<tr><td colspan="3">无外环声明</td></tr>'}</tbody></table></div>
     ${excluded ? `<h3>门禁拦截</h3><ul class="agent-search-excluded">${excluded}</ul>` : ""}
-    <p class="dataset-catalog-footnote">完整性：外环数据集在搜索期间不可见（${report.integrity ? "已由后端记录" : "—"}）；约束来源：${report.integrity?.constraint_oracle || "训练预检"}。</p>`;
+    <p class="dataset-catalog-footnote">完整性：外环数据集在搜索期间不可见（${report.integrity ? "已由后端记录" : "—"}）；约束来源：${esc(report.integrity?.constraint_oracle || "训练预检")}。</p>`;
   host.querySelectorAll("[data-apply-candidate]").forEach((button) => {
     button.onclick = () => {
       const item = (report.ranking || [])[Number(button.dataset.applyCandidate)];
@@ -6487,11 +6541,14 @@ function renderAgentSearchHistory() {
   const rows = (AGENT_SEARCH.history || []).slice(0, 8).map((job) => {
     const summary = job.result_summary || {};
     const active = AGENT_SEARCH.job?.id === job.id;
-    return `<tr data-search-job="${job.id}" class="${active ? "active" : ""}">
-      <td>${job.id}</td><td>${job.status}</td>
-      <td>${(job.request?.inner_datasets || []).join(",")} → ${job.request?.outer_dataset || ""}</td>
-      <td>${summary.best_candidate || "—"}</td>
-      <td>${summary.best_outer_mae != null ? Number(summary.best_outer_mae).toFixed(4) : "—"}</td></tr>`;
+    const scope = job.request?.mode === "adaptation"
+      ? `${esc(job.request?.target_dataset || "")} · 适配`
+      : `${esc((job.request?.inner_datasets || []).join(","))} → ${esc(job.request?.outer_dataset || "")}`;
+    return `<tr data-search-job="${esc(job.id)}" class="${active ? "active" : ""}">
+      <td>${esc(job.id)}</td><td>${esc(job.status)}</td>
+      <td>${scope}</td>
+      <td>${esc(summary.best_candidate || "—")}</td>
+      <td>${fixedOrDash(summary.best_outer_mae)}</td></tr>`;
   }).join("");
   host.innerHTML = rows
     ? `<h3>历史搜索</h3><div class="dataset-catalog-table-wrap"><table class="dataset-catalog-table">
@@ -6561,10 +6618,17 @@ async function startEvaluation() {
       case_id: ACTIVE_EVALUATION_CASE?.id || "",
       expected_context_binding_id: evaluationContextBindingId(),
     });
-    await syncPipelineCaseWithJob(CURRENT_JOB, "training");
+    // The job is running on the backend from this point: start polling
+    // before anything else can throw, or the UI reports "启动失败" for a
+    // job that is actually executing.
+    pollJob(CURRENT_JOB.id);
+    try {
+      await syncPipelineCaseWithJob(CURRENT_JOB, "training");
+    } catch (syncError) {
+      PIPELINE_STATUS = { tone: "warn", message: `任务已提交，但案例同步失败：${syncError.message}` };
+    }
     renderJobState();
     renderRunPlan();
-    pollJob(CURRENT_JOB.id);
   } catch (err) {
     setJobMessage(`启动失败：${err.message}`);
   }
@@ -6606,43 +6670,13 @@ async function startInferenceEvaluationWithPolicy() {
       expected_context_binding_id: evaluationContextBindingId(),
       profile_name: ACTIVE_EVALUATION_CASE?.profile_name || activeProfileOption?.name || activeProfile || "root",
     })) };
-    await syncPipelineCaseWithJob(CURRENT_JOB, "inference");
-    renderInferencePanel(currentInferenceDatasetOptions());
     pollInferenceJob(CURRENT_JOB.id);
-  } catch (err) {
-    renderInferencePanel(currentInferenceDatasetOptions());
-    setInferenceMessage(`推理任务启动失败：${err.message}`, "fail");
-  }
-}
-
-async function startInferenceEvaluation() {
-  const payload = buildInferencePayload({
-    models: [...inferenceSelection.models],
-    datasets: [...inferenceSelection.datasets],
-  });
-  if (!payload.models.length || !payload.datasets.length) {
-    setInferenceMessage("请至少选择一个模型和一个数据集。", "warn");
-    return;
-  }
-  try {
-    const start = $("start-inference");
-    if (start) {
-      start.textContent = "正在提交…";
-      start.disabled = true;
-      start.setAttribute("aria-busy", "true");
+    try {
+      await syncPipelineCaseWithJob(CURRENT_JOB, "inference");
+    } catch (syncError) {
+      PIPELINE_STATUS = { tone: "warn", message: `推理任务已提交，但案例同步失败：${syncError.message}` };
     }
-    setInferenceMessage("正在启动推理任务...", "active");
-    await ensureWritablePipelineCase();
-    CURRENT_JOB = { kind: "inference", ...(await postJson("/api/inference-jobs", {
-      ...payload,
-      ...(inferenceAdaptation ? { adaptation: { operator: inferenceAdaptation.operator, calibration_budget: inferenceAdaptation.calibration_budget, ...(inferenceAdaptation.calibration_split ? { calibration_split: inferenceAdaptation.calibration_split } : {}), ...(inferenceAdaptation.interval ? { interval: inferenceAdaptation.interval } : {}) } } : {}),
-      case_id: ACTIVE_EVALUATION_CASE?.id || "",
-      expected_context_binding_id: evaluationContextBindingId(),
-      profile_name: ACTIVE_EVALUATION_CASE?.profile_name || activeProfileOption?.name || activeProfile || "root",
-    })) };
-    await syncPipelineCaseWithJob(CURRENT_JOB, "inference");
     renderInferencePanel(currentInferenceDatasetOptions());
-    pollInferenceJob(CURRENT_JOB.id);
   } catch (err) {
     renderInferencePanel(currentInferenceDatasetOptions());
     setInferenceMessage(`推理任务启动失败：${err.message}`, "fail");
@@ -6653,18 +6687,39 @@ function selectedValues(id) {
   return [...($(id)?.querySelectorAll("input[type='checkbox']:checked") || [])].map((input) => input.value);
 }
 
+// One transient failure (backend restart, a 502 from a proxy) used to end the
+// poll loop for good and leave the start button stuck on "运行中…" until a
+// manual reload.  Retry with capped backoff; only a 404 (job gone) is final.
+const POLL_BACKOFF_MAX_MS = 15000;
+async function fetchJobRecordWithRetry(url, failures) {
+  let response;
+  try {
+    response = await fetch(url);
+  } catch (error) {
+    return { retry: true, failures: failures + 1, error };
+  }
+  if (response.status === 404) throw new Error("任务记录不存在（HTTP 404）");
+  if (!response.ok) return { retry: true, failures: failures + 1, error: new Error(`HTTP ${response.status}`) };
+  return { retry: false, failures: 0, record: await response.json() };
+}
+
 async function pollJob(jobId) {
   const pollKey = `training:${jobId}`;
   if (ACTIVE_PIPELINE_POLLS.has(pollKey)) return;
   const ownerCaseId = ACTIVE_EVALUATION_CASE?.id || "";
   ACTIVE_PIPELINE_POLLS.add(pollKey);
+  let failures = 0;
   try {
     while (true) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * 2 ** failures, POLL_BACKOFF_MAX_MS)));
       if (ownerCaseId && ACTIVE_EVALUATION_CASE?.id !== ownerCaseId) return;
-      const response = await fetch(`${API_BASE}/api/jobs/${encodeURIComponent(jobId)}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      CURRENT_JOB = await response.json();
+      const attempt = await fetchJobRecordWithRetry(`${API_BASE}/api/jobs/${encodeURIComponent(jobId)}`, failures);
+      failures = attempt.failures;
+      if (attempt.retry) {
+        setJobMessage(`后端暂时不可达（${attempt.error.message}），第 ${failures} 次重试中…`);
+        continue;
+      }
+      CURRENT_JOB = attempt.record;
       renderWorkbench();
       if (CURRENT_JOB.status === "succeeded") {
         await refreshPipelineModelCatalogForJobs({ force: true });
@@ -6699,13 +6754,18 @@ async function pollInferenceJob(jobId) {
   if (ACTIVE_PIPELINE_POLLS.has(pollKey)) return;
   const ownerCaseId = ACTIVE_EVALUATION_CASE?.id || "";
   ACTIVE_PIPELINE_POLLS.add(pollKey);
+  let failures = 0;
   try {
     while (true) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * 2 ** failures, POLL_BACKOFF_MAX_MS)));
       if (ownerCaseId && ACTIVE_EVALUATION_CASE?.id !== ownerCaseId) return;
-      const response = await fetch(`${API_BASE}/api/inference-jobs/${encodeURIComponent(jobId)}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      CURRENT_JOB = { kind: "inference", ...(await response.json()) };
+      const attempt = await fetchJobRecordWithRetry(`${API_BASE}/api/inference-jobs/${encodeURIComponent(jobId)}`, failures);
+      failures = attempt.failures;
+      if (attempt.retry) {
+        setInferenceMessage(`后端暂时不可达（${attempt.error.message}），第 ${failures} 次重试中…`, "warn");
+        continue;
+      }
+      CURRENT_JOB = { kind: "inference", ...attempt.record };
       renderInferencePanel(currentInferenceDatasetOptions());
       if (CURRENT_JOB.status === "succeeded") {
         const completedJob = CURRENT_JOB;
@@ -7005,7 +7065,7 @@ function renderFoot() {
 
 document.addEventListener("click", handleBatteryCurveDocumentClick);
 document.addEventListener("click", handleSohDashboardDrilldownClick);
-load().catch((error) => {
+function reportWorkbenchError(error) {
   const detail = String(error?.message || error || "未知错误");
   WORKBENCH_ERROR = `初始化失败：${detail.slice(0, 320)}${detail.length > 320 ? "…" : ""}`;
   const state = $("api-state");
@@ -7014,4 +7074,15 @@ load().catch((error) => {
     state.className = "api-state fail";
   }
   console.error("SOH workbench initialization failed", error);
+}
+
+window.addEventListener("unhandledrejection", (event) => {
+  // Surface silent async failures instead of leaving a panel half-updated.
+  const state = $("api-state");
+  if (!state || state.className.includes("fail")) return;
+  const detail = String(event?.reason?.message || event?.reason || "未知错误");
+  state.textContent = `后台操作失败：${detail.slice(0, 200)}`;
+  state.className = "api-state fail";
 });
+
+load().catch(reportWorkbenchError);

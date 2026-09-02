@@ -480,10 +480,20 @@ class ReviewWorkflowStore:
                     retest["created_by"], now, now,
                 ),
             )
-            connection.execute(
-                "UPDATE review_issues SET status = 'in_retest', version = version + 1, updated_at = ? WHERE id = ?",
-                (now, issue["id"]),
-            )
+            changed = connection.execute(
+                """
+                UPDATE review_issues SET status = 'in_retest', version = version + 1, updated_at = ?
+                WHERE id = ? AND version = ?
+                """,
+                (now, issue["id"], issue["version"]),
+            ).rowcount
+            if changed != 1:
+                # The active-retest check ran outside the lock; a concurrent
+                # request already moved the issue on.  Version-guarding the
+                # issue update (and rolling back the INSERT) keeps at most
+                # one active retest per issue.
+                connection.rollback()
+                raise ReviewWorkflowConflictError("an active retest already exists for this issue")
             self._event(
                 connection, case_id, "retest", retest_id, "retest.requested",
                 retest["created_by"], retest,
@@ -875,7 +885,7 @@ class ReviewWorkflowStore:
         now = _now()
         with self._lock, self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            connection.execute(
+            cursor = connection.execute(
                 """
                 UPDATE evidence_packs
                 SET state = 'signed', signer = ?, signature_reason = ?, signed_at = ?
@@ -883,6 +893,13 @@ class ReviewWorkflowStore:
                 """,
                 (signer, reason, now, pack_id),
             )
+            if cursor.rowcount != 1:
+                # The draft check above ran outside the lock: a concurrent
+                # signer (double-click, second reviewer) already won.  Without
+                # this guard a second "signed" event with a different signer
+                # would be appended to an already-signed pack.
+                connection.rollback()
+                raise ReviewWorkflowConflictError("EvidencePack is immutable after signing")
             updated = {
                 **pack,
                 "state": "signed",

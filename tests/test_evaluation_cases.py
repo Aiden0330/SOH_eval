@@ -684,3 +684,71 @@ def test_queued_training_generation_does_not_retain_old_candidate_identity(tmp_p
     assert queued["candidates"] == []
     assert queued["context_binding"]["candidate_id"] == ""
     assert queued["context_binding"]["model_artifact_id"] == ""
+
+
+def test_activating_another_combination_revokes_a_standing_approval(tmp_path):
+    """review.state == "approved" is what signing_readiness checks; the
+    approval must not survive a switch to different evidence."""
+
+    def deriver(case, payload):
+        selection = normalize_evidence_selection(
+            payload.get("selection") or {}, current=case["evidence_selection"]
+        )
+        coverage = normalize_evidence_coverage({
+            "items": [{"kind": "prediction_record", "required": True, "available": True}],
+        })
+        verdict = derive_verdict(
+            {"mae": 0.01, "picp": 0.95, "monotonicity": 0.0, "value_range": 0.0},
+            payload.get("criterion_set_id") or "strict",
+            payload.get("criterion_thresholds"),
+        )
+        return {"selection": selection, "coverage": coverage, "verdict": verdict}
+
+    store = EvaluationCaseStore(tmp_path / "cases", evidence_deriver=deriver)
+    case = store.create(_case_payload())
+    pinned = store.update_evidence(case["id"], {
+        "expected_version": case["version"],
+        "selection": {"candidate_id": "legacy:ridge:voltage", "dataset": "xjtu"},
+    })
+    reviewing = store.update_review(pinned["id"], {
+        "expected_version": pinned["version"], "state": "in_review", "reviewer": "qa",
+    })
+    approved = store.update_review(reviewing["id"], {
+        "expected_version": reviewing["version"], "state": "approved",
+        "reviewer": "qa", "note": "looks good",
+    })
+    assert approved["review"]["state"] == "approved"
+
+    other = {
+        "saved_combination_id": "combo:other",
+        "source_stage": "inference",
+        "validation_kind": "cross_dataset",
+        "label": "gbdt × ic_dva · nasa",
+        "candidate": {
+            "candidate_id": "artifact:model-other",
+            "model": "gbdt",
+            "featureset": "ic_dva",
+            "role": "candidate",
+            "model_artifact_id": "model@sha256:other",
+            "run_id": "train-01",
+        },
+        "training_job_id": "train-01",
+        "inference_job_id": "infer-02",
+        "run_id": "infer-02",
+        "training_datasets": ["xjtu"],
+        "target_dataset": "nasa",
+        "dataset_snapshot_id": "dataset@sha256:nasa",
+        "protocol": "loco",
+        "criterion_set_version": "strict",
+        "metrics": {"mae": 0.02, "picp": 0.95},
+        "verdict_result": "pass",
+    }
+    curated = store.update_saved_combinations(approved["id"], {
+        "expected_version": approved["version"], "action": "save", "items": [other],
+    })
+    activated = store.activate_saved_combination(curated["id"], {
+        "expected_version": curated["version"], "saved_combination_id": "combo:other",
+    })
+    assert activated["evidence_selection"]["candidate_id"] == "artifact:model-other"
+    assert activated["review"]["state"] == "in_review"
+    assert activated["review"]["reviewer"] == "qa"

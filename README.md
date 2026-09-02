@@ -10,21 +10,41 @@ algorithms (sub-project B) and compares different teams' existing algorithms.
 
 ## Quick start
 
+Python 3.11+ (3.12 recommended). Commands below use `python` from an activated virtualenv;
+on macOS/Linux that is `.venv/bin/python`, on Windows `.venv\Scripts\python.exe`.
+
 ```bash
 python -m venv .venv
-.venv/Scripts/python.exe -m pip install -e ".[dev]"
-.venv/Scripts/python.exe -m pytest -q
+python -m pip install -e ".[dev]"        # add ",dl" (or "[dev,dl]") for the torch estimators
+python -m pytest -q                      # backend suite (~400 tests, runs against both API impls)
+node --test frontend/app/                # frontend suites (Node 20, no package.json / build step)
 ```
 
 ## Run a benchmark
 
 ```bash
-.venv/Scripts/python.exe -m sohbench run --data-dir D:\SOH_eval\data \
+python -m sohbench run --data-dir ./data \
   --datasets nasa calce_cs2 hust oxford --estimators ridge --protocols loco lodo lcho
 ```
 
-Outputs land in `runs/<timestamp>/` (`results.parquet`, `leaderboard.json`, `qc_report.json`,
-`run_config.json`).
+`--datasets all` discovers every `data/processed/*_features.pkl` that satisfies the
+`dataset / cell_id / cycle_index / soh` contract. Outputs land in `runs/<timestamp>/`
+(`results.parquet`, `leaderboard.json`, `qc_report.json`, `run_config.json`).
+
+## Serve the workbench
+
+The API is a FastAPI app (`sohbench.api`, wire-compatible with the legacy stdlib
+`sohbench.api_server`); the frontend is static and only needs an HTTP server:
+
+```bash
+python -m sohbench.api --port 8001 --enable-legacy-execution   # omit the flag for read-only mode
+python -m http.server 8765 --directory frontend/app             # then open http://localhost:8765
+```
+
+Execution endpoints (training / inference / search jobs, plugin uploads, AI settings) return 403
+until `--enable-legacy-execution` is passed; the UI shows 已连接 · 仅浏览 in that state. POSTs also
+need the `X-SOHBench-Token` obtained from `GET /api/session`. `python -m sohbench.api.typegen`
+regenerates `frontend/app/types/{api.d.ts,openapi.json}`; `tests/test_api_typegen.py` fails on drift.
 
 ## Phase 3.0 release gate
 
@@ -32,11 +52,11 @@ Run the measured train → inference → evidence → retest → reconciliation 
 then verify reload stability, audit digests, incompatible-scope blocking, and missing-evidence
 blocking:
 
-```powershell
-$env:PYTHONPATH='D:\SOH_eval\src'
-$env:PYTHONUTF8='1'
-.\.venv\Scripts\python.exe scripts\run_phase30_release_gate.py
+```bash
+PYTHONPATH=src PYTHONUTF8=1 python scripts/run_phase30_release_gate.py
 ```
+
+(PowerShell: `$env:PYTHONPATH='src'; $env:PYTHONUTF8='1'; python scripts\run_phase30_release_gate.py`.)
 
 The command exits with `0` only when every positive and negative gate matches its expected
 outcome. Reports are written to `work/trusted_plugins/phase30_release_gate_report.{json,md}`.
@@ -52,10 +72,8 @@ layout behavior, and acceptance record.
 
 Run the deterministic checkout, lifecycle, hot-refresh, API, and frontend regression gate:
 
-```powershell
-$env:PYTHONPATH='D:\SOH_eval\src'
-$env:PYTHONUTF8='1'
-.\.venv\Scripts\python.exe scripts\run_phase311_production_stability.py
+```bash
+PYTHONPATH=src PYTHONUTF8=1 python scripts/run_phase311_production_stability.py
 ```
 
 The command is also wired into `.github/workflows/phase311-production-stability.yml` and writes
@@ -68,7 +86,7 @@ hot-refresh behavior, and the verified acceptance record.
 
 ## Phase 3.9 local data connectivity
 
-The default runtime data root is now `D:\SOH_eval\data`. Strategy B migrates the supervised
+The default runtime data root is the repository's `data/` directory (`--data-dir`). Strategy B migrates the supervised
 datasets and curve assets already connected to training, inference, and evidence review while
 leaving unrelated large upstream archives untouched. The inventory, three-page lineage,
 trajectory/evidence indexes, and current real-case timings are documented in

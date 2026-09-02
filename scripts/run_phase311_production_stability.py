@@ -20,11 +20,11 @@ def main() -> int:
     )
     parser.add_argument(
         "--output-json",
-        default=r"work\trusted_plugins\phase311_production_stability_report.json",
+        default="work/trusted_plugins/phase311_production_stability_report.json",
     )
     parser.add_argument(
         "--output-md",
-        default=r"work\trusted_plugins\phase311_production_stability_report.md",
+        default="work/trusted_plugins/phase311_production_stability_report.md",
     )
     args = parser.parse_args()
 

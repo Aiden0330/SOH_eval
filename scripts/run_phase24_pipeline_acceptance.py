@@ -27,7 +27,7 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
         "--output",
-        default=r"work\trusted_plugins\phase24_pipeline_summary.json",
+        default="work/trusted_plugins/phase24_pipeline_summary.json",
     )
     args = parser.parse_args()
 

@@ -139,3 +139,18 @@ def test_weighted_conformal_density_ratio_subsamples_large_matrices(monkeypatch)
     w._weighted_quantile(X_test, alpha=0.1)
 
     assert calls == [(24, 1)]
+
+
+def test_weighted_wrapper_reports_fallback_and_imputes_nan():
+    X, y = _xy(60)
+    w = WeightedConformalWrapper(ConstResidEstimator(), alpha=0.1, calib_frac=0.3)
+    w.fit(X, y, meta=None)
+    X_test = X.copy()
+    X_test.loc[X_test.index[:5], "f"] = np.nan  # would have crashed the classifier -> silent fallback
+    lo, hi = w.predict_interval(X_test, meta=None)
+    assert w.last_fallback is False
+    assert np.all(hi >= lo)
+    small = WeightedConformalWrapper(ConstResidEstimator(), alpha=0.1, calib_frac=0.3)
+    small.fit(*_xy(10), meta=None)  # 3 calibration rows < 5 -> plain quantile
+    small.predict_interval(X, meta=None)
+    assert small.last_fallback is True

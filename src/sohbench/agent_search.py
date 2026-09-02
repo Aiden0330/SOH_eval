@@ -120,6 +120,44 @@ def _mae_from_results(results: pd.DataFrame) -> tuple[float, int, int]:
     return mae, int(len(rows)), failed
 
 
+def json_safe(value):
+    """Recursively replace non-finite floats with None and unwrap numpy scalars.
+
+    Search reports are served by the API with ``allow_nan=False``; a single
+    NaN ``mae_worst`` (a dataset whose folds all failed) made the job record
+    a permanent 500 and the UI poll loop spin forever."""
+    if isinstance(value, dict):
+        return {str(key): json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe(item) for item in value]
+    if isinstance(value, (bool, str)) or value is None:
+        return value
+    if isinstance(value, (np.floating, float)):
+        number = float(value)
+        return number if np.isfinite(number) else None
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.bool_):
+        return bool(value)
+    return value
+
+
+def inner_ranking_key(item: dict) -> tuple:
+    """Sort key for inner-search scores: finite worst-case MAE first, then
+    candidates with no failed folds ahead of any with failures, then MAE.
+
+    A candidate whose estimator crashed on some folds is scored on the
+    surviving folds only, so any failure sorts it behind every clean
+    candidate — a crash-prone method must not reach the outer claim on the
+    strength of the folds it happened to survive."""
+    worst = float(item.get("mae_worst", float("nan")))
+    return (
+        not np.isfinite(worst),
+        int(item.get("failed_folds") or 0) > 0,
+        worst,
+    )
+
+
 class AgentSearch:
     def __init__(
         self,
@@ -261,6 +299,7 @@ class AgentSearch:
             "window_target": candidate.window_target,
             "window_bounds": self.window_provenance.get(candidate.key(), {}),
             "per_dataset": per_dataset,
+            "failed_folds": int(sum(item["failed_folds"] for item in per_dataset.values())),
             "mae_mean": float(np.mean(finite)) if finite else float("nan"),
             "mae_worst": float(np.max(finite)) if len(finite) == len(maes) and finite else float("nan"),
         }
@@ -317,13 +356,7 @@ class AgentSearch:
                 )
             history.rounds.append(entry)
 
-        ranking = sorted(
-            history.scored().values(),
-            key=lambda item: (
-                not np.isfinite(item["mae_worst"]),
-                item["mae_worst"],
-            ),
-        )
+        ranking = sorted(history.scored().values(), key=inner_ranking_key)
         finalists = [
             Candidate(item["estimator"], item["featureset"], item.get("window_target"))
             for item in ranking[: self.top_k]
@@ -339,7 +372,7 @@ class AgentSearch:
                      "outer_mae": float("nan"), "error": str(exc)}
                 )
 
-        return {
+        return json_safe({
             "schema_version": "1.0.0",
             "policy": type(policy).__name__,
             "policy_log": list(getattr(policy, "log_entries", []) or []),
@@ -357,7 +390,7 @@ class AgentSearch:
                 "constraint_oracle": "training_preflight (label-safety + window DOD + coverage)",
                 "selection_metric": "worst-case inner-dataset LOCO MAE",
             },
-        }
+        })
 
 
 @dataclass(frozen=True)
@@ -482,6 +515,7 @@ class AdaptationSearch:
         )
         predictions = loaded.predict(table, meta)
         truth = pd.to_numeric(table["soh"], errors="coerce").to_numpy(dtype=float)
+        loo_calibration_pred = None
 
         if "residual" in candidate.operator:
             columns = [c for c in binding.get("feature_columns") or [] if c in table.columns]
@@ -496,12 +530,28 @@ class AdaptationSearch:
                 truth[calibration_mask],
                 columns,
             )
+            if self.interval == "conformal":
+                from .adaptation import residual_loo_predictions
+
+                loo_calibration_pred = residual_loo_predictions(
+                    features[calibration_mask],
+                    predictions[calibration_mask],
+                    truth[calibration_mask],
+                    residual_model,
+                )
             predictions = apply_residual(features, predictions, residual_model)
             provenance["residual"] = residual_model
         elif "recalibration" in candidate.operator:
             recal = fit_recalibration(truth[calibration_mask], predictions[calibration_mask])
+            if self.interval == "conformal":
+                from .adaptation import recalibration_loo_predictions
+
+                loo_calibration_pred = recalibration_loo_predictions(
+                    truth[calibration_mask], predictions[calibration_mask], recal
+                )
             predictions = apply_recalibration(predictions, recal)
             provenance["recalibration"] = recal
+        before_monotone = predictions
         if "monotone" in candidate.operator:
             predictions, monotone_info = apply_monotone(table, predictions)
             provenance["monotone"] = monotone_info
@@ -515,9 +565,15 @@ class AdaptationSearch:
         if self.interval == "conformal":
             from .adaptation import fit_conformal_interval
 
-            conformal = fit_conformal_interval(
-                truth[calibration_mask], predictions[calibration_mask]
-            )
+            calibration_pred = predictions[calibration_mask]
+            residual_source = "in_sample"
+            if loo_calibration_pred is not None:
+                calibration_pred = loo_calibration_pred + (
+                    predictions[calibration_mask] - before_monotone[calibration_mask]
+                )
+                residual_source = "leave_one_out"
+            conformal = fit_conformal_interval(truth[calibration_mask], calibration_pred)
+            conformal["residual_source"] = residual_source
             q = conformal["quantile"]
             covered = np.abs(truth[finite] - predictions[finite]) <= q
             conformal_metrics = {
@@ -563,7 +619,7 @@ class AdaptationSearch:
             history.scored().values(),
             key=lambda item: (not np.isfinite(item["target_mae"]), item["target_mae"]),
         )
-        return {
+        return json_safe({
             "schema_version": "1.0.0",
             "mode": "adaptation",
             "policy": type(policy).__name__,
@@ -583,7 +639,7 @@ class AdaptationSearch:
                 "label_budget": self.calibration_budget,
                 "constraint_oracle": "trusted-inference label-safety gate (inside every predict)",
             },
-        }
+        })
 
 
 def main(argv=None) -> int:

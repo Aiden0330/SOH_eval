@@ -9,6 +9,9 @@ import pytest
 from sohbench.adaptation import (
     ADAPTATION_OPERATORS,
     OPERATOR_CHANNELS,
+    InferenceAdapter,
+    recalibration_loo_predictions,
+    residual_loo_predictions,
     apply_coral,
     apply_monotone,
     apply_recalibration,
@@ -303,3 +306,155 @@ def test_case_inference_pipeline_applies_adaptation_operator(tmp_path):
     flagged = [r for r in prediction_rows if r.get("calibration_sample")]
     assert len(flagged) == 8
     assert all(r["metric_contributions"]["mae_contribution"] is None for r in flagged)
+
+
+# --- review fixes 2026-09-02: slope guards, LOO conformal, shared holdout ---
+
+
+def test_recalibration_refuses_plateau_only_calibration():
+    rng = np.random.default_rng(5)
+    truth = 1.0 + rng.normal(0, 0.005, 32)  # fresh plateau: no degradation span
+    pred = 0.95 + rng.normal(0, 0.01, 32)
+    recal = fit_recalibration(truth, pred)
+    assert recal["fallback"] == "intercept_only"
+    assert recal["fallback_reason"] == "flat_calibration_truth"
+    assert recal["slope"] == 1.0
+    # A declining trajectory must still decline after the correction.
+    decline = np.linspace(0.95, 0.75, 20)
+    corrected = apply_recalibration(decline, recal)
+    assert corrected[0] > corrected[-1]
+
+
+def test_recalibration_refuses_uncorrelated_predictions():
+    rng = np.random.default_rng(9)
+    truth = np.linspace(1.0, 0.7, 40)
+    pred = 0.9 + rng.normal(0, 0.05, 40)  # spans a range, tracks nothing
+    recal = fit_recalibration(truth, pred)
+    assert recal["fallback"] == "intercept_only"
+    assert recal["fallback_reason"] in {"weak_correlation", "slope_out_of_bounds"}
+
+
+def test_recalibration_keeps_a_real_anti_correlated_fit():
+    truth = np.linspace(1.0, 0.7, 40)
+    pred = -truth + 2.0
+    recal = fit_recalibration(truth, pred)
+    assert "fallback" not in recal
+    assert recal["slope"] < 0 and abs(recal["correlation"]) > 0.99
+
+
+def test_recalibration_loo_matches_exact_refits():
+    rng = np.random.default_rng(7)
+    truth = np.linspace(1.0, 0.7, 24)
+    pred = truth * 1.2 + 0.05 + rng.normal(0, 0.01, 24)
+    recal = fit_recalibration(truth, pred)
+    loo = recalibration_loo_predictions(truth, pred, recal)
+    for i in range(24):
+        mask = np.ones(24, dtype=bool)
+        mask[i] = False
+        slope, intercept = np.polyfit(pred[mask], truth[mask], 1)
+        assert loo[i] == pytest.approx(pred[i] * slope + intercept, abs=1e-9)
+
+
+def test_conformal_on_loo_residuals_covers_after_a_residual_correction():
+    """In-sample residuals of a 16-feature ridge fitted on 32 rows are shrunken:
+    a band built on them under-covers badly; the leave-one-out band does not."""
+    in_sample, loo = [], []
+    for seed in range(8):
+        rng = np.random.default_rng(seed)
+        n, p, budget = 800, 16, 32
+        X = rng.normal(size=(n, p))
+        truth = 1.0 - 0.3 * (X[:, 0] - X[:, 0].min()) / np.ptp(X[:, 0])
+        pred = truth + 0.05 * X[:, 1] + 0.03 * X[:, 2] + rng.normal(0, 0.02, n)
+        cal = np.zeros(n, dtype=bool)
+        cal[rng.choice(n, budget, replace=False)] = True
+        cols = [f"f{i}" for i in range(p)]
+        model = fit_residual(X[cal], pred[cal], truth[cal], cols)
+        corrected = apply_residual(X, pred, model)
+        err = np.abs(truth[~cal] - corrected[~cal])
+        q_in = fit_conformal_interval(truth[cal], corrected[cal])["quantile"]
+        loo_pred = residual_loo_predictions(X[cal], pred[cal], truth[cal], model)
+        q_loo = fit_conformal_interval(truth[cal], loo_pred)["quantile"]
+        in_sample.append(float(np.mean(err <= q_in)))
+        loo.append(float(np.mean(err <= q_loo)))
+    assert np.mean(in_sample) < 0.7
+    assert 0.8 <= np.mean(loo) <= 0.97
+
+
+class _LoadedStub:
+    def feature_columns(self):
+        return ["f1"]
+
+
+def _target_table(n_cells=4, cycles=20):
+    rows = [
+        (f"c{cell}", k, 1.0 - 0.01 * k, float(k))
+        for cell in range(n_cells)
+        for k in range(cycles)
+    ]
+    return pd.DataFrame(rows, columns=["cell_id", "cycle_index", "soh", "f1"])
+
+
+def test_adapter_holds_out_the_calibration_subset_for_label_free_operators():
+    table = _target_table()
+    plain = InferenceAdapter(service=None, operator="none", calibration_budget=8)
+    labeled = InferenceAdapter(service=None, operator="recalibration", calibration_budget=8)
+    _t1, mask_plain, info_plain = plain.prepare(_LoadedStub(), {}, table)
+    _t2, mask_labeled, info_labeled = labeled.prepare(_LoadedStub(), {}, table)
+    assert int(mask_plain.sum()) == 8
+    assert np.array_equal(mask_plain, mask_labeled)  # identical evaluation subset
+    assert info_plain["calibration_samples"] == info_labeled["calibration_samples"] == 8
+    assert "evaluation_holdout" in info_plain
+    assert "evaluation_holdout" not in info_labeled
+
+
+def test_adapter_refuses_a_budget_that_leaves_no_evaluation_rows():
+    table = _target_table(n_cells=1, cycles=12)
+    adapter = InferenceAdapter(service=None, operator="recalibration", calibration_budget=12)
+    with pytest.raises(ValueError, match="evaluation rows"):
+        adapter.prepare(_LoadedStub(), {}, table)
+
+
+def test_adapter_conformal_band_uses_loo_residuals_of_the_labeled_fit():
+    rng = np.random.default_rng(3)
+    table = _target_table()
+    adapter = InferenceAdapter(
+        service=None,
+        operator="recalibration",
+        calibration_budget=16,
+        calibration_split="spread",
+        interval="conformal",
+    )
+    _t, mask, _info = adapter.prepare(_LoadedStub(), {}, table)
+    pred = table["soh"].to_numpy() * 1.1 + 0.02 + rng.normal(0, 0.01, len(table))
+    corrected, result = adapter.recalibrate(table, pred, mask)
+    assert result["conformal"]["residual_source"] == "leave_one_out"
+    lower, upper = adapter.recalibrate_interval(None, result)
+    assert np.all(upper - lower > 0)
+    assert np.allclose((upper + lower) / 2, corrected)
+
+
+def test_residual_correction_imputes_missing_feature_values():
+    rng = np.random.default_rng(21)
+    n = 40
+    features = rng.normal(size=(n, 3))
+    truth = np.linspace(1.0, 0.8, n)
+    pred = truth + 0.05 * features[:, 0] + rng.normal(0, 0.005, n)
+    features[::5, 1] = np.nan  # a partially missing wide column
+    model = fit_residual(features, pred, truth, ["a", "b", "c"])
+    assert model["samples"] == n  # rows with a NaN feature are kept, not dropped
+    assert len(model["impute"]) == 3
+    corrected = apply_residual(features, pred, model)
+    assert np.isfinite(corrected).all()
+    assert np.abs(corrected - truth).mean() < np.abs(pred - truth).mean()
+
+
+def test_wide_residual_columns_skip_all_nan_columns():
+    table = pd.DataFrame({
+        "cell_id": ["c"] * 4,
+        "cycle_index": [1, 2, 3, 4],
+        "soh": [1.0, 0.99, 0.98, 0.97],
+        "voltage_mean": [3.6, 3.59, 3.58, 3.57],
+        "q_win_ah": [np.nan] * 4,  # transform column the target cannot derive
+        "charge_capacity_max": [1.1, 1.09, 1.08, 1.07],  # banned
+    })
+    assert wide_residual_columns(table, ["voltage_mean"]) == ["voltage_mean", "cycle_index"]

@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const CACHE_VERSION = "phase59-conformal-interval-20260831a";
+const CACHE_VERSION = "phase61-openai-provider-20260902a";
 const html = readFileSync(join(here, "index.html"), "utf8");
 const app = readFileSync(join(here, "app.js"), "utf8");
 const css = readFileSync(join(here, "styles.css"), "utf8");
@@ -360,8 +360,9 @@ assert.match(app, /acceptanceKpiSummary/);
 assert.match(app, /acceptanceDetailSummary/);
 assert.match(app, /acceptancePresetOptions/);
 assert.match(app, /acceptancePreset/);
-assert.match(app, /open-acceptance-detail/);
-assert.match(app, /acceptance-preset/);
+// `open-acceptance-detail` / `acceptance-preset` controls no longer exist in
+// index.html; their wiring (wireAcceptanceControls) was dead and removed on
+// 2026-09-02. The drawer itself is still asserted above.
 assert.match(app, /renderAcceptanceDetailDrawer/);
 assert.match(app, /inferenceLaunchPlan/);
 assert.match(app, /inferenceAuditSummary/);
@@ -589,3 +590,44 @@ assert.match(css, /\.evidence-inspector-panel/);
 assert.match(css, /\.evidence-status-axis/);
 assert.match(css, /\.evidence-context-chip\.case-sync\.saved/);
 assert.match(css, /\.evidence-context-chip\.case-sync\.dirty/);
+
+
+// Review fixes 2026-09-02: the agent-search panel renders backend / LLM free
+// text and must escape every interpolation; pollers must survive transient
+// failures; deep links hydrate like a nav click.
+{ // agent search panel escapes free text and never renders NaN
+  const searchPanel = app.slice(app.indexOf("function renderAgentSearchPanel()"), app.indexOf("async function continueTrainingToInference("));
+  for (const raw of [
+    "<div>${line}</div>",
+    "${job.error || \"未知错误\"}",
+    "${entry.reasoning}",
+    "${item.provenance?.channel || \"\"}",
+    "value=\"${selection.models}\"",
+    "value=\"${AGENT_SEARCH.llm?.config?.base_url || \"\"}\"",
+    "Number(item.mae_worst).toFixed(4)",
+  ]) {
+    assert.ok(!searchPanel.includes(raw), `unescaped interpolation still present: ${raw}`);
+  }
+  assert.ok(searchPanel.includes("${esc(job.error || \"未知错误\")}"));
+  assert.ok(searchPanel.includes("fixedOrDash(item.mae_worst)"));
+  assert.ok(app.includes("const fixedOrDash = (value, digits = 4) =>"));
+}
+
+{ // job pollers retry transient failures and deep links hydrate
+  assert.ok(app.includes("async function fetchJobRecordWithRetry("));
+  assert.ok(app.includes("if (AGENT_SEARCH.launching) return;"));
+  assert.ok(app.includes("const SEARCH_POLL_MAX_FAILURES = 10;"));
+  assert.ok(app.includes("async function hydrateDeepLinkedMode()"));
+  assert.ok(app.includes("load({ cacheBust: true }).catch(reportWorkbenchError);"));
+  assert.ok(!app.includes("async function startInferenceEvaluation() {"), "stale duplicate launcher removed");
+  const reset = app.slice(app.indexOf("function resetProfileScopedState()"), app.indexOf("function renderKpis("));
+  assert.ok(reset.includes("inferenceAdaptation = null;"));
+  assert.ok(reset.includes("AGENT_SEARCH.job = null;"));
+}
+
+
+{ // AI provider selector offers OpenAI-compatible endpoints next to Anthropic
+  assert.ok(app.includes('<option value="openai"'));
+  assert.ok(app.includes("const LLM_PROVIDER_HINTS = {"));
+  assert.ok(app.includes('if (providerSelect) providerSelect.onchange = () => {'));
+}
