@@ -1,91 +1,86 @@
 {
   "datasets": [
-    "nasa",
-    "oxford"
+    "snl_lfp"
   ],
   "models": [
-    "battery_soh_tabular_ensemble_battery_soh_operational_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_capacity_time_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_degradation_kinetics_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_electrochemical_diagnostics_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_ic_dva_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_operating_stress_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_partial_window_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_rwth_cycle_shape_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_smoke_cycle_shape_loco_calce_cs2_CS2_21_seed0",
-    "battery_soh_tabular_ensemble_voltage_loco_calce_cs2_CS2_33_seed0"
+    "gpr_partial_window_norm_lodo_calce_cs2_seed0"
+  ],
+  "model_bindings": [
+    {
+      "name": "gpr_partial_window_norm_lodo_calce_cs2_seed0",
+      "artifact_id": "model@sha256:a8dfb83e29a64e5d48b3f9b50ed9c1751fa4f4f078e45741f178da47aab249cc",
+      "estimator": "gpr",
+      "featureset": "partial_window_norm",
+      "training_featuresets": [
+        "ic_dva",
+        "partial_window_norm"
+      ],
+      "feature_columns": [
+        "q_win_frac",
+        "t_win_frac"
+      ],
+      "created_by_run": "20260901T000013-daa65ba4",
+      "trained_on": [
+        "hust",
+        "uconn"
+      ],
+      "protocol": "lodo",
+      "held_out_key": "calce_cs2",
+      "seed": 0,
+      "manifest_sha256": "05cbf147e75db3b80da7ed7fdeb1303edfb866d0bc544dfd2d255c0911e9c09f",
+      "model_sha256": "47a4dafd65e253521fa5bb9a7af56c94e98a2bb1da7afde4b60ebfacaf362421",
+      "label_safety": {},
+      "usable": true
+    }
+  ],
+  "model_artifact_ids": [
+    "model@sha256:a8dfb83e29a64e5d48b3f9b50ed9c1751fa4f4f078e45741f178da47aab249cc"
   ],
   "launch_strategy": "compatible_only",
   "evaluation_policy": "held_out_same_chemistry",
   "selected_models": [
-    "battery_soh_tabular_ensemble_battery_soh_operational_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_capacity_time_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_degradation_kinetics_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_electrochemical_diagnostics_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_full_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_ic_dva_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_operating_stress_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_partial_window_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_rwth_cycle_shape_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_smoke_cycle_shape_loco_calce_cs2_CS2_21_seed0",
-    "battery_soh_tabular_ensemble_voltage_loco_calce_cs2_CS2_33_seed0"
+    "gpr_partial_window_norm_lodo_calce_cs2_seed0"
   ],
   "submitted_models": [
-    "battery_soh_tabular_ensemble_battery_soh_operational_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_capacity_time_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_degradation_kinetics_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_electrochemical_diagnostics_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_ic_dva_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_operating_stress_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_partial_window_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_rwth_cycle_shape_loco_calce_cs2_CS2_33_seed0",
-    "battery_soh_tabular_ensemble_smoke_cycle_shape_loco_calce_cs2_CS2_21_seed0",
-    "battery_soh_tabular_ensemble_voltage_loco_calce_cs2_CS2_33_seed0"
+    "gpr_partial_window_norm_lodo_calce_cs2_seed0"
   ],
-  "skipped_models": [
-    "battery_soh_tabular_ensemble_full_loco_calce_cs2_CS2_33_seed0"
-  ],
+  "skipped_models": [],
   "selected_datasets": [
-    "nasa",
-    "oxford"
+    "snl_lfp"
   ],
   "submitted_datasets": [
-    "nasa",
-    "oxford"
+    "snl_lfp"
   ],
   "skipped_datasets": [],
-  "case_id": "EV-20260817-8ECB1C75",
-  "profile_name": "phase30-gate-nasa-20260815-055355",
-  "job_id": "20260817T034954-897fda7c",
+  "adaptation": {
+    "operator": "residual_wide+monotone",
+    "calibration_budget": 128,
+    "calibration_split": "spread",
+    "interval": "conformal",
+    "channel": "K labeled target calibration samples + ALL label-safe target feature columns (ridge residual correction over the extended feature set, calibration rows excluded from evaluation) + per-cell monotone projection (physical constraint, label-free); interval: split-conformal quantile from the same K calibration residuals"
+  },
+  "case_id": "EV-20260901-2D72CBCC",
+  "profile_name": "root",
+  "case_context_binding_id": "ctx@sha256:1bcae42d26fde541fbf0607fc02a71abb26a7e020be3d233be013fbb8517e369",
+  "case_context_generation": 2,
+  "job_id": "20260901T000154-5a384488",
   "trusted_local_pickle_models": true,
   "applied_featureset_transforms": [
-    "battery_soh_operational",
-    "capacity_time",
-    "degradation_kinetics",
-    "electrochemical_diagnostics",
     "ic_dva",
-    "operating_stress",
-    "partial_window",
-    "rwth_cycle_shape",
-    "smoke_cycle_shape",
-    "voltage"
+    "partial_window_norm"
   ],
   "dataset_snapshots": [
     {
-      "dataset": "nasa",
-      "snapshot_id": "dataset-snapshot@sha256:f7523b4e6b1dcbcceb940834878967cfaff2392805c9992c3768f721ebb8586b"
-    },
-    {
-      "dataset": "oxford",
-      "snapshot_id": "dataset-snapshot@sha256:9db249a5ae4a6d677045a79fedcbee83dc0c2846e145f7256f8a5eb78b9809a8"
+      "dataset": "snl_lfp",
+      "snapshot_id": "dataset-snapshot@sha256:0347fbd318435364030693be7535b8dac4e5ebdf303fa7d3287c8375ea39c773"
     }
   ],
   "protocols": [
-    "loco"
+    "lodo"
   ],
   "seeds": [
     0
   ],
-  "run_dir": "D:\\SOH_eval\\runs\\20260817T035003",
-  "raw_run_dir": "D:\\SOH_eval\\runs\\20260817T035003"
+  "run_dir": "runs/20260901T000206",
+  "raw_run_dir": "runs/20260901T000206"
 }

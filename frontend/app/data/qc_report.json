@@ -1,6 +1,6 @@
 {
   "pass_rate": 1.0,
-  "n_in": 15411,
+  "n_in": 164388,
   "n_out": 0,
   "drop_reasons": {
     "soh_nonpositive": 0,
@@ -11,6 +11,12 @@
   "per_dataset": {
     "calce_cs2": {
       "rows": 15411
+    },
+    "hust": {
+      "rows": 146122
+    },
+    "uconn": {
+      "rows": 2855
     }
   }
 }

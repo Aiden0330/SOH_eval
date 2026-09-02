@@ -1,381 +1,49 @@
 [
   {
-    "estimator": "battery_soh_tabular_ensemble",
-    "featureset": "battery_soh_operational",
-    "track": "unified",
-    "protocol": "loco",
-    "metrics": {
-      "alpha_accuracy": {
-        "mean": 0.8495462810886057,
-        "std": 0.11497117256776158
-      },
-      "eol_region_error": {
-        "mean": 0.1434374847341366,
-        "std": 0.15049541228341087
-      },
-      "mae": {
-        "mean": 0.05592720240207084,
-        "std": 0.028485463600829996
-      },
-      "mape": {
-        "mean": 40.352622535796776,
-        "std": 145.01288564485674
-      },
-      "max_error": {
-        "mean": 0.710360109542216,
-        "std": 0.17781347059648467
-      },
-      "mean_bias_error": {
-        "mean": -0.0006143418359190381,
-        "std": 0.05438326279516089
-      },
-      "monotonicity_violation_rate": {
-        "mean": 0.16161561035044317,
-        "std": 0.03963899895919476
-      },
-      "overestimation_rate": {
-        "mean": 0.41921018410715966,
-        "std": 0.3433125551844496
-      },
-      "picp": {
-        "mean": 0.8595172307998346,
-        "std": 0.15440128735683392
-      },
-      "rmse": {
-        "mean": 0.07737430284381833,
-        "std": 0.03191136637075998
-      },
-      "value_range_violation": {
-        "mean": 0.0,
-        "std": 0.0
-      }
-    },
-    "verdicts": {
-      "generalization": false,
-      "calibration": false,
-      "physical_consistency": false
-    },
-    "ci_source": "conformal",
-    "backend": "battery_soh",
-    "run_id": "20260817T034110-f0222731",
-    "preflight_id": "preflight@sha256:96169df52cbce72d2fa1c56e0d1abb5d5aff557a42518c5a2cf06d963e5e1ea5",
-    "source_datasets": [
-      "calce_cs2"
-    ],
-    "dataset_snapshot_ids": [
-      "dataset@sha256:597dc780907d6fe6271c4fb0bde02ac83b3d4436d1c1de37b5d3ee358fc23902"
-    ],
-    "model_artifact_ids": [
-      "model@sha256:0bae9de6af4ec9abaf6d50626583fe159a7c20b36aa30f8960fd0985bcb03b00",
-      "model@sha256:20a9e6af033d0ea5f05480bc75b37f99f7cdee601e63bbcf59d0b356c591dea8",
-      "model@sha256:2410557a9628ad3a9f53afeddcf77b0b7272eeee6a16b2e8b96c84c0d52dfe12",
-      "model@sha256:47b2c22805ca4651a363f61bd8678d36f480429743a710f617a66e88f64444eb",
-      "model@sha256:518d5839519c53ac524dcd9069648cf2fd00bdafe9bef68d8b8212fa63d4a116",
-      "model@sha256:53827437e44a1725570f9d44ce0cca4d60b6d330ba557b27e3ee8645737482be",
-      "model@sha256:5495ce6bc14a01e65634c41c6681fc72703267a3b1a9b1dc97dc24bc8f8c8ee4",
-      "model@sha256:700e275954f60d56868fefaa4ce89b9d96225d402c758834790cc069c63ae2c1",
-      "model@sha256:7646b748fdefac793cc11a723ac03922c6ec20e5a80dd8fd59d418a220d0c964",
-      "model@sha256:9a6d474312f4fb6bc99ff08697836590abbe202953ed64d8a196ef4cdf05aa4f",
-      "model@sha256:a8b7e25ef8c4b4dac71b9fc459ecf6f84b502e751e72fd4fae5954c8619e225d",
-      "model@sha256:bff59a1f228abaae8d82992c43cd8083dbf66af823e08919a2ad1175e2de2c6b",
-      "model@sha256:e8039d9cfc889ec9e4cc25e7ef3a1c6175b7e0ad50a5a3fdc05f6930dd0f7c3a"
-    ],
-    "model_artifact_count": 13
-  },
-  {
-    "estimator": "battery_soh_tabular_ensemble",
-    "featureset": "capacity_time",
-    "track": "unified",
-    "protocol": "loco",
-    "metrics": {
-      "alpha_accuracy": {
-        "mean": 0.7587550734695419,
-        "std": 0.18339396851002954
-      },
-      "eol_region_error": {
-        "mean": 0.14665609385812567,
-        "std": 0.10911687623263888
-      },
-      "mae": {
-        "mean": 0.08105699297925818,
-        "std": 0.02899863696127591
-      },
-      "mape": {
-        "mean": 37.4155125543678,
-        "std": 134.28601177391587
-      },
-      "max_error": {
-        "mean": 0.6253324176489067,
-        "std": 0.12730759725398297
-      },
-      "mean_bias_error": {
-        "mean": -0.006601955520104372,
-        "std": 0.060931536827713864
-      },
-      "monotonicity_violation_rate": {
-        "mean": 0.20057137248306606,
-        "std": 0.07041224401545139
-      },
-      "overestimation_rate": {
-        "mean": 0.43946262172694495,
-        "std": 0.24967623594210694
-      },
-      "picp": {
-        "mean": 0.8742429749762226,
-        "std": 0.1884233487474767
-      },
-      "rmse": {
-        "mean": 0.09958217100389577,
-        "std": 0.027501734248480077
-      },
-      "value_range_violation": {
-        "mean": 0.0,
-        "std": 0.0
-      }
-    },
-    "verdicts": {
-      "generalization": false,
-      "calibration": false,
-      "physical_consistency": false
-    },
-    "ci_source": "conformal",
-    "backend": "battery_soh",
-    "run_id": "20260817T034110-f0222731",
-    "preflight_id": "preflight@sha256:96169df52cbce72d2fa1c56e0d1abb5d5aff557a42518c5a2cf06d963e5e1ea5",
-    "source_datasets": [
-      "calce_cs2"
-    ],
-    "dataset_snapshot_ids": [
-      "dataset@sha256:597dc780907d6fe6271c4fb0bde02ac83b3d4436d1c1de37b5d3ee358fc23902"
-    ],
-    "model_artifact_ids": [
-      "model@sha256:1152c35bcaa3ef77e39862e4f1499f6e973d281fc0aa6f66b91c71b937bfc8ea",
-      "model@sha256:24ab596dfa4cb43306acfe1656cdd34504e51609591c19de80adb18914e02723",
-      "model@sha256:32061571c819cbbc051b523d0340be7318623fc3418d7a7e989ef8e406c0bd54",
-      "model@sha256:34930677e61561494b94c6be2471c7a7139c9cce7c8d456adc342ff2e904542f",
-      "model@sha256:3f2557b9cf2c51a257e9cd9bddd3c0c0b558e520658402ad5a16888bd4bb3a1b",
-      "model@sha256:400156993376b04c05fcb09f33cf7d748eccf0d21d204c07c917dec548b41313",
-      "model@sha256:72cd13f24f262086f5f499f04fcd19a49b3529b48e3237ce9fab985300d728c9",
-      "model@sha256:80b8f375caadbbe5e07a2f0bd094a3f998981268fe60b57107127855233a9cb6",
-      "model@sha256:8212488759325ab22d9e04d020ec89c3ee27270f7b4ad634a8d47242bf2cc9ef",
-      "model@sha256:a62a6ce1837985390095525a771c283a79cea743ab9ef051255daa5d118fd807",
-      "model@sha256:a8f07016972ee99a8bcea716ca216b25781213da6c960c0ae3f0f339b10c764e",
-      "model@sha256:afc229ba974e34c9a816cd17434227c344adff30ce15d7eec2d7535631252e39",
-      "model@sha256:e583c9096b49cd0f8d148cad0cc005a7d261c6b71f6e6ed64cd73fda07e55fcb"
-    ],
-    "model_artifact_count": 13
-  },
-  {
-    "estimator": "battery_soh_tabular_ensemble",
-    "featureset": "degradation_kinetics",
-    "track": "unified",
-    "protocol": "loco",
-    "metrics": {
-      "alpha_accuracy": {
-        "mean": 0.7651454648737934,
-        "std": 0.20685420517446346
-      },
-      "eol_region_error": {
-        "mean": 0.15315143386278357,
-        "std": 0.13164664514816743
-      },
-      "mae": {
-        "mean": 0.08029631348556596,
-        "std": 0.03186665924206579
-      },
-      "mape": {
-        "mean": 41.0943489882311,
-        "std": 147.5468119064728
-      },
-      "max_error": {
-        "mean": 0.7108244288875697,
-        "std": 0.14352389405988933
-      },
-      "mean_bias_error": {
-        "mean": -0.007602019160223562,
-        "std": 0.06420241748665766
-      },
-      "monotonicity_violation_rate": {
-        "mean": 0.22453440562814395,
-        "std": 0.05530302952123117
-      },
-      "overestimation_rate": {
-        "mean": 0.44065214769963323,
-        "std": 0.2621269395201143
-      },
-      "picp": {
-        "mean": 0.8648296074051406,
-        "std": 0.21064385353896511
-      },
-      "rmse": {
-        "mean": 0.09920744854527205,
-        "std": 0.030394800134794977
-      },
-      "value_range_violation": {
-        "mean": 0.0,
-        "std": 0.0
-      }
-    },
-    "verdicts": {
-      "generalization": false,
-      "calibration": false,
-      "physical_consistency": false
-    },
-    "ci_source": "conformal",
-    "backend": "battery_soh",
-    "run_id": "20260817T034110-f0222731",
-    "preflight_id": "preflight@sha256:96169df52cbce72d2fa1c56e0d1abb5d5aff557a42518c5a2cf06d963e5e1ea5",
-    "source_datasets": [
-      "calce_cs2"
-    ],
-    "dataset_snapshot_ids": [
-      "dataset@sha256:597dc780907d6fe6271c4fb0bde02ac83b3d4436d1c1de37b5d3ee358fc23902"
-    ],
-    "model_artifact_ids": [
-      "model@sha256:0cb2c6149e8c32c736cb03f2a5b11917ed42322d1ea42a275654e04cf5a44dd4",
-      "model@sha256:1a46ff61c44be21bd24eec3feb065e90e2e9969eb0722124ff5a78d720eab36d",
-      "model@sha256:2296a01ea01cd59c43990d3287ddcac7a4f251d55c3978429d08f8d9a0eb9e7a",
-      "model@sha256:3ba3caf4211370142674d9785f10f719d5ce79f65b6716b24b6282d722f6e73d",
-      "model@sha256:41c0daa50cc1329f0c63e182e55119cce0308d88294829f82d38f7fbf8de4109",
-      "model@sha256:452330f8fdc3e65c56f81074206756d296fe20e724861b76592cccb3a0249e45",
-      "model@sha256:634b477cd8088569d5958da7a76a35c6c1967c28597d131b492d616bfa23e85f",
-      "model@sha256:6b76f587ff4a732ff2dde15fd60e76eb062a4d12573509b5fa75c8b3f9f56958",
-      "model@sha256:7fe8ca913e0b1c9d33581ce2367c07f171b6e71cb11c43e44f8f8aebe3da3637",
-      "model@sha256:93ad5233bc952e021ad824f7842d16250e1ab6e1fd47751873c821761e959ae2",
-      "model@sha256:d2786f8974741e77449837b850bf2e52f83c381b2e4f02c9e4de9cc934832fc3",
-      "model@sha256:fb013878daaa5c2e6ae1675544390d13c71706f0ad2fea5f72a8e5166671f48b",
-      "model@sha256:fdfb50da435c68cb5ae7a07f71d16c45f31e8211b279d5fb7f1e3ec4e1cc0b36"
-    ],
-    "model_artifact_count": 13
-  },
-  {
-    "estimator": "battery_soh_tabular_ensemble",
-    "featureset": "electrochemical_diagnostics",
-    "track": "unified",
-    "protocol": "loco",
-    "metrics": {
-      "alpha_accuracy": {
-        "mean": 0.8972298747086138,
-        "std": 0.11099227999480964
-      },
-      "eol_region_error": {
-        "mean": 0.13581335370751127,
-        "std": 0.14787497040684908
-      },
-      "mae": {
-        "mean": 0.04574430439166881,
-        "std": 0.03424430338682774
-      },
-      "mape": {
-        "mean": 40.302872847758294,
-        "std": 144.80337486069706
-      },
-      "max_error": {
-        "mean": 0.6728724124214184,
-        "std": 0.17108314435267374
-      },
-      "mean_bias_error": {
-        "mean": -0.006682867438220686,
-        "std": 0.0493488527231286
-      },
-      "monotonicity_violation_rate": {
-        "mean": 0.22873904923617386,
-        "std": 0.07504866086916308
-      },
-      "overestimation_rate": {
-        "mean": 0.44820740049850166,
-        "std": 0.28251190096356443
-      },
-      "picp": {
-        "mean": 0.8911354309902578,
-        "std": 0.16883694071821473
-      },
-      "rmse": {
-        "mean": 0.07739466583197419,
-        "std": 0.04864543288572428
-      },
-      "value_range_violation": {
-        "mean": 0.0,
-        "std": 0.0
-      }
-    },
-    "verdicts": {
-      "generalization": false,
-      "calibration": false,
-      "physical_consistency": false
-    },
-    "ci_source": "conformal",
-    "backend": "battery_soh",
-    "run_id": "20260817T034110-f0222731",
-    "preflight_id": "preflight@sha256:96169df52cbce72d2fa1c56e0d1abb5d5aff557a42518c5a2cf06d963e5e1ea5",
-    "source_datasets": [
-      "calce_cs2"
-    ],
-    "dataset_snapshot_ids": [
-      "dataset@sha256:597dc780907d6fe6271c4fb0bde02ac83b3d4436d1c1de37b5d3ee358fc23902"
-    ],
-    "model_artifact_ids": [
-      "model@sha256:0158609ec487915ed7aa7baba298d46d3fcdac2b35e72e8191831c05115ac942",
-      "model@sha256:0c7977dd8e9eeea5e012bc0fbf0f3f1b9683db52f2a507ccdd25e52a273612df",
-      "model@sha256:3c102baf8e445c027eb9cef7f953e81d563541cc64b23e3b090f4da0e6bc6d51",
-      "model@sha256:4dd7a580ef56cf49c6cec6afd4cb02bfc40b7ba3b74812676305105b921ec9dd",
-      "model@sha256:618267bb95789d8ceba4ab4cada3303c6e1ad7659569f2c2e1dbb6b3406747f6",
-      "model@sha256:8310f45d7a6cb616ae513c9ab28913b9c40c78116516ecd0894407446ad1dd61",
-      "model@sha256:9a6581abae8416a2d8ff3d986d87b5242a2e3b89cb82e9263dcbcfb21ad1ec59",
-      "model@sha256:9adf629d1313e4e74c6cccbe8566a21c7ac56240a10a152c2967c2b17fdf9ec9",
-      "model@sha256:a59ed01605cb07a8e9fc5090ec79897fe401c63339ac037a51a050fe44323612",
-      "model@sha256:c3bd592732df262bc91c547028be46cd409a3f137f159cbef5fad1fa6595e3f8",
-      "model@sha256:e8ac39f0d69c4a03f9c2727873b10cd867fd8efca66e67cf788f9d55a4197ed8",
-      "model@sha256:f2e0155c124a33778b7ba404a45bcd56b4b26474f95d694dcf7276c805060b2d",
-      "model@sha256:fc37057947963f7ba13d9bc5380da56c9cda349ba42467ea9f9ddf3a379f4a0d"
-    ],
-    "model_artifact_count": 13
-  },
-  {
-    "estimator": "battery_soh_tabular_ensemble",
+    "estimator": "gpr",
     "featureset": "ic_dva",
     "track": "unified",
-    "protocol": "loco",
+    "protocol": "lodo",
     "metrics": {
       "alpha_accuracy": {
-        "mean": 0.7638464725807896,
-        "std": 0.2348693842710395
+        "mean": 0.24860108935045608,
+        "std": 0.20960544283569604
       },
       "eol_region_error": {
-        "mean": 0.1410068271903564,
-        "std": 0.13452033849762993
+        "mean": 0.3574081283563828,
+        "std": 0.06680010883792391
       },
       "mae": {
-        "mean": 0.07735963976042068,
-        "std": 0.09028637543470469
+        "mean": 0.2750349391724563,
+        "std": 0.1415847692123979
       },
       "mape": {
-        "mean": 40.78202242534881,
-        "std": 146.36880097354057
+        "mean": 10.757051118363584,
+        "std": 18.122068285761024
       },
       "max_error": {
-        "mean": 0.7056610467262472,
-        "std": 0.14886842481997078
+        "mean": 0.6355884335553882,
+        "std": 0.33482547465860063
       },
       "mean_bias_error": {
-        "mean": -0.0225375364153732,
-        "std": 0.11289629035716879
+        "mean": -0.101186806456415,
+        "std": 0.33202918983379215
       },
       "monotonicity_violation_rate": {
-        "mean": 0.2383122977089311,
-        "std": 0.05347250931830236
+        "mean": 0.29732089879391144,
+        "std": 0.2508720845744216
       },
       "overestimation_rate": {
-        "mean": 0.5202819383652698,
-        "std": 0.3218920389777107
+        "mean": 0.4188927200802204,
+        "std": 0.5085141571189301
       },
       "picp": {
-        "mean": 0.8082813171865891,
-        "std": 0.25610192573035934
+        "mean": 0.4131212978825049,
+        "std": 0.44318859042112435
       },
       "rmse": {
-        "mean": 0.11433280020251264,
-        "std": 0.0944652794916285
+        "mean": 0.3065776505535423,
+        "std": 0.13156924138587872
       },
       "value_range_violation": {
         "mean": 0.0,
@@ -387,82 +55,76 @@
       "calibration": false,
       "physical_consistency": false
     },
-    "ci_source": "conformal",
-    "backend": "battery_soh",
-    "run_id": "20260817T034110-f0222731",
-    "preflight_id": "preflight@sha256:96169df52cbce72d2fa1c56e0d1abb5d5aff557a42518c5a2cf06d963e5e1ea5",
+    "ci_source": "native",
+    "backend": "sklearn",
+    "run_id": "20260901T000013-daa65ba4",
+    "preflight_id": "preflight@sha256:6495e699557ed5d22131d6660b13406cb0b53440aececcab40d5e0fe419fbfb5",
     "source_datasets": [
-      "calce_cs2"
+      "calce_cs2",
+      "hust",
+      "uconn"
     ],
     "dataset_snapshot_ids": [
-      "dataset@sha256:597dc780907d6fe6271c4fb0bde02ac83b3d4436d1c1de37b5d3ee358fc23902"
+      "dataset@sha256:4f144b1a1c37cf4e429ff21ae8be7daa6fc5a44e18d23e69a059555511cd7715",
+      "dataset@sha256:40a4e3c46861a3d065a9a531b479718467a497c764b68a9e92329156d4d777d1",
+      "dataset@sha256:9756c28a946404496996c5fd917690075cea71c95865c4f80401549eed653828"
     ],
     "model_artifact_ids": [
-      "model@sha256:4697a08f866cc3190119be204bee786d10ee7300e953651f144dcab2b863fcb2",
-      "model@sha256:5ba8c3f5479a28e88615c7dec47a0ab61df37effe2fca0e3fd8a61c57597d67f",
-      "model@sha256:695a47679eec2f524f4271da2e5a4ced27f6835af6cc9a66fd2ef3759274df25",
-      "model@sha256:771a917766adbc36c7ed2be0fd866c902b27b817cad973ac8561c731e3063c01",
-      "model@sha256:7e9bd1d59eddae487655dc3cab337094f98d9781ef02e5f040326bc7f3cfacfa",
-      "model@sha256:82d2a799d61d89b5ee0a096abf050f4ae50e70834875e2bfe0dea24b8b9f3c18",
-      "model@sha256:8ac21f2e88b6e08a4aceb77c9bdee674076fef240dfae8e26e4fc67e8f91e22b",
-      "model@sha256:8ca836091f786d39b1d6863571913a4465b062f62af6aa2e20e684bfc5d3d6b3",
-      "model@sha256:9453f33c3d0ad39fdac9515c0ebab80462aee2ec9ab3f4ec9c32c89ff1202874",
-      "model@sha256:aaf6cee89b9488810e5e3c3ba78fa853c559e8343c0c784576515a7c96e08bfd",
-      "model@sha256:bf069e0372986e1966ab7fddbb6e59f6c5c6727c8d532f04e859223abaa74794",
-      "model@sha256:d2e9e03fc93dc656bae6cea52f14d75f589ca801a75031b0ce48b0192829ebd7",
-      "model@sha256:e70316b9fd9906de3dad91873c535c766176ab23af3f4ef8a2461c9a1bb98aa6"
+      "model@sha256:02f3cdc7f5cc93b7058df84bbb0abb8c0b6e3f6b3613b8b6ccf23ffeda8bfee6",
+      "model@sha256:30bb830be3ab31a10e56199fee7e658aa974287a943418accc3f3fb65ac233e6",
+      "model@sha256:eee3b551df15069262fd5fd1c9841db4e6689fe40be670fa12575af1ea830c43"
     ],
-    "model_artifact_count": 13
+    "model_artifact_count": 3
   },
   {
-    "estimator": "battery_soh_tabular_ensemble",
-    "featureset": "operating_stress",
+    "estimator": "gpr",
+    "featureset": "partial_window_norm",
     "track": "unified",
-    "protocol": "loco",
+    "protocol": "lodo",
     "metrics": {
       "alpha_accuracy": {
-        "mean": 0.7758067654671807,
-        "std": 0.16138709729629716
+        "mean": 0.5781163895313347,
+        "std": 0.4511077975821973
       },
       "eol_region_error": {
-        "mean": 0.16960248787137241,
-        "std": 0.13930712104480103
+        "mean": 0.3500950353980316,
+        "std": 0.26664475906867807
       },
       "mae": {
-        "mean": 0.078339155689959,
-        "std": 0.03246678137454025
+        "mean": 0.2080136395424623,
+        "std": 0.18920637423650788
       },
       "mape": {
-        "mean": 38.94607927230428,
-        "std": 139.717174245319
+        "mean": 14.036648589420158,
+        "std": 24.139618485878813
       },
       "max_error": {
-        "mean": 0.671855422868693,
-        "std": 0.12881652299880633
+        "mean": 0.6884452918070335,
+        "std": 0.57392652254762
       },
       "mean_bias_error": {
-        "mean": 0.0013560860464274526,
-        "std": 0.06543717490805263
+        "mean": 0.11616851354106349,
+        "std": 0.2651609574531132
       },
       "monotonicity_violation_rate": {
-        "mean": 0.30547534047268354,
-        "std": 0.05837957772742955
+        "mean": 0.2714679471098081,
+        "std": 0.2385487058742712
       },
       "overestimation_rate": {
-        "mean": 0.5118348963011867,
-        "std": 0.29144791644131157
+        "mean": 0.4936675176149386,
+        "std": 0.43530771441890664
       },
       "picp": {
-        "mean": 0.8146236754606927,
-        "std": 0.206952099233241
+        "mean": 0.3793699067342396,
+        "std": 0.5411936927585331
       },
       "rmse": {
-        "mean": 0.10863465826933066,
-        "std": 0.03955664727070113
+        "mean": 0.23045660628397477,
+        "std": 0.19911046712283412
       },
       "value_range_violation": {
-        "mean": 0.0,
-        "std": 0.0
+        "mean": 0.14266606587015743,
+        "std": 0.1339159258025215
       }
     },
     "verdicts": {
@@ -470,280 +132,25 @@
       "calibration": false,
       "physical_consistency": false
     },
-    "ci_source": "conformal",
-    "backend": "battery_soh",
-    "run_id": "20260817T034110-f0222731",
-    "preflight_id": "preflight@sha256:96169df52cbce72d2fa1c56e0d1abb5d5aff557a42518c5a2cf06d963e5e1ea5",
+    "ci_source": "native",
+    "backend": "sklearn",
+    "run_id": "20260901T000013-daa65ba4",
+    "preflight_id": "preflight@sha256:6495e699557ed5d22131d6660b13406cb0b53440aececcab40d5e0fe419fbfb5",
     "source_datasets": [
-      "calce_cs2"
+      "calce_cs2",
+      "hust",
+      "uconn"
     ],
     "dataset_snapshot_ids": [
-      "dataset@sha256:597dc780907d6fe6271c4fb0bde02ac83b3d4436d1c1de37b5d3ee358fc23902"
+      "dataset@sha256:4f144b1a1c37cf4e429ff21ae8be7daa6fc5a44e18d23e69a059555511cd7715",
+      "dataset@sha256:40a4e3c46861a3d065a9a531b479718467a497c764b68a9e92329156d4d777d1",
+      "dataset@sha256:9756c28a946404496996c5fd917690075cea71c95865c4f80401549eed653828"
     ],
     "model_artifact_ids": [
-      "model@sha256:016d9b264d82a6ae6703c2a5d4c081587b619229511287936b980440fc56d1bf",
-      "model@sha256:01a74684dc9de1ce31e35fb2f48f973e5b03f5903d8ac0a5c465ce2d5b5c2cf0",
-      "model@sha256:0cd76d2eb916ae9172f2127d228fc11ba0fd027c07887d5e0ac72856e7e30f92",
-      "model@sha256:0e6a872f61339cd25ab5af4fd4b2d77ba44bca2adcdd2031d2be0a0d45b3e418",
-      "model@sha256:16f548194a6c7a4ffe9aca9702e3d9251962688dccf4f618200338bad96d2856",
-      "model@sha256:27d983650e8a57cf3d624d7eb390553dac8a3ed77c9476bb04a7fa34091282df",
-      "model@sha256:28a5729857bde6f5cca526dda5e7727684be2b7f7003c2f53a555be96588a2b8",
-      "model@sha256:50d484038fa1b072fa6b2be4c118e1051910b0bf6f061ffe21de0c991975af43",
-      "model@sha256:5fcf9feddb9334ca1c4f16beb1d47bc2923b9bc92b6e8e29a6e36bc004638676",
-      "model@sha256:79f8fc5abbbb654ed37e57b1fbd7ad0fce264407e167082ee01e7020ae6dfba7",
-      "model@sha256:a72f4c2b6baeacdfd0deb45cca55f24a12e8c516f2bee53c04ab249b5882ce86",
-      "model@sha256:b30924c63a5cb21dbb837d213f0712b60116d73e38bac6cb5bcf8a8b51972a43",
-      "model@sha256:ddc8fd9f5847b13a1ff310d185e67b3b8c1501bf6db80fd0e6b573fd0f58f89b"
+      "model@sha256:a8dfb83e29a64e5d48b3f9b50ed9c1751fa4f4f078e45741f178da47aab249cc",
+      "model@sha256:aa68ce4cd1b8907eb5da5158705f0ce26c88fa203f7b06205cea795c8ec3c3e9",
+      "model@sha256:db8d0d1b108ba49dc37069cf54358ac1b2e6340334010a30a0cf98beec76357a"
     ],
-    "model_artifact_count": 13
-  },
-  {
-    "estimator": "battery_soh_tabular_ensemble",
-    "featureset": "partial_window",
-    "track": "unified",
-    "protocol": "loco",
-    "metrics": {
-      "alpha_accuracy": {
-        "mean": 0.7724424074942502,
-        "std": 0.24032974434931037
-      },
-      "eol_region_error": {
-        "mean": 0.1494094094368315,
-        "std": 0.13631449509591653
-      },
-      "mae": {
-        "mean": 0.08323781945018685,
-        "std": 0.0800244750159887
-      },
-      "mape": {
-        "mean": 40.18330619749694,
-        "std": 144.16301775173665
-      },
-      "max_error": {
-        "mean": 0.7048713489764595,
-        "std": 0.1534901259003622
-      },
-      "mean_bias_error": {
-        "mean": -0.01732018426464992,
-        "std": 0.10833853858994175
-      },
-      "monotonicity_violation_rate": {
-        "mean": 0.19900476268258474,
-        "std": 0.03462114771146332
-      },
-      "overestimation_rate": {
-        "mean": 0.48015683914425833,
-        "std": 0.37026816498994336
-      },
-      "picp": {
-        "mean": 0.8246483377120344,
-        "std": 0.263307793382847
-      },
-      "rmse": {
-        "mean": 0.11652291753897738,
-        "std": 0.08506835017406095
-      },
-      "value_range_violation": {
-        "mean": 0.0,
-        "std": 0.0
-      }
-    },
-    "verdicts": {
-      "generalization": false,
-      "calibration": false,
-      "physical_consistency": false
-    },
-    "ci_source": "conformal",
-    "backend": "battery_soh",
-    "run_id": "20260817T034110-f0222731",
-    "preflight_id": "preflight@sha256:96169df52cbce72d2fa1c56e0d1abb5d5aff557a42518c5a2cf06d963e5e1ea5",
-    "source_datasets": [
-      "calce_cs2"
-    ],
-    "dataset_snapshot_ids": [
-      "dataset@sha256:597dc780907d6fe6271c4fb0bde02ac83b3d4436d1c1de37b5d3ee358fc23902"
-    ],
-    "model_artifact_ids": [
-      "model@sha256:02f4fac7896d1ee734927d27fe453e4f475a1d82ace247aaea0a439053f1406e",
-      "model@sha256:22a72fa427dfbcc2b8bcbac222e8a0de5d55ae211e8b767a29fc0f89d809e501",
-      "model@sha256:23924e54ef1cf84cb72a6f92e979b5f131961001b48dc08636046f029ea325cf",
-      "model@sha256:38e8041c33ec138cbafaf93f31221b733eb87ade61c671c11de50c6edd9c2a28",
-      "model@sha256:3e61e61a970d6e94f122bd6be516e5012ac75f7a5f327960ba809ebb95e7c9d0",
-      "model@sha256:5f407c3f501095c1fc0e6476a1f38def7162e95eb732d20a960339d335d9ee97",
-      "model@sha256:6154caa52d2b602829338f7d6e88126abf3332ae094c8873411fa386e2df14a4",
-      "model@sha256:616b690065f48b4a9acb7c372e5f3621d51057d004fb7426da74475303534db0",
-      "model@sha256:6af14d90d4443550c9986a0d5b666284afc11530b75825014d3e52017b5ee0cc",
-      "model@sha256:76f9e225242676d298be503570340919ee79ed2e9dca50c2bae91cbb7a35403b",
-      "model@sha256:820a7fd9a6c5a8871704e52a44adc73a2015417f4ae9335fab5e910333e30670",
-      "model@sha256:915bf292a988dccd26eecf66c5fe157318c9ed3a3ba17117a36c13ae6eb15114",
-      "model@sha256:a646dbb400c85efb9eaca8fd752bd0dd80f986bb1faf8d21ad61d9178a2f1b8f"
-    ],
-    "model_artifact_count": 13
-  },
-  {
-    "estimator": "battery_soh_tabular_ensemble",
-    "featureset": "rwth_cycle_shape",
-    "track": "unified",
-    "protocol": "loco",
-    "metrics": {
-      "alpha_accuracy": {
-        "mean": 0.8522466976806663,
-        "std": 0.12663976008315722
-      },
-      "eol_region_error": {
-        "mean": 0.1551869135403132,
-        "std": 0.14235047472934745
-      },
-      "mae": {
-        "mean": 0.053912761749265445,
-        "std": 0.02844658250561968
-      },
-      "mape": {
-        "mean": 42.59567824500638,
-        "std": 153.0273284518856
-      },
-      "max_error": {
-        "mean": 0.7095038862315456,
-        "std": 0.21099619623206267
-      },
-      "mean_bias_error": {
-        "mean": 0.0011376284918727419,
-        "std": 0.053710071529546224
-      },
-      "monotonicity_violation_rate": {
-        "mean": 0.012046561970766504,
-        "std": 0.00570139941487771
-      },
-      "overestimation_rate": {
-        "mean": 0.4337544464802899,
-        "std": 0.30542392420416303
-      },
-      "picp": {
-        "mean": 0.9162835706588717,
-        "std": 0.11727648759468372
-      },
-      "rmse": {
-        "mean": 0.08213481495793176,
-        "std": 0.03413716223180562
-      },
-      "value_range_violation": {
-        "mean": 0.0,
-        "std": 0.0
-      }
-    },
-    "verdicts": {
-      "generalization": false,
-      "calibration": true,
-      "physical_consistency": false
-    },
-    "ci_source": "conformal",
-    "backend": "battery_soh",
-    "run_id": "20260817T034110-f0222731",
-    "preflight_id": "preflight@sha256:96169df52cbce72d2fa1c56e0d1abb5d5aff557a42518c5a2cf06d963e5e1ea5",
-    "source_datasets": [
-      "calce_cs2"
-    ],
-    "dataset_snapshot_ids": [
-      "dataset@sha256:597dc780907d6fe6271c4fb0bde02ac83b3d4436d1c1de37b5d3ee358fc23902"
-    ],
-    "model_artifact_ids": [
-      "model@sha256:00d657638726a0ce4f82e82cab9e81ba12fe32f4b21a0e4559c264e5077b1a90",
-      "model@sha256:1d38e35d413b99baf5c2fd0c16ec1c6d95ff471f3841250247a19accdeeadf59",
-      "model@sha256:1f755cd1cfc0a48f46e640f28d6fbc566e4e6d325fb7e136c9e50e2ad117902f",
-      "model@sha256:221db19ae824add1782770b3ba4d621a699fcebc73b80f776dc686c46d496b38",
-      "model@sha256:4f28e47a7a1e21e445c2654b64d8e31351fba5cda43ee3cde9144cae51353abe",
-      "model@sha256:5f65e1f8d4acc7a668d6b17a2852ad042f205b2720197f767fb778ba8c610bba",
-      "model@sha256:6f5a80adc44e17654da03ed41156d3f03d53d42ac9d5dfa8960da67d9fda1194",
-      "model@sha256:75afd87ae388d7a6e889da2e6f3ddfca35aa9611fe0bf96ab11999ed1e0e6ab4",
-      "model@sha256:9876f039e9f806dae1707d0e2a26defdb2320927d3a6747003932ef7e403265f",
-      "model@sha256:b3937a43581c5d2e6bd7e6a05c9d423f06185d5a5702996871a8c6ea6dcaa6cc",
-      "model@sha256:e2588ec065deb8470e0a7494d3f9c28281714268fdc21a72c4e41d4d248c2998",
-      "model@sha256:eadef5c7af5405f1569d5aa78fb9ccc83f49a94f07ffa90ba276292e8d1a28a5",
-      "model@sha256:fd2c4a2170d0bde97242c0cea81b883a8787baa7e2934d60df3c58bdf16633e6"
-    ],
-    "model_artifact_count": 13
-  },
-  {
-    "estimator": "battery_soh_tabular_ensemble",
-    "featureset": "voltage",
-    "track": "unified",
-    "protocol": "loco",
-    "metrics": {
-      "alpha_accuracy": {
-        "mean": 0.7717580375572427,
-        "std": 0.18394701589177714
-      },
-      "eol_region_error": {
-        "mean": 0.16062991328760268,
-        "std": 0.1442774374742653
-      },
-      "mae": {
-        "mean": 0.07869744711755018,
-        "std": 0.04323872859717052
-      },
-      "mape": {
-        "mean": 37.65788948626084,
-        "std": 135.08846323434477
-      },
-      "max_error": {
-        "mean": 0.6787761585587495,
-        "std": 0.16479917431215543
-      },
-      "mean_bias_error": {
-        "mean": 0.002095991879129881,
-        "std": 0.07877159495408066
-      },
-      "monotonicity_violation_rate": {
-        "mean": 0.2937130694504668,
-        "std": 0.05428135906916113
-      },
-      "overestimation_rate": {
-        "mean": 0.5089858975707788,
-        "std": 0.30707515188430246
-      },
-      "picp": {
-        "mean": 0.9072519087659455,
-        "std": 0.16871620153965297
-      },
-      "rmse": {
-        "mean": 0.1064949651084309,
-        "std": 0.05222795998904136
-      },
-      "value_range_violation": {
-        "mean": 0.0,
-        "std": 0.0
-      }
-    },
-    "verdicts": {
-      "generalization": false,
-      "calibration": true,
-      "physical_consistency": false
-    },
-    "ci_source": "conformal",
-    "backend": "battery_soh",
-    "run_id": "20260817T034110-f0222731",
-    "preflight_id": "preflight@sha256:96169df52cbce72d2fa1c56e0d1abb5d5aff557a42518c5a2cf06d963e5e1ea5",
-    "source_datasets": [
-      "calce_cs2"
-    ],
-    "dataset_snapshot_ids": [
-      "dataset@sha256:597dc780907d6fe6271c4fb0bde02ac83b3d4436d1c1de37b5d3ee358fc23902"
-    ],
-    "model_artifact_ids": [
-      "model@sha256:05268e98b54d8ab3af43cf757922e8935585a7d39358e892102cf6301c6b5f1f",
-      "model@sha256:10f69539aadcff656503d8c23ad304061fbee011e0560a5010aa70aed2345d6b",
-      "model@sha256:254dd25157cc860eb354e34dba0c1fa44ac2655f3dc75603f5af4f789efd895a",
-      "model@sha256:2e6b00d0611990b026c08629813868088ab6e82205f303eb576456891dea560b",
-      "model@sha256:4049f9ace89f11d9db65286e8209019c39cf6f338fea88638752cdd59b047ea3",
-      "model@sha256:40d22678f1e4fc60f917d96565e053ac8088a6effab6d1073a8cbf809eed043b",
-      "model@sha256:514d89425efb9583aac3311e9df3738e91b589db1f0ba2eb79728709bdb3e602",
-      "model@sha256:6ddb03a72a42b223a71b7df001a80eba85339bfa9f44cd8a7ae13fb031130234",
-      "model@sha256:6de5b98324abde5548ba8fd03fc145c3028497197f832f8c004d0dbd497f593b",
-      "model@sha256:8f33fdb13018df0115c600e0b0d6d3979b0b7376518eff17e2be044f59159a5f",
-      "model@sha256:9723e615906b7823c8a285ec32efd6d60bf1b75066a7e656499bf5a1e3a6e8d8",
-      "model@sha256:97ede353fef6b61d91561b4bc6b9f4904703db4bc951ff1a6bcfc814b24200f6",
-      "model@sha256:ec27c560c4aff24dfe06c3151170179f201113b3a02f645fb2f5db5d8df83803"
-    ],
-    "model_artifact_count": 13
+    "model_artifact_count": 3
   }
 ]
