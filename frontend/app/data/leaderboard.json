@@ -10,28 +10,28 @@
         "std": 0.20960544283569604
       },
       "eol_region_error": {
-        "mean": 0.3574081283563828,
-        "std": 0.06680010883792391
+        "mean": 0.3502588826288112,
+        "std": 0.07691066910659343
       },
       "mae": {
-        "mean": 0.2750349391724563,
-        "std": 0.1415847692123979
+        "mean": 0.2743249247260976,
+        "std": 0.14039372860572352
       },
       "mape": {
-        "mean": 10.757051118363584,
-        "std": 18.122068285761024
+        "mean": 10.756220576224342,
+        "std": 18.12277845750587
       },
       "max_error": {
-        "mean": 0.6355884335553882,
-        "std": 0.33482547465860063
+        "mean": 0.641003051214594,
+        "std": 0.3342193271199463
       },
       "mean_bias_error": {
-        "mean": -0.101186806456415,
-        "std": 0.33202918983379215
+        "mean": -0.10047679201005628,
+        "std": 0.3309640932238289
       },
       "monotonicity_violation_rate": {
-        "mean": 0.29732089879391144,
-        "std": 0.2508720845744216
+        "mean": 0.22857726358263272,
+        "std": 0.2063803149965064
       },
       "overestimation_rate": {
         "mean": 0.4188927200802204,
@@ -42,8 +42,8 @@
         "std": 0.44318859042112435
       },
       "rmse": {
-        "mean": 0.3065776505535423,
-        "std": 0.13156924138587872
+        "mean": 0.30574133646636087,
+        "std": 0.13026379886093029
       },
       "value_range_violation": {
         "mean": 0.0,
@@ -57,22 +57,22 @@
     },
     "ci_source": "native",
     "backend": "sklearn",
-    "run_id": "20260901T000013-daa65ba4",
-    "preflight_id": "preflight@sha256:6495e699557ed5d22131d6660b13406cb0b53440aececcab40d5e0fe419fbfb5",
+    "run_id": "20260902T113626-b8ac7594",
+    "preflight_id": "preflight@sha256:888454fc20d6270398768fd417ab286ad9419f1529b56723677b70a54d9aa9f1",
     "source_datasets": [
-      "calce_cs2",
       "hust",
+      "calce_cs2",
       "uconn"
     ],
     "dataset_snapshot_ids": [
-      "dataset@sha256:4f144b1a1c37cf4e429ff21ae8be7daa6fc5a44e18d23e69a059555511cd7715",
       "dataset@sha256:40a4e3c46861a3d065a9a531b479718467a497c764b68a9e92329156d4d777d1",
+      "dataset@sha256:4f144b1a1c37cf4e429ff21ae8be7daa6fc5a44e18d23e69a059555511cd7715",
       "dataset@sha256:9756c28a946404496996c5fd917690075cea71c95865c4f80401549eed653828"
     ],
     "model_artifact_ids": [
-      "model@sha256:02f3cdc7f5cc93b7058df84bbb0abb8c0b6e3f6b3613b8b6ccf23ffeda8bfee6",
-      "model@sha256:30bb830be3ab31a10e56199fee7e658aa974287a943418accc3f3fb65ac233e6",
-      "model@sha256:eee3b551df15069262fd5fd1c9841db4e6689fe40be670fa12575af1ea830c43"
+      "model@sha256:025199db870a01e0e97bc81fb0b137741cb4a14d5d172225cb1a0fd9a75cc884",
+      "model@sha256:0df9f3ad8988956a276f3222891df9d72fe0a1c19dccb25f179f6293268c469c",
+      "model@sha256:4a986a71ce2c774bf6c603234d3467ba9de802584ace395ad22ba01bc1c5cc11"
     ],
     "model_artifact_count": 3
   },
@@ -87,40 +87,40 @@
         "std": 0.4511077975821973
       },
       "eol_region_error": {
-        "mean": 0.3500950353980316,
-        "std": 0.26664475906867807
+        "mean": 0.350816815687383,
+        "std": 0.26562400759442373
       },
       "mae": {
-        "mean": 0.2080136395424623,
-        "std": 0.18920637423650788
+        "mean": 0.20770720967015266,
+        "std": 0.1895429898949653
       },
       "mape": {
-        "mean": 14.036648589420158,
-        "std": 24.139618485878813
+        "mean": 14.036363624452667,
+        "std": 24.139865843271338
       },
       "max_error": {
-        "mean": 0.6884452918070335,
-        "std": 0.57392652254762
+        "mean": 0.6889264786666011,
+        "std": 0.5732641108451825
       },
       "mean_bias_error": {
-        "mean": 0.11616851354106349,
-        "std": 0.2651609574531132
+        "mean": 0.11664970040063105,
+        "std": 0.2647028105173678
       },
       "monotonicity_violation_rate": {
-        "mean": 0.2714679471098081,
-        "std": 0.2385487058742712
+        "mean": 0.08214670398130827,
+        "std": 0.08189492439340346
       },
       "overestimation_rate": {
-        "mean": 0.4936675176149386,
-        "std": 0.43530771441890664
+        "mean": 0.4948350599383478,
+        "std": 0.4340473836291937
       },
       "picp": {
         "mean": 0.3793699067342396,
         "std": 0.5411936927585331
       },
       "rmse": {
-        "mean": 0.23045660628397477,
-        "std": 0.19911046712283412
+        "mean": 0.2301396356220192,
+        "std": 0.19947245297929467
       },
       "value_range_violation": {
         "mean": 0.14266606587015743,
@@ -134,22 +134,22 @@
     },
     "ci_source": "native",
     "backend": "sklearn",
-    "run_id": "20260901T000013-daa65ba4",
-    "preflight_id": "preflight@sha256:6495e699557ed5d22131d6660b13406cb0b53440aececcab40d5e0fe419fbfb5",
+    "run_id": "20260902T113626-b8ac7594",
+    "preflight_id": "preflight@sha256:888454fc20d6270398768fd417ab286ad9419f1529b56723677b70a54d9aa9f1",
     "source_datasets": [
-      "calce_cs2",
       "hust",
+      "calce_cs2",
       "uconn"
     ],
     "dataset_snapshot_ids": [
-      "dataset@sha256:4f144b1a1c37cf4e429ff21ae8be7daa6fc5a44e18d23e69a059555511cd7715",
       "dataset@sha256:40a4e3c46861a3d065a9a531b479718467a497c764b68a9e92329156d4d777d1",
+      "dataset@sha256:4f144b1a1c37cf4e429ff21ae8be7daa6fc5a44e18d23e69a059555511cd7715",
       "dataset@sha256:9756c28a946404496996c5fd917690075cea71c95865c4f80401549eed653828"
     ],
     "model_artifact_ids": [
-      "model@sha256:a8dfb83e29a64e5d48b3f9b50ed9c1751fa4f4f078e45741f178da47aab249cc",
-      "model@sha256:aa68ce4cd1b8907eb5da5158705f0ce26c88fa203f7b06205cea795c8ec3c3e9",
-      "model@sha256:db8d0d1b108ba49dc37069cf54358ac1b2e6340334010a30a0cf98beec76357a"
+      "model@sha256:654e0531a60f88f94240319c5fc30d639d29a117ac8160bb4fdefbbe3f5b8fbd",
+      "model@sha256:771172b7e09ef32054d58fb14e51016ae99acbfbf1ce497b2370d5f71843ff28",
+      "model@sha256:d5ab18eb77603b55e18195a64639135df9d98639b377009dba0569c139ecf7a3"
     ],
     "model_artifact_count": 3
   }

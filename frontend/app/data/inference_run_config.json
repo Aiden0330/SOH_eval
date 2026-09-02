@@ -8,18 +8,18 @@
   "model_bindings": [
     {
       "name": "gpr_partial_window_norm_lodo_calce_cs2_seed0",
-      "artifact_id": "model@sha256:a8dfb83e29a64e5d48b3f9b50ed9c1751fa4f4f078e45741f178da47aab249cc",
+      "artifact_id": "model@sha256:654e0531a60f88f94240319c5fc30d639d29a117ac8160bb4fdefbbe3f5b8fbd",
       "estimator": "gpr",
       "featureset": "partial_window_norm",
       "training_featuresets": [
-        "ic_dva",
-        "partial_window_norm"
+        "partial_window_norm",
+        "ic_dva"
       ],
       "feature_columns": [
         "q_win_frac",
         "t_win_frac"
       ],
-      "created_by_run": "20260901T000013-daa65ba4",
+      "created_by_run": "20260902T113626-b8ac7594",
       "trained_on": [
         "hust",
         "uconn"
@@ -27,16 +27,16 @@
       "protocol": "lodo",
       "held_out_key": "calce_cs2",
       "seed": 0,
-      "manifest_sha256": "05cbf147e75db3b80da7ed7fdeb1303edfb866d0bc544dfd2d255c0911e9c09f",
+      "manifest_sha256": "4144ce24ebce209bfbb7d75838cf078fa88470d17fad06a1a77057e7e93b95e8",
       "model_sha256": "47a4dafd65e253521fa5bb9a7af56c94e98a2bb1da7afde4b60ebfacaf362421",
       "label_safety": {},
       "usable": true
     }
   ],
   "model_artifact_ids": [
-    "model@sha256:a8dfb83e29a64e5d48b3f9b50ed9c1751fa4f4f078e45741f178da47aab249cc"
+    "model@sha256:654e0531a60f88f94240319c5fc30d639d29a117ac8160bb4fdefbbe3f5b8fbd"
   ],
-  "launch_strategy": "compatible_only",
+  "launch_strategy": "unspecified",
   "evaluation_policy": "held_out_same_chemistry",
   "selected_models": [
     "gpr_partial_window_norm_lodo_calce_cs2_seed0"
@@ -59,15 +59,15 @@
     "interval": "conformal",
     "channel": "K labeled target calibration samples + ALL label-safe target feature columns (ridge residual correction over the extended feature set, calibration rows excluded from evaluation) + per-cell monotone projection (physical constraint, label-free); interval: split-conformal quantile from the same K calibration residuals"
   },
-  "case_id": "EV-20260901-2D72CBCC",
+  "case_id": "EV-20260902-2589BF40",
   "profile_name": "root",
-  "case_context_binding_id": "ctx@sha256:1bcae42d26fde541fbf0607fc02a71abb26a7e020be3d233be013fbb8517e369",
+  "case_context_binding_id": "ctx@sha256:aab1922b44ba88bf06fd88afc30e034ec4af4f70002f7e2967f4ac7ee55333c0",
   "case_context_generation": 2,
-  "job_id": "20260901T000154-5a384488",
+  "job_id": "20260902T113847-ff91ff3c",
   "trusted_local_pickle_models": true,
   "applied_featureset_transforms": [
-    "ic_dva",
-    "partial_window_norm"
+    "partial_window_norm",
+    "ic_dva"
   ],
   "dataset_snapshots": [
     {
@@ -81,6 +81,6 @@
   "seeds": [
     0
   ],
-  "run_dir": "runs/20260901T000206",
-  "raw_run_dir": "runs/20260901T000206"
+  "run_dir": "runs/20260902T113859",
+  "raw_run_dir": "runs/20260902T113859"
 }

@@ -2,18 +2,18 @@
   "models": [
     {
       "name": "gpr_partial_window_norm_lodo_calce_cs2_seed0",
-      "artifact_id": "model@sha256:a8dfb83e29a64e5d48b3f9b50ed9c1751fa4f4f078e45741f178da47aab249cc",
+      "artifact_id": "model@sha256:654e0531a60f88f94240319c5fc30d639d29a117ac8160bb4fdefbbe3f5b8fbd",
       "estimator": "gpr",
       "featureset": "partial_window_norm",
       "training_featuresets": [
-        "ic_dva",
-        "partial_window_norm"
+        "partial_window_norm",
+        "ic_dva"
       ],
       "feature_columns": [
         "q_win_frac",
         "t_win_frac"
       ],
-      "created_by_run": "20260901T000013-daa65ba4",
+      "created_by_run": "20260902T113626-b8ac7594",
       "trained_on": [
         "hust",
         "uconn"
@@ -21,7 +21,7 @@
       "protocol": "lodo",
       "held_out_key": "calce_cs2",
       "seed": 0,
-      "manifest_sha256": "05cbf147e75db3b80da7ed7fdeb1303edfb866d0bc544dfd2d255c0911e9c09f",
+      "manifest_sha256": "4144ce24ebce209bfbb7d75838cf078fa88470d17fad06a1a77057e7e93b95e8",
       "model_sha256": "47a4dafd65e253521fa5bb9a7af56c94e98a2bb1da7afde4b60ebfacaf362421",
       "label_safety": {},
       "usable": true

@@ -1,15 +1,15 @@
 {
   "datasets": [
-    "calce_cs2",
     "hust",
+    "calce_cs2",
     "uconn"
   ],
   "estimators": [
     "gpr"
   ],
   "featuresets": [
-    "ic_dva",
-    "partial_window_norm"
+    "partial_window_norm",
+    "ic_dva"
   ],
   "protocols": [
     "lodo"
@@ -17,27 +17,27 @@
   "seeds": [
     0
   ],
-  "case_id": "EV-20260901-2D72CBCC",
+  "case_id": "EV-20260902-2589BF40",
   "profile_name": "root",
-  "case_context_binding_id": "ctx@sha256:2befff85b0ae98bdf87b0a9cb63998146e407af040df4d17ac930ee0b594da36",
+  "case_context_binding_id": "ctx@sha256:7f25483d28d986ad62a5a85b0d9768f5cec59535d50ad696a9a241c7c342b773",
   "case_context_generation": 1,
-  "job_id": "20260901T000013-daa65ba4",
-  "run_id": "20260901T000013-daa65ba4",
-  "preflight_id": "preflight@sha256:6495e699557ed5d22131d6660b13406cb0b53440aececcab40d5e0fe419fbfb5",
+  "job_id": "20260902T113626-b8ac7594",
+  "run_id": "20260902T113626-b8ac7594",
+  "preflight_id": "preflight@sha256:888454fc20d6270398768fd417ab286ad9419f1529b56723677b70a54d9aa9f1",
   "preflight_contract": "training-preflight/1.0",
   "label_safety_contract": "sohbench.label-safety.v1",
   "dataset_snapshots": [
-    {
-      "dataset": "calce_cs2",
-      "snapshot_id": "dataset@sha256:4f144b1a1c37cf4e429ff21ae8be7daa6fc5a44e18d23e69a059555511cd7715",
-      "path": "/Users/liqingchuan/Documents/projects/SOH_eval/data/processed/calce_cs2_features.pkl",
-      "bytes": 2282515
-    },
     {
       "dataset": "hust",
       "snapshot_id": "dataset@sha256:40a4e3c46861a3d065a9a531b479718467a497c764b68a9e92329156d4d777d1",
       "path": "/Users/liqingchuan/Documents/projects/SOH_eval/data/processed/hust_features.pkl",
       "bytes": 21628580
+    },
+    {
+      "dataset": "calce_cs2",
+      "snapshot_id": "dataset@sha256:4f144b1a1c37cf4e429ff21ae8be7daa6fc5a44e18d23e69a059555511cd7715",
+      "path": "/Users/liqingchuan/Documents/projects/SOH_eval/data/processed/calce_cs2_features.pkl",
+      "bytes": 2282515
     },
     {
       "dataset": "uconn",
@@ -48,85 +48,85 @@
   ],
   "trusted_local_plugins": true,
   "saved_models": [
-    "gpr_ic_dva_lodo_calce_cs2_seed0",
-    "gpr_ic_dva_lodo_hust_seed0",
-    "gpr_ic_dva_lodo_uconn_seed0",
-    "gpr_partial_window_norm_lodo_calce_cs2_seed0",
     "gpr_partial_window_norm_lodo_hust_seed0",
-    "gpr_partial_window_norm_lodo_uconn_seed0"
+    "gpr_partial_window_norm_lodo_calce_cs2_seed0",
+    "gpr_partial_window_norm_lodo_uconn_seed0",
+    "gpr_ic_dva_lodo_hust_seed0",
+    "gpr_ic_dva_lodo_calce_cs2_seed0",
+    "gpr_ic_dva_lodo_uconn_seed0"
   ],
   "model_artifacts": [
     {
-      "name": "gpr_ic_dva_lodo_calce_cs2_seed0",
-      "artifact_id": "model@sha256:02f3cdc7f5cc93b7058df84bbb0abb8c0b6e3f6b3613b8b6ccf23ffeda8bfee6",
-      "estimator": "gpr",
-      "featureset": "ic_dva",
-      "protocol": "lodo",
-      "held_out_key": "calce_cs2",
-      "seed": 0,
-      "contract_version": "1.0.0",
-      "manifest_sha256": "a270e6967b2ee08c4ecfd793302b7d241050abd7a66ad29b44bf3ee6f9630ec6",
-      "model_sha256": "b98511f535dd0de6c715d0cc765b65853a1a477bd46752485c8a814aa21e82fc"
-    },
-    {
-      "name": "gpr_ic_dva_lodo_hust_seed0",
-      "artifact_id": "model@sha256:30bb830be3ab31a10e56199fee7e658aa974287a943418accc3f3fb65ac233e6",
-      "estimator": "gpr",
-      "featureset": "ic_dva",
-      "protocol": "lodo",
-      "held_out_key": "hust",
-      "seed": 0,
-      "contract_version": "1.0.0",
-      "manifest_sha256": "a9ea164f0eb5e098c411b41ecf9febac9aa6b6ac8b08e1435d3989117dbf98d9",
-      "model_sha256": "893e77f7fc69bb0bbd2f0e1823d0d4e267613bc3bd22cc6d0f46749e9d2ae697"
-    },
-    {
-      "name": "gpr_ic_dva_lodo_uconn_seed0",
-      "artifact_id": "model@sha256:eee3b551df15069262fd5fd1c9841db4e6689fe40be670fa12575af1ea830c43",
-      "estimator": "gpr",
-      "featureset": "ic_dva",
-      "protocol": "lodo",
-      "held_out_key": "uconn",
-      "seed": 0,
-      "contract_version": "1.0.0",
-      "manifest_sha256": "f1fb77b898024898edecee7c8c8e0c2e174898eae13557b8b07874b39ea8e213",
-      "model_sha256": "fb26e2b940c6803dc67d380717115e8c381e3354827130d3850fb2d449fae801"
-    },
-    {
-      "name": "gpr_partial_window_norm_lodo_calce_cs2_seed0",
-      "artifact_id": "model@sha256:a8dfb83e29a64e5d48b3f9b50ed9c1751fa4f4f078e45741f178da47aab249cc",
-      "estimator": "gpr",
-      "featureset": "partial_window_norm",
-      "protocol": "lodo",
-      "held_out_key": "calce_cs2",
-      "seed": 0,
-      "contract_version": "1.0.0",
-      "manifest_sha256": "05cbf147e75db3b80da7ed7fdeb1303edfb866d0bc544dfd2d255c0911e9c09f",
-      "model_sha256": "47a4dafd65e253521fa5bb9a7af56c94e98a2bb1da7afde4b60ebfacaf362421"
-    },
-    {
       "name": "gpr_partial_window_norm_lodo_hust_seed0",
-      "artifact_id": "model@sha256:aa68ce4cd1b8907eb5da5158705f0ce26c88fa203f7b06205cea795c8ec3c3e9",
+      "artifact_id": "model@sha256:d5ab18eb77603b55e18195a64639135df9d98639b377009dba0569c139ecf7a3",
       "estimator": "gpr",
       "featureset": "partial_window_norm",
       "protocol": "lodo",
       "held_out_key": "hust",
       "seed": 0,
       "contract_version": "1.0.0",
-      "manifest_sha256": "12b91872a9dad0277e0427d5ecdf2a5ae744739b5540cb23e417fd9a6d8222ca",
+      "manifest_sha256": "79d228512b90f7ba2b46f7a214016ccbec565c571e43c6b7320ee43ed6b62101",
       "model_sha256": "ed129deb89c32b3456c197f9edb24af56dee616fca2608d15d8689be46c1172f"
     },
     {
+      "name": "gpr_partial_window_norm_lodo_calce_cs2_seed0",
+      "artifact_id": "model@sha256:654e0531a60f88f94240319c5fc30d639d29a117ac8160bb4fdefbbe3f5b8fbd",
+      "estimator": "gpr",
+      "featureset": "partial_window_norm",
+      "protocol": "lodo",
+      "held_out_key": "calce_cs2",
+      "seed": 0,
+      "contract_version": "1.0.0",
+      "manifest_sha256": "4144ce24ebce209bfbb7d75838cf078fa88470d17fad06a1a77057e7e93b95e8",
+      "model_sha256": "47a4dafd65e253521fa5bb9a7af56c94e98a2bb1da7afde4b60ebfacaf362421"
+    },
+    {
       "name": "gpr_partial_window_norm_lodo_uconn_seed0",
-      "artifact_id": "model@sha256:db8d0d1b108ba49dc37069cf54358ac1b2e6340334010a30a0cf98beec76357a",
+      "artifact_id": "model@sha256:771172b7e09ef32054d58fb14e51016ae99acbfbf1ce497b2370d5f71843ff28",
       "estimator": "gpr",
       "featureset": "partial_window_norm",
       "protocol": "lodo",
       "held_out_key": "uconn",
       "seed": 0,
       "contract_version": "1.0.0",
-      "manifest_sha256": "2d8a4ff3e46e550562082e916d36dc45658b6c930c30a70ef9d1aefe43417157",
-      "model_sha256": "ed910cfc975680ab594009b58a5f7e7b9c8353edac3f30fb3292ca797246cc14"
+      "manifest_sha256": "954d9091d23af1f56d60bea6d71e7e309678ec24e35c93bfd9707ee019048e84",
+      "model_sha256": "e865215da2d2b8968390883f657c56f02fa5048bfce51b4390093859f0b11278"
+    },
+    {
+      "name": "gpr_ic_dva_lodo_hust_seed0",
+      "artifact_id": "model@sha256:0df9f3ad8988956a276f3222891df9d72fe0a1c19dccb25f179f6293268c469c",
+      "estimator": "gpr",
+      "featureset": "ic_dva",
+      "protocol": "lodo",
+      "held_out_key": "hust",
+      "seed": 0,
+      "contract_version": "1.0.0",
+      "manifest_sha256": "0525eb459863bd9e676df120af2c86eeb1cea2636a1cb63400114cca549beaf5",
+      "model_sha256": "893e77f7fc69bb0bbd2f0e1823d0d4e267613bc3bd22cc6d0f46749e9d2ae697"
+    },
+    {
+      "name": "gpr_ic_dva_lodo_calce_cs2_seed0",
+      "artifact_id": "model@sha256:4a986a71ce2c774bf6c603234d3467ba9de802584ace395ad22ba01bc1c5cc11",
+      "estimator": "gpr",
+      "featureset": "ic_dva",
+      "protocol": "lodo",
+      "held_out_key": "calce_cs2",
+      "seed": 0,
+      "contract_version": "1.0.0",
+      "manifest_sha256": "2887745093fabddb797327600d11b93f870ad162bea3bc879353c65bdd7964ef",
+      "model_sha256": "b98511f535dd0de6c715d0cc765b65853a1a477bd46752485c8a814aa21e82fc"
+    },
+    {
+      "name": "gpr_ic_dva_lodo_uconn_seed0",
+      "artifact_id": "model@sha256:025199db870a01e0e97bc81fb0b137741cb4a14d5d172225cb1a0fd9a75cc884",
+      "estimator": "gpr",
+      "featureset": "ic_dva",
+      "protocol": "lodo",
+      "held_out_key": "uconn",
+      "seed": 0,
+      "contract_version": "1.0.0",
+      "manifest_sha256": "0bdce8c2fa4cbda2a4f8ffe4de274a5cedc1a9709092a73d463f137bbaa5db97",
+      "model_sha256": "0bae1246de6d3c1b16e4704875c468a8c7fce83d420f9b07cf9f531c7878bace"
     }
   ],
   "model_warnings": []
