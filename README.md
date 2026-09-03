@@ -99,12 +99,14 @@ inspect it skip when it is absent.
 
 ## Tests and CI
 
-`.github/workflows/phase311-production-stability.yml` runs the full backend suite, the kernel
-direction test and the frontend suites on Linux and macOS, and the phase 3.1.1 production
-stability gate on Windows. Locally, the same gate is
-`PYTHONPATH=src PYTHONUTF8=1 python scripts/run_phase311_production_stability.py`; the measured
-phase 3.0 release gate (`scripts/run_phase30_release_gate.py`) needs the controlled data and runs
-only in the local or self-hosted release environment.
+`.github/workflows/phase311-production-stability.yml` runs the kernel direction test, the full
+backend suite and the frontend suites on Linux, macOS and Windows. The release-gate invariants
+that used to live in the phase 3.0 gate script are ordinary tests now:
+`tests/workbench/test_release_gates.py` (measured chain to a signed EvidencePack, reload
+stability, tamper-evident audit, scope and missing-evidence blocking) and
+`tests/kernel/test_golden_invariants.py` (the NASA/B0018 golden fold, run when the real data is
+present). `scripts/run_phase311_production_stability.py` remains the local one-shot gate that
+writes a machine-readable report.
 
 ## Kernel extraction
 

@@ -47,10 +47,10 @@ jobs:
       - name: Frontend regression
         run: node --test frontend/app/
 
-  production-stability:
-    name: Phase 3.1.1 production stability (windows)
+  windows-regression:
+    name: Regression (windows-latest)
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -69,17 +69,10 @@ jobs:
       - name: Install test dependencies
         run: python -m pip install -e ".[dev]"
 
-      - name: Run production stability gate
+      - name: Backend regression
         env:
-          PYTHONPATH: ${{ github.workspace }}\src
           PYTHONUTF8: "1"
-        run: python scripts/run_phase311_production_stability.py
+        run: python -m pytest -q
 
-      - name: Upload gate report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase311-production-stability-report
-          path: |
-            work/trusted_plugins/phase311_production_stability_report.json
-            work/trusted_plugins/phase311_production_stability_report.md
+      - name: Frontend regression
+        run: node --test frontend/app/

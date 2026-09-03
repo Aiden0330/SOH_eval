@@ -28,5 +28,7 @@ extraction work is tracked in `docs/superpowers/plans/2026-09-02-kernel-extracti
 | `soh-evaluation-evidence-deep-fusion-refactor.md` | — | Evaluation page × detail dashboard fusion proposal (v1) |
 | `soh-evaluation-deep-fusion-refactor-v3.md` | — | Evaluation page × detail dashboard fusion proposal (v3) |
 
-The phase gate scripts these documents describe (`phase22_golden`, `phase24_pipeline`,
-`phase30_release_gate`) are converted into tests and retired in Task 9 of the extraction plan.
+The phase 3.0 gate script these documents describe is retired (2026-09-03): its checks are
+`tests/workbench/test_release_gates.py` and `tests/kernel/test_golden_invariants.py`.
+`phase22_golden` and `phase24_pipeline` remain the workbench's measured-case release pipeline
+(behind `scripts/build_phase22_golden_case.py` and `scripts/run_phase24_pipeline_acceptance.py`).

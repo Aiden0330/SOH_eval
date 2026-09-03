@@ -112,8 +112,8 @@ def main() -> int:
         "checks": checks,
         "measured_release_gate": {
             "included": False,
-            "reason": "阶段 3.0 实测门禁依赖受控的 battery_SOH 数据（BATTERY_SOH_ROOT / SOHBENCH_DATA_DIR），需在本地或自托管发布环境单独执行。",
-            "command": "python scripts/run_phase30_release_gate.py",
+            "reason": "阶段 3.0 门禁检查已转为测试（tests/workbench/test_release_gates.py）；真实数据黄金不变量测试在 SOHBENCH_DATA_DIR 数据存在时运行。",
+            "command": "python -m pytest tests/workbench/test_release_gates.py tests/kernel/test_golden_invariants.py -q",
         },
     }
     json_output = (root / args.output_json).resolve()

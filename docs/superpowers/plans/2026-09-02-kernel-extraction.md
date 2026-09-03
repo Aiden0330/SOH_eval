@@ -141,10 +141,10 @@ Acceptance: workbench inference tests green; direction test green — done 2026-
 
 ### Task 9: Convert phase scripts into tests, then retire them
 
-- [ ] For each check in `phase30_release_gate.py` and `phase22_golden.py`, write a test: reload stability, audit digests, incompatible-scope blocking, missing-evidence blocking → `tests/workbench/test_release_gates.py`; golden numeric invariants → `tests/kernel/test_golden_invariants.py` (skip when data absent).
-- [ ] Delete `phase22_golden.py`, `phase24_pipeline.py`, `phase30_release_gate.py` and their `scripts/run_phase*.py` wrappers; update `.github/workflows/phase311-production-stability.yml` to run the tests instead.
+- [x] `tests/workbench/test_release_gates.py` (2026-09-03): the measured chain reaches a signed pack, reload stability, tamper-evident pack + audit events, canonical digest, incompatible-scope and missing-evidence blocking — built on the workbench's measured-case pipeline with a fixture dataset. `tests/kernel/test_golden_invariants.py`: the nasa/B0018 LOCO fold scores exactly the cell's QC-passed cycles, the label never reaches the estimator, predictions stay in range and the per-cycle contributions reconstruct the fold MAE (skips without the real data).
+- [x] `phase30_release_gate.py`, `scripts/run_phase30_release_gate.py` and its test deleted; the Windows CI job runs the suites directly instead of the phase 3.1.1 script (the script stays for local one-shot reports). **Deviation:** `phase22_golden.py` and `phase24_pipeline.py` are kept — reading them showed they are the workbench's measured-case release pipeline (model re-inference → case → evidence → retest → reconciliation → signed pack), exercised by fixture tests and by `scripts/build_phase22_golden_case.py` / `run_phase24_pipeline_acceptance.py`, not gate scripts; deleting them would remove frozen-workbench functionality rather than convert invariants.
 
-Acceptance: no `phase*` module in `src/`; CI green.
+Acceptance (revised 2026-09-03): the phase 3.0 gate module is gone and its invariants are tests; the two remaining `phase*` modules are the workbench release pipeline behind the golden-case scripts; CI green run pending push.
 
 ---
 
