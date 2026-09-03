@@ -285,3 +285,26 @@ def test_trajectory_metrics_refuse_duplicate_cycle_identities():
     bad = rs[rs["held_out_key"] == "ds/c1"]
     assert bad["status"].eq("failed").all() and bad["error"].str.contains("duplicate cycle identity").all()
     assert rs[rs["held_out_key"] != "ds/c1"]["status"].eq("ok").all()
+
+
+def test_eol_metric_is_omitted_when_no_test_truth_reaches_the_eol_region(tmp_path):
+    """Task 7g: folds without an EOL-region sample carry no eol_region_error row at all."""
+    import json
+    from pathlib import Path
+    from sohkernel.metadata import build_meta
+    from sohkernel.report import write_artifacts
+    t = _table()                                       # soh from 1.00 down to 0.86: never <= 0.8
+    rs = BenchmarkRunner(seeds=[0]).run(SOHEstimationTask(), table=t, meta=build_meta(t),
+                                        protocols={"loco": LeaveOneCellOut()}, estimators=[RidgeEstimator])
+    assert rs["status"].eq("ok").all()
+    assert not (rs["metric"] == "eol_region_error").any()
+    assert (rs["metric"] == "mae").sum() == 3
+    out = write_artifacts(rs, qc_report=None, task=SOHEstimationTask(), config={}, out_dir=tmp_path)
+    entry = json.loads((Path(out) / "leaderboard.json").read_text())[0]
+    assert "eol_region_error" not in entry["metrics"] and entry["metrics"]["mae"]["mean"] is not None
+    # a fold that does reach the EOL region reports a finite value
+    t2 = _table(); t2["soh"] = 1.0 - 0.02 * t2["cycle_index"]      # down to 0.72
+    rs2 = BenchmarkRunner(seeds=[0]).run(SOHEstimationTask(), table=t2, meta=build_meta(t2),
+                                         protocols={"loco": LeaveOneCellOut()}, estimators=[RidgeEstimator])
+    eol = rs2[rs2["metric"] == "eol_region_error"]["value"]
+    assert len(eol) == 3 and np.isfinite(eol).all()

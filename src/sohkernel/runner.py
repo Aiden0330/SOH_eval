@@ -202,7 +202,12 @@ class BenchmarkRunner:
 
     def _point_metrics(self, task, yt, yp):
         out = {}
+        # Task 7g: when no test truth reaches the EOL region the fold has no EOL error to
+        # report — the metric is omitted for that fold (never a NaN that pollutes aggregates).
+        eol_available = bool(np.any(np.asarray(yt, dtype=float) <= M.EOL_THRESHOLD))
         for m in task.point_metrics:
+            if m == "eol_region_error" and not eol_available:
+                continue
             out[m] = getattr(M, m)(yt, yp)
         return out
 
