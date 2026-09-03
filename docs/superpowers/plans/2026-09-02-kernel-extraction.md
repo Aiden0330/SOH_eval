@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development or superpowers:executing-plans, task by task. Steps use `- [ ]` checkboxes. Every task ends with the full suite green (`pytest -q`, 414+ tests) and the direction test green.
 
-> **Status (2026-09-03):** Tasks 0–7 done except K7h (Wave 3); 498 backend tests + 5 node suites green; every task is one commit on `kernel-extraction`. Next: Task 8 (trusted-inference gate and prediction records into the kernel). Owner decisions pending: the pooled default of `forward` (Task 7a), D4 chemistry confirmation, S01 sign-off of Spec 01.
+> **Status (2026-09-03, later):** Tasks 0–11 done except K7h; 511 backend tests + 5 node suites green; every task is one commit on `kernel-extraction`. Next: K7h (asset-level bootstrap CIs) and the platform tasks P1–P5 in soh-agent. Owner decisions pending: the pooled default of `forward` (Task 7a), D4 chemistry confirmation, S01 sign-off of Spec 01.
 
 > **Execution note (2026-09-02, Wave 1):** the superpowers plugin is not installed in the executing environment, so Tasks 0–1 were run directly by one agent following the executing-plans discipline (one task at a time, full suite + direction test as the gate, one commit per task). Subagent-driven dispatch is reserved for tasks that are independent enough to parallelise; the Wave 2 moves (Tasks 2–5) are sequential by construction and stay with one agent.
 
@@ -150,17 +150,17 @@ Acceptance (revised 2026-09-03): the phase 3.0 gate module is gone and its invar
 
 ### Task 10: Freeze the workbench
 
-- [ ] `README.md`: state that `sohbench` (workbench) is frozen at `v0-workbench` and imports `sohkernel`; link ADR-001.
-- [ ] `docs/architecture/README.md` index: mark phase docs as historical.
+- [x] `README.md` states that `sohbench` is frozen at `v0-workbench` (bug fixes and extraction shims only) and links ADR-001 (done with G5, 2026-09-02).
+- [x] `docs/architecture/README.md` indexes the phase notes as historical (done with G5; phase 3.0 note updated in Task 9).
 
 ---
 
 ### Task 11: Kernel packaging
 
-- [ ] `pyproject.toml`: expose `sohkernel` with its own version (`0.1.0`), extras `torch`, and `[project.scripts] sohkernel = "sohkernel.cli:main"` (a minimal CLI: `load`, `preflight`, `score`).
-- [ ] `pip install -e .` from `projects/soh-agent` via `[tool.uv.sources]`/path dependency (see the platform repo's `pyproject.toml`).
+- [x] `sohkernel.__version__ = "0.1.0"`, extras `torch`, `[project.scripts] sohkernel = "sohkernel.cli:main"` (`load`, `preflight`, `score`; JSON output; blocked matrices exit 2), schemas shipped as package data. Both packages still ship in the one `sohbench` distribution — a separate `sohkernel` wheel follows once the API has been stable for a milestone (ADR-001) (2026-09-03).
+- [x] `soh-agent/.venv` installs the kernel editable from the sibling checkout (`uv pip install -e ../SOH_eval`); `import sohkernel.api` and the `sohkernel` console script work from that venv (2026-09-03).
 
-Acceptance: `python -c "import sohkernel, sohkernel.api"` works from the platform's virtualenv.
+Acceptance: `python -c "import sohkernel, sohkernel.api"` works from the platform's virtualenv — verified 2026-09-03.
 
 ---
 

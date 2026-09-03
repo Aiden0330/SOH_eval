@@ -19,12 +19,19 @@ dev = ["pytest"]
 dl = ["torch"]
 torch = ["torch"]  # kernel-facing alias of "dl" (ADR-001 extraction plan, Task 1)
 
+[project.scripts]
+sohkernel = "sohkernel.cli:main"
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+sohkernel = ["schemas/*.json"]
+sohbench = ["schemas/*.json"]
 
 [tool.pytest.ini_options]
 addopts = "-q"

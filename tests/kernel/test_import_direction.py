@@ -54,4 +54,4 @@ def test_kernel_never_imports_workbench_or_platform():
 def test_kernel_version_is_declared():
     import sohkernel
 
-    assert sohkernel.__version__ == "0.1.0.dev0"
+    assert sohkernel.__version__ == "0.1.0"
