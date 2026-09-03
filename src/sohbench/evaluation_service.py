@@ -42,6 +42,9 @@ from .report import write_artifacts, write_inference_artifacts
 from .runner import BenchmarkRunner
 from .review_workflow import ReviewWorkflowStore
 from .tasks import SOHEstimationTask
+from sohkernel.transforms import (  # the rule moved to the kernel (Task 5); agent_search imports the alias
+    inference_transform_featuresets as _inference_transform_featuresets,
+)
 from .trusted_plugins import TrustedPluginStore
 
 
@@ -2925,36 +2928,6 @@ class EvaluationService:
     def _save_retest_run(self, run: dict) -> None:
         with self._retest_run_lock:
             _write_json_atomic(self.retest_runs_dir / f"{run['id']}.json", run)
-
-
-def _inference_transform_featuresets(model_bindings: list[dict]) -> list[str]:
-    """Featureset transforms to re-apply before inference-only evaluation.
-
-    Unified models re-apply their own featureset's transform.  BYO models
-    self-select features at training time and carry featureset ``"(byo)"``,
-    which names no transform — re-apply the training request's featuresets
-    when the manifest recorded them (``training_featuresets``); for legacy
-    artifacts without the field, fall back to every transform-bearing
-    featureset whose candidate columns intersect the model's recorded
-    feature columns.
-    """
-    names: list[str] = []
-    for item in model_bindings:
-        featureset = str(item.get("featureset") or "")
-        recorded = [str(x) for x in (item.get("training_featuresets") or []) if str(x)]
-        if recorded:
-            names.extend(recorded)
-        elif featureset == "(byo)":
-            needed = {str(column) for column in item.get("feature_columns") or []}
-            for name, registered in sorted(R._FEATURESETS.items()):
-                if getattr(registered, "transform", None) is None:
-                    continue
-                candidates = {str(c) for c in getattr(registered, "candidates", []) or []}
-                if needed & candidates:
-                    names.append(name)
-        elif featureset:
-            names.append(featureset)
-    return list(dict.fromkeys(names))
 
 
 def _immutable_model_binding(item: dict) -> dict:
