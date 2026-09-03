@@ -46,6 +46,12 @@ DATA_DIR = data_root() / "processed"
 # integrated ~75% of the cycle charge.  q_win rebuilt on [3.85, 4.05] V
 # (true coverage ~43% of rated).  The audit's reference-robustness gap is
 # a documented TODO in the label-safety doc §6.3.
+#
+# Reviewed 2026-09-03 (D5, report finding G6): the window-coverage audit now divides
+# by the datasheet rated capacity from sohkernel.metadata (cell-prefix overrides
+# included) and falls back to the table's capacity column only for datasets without
+# metadata, so a distorted charge_capacity_max can no longer make it "falsely clean".
+# Median q_win / rated capacity on this date: calce_cs2 0.017; hust 0.486; nasa 0.276; oxford 0.594; snl_lfp 0.507; uconn 0.536. Findings unchanged.
 EXPECTED_LABEL_SOURCE_COLUMNS = {
     "hust": ["charge_capacity_max"],
     "oxford": ["charge_capacity_max"],

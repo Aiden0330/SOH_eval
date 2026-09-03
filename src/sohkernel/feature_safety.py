@@ -74,6 +74,45 @@ PARTIAL_WINDOW_TYPICAL_DOD_FRACTION = 0.60
 _WINDOW_MIN_SAMPLES = 64
 
 
+def _coverage_reference(table: pd.DataFrame) -> tuple[np.ndarray, np.ndarray] | None:
+    """Per-row reference capacity for the window-coverage audit and where it came from.
+
+    Preferred denominator: the **rated (nameplate) capacity** from the dataset metadata,
+    including cell-prefix overrides — label-free, and immune to a distorted per-file
+    capacity column (calce's ``charge_capacity_max`` was a file-cumulative quantity and
+    made the audit "falsely clean"; report finding G6, fixed 2026-09-03).  Rows whose
+    dataset has no known rated capacity fall back to the table's capacity column.
+    Returns ``None`` when no reference is available at all.
+    """
+    n = len(table)
+    capacity = np.full(n, np.nan, dtype=float)
+    source = np.array(["none"] * n, dtype=object)
+    if "dataset" in table.columns:
+        from .metadata import CELL_PREFIX_C_RATED_AH, DATASET_C_RATED_AH
+
+        # raw ingestion frames may carry the dataset name in any case; the loader
+        # normalises it, the audit must not depend on that
+        datasets = table["dataset"].astype(str).str.lower().to_numpy()
+        rated = np.array(pd.Series(datasets).map(DATASET_C_RATED_AH).to_numpy(dtype=float), dtype=float, copy=True)
+        if "cell_id" in table.columns:
+            cells = table["cell_id"].astype(str).to_numpy()
+            for (dataset, prefix), value in CELL_PREFIX_C_RATED_AH.items():
+                override = (datasets == dataset) & np.char.startswith(cells.astype(str), prefix)
+                rated[override] = float(value)
+        known = np.isfinite(rated) & (rated > 0.0)
+        capacity[known] = rated[known]
+        source[known] = "rated_capacity"
+    column = next((c for c in _WINDOW_REFERENCE_COLUMNS if c in table.columns), None)
+    if column is not None:
+        values = pd.to_numeric(table[column], errors="coerce").to_numpy(dtype=float)
+        fill = ~np.isfinite(capacity) & np.isfinite(values)
+        capacity[fill] = values[fill]
+        source[fill] = column
+    if not np.isfinite(capacity).any():
+        return None
+    return capacity, source
+
+
 def _window_coverage_findings(
     table: pd.DataFrame,
     selected: list[str],
@@ -87,11 +126,10 @@ def _window_coverage_findings(
     window_columns = [c for c in selected if c in PARTIAL_WINDOW_CAPACITY_COLUMNS]
     if not window_columns:
         return [], []
-    reference = next(
-        (c for c in _WINDOW_REFERENCE_COLUMNS if c in table.columns), None
-    )
+    reference = _coverage_reference(table)
     if reference is None:
         return [], []
+    capacity, reference_source = reference
     violations: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
     if "dataset" in table.columns:
@@ -101,7 +139,6 @@ def _window_coverage_findings(
         groups = [("all", np.ones(len(table), dtype=bool))]
     for column in window_columns:
         values = pd.to_numeric(table[column], errors="coerce").to_numpy(dtype=float)
-        capacity = pd.to_numeric(table[reference], errors="coerce").to_numpy(dtype=float)
         for group_name, group_mask in groups:
             mask = (
                 group_mask
@@ -113,14 +150,20 @@ def _window_coverage_findings(
             if int(mask.sum()) < _WINDOW_MIN_SAMPLES:
                 continue
             coverage = float(np.median(values[mask] / capacity[mask]))
+            sources = sorted(set(reference_source[mask].tolist()))
+            reference_label = (
+                "rated capacity" if sources == ["rated_capacity"]
+                else f"full capacity ({', '.join(sources)})"
+            )
             if coverage >= PARTIAL_WINDOW_MAX_DOD_FRACTION:
                 violations.append(
                     {
                         "column": column,
                         "kind": "full_range_ah_window",
+                        "reference": reference_label,
                         "reason": (
-                            f"feature column {column!r} integrates ≈{coverage:.0%} of full "
-                            f"capacity on {group_name!r} — an Ah window covering ≥"
+                            f"feature column {column!r} integrates ≈{coverage:.0%} of "
+                            f"{reference_label} on {group_name!r} — an Ah window covering ≥"
                             f"{PARTIAL_WINDOW_MAX_DOD_FRACTION:.0%} DOD is the calibration "
                             "capacity (the label source); keep the window below 90% DOD "
                             "(typical practice: 40–50%)"
@@ -132,9 +175,10 @@ def _window_coverage_findings(
                     {
                         "column": column,
                         "kind": "wide_ah_window",
+                        "reference": reference_label,
                         "reason": (
-                            f"feature column {column!r} integrates ≈{coverage:.0%} of full "
-                            f"capacity on {group_name!r} — wider than the typical 40–50% "
+                            f"feature column {column!r} integrates ≈{coverage:.0%} of "
+                            f"{reference_label} on {group_name!r} — wider than the typical 40–50% "
                             "DOD partial window (LFP: plateau region); allowed below 90%"
                         ),
                     }

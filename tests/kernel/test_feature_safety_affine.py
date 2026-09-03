@@ -78,3 +78,51 @@ def test_wide_partial_window_warns_but_runs():
     assert audit["status"] == "passed"
     kinds = {(item["column"], item["kind"]) for item in audit["warnings"]}
     assert ("q_win_ah", "wide_ah_window") in kinds
+
+
+# ---------------------------------------------------------------------------
+# coverage denominator: rated capacity first (D5 / report finding G6)
+# ---------------------------------------------------------------------------
+
+def _known_dataset_frame(dataset, cell, q_win, capacity_column=20.0, n=200, seed=0):
+    """A dataset with a *distorted* capacity column (file-cumulative, like calce) and a
+    window integral that is a fixed fraction of the nameplate capacity."""
+    rng = np.random.default_rng(seed)
+    soh = np.linspace(1.0, 0.8, n) + rng.normal(0, 0.003, n)
+    return pd.DataFrame({
+        "dataset": [dataset] * n,
+        "cell_id": [cell] * n,
+        "cycle_index": np.arange(n),
+        "soh": soh,
+        "charge_capacity_max": capacity_column,               # distorted: not per cycle
+        "q_win_ah": q_win + rng.normal(0.0, 0.01, n),           # not an affine label copy
+    })
+
+
+def test_window_coverage_uses_rated_capacity_for_known_datasets():
+    # hust is a 1.1 Ah cell: a 1.0 Ah window is 91 % of rated even though the distorted
+    # capacity column would make it look like 5 % (the G6 "falsely clean" case)
+    audit = audit_feature_frame(_known_dataset_frame("hust", "cell_1", q_win=1.0), ["q_win_ah"])
+    assert audit["status"] == "blocked"
+    (violation,) = audit["violations"]
+    assert violation["kind"] == "full_range_ah_window" and violation["reference"] == "rated capacity"
+    assert "of rated capacity" in violation["reason"]
+
+
+def test_window_coverage_honours_cell_prefix_overrides():
+    # calce CX2 cells are 1.35 Ah: a 1.05 Ah window is 78 % (warning) of the CX2 nameplate,
+    # while the dataset default of 1.1 Ah would have blocked it at 95 %
+    audit = audit_feature_frame(_known_dataset_frame("calce_cs2", "CX2_33", q_win=1.05), ["q_win_ah"])
+    assert audit["status"] == "passed"
+    assert [w["kind"] for w in audit["warnings"]] == ["wide_ah_window"]
+    blocked = audit_feature_frame(_known_dataset_frame("calce_cs2", "CS2_33", q_win=1.05), ["q_win_ah"])
+    assert blocked["status"] == "blocked"
+
+
+def test_window_coverage_falls_back_to_the_capacity_column_for_unknown_datasets():
+    audit = audit_feature_frame(_window_frame(0.95), ["q_win_ah"])
+    assert audit["status"] == "blocked"
+    assert audit["violations"][0]["reference"] == "full capacity (charge_capacity_max)"
+    # no reference at all -> no coverage finding
+    frame = _window_frame(0.95).drop(columns=["charge_capacity_max"])
+    assert audit_feature_frame(frame, ["q_win_ah"])["status"] == "passed"

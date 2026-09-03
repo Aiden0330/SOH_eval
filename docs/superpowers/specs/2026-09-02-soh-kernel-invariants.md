@@ -18,7 +18,7 @@ These are the rules that must hold regardless of which tool produces a number. T
 ## 2. Label safety (four layers, all mandatory)
 
 1. **Structural ban (static).** Label-source columns and everything affinely derived from them are never model inputs on any dataset: `charge_capacity_max`, `capacity_ah`, `rated_capacity`, `rated_capacity_ah`, `charge_energy_proxy_wh`, `cumulative_capacity_proxy_ah` (`feature_safety.LABEL_SOURCE_FEATURE_COLUMNS`). Enforced inside the feature selector itself, so "all columns" selectors and bring-your-own estimators cannot see them.
-2. **Value probes (dynamic).** Per dataset group with n ≥ 64: exact copy/complement checks; **affine reconstruction** `label ~ a·x + b` with R² ≥ 0.995 is a violation (legitimate physics tops out near 0.98); **integral coverage** for accumulation features: median `q_win / full capacity` ≥ 90 % blocks, > 60 % warns.
+2. **Value probes (dynamic).** Per dataset group with n ≥ 64: exact copy/complement checks; **affine reconstruction** `label ~ a·x + b` with R² ≥ 0.995 is a violation (legitimate physics tops out near 0.98); **integral coverage** for accumulation features: median `q_win / rated capacity` (datasheet nameplate from the metadata, cell-prefix overrides included; the table's capacity column is the fallback only for datasets without metadata — changed 2026-09-03, D5) ≥ 90 % blocks, > 60 % warns.
 3. **Enforcement at every boundary.** Ingestion scan (findings recorded on the dataset, the dataset is not rejected); training admission (the *combination* is rejected with column, group, statistic and remedy in the message); transform audit behind a label-isolation boundary (a transform never receives the label column); trusted inference (a model's manifest columns are audited before `predict`). Fitted feature pipelines are fitted inside each evaluation fold on the training rows only and their output is audited before an estimator sees it (`sohkernel.pipelines`, 2026-09-03).
 4. **Standing inventory.** A pinned per-dataset expectation table runs against the real data and fails in both directions: a new finding, or a known finding that disappears.
 
@@ -72,4 +72,4 @@ Guarantees: pure with respect to jobs and cases; deterministic given seeds and d
 
 ## 10. Known limitations to close (from the 2026-09-02 report)
 
-Two chemistries only (LCO, LFP) so `lcho` folds are confounded; `forward` implemented 2026-09-03 (Task 7a); search defaults to one seed; the window-coverage audit uses `charge_capacity_max` as its denominator, which was distorted on calce. Each is a tracked task, not a relaxation of this spec.
+Two chemistries only (LCO, LFP) so `lcho` folds are confounded; `forward` implemented 2026-09-03 (Task 7a); search defaults to one seed; the window-coverage audit used `charge_capacity_max` as its denominator, which was distorted on calce (fixed 2026-09-03, D5: rated capacity first). Each is a tracked task, not a relaxation of this spec.
