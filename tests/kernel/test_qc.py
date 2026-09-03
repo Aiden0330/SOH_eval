@@ -91,3 +91,18 @@ def test_zero_soh_dropped_via_nonpositive():
     clean, rep = qc_gate(t, meta, lower=0.0, upper=1.3)
     assert 0.0 not in list(clean["soh"])
     assert rep.drop_reasons.get("soh_nonpositive", 0) == 1
+
+
+def test_ambiguous_cycle_identities_are_rejected_and_counted():
+    """Task 7f: a (dataset, cell_id, cycle_index) seen twice cannot be ordered in a trajectory."""
+    t = pd.DataFrame({
+        "dataset": ["nasa"] * 6,
+        "cell_id": ["B0005"] * 6,
+        "cycle_index": [0, 1, 1, 2, 3, 3],
+        "soh": [1.0, 0.99, 0.985, 0.98, 0.97, 0.965],
+        "f1": [1.0, 2.0, 2.5, 3.0, 4.0, 4.5],
+    })
+    clean, rep = qc_gate(t, build_meta(t))
+    assert list(clean["cycle_index"]) == [0, 2]            # both rows of each ambiguous identity go
+    assert rep.drop_reasons["duplicate_cycle_identity"] == 4
+    assert rep.n_out == 4 and rep.pass_rate == 2 / 6

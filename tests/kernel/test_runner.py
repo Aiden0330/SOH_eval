@@ -271,3 +271,17 @@ def test_multi_cell_fold_monotonicity_is_scored_per_cell():
                                         estimators=[LevelShift])
     mono = rs.loc[rs["metric"] == "monotonicity_violation_rate", "value"]
     assert len(mono) == 2 and (mono == 0.0).all()
+
+
+def test_trajectory_metrics_refuse_duplicate_cycle_identities():
+    """Task 7f: the runner never scores a trajectory whose cycle identities are ambiguous
+    (QC rejects them upstream; this is the defensive guard)."""
+    from sohkernel.metadata import build_meta
+    t = _table()
+    t = pd.concat([t, t.iloc[[3]]], ignore_index=True)     # cell c1 / cycle 3 twice
+    meta = build_meta(t)
+    rs = BenchmarkRunner(seeds=[0]).run(SOHEstimationTask(), table=t, meta=meta,
+                                        protocols={"loco": LeaveOneCellOut()}, estimators=[RidgeEstimator])
+    bad = rs[rs["held_out_key"] == "ds/c1"]
+    assert bad["status"].eq("failed").all() and bad["error"].str.contains("duplicate cycle identity").all()
+    assert rs[rs["held_out_key"] != "ds/c1"]["status"].eq("ok").all()

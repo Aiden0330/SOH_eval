@@ -211,6 +211,9 @@ class BenchmarkRunner:
         # global cycle sort interleaves cells and counts every cross-cell
         # level change as a rebound, which made the physical-consistency
         # verdict unpassable regardless of model quality.
+        identity = [c for c in ("dataset", "cell_id", "cycle_index") if c in te.columns]
+        if len(identity) == 3 and te.duplicated(identity).any():
+            raise ValueError("duplicate cycle identity in the test fold: trajectory metrics need one row per cycle")
         if "cell_id" in te.columns:
             mono = M.per_cell_monotonicity_violation_rate(
                 te["cell_id"].to_numpy(), te["cycle_index"].to_numpy(), yp

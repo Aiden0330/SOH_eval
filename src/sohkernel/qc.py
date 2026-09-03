@@ -25,6 +25,14 @@ def qc_gate(table: pd.DataFrame, meta: pd.DataFrame, *, lower: float = 0.0,
     drop_reasons["soh_out_of_range"] = int((~in_range).sum())
     clean = after_np.loc[in_range].reset_index(drop=True)
 
+    # Ambiguous cycle identities: a (dataset, cell_id, cycle_index) seen more than once
+    # cannot be ordered in a trajectory nor matched to one curve, so every row of such
+    # an identity is rejected and counted (Spec 01 §4; extraction plan Task 7f).
+    identity = [c for c in ("dataset", "cell_id", "cycle_index") if c in clean.columns]
+    duplicated = clean.duplicated(identity, keep=False) if len(identity) == 3 else pd.Series(False, index=clean.index)
+    drop_reasons["duplicate_cycle_identity"] = int(duplicated.sum())
+    clean = clean.loc[~duplicated].reset_index(drop=True)
+
     # availability mask on feature columns (no fill)
     feat_cols = [c for c in clean.columns if c not in ID_COLUMNS]
     dropped_columns = []
