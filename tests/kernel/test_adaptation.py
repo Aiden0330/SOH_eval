@@ -9,6 +9,8 @@ import pytest
 
 from sohkernel.adaptation import (
     ADAPTATION_OPERATORS,
+    CALIBRATION_SCENARIOS,
+    CALIBRATION_SPLITS,
     OPERATOR_CHANNELS,
     InferenceAdapter,
     recalibration_loo_predictions,
@@ -325,3 +327,36 @@ def test_wide_residual_columns_skip_all_nan_columns():
         "charge_capacity_max": [1.1, 1.09, 1.08, 1.07],  # banned
     })
     assert wide_residual_columns(table, ["voltage_mean"]) == ["voltage_mean", "cycle_index"]
+
+
+# ---------------------------------------------------------------------------
+# calibration split default and labelling (Task 7c)
+# ---------------------------------------------------------------------------
+
+def test_earliest_is_the_default_calibration_split_everywhere():
+    import inspect
+
+    assert inspect.signature(calibration_split).parameters["strategy"].default == "earliest"
+    assert inspect.signature(InferenceAdapter).parameters["calibration_split"].default == "earliest"
+    assert CALIBRATION_SPLITS == ("earliest", "spread")
+    assert set(CALIBRATION_SCENARIOS) == set(CALIBRATION_SPLITS)
+
+
+@pytest.mark.parametrize("split, scenario, forward", [
+    ("earliest", "forward_deployment", True),
+    ("spread", "periodic_checkup_backtest", False),
+])
+def test_provenance_labels_the_calibration_split_explicitly(split, scenario, forward):
+    table = _target_table()
+    adapter = InferenceAdapter(service=None, operator="recalibration", calibration_budget=8,
+                               calibration_split=split)
+    _t, _mask, info = adapter.prepare(_LoadedStub(), {}, table)
+    assert info["calibration_split"] == split
+    assert info["calibration_scenario"] == scenario
+    assert info["supports_forward_claim"] is forward
+
+
+def test_zero_budget_records_no_calibration_split():
+    table = _target_table()
+    _t, mask, info = InferenceAdapter(service=None, operator="none", calibration_budget=0).prepare(_LoadedStub(), {}, table)
+    assert int(mask.sum()) == 0 and "calibration_split" not in info and "calibration_scenario" not in info

@@ -98,6 +98,13 @@ OPERATOR_CHANNELS = {
 }
 
 CALIBRATION_SPLITS = ("earliest", "spread")
+# What each split simulates (Spec 01 §7): ``earliest`` is the deployment case (the first K
+# reference cycles are all a fleet ever gets) and is the only split that can support a
+# forward claim; ``spread`` is a periodic-checkup backtest and is always labelled as such.
+CALIBRATION_SCENARIOS = {
+    "earliest": "forward_deployment",
+    "spread": "periodic_checkup_backtest",
+}
 
 INTERVAL_MODES = ("model", "conformal")
 
@@ -605,6 +612,8 @@ class InferenceAdapter:
         info["calibration_samples"] = int(calibration_mask.sum())
         if budget > 0:
             info["calibration_split"] = self.calibration_split
+            info["calibration_scenario"] = CALIBRATION_SCENARIOS[self.calibration_split]
+            info["supports_forward_claim"] = self.calibration_split == "earliest"
             if not self._uses_labeled_budget:
                 info["evaluation_holdout"] = (
                     "calibration rows held out from evaluation for cross-operator "
