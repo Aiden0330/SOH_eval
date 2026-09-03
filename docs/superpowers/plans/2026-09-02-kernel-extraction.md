@@ -111,7 +111,7 @@ Acceptance: `evaluation_service.training_preflight` delegates to `sohkernel.api.
 
 Separate commits, each with tests.
 
-- [ ] `protocols.ForwardChaining(train_frac=0.6, min_train_cycles=20)`: per cell, train on the earliest fraction, test on the rest; `held_out_key = "<dataset>/<cell>@forward"`; registered as `"forward"` in `PROTOCOLS`.
+- [x] `protocols.ForwardChaining(train_frac=0.6, min_train_cycles=20, pooled=True)`: per cell, the earliest fraction is its early life; one fold per eligible cell tests its later cycles and trains on the pooled early life of all cells (`pooled=False` = the cell's own early cycles only); `held_out_key = "<dataset>/<cell>@forward"`; registered as `"forward"` in `PROTOCOLS`; the preflight reports eligible cells (done 2026-09-03, 6 tests). **Decision to confirm with the owner:** pooled early-life training as the default reading of "per cell, train on the earliest fraction".
 - [ ] Seed injection: `BenchmarkRunner` passes `seed` to estimators exposing `set_seed(seed)` or a `random_state` constructor argument; add `set_seed` to `gbdt`, `extra_trees`, `mlp`, torch estimators; test that two seeds give different predictions for `mlp` and identical for `ridge`.
 - [ ] `adaptation.calibration_split(..., strategy="earliest")` becomes the default in kernel API calls; `"spread"` stays available but the returned provenance carries `calibration_split="spread"` explicitly (already recorded — verify).
 

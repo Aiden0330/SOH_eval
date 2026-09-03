@@ -74,3 +74,98 @@ def test_single_chemistry_yields_no_folds():
     assert any("one chemistry" in str(warning.message).lower() or
                "single" in str(warning.message).lower()
                for warning in w)
+
+
+# ---------------------------------------------------------------------------
+# forward chaining (Task 7a)
+# ---------------------------------------------------------------------------
+
+def _forward_table():
+    import numpy as np
+    import pandas as pd
+    rng = np.random.default_rng(11)
+    rows = []
+    for cell, n in (("a", 50), ("b", 50), ("c", 30), ("short", 10)):
+        for k in range(n):
+            # f1 tracks age with noise so it is a legitimate feature, not an affine label copy
+            rows.append({"dataset": "ds", "cell_id": cell, "cycle_index": n - 1 - k,  # unsorted on purpose
+                         "soh": 1.0 - 0.004 * k, "f1": float(k) + rng.normal(0.0, 5.0)})
+    return pd.DataFrame(rows).sample(frac=1.0, random_state=3).reset_index(drop=True)
+
+
+def test_forward_is_registered_and_not_cross_domain():
+    from sohkernel.protocols import PROTOCOLS, ForwardChaining
+    assert PROTOCOLS["forward"] is ForwardChaining
+    assert ForwardChaining().cross_domain is False
+    assert ForwardChaining().name == "forward"
+
+
+def test_forward_holds_out_each_cell_future_and_pools_early_life():
+    import warnings
+    import numpy as np
+    from sohkernel.protocols import ForwardChaining
+    t = _forward_table()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        folds = list(ForwardChaining(train_frac=0.6, min_train_cycles=20).generate(t, build_meta(t)))
+    assert [f.held_out_key for f in folds] == ["ds/a@forward", "ds/b@forward", "ds/c@forward"]
+    assert any("ds/short" in str(w.message) for w in caught)  # too short: warned, never tested
+    cutoff = {"ds/a": 30, "ds/b": 30, "ds/c": 20, "ds/short": 10}  # max(20, round(0.6 n)), capped at n
+    key = (t["dataset"].astype(str) + "/" + t["cell_id"].astype(str)).to_numpy()
+    cyc = t["cycle_index"].to_numpy()
+    for f in folds:
+        cell = f.held_out_key.removesuffix("@forward")
+        assert set(key[f.test_idx]) == {cell}
+        assert cyc[f.test_idx].min() > cyc[f.train_idx][key[f.train_idx] == cell].max()
+        # every training row is early life: cycle index below its own cell's cutoff
+        assert all(cyc[i] < cutoff[key[i]] for i in f.train_idx)
+        assert len(f.train_idx) == 30 + 30 + 20 + 10  # pooled early life of all cells
+        assert not set(f.train_idx) & set(f.test_idx)
+        assert np.array_equal(np.sort(cyc[f.test_idx]), np.arange(cutoff[cell], cutoff[cell] + len(f.test_idx)))
+
+
+def test_forward_within_cell_mode_trains_only_on_the_held_out_cell():
+    from sohkernel.protocols import ForwardChaining
+    t = _forward_table()
+    key = (t["dataset"].astype(str) + "/" + t["cell_id"].astype(str)).to_numpy()
+    for f in ForwardChaining(pooled=False).generate(t, build_meta(t)):
+        cell = f.held_out_key.removesuffix("@forward")
+        assert set(key[f.train_idx]) == {cell}
+        assert len(f.train_idx) == {"ds/a": 30, "ds/b": 30, "ds/c": 20}[cell]
+
+
+def test_forward_parameters_are_validated():
+    import pytest
+    from sohkernel.protocols import ForwardChaining
+    with pytest.raises(ValueError):
+        ForwardChaining(train_frac=1.0)
+    with pytest.raises(ValueError):
+        ForwardChaining(min_train_cycles=0)
+
+
+def test_forward_preflight_profile_reports_eligibility():
+    from sohkernel import api
+    import sohkernel.estimators as E
+    E.register_all(include_torch=False)
+    t = _forward_table()
+    result = api.preflight({"datasets": ["ds"], "estimators": ["ridge"], "featuresets": ["full"],
+                            "protocols": ["forward"], "seeds": [0]}, table=t, meta=build_meta(t))
+    (combo,) = result.combinations
+    assert combo["status"] == "warning" and result.ready
+    profile = result.protocols[0]
+    assert profile["details"]["eligible_cells"] == 3 and profile["details"]["cells"] == 4
+    short = t[t["cell_id"] == "short"]
+    blocked = api.preflight({"datasets": ["ds"], "estimators": ["ridge"], "featuresets": ["full"],
+                             "protocols": ["forward"], "seeds": [0]}, table=short, meta=build_meta(short))
+    assert not blocked.ready and any("forward requires" in r for r in blocked.combinations[0]["reasons"])
+    assert api.normalize_request({"protocols": ["forward"]})["protocols"] == ["forward"]
+
+
+def test_forward_scores_through_the_kernel_api():
+    from sohkernel import api
+    import sohkernel.estimators as E
+    E.register_all(include_torch=False)
+    t = _forward_table()
+    results = api.score(None, t, build_meta(t), ["forward"], ["ridge"], ["full"], seeds=[0])
+    assert set(results["held_out_key"]) == {"ds/a@forward", "ds/b@forward", "ds/c@forward"}
+    assert "error" not in results.columns or results["error"].isna().all()

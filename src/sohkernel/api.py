@@ -289,6 +289,24 @@ def training_protocol_profile(table: pd.DataFrame, meta: pd.DataFrame | None, na
             errors.append("LCHO requires known chemistry metadata for every selected cell")
         if len(known) < 2:
             errors.append("LCHO requires at least two known chemistries")
+    elif name == "forward":
+        protocol = PROTOCOLS["forward"]()
+        plan = protocol.plan(table)
+        eligible = [key for key, (n, n_train) in plan.items() if n_train < n]
+        details = {
+            "cells": cell_count,
+            "eligible_cells": len(eligible),
+            "train_frac": protocol.train_frac,
+            "min_train_cycles": protocol.min_train_cycles,
+        }
+        if not eligible:
+            errors.append(
+                f"forward requires at least one cell with more than {protocol.min_train_cycles} cycles"
+            )
+        elif len(eligible) < cell_count:
+            warnings.append(
+                f"{cell_count - len(eligible)} of {cell_count} cells are too short to hold out a future segment"
+            )
     else:
         errors.append(f"unknown protocol: {name}")
     if len(table) < 4:

@@ -28,7 +28,7 @@ These are the rules that must hold regardless of which tool produces a number. T
 
 - **No random cycle split anywhere.** Cycles of one cell are never split between train and test.
 - **Leave-one-domain family:** `loco` (cell), `lodo` (dataset), `lcho` (chemistry; when a held-out chemistry spans a single dataset the fold is flagged as lab-confounded and cannot support a chemistry claim).
-- **Forward-chaining** (`forward`): per cell, train on the earliest fraction of cycles, test on the rest. Required for any temporal or adaptation claim (Task 7 of the extraction plan adds it).
+- **Forward-chaining** (`forward`): per cell, the earliest `max(min_train_cycles, round(train_frac · n))` cycles are its early life (defaults 20 cycles, 0.6); one fold per eligible cell tests its later cycles and trains on the pooled early life of all cells (`pooled=False` restricts training to the cell's own early cycles). No future cycle of any cell reaches training. Required for any temporal or adaptation claim (implemented 2026-09-03, extraction plan Task 7a).
 - **Nested evaluation for search.** Inner datasets are search-visible and scored under `loco` per dataset; ranking is by the **worst-case** inner MAE, not the mean. The outer dataset is invisible during search and is scored **once** under `lodo`/`forward` for the finalists (top-k), with every finalist's result disclosed. The report carries an `integrity` block stating this.
 
 ## 4. Metrics and verdicts
@@ -72,4 +72,4 @@ Guarantees: pure with respect to jobs and cases; deterministic given seeds and d
 
 ## 10. Known limitations to close (from the 2026-09-02 report)
 
-Two chemistries only (LCO, LFP) so `lcho` folds are confounded; `forward` not yet implemented; search defaults to one seed; the window-coverage audit uses `charge_capacity_max` as its denominator, which was distorted on calce. Each is a tracked task, not a relaxation of this spec.
+Two chemistries only (LCO, LFP) so `lcho` folds are confounded; `forward` implemented 2026-09-03 (Task 7a); search defaults to one seed; the window-coverage audit uses `charge_capacity_max` as its denominator, which was distorted on calce. Each is a tracked task, not a relaxation of this spec.
