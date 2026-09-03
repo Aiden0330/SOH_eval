@@ -1,0 +1,76 @@
+{
+  "train_job_id": "20260701T192542-b9f52437",
+  "inference_job_id": "20260701T192724-f683b9a1",
+  "datasets": [
+    "calce_cs2",
+    "hust",
+    "nasa",
+    "oxford",
+    "rwth_isea_public",
+    "snl_lfp",
+    "uconn"
+  ],
+  "featureset": "battery_soh_operational",
+  "protocol": "lodo",
+  "inference_by_algorithm": [
+    {
+      "algorithm": "gbdt",
+      "records": 49,
+      "succeeded": 49,
+      "mean_mae": 0.08960426489624912,
+      "median_mae": 0.060376100841071,
+      "mean_rmse": 0.11687428959486043,
+      "mean_ms_per_1000": 5.455110571838842,
+      "median_ms_per_1000": 4.1105360426000095
+    },
+    {
+      "algorithm": "battery_soh_tabular_ensemble",
+      "records": 49,
+      "succeeded": 49,
+      "mean_mae": 0.09337009973258625,
+      "median_mae": 0.06093568943492728,
+      "mean_rmse": 0.11592283985009968,
+      "mean_ms_per_1000": 39.11546146350181,
+      "median_ms_per_1000": 28.693134849666798
+    },
+    {
+      "algorithm": "ridge",
+      "records": 49,
+      "succeeded": 49,
+      "mean_mae": 0.11636550188161471,
+      "median_mae": 0.0809942220967418,
+      "mean_rmse": 0.13816557736768575,
+      "mean_ms_per_1000": 0.8959691022678697,
+      "median_ms_per_1000": 0.5779460665431337
+    }
+  ],
+  "train_by_algorithm": [
+    {
+      "algorithm": "battery_soh_tabular_ensemble",
+      "mae_mean": 0.1322408932161063,
+      "mae_std": 0.08553282996419484,
+      "rmse_mean": 0.16091028824761736,
+      "rmse_std": 0.11019369425554564,
+      "alpha_accuracy_mean": 0.6707985095322527,
+      "backend": "battery_soh"
+    },
+    {
+      "algorithm": "gbdt",
+      "mae_mean": 0.134762611634365,
+      "mae_std": 0.08184699220214313,
+      "rmse_mean": 0.16783601964626718,
+      "rmse_std": 0.10745787577249978,
+      "alpha_accuracy_mean": 0.6613643040283016,
+      "backend": "sklearn"
+    },
+    {
+      "algorithm": "ridge",
+      "mae_mean": 0.13578513138068113,
+      "mae_std": 0.0908317429209013,
+      "rmse_mean": 0.15739257494489808,
+      "rmse_std": 0.11314478454965957,
+      "alpha_accuracy_mean": 0.6823149395518804,
+      "backend": "sklearn"
+    }
+  ]
+}

@@ -1,0 +1,299 @@
+﻿# Task 1 Review Package
+
+## Git Status
+ M src/sohbench/api_server.py
+ M src/sohbench/evaluation_service.py
+?? .superpowers/
+?? docs/exports/
+?? docs/superpowers/plans/2026-07-01-battery-soh-contract-fusion.md
+?? docs/superpowers/specs/2026-07-01-battery-soh-contract-fusion-design.md
+?? scripts/build_standalone_frontend.py
+?? scripts/import_battery_dashboard_profile.py
+?? src/sohbench/battery_dashboard_import.py
+?? tests/test_battery_dashboard_import.py
+?? tests/test_standalone_frontend.py
+
+## Tracked Diff
+diff --git a/src/sohbench/api_server.py b/src/sohbench/api_server.py
+index 0b72200..49d56ea 100644
+--- a/src/sohbench/api_server.py
++++ b/src/sohbench/api_server.py
+@@ -88,6 +88,13 @@ def create_handler(service: EvaluationService):
+                     self._send_json(service.create_job(payload, start=True), status=HTTPStatus.ACCEPTED)
+                 elif path == "/api/inference-jobs":
+                     self._send_json(service.create_inference_job(payload, start=True), status=HTTPStatus.ACCEPTED)
++                elif path == "/api/import/battery-dashboard":
++                    profile = service.import_battery_dashboard_profile(
++                        source_dir=payload.get("source_dir", r"D:\battery_SOH\dashboard\data"),
++                        profile_name=payload.get("profile_name", "battery-soh-diagnostics"),
++                        include_curves=bool(payload.get("include_curves", False)),
++                    )
++                    self._send_json({"ok": True, "profile": profile})
+                 else:
+                     self._send_json({"error": "not found"}, status=HTTPStatus.NOT_FOUND)
+             except (TrustedPluginError, ModelStoreError, ValueError, KeyError) as exc:
+diff --git a/src/sohbench/evaluation_service.py b/src/sohbench/evaluation_service.py
+index ea959ed..17db245 100644
+--- a/src/sohbench/evaluation_service.py
++++ b/src/sohbench/evaluation_service.py
+@@ -11,6 +11,7 @@ from pathlib import Path
+ from . import registry as R
+ from .contracts import feature_columns
+ from .data import DatasetLoader
++from .battery_dashboard_import import publish_battery_dashboard_profile
+ from .frontend_publish import publish_frontend_profile, sync_frontend_artifacts
+ from .inference import run_inference_benchmark
+ from .model_store import ModelStore
+@@ -395,6 +396,20 @@ class EvaluationService:
+             source_dirs=source_dirs,
+         )
+ 
++    def import_battery_dashboard_profile(
++        self,
++        *,
++        source_dir: str | Path = r"D:\battery_SOH\dashboard\data",
++        profile_name: str = "battery-soh-diagnostics",
++        include_curves: bool = False,
++    ) -> dict:
++        return publish_battery_dashboard_profile(
++            self.frontend_data_dir,
++            Path(source_dir),
++            include_curves=include_curves,
++            profile_name=profile_name,
++        )
++
+     def _save_job(self, job: dict) -> None:
+         self.jobs_dir.mkdir(parents=True, exist_ok=True)
+         (self.jobs_dir / f"{job['id']}.json").write_text(
+
+## New File: src/sohbench/battery_dashboard_import.py
+from __future__ import annotations
+
+import shutil
+import tempfile
+from pathlib import Path
+
+from .frontend_publish import publish_frontend_profile
+
+
+ARTIFACT_PREFIX = "battery_dashboard_"
+
+
+def stage_battery_dashboard_artifacts(
+    source_dir: Path,
+    target_dir: Path,
+    include_curves: bool = False,
+) -> list[str]:
+    source = Path(source_dir)
+    target = Path(target_dir)
+    if not source.exists():
+        raise FileNotFoundError(f"battery dashboard source directory not found: {source}")
+    if not source.is_dir():
+        raise NotADirectoryError(f"battery dashboard source path is not a directory: {source}")
+
+    target.mkdir(parents=True, exist_ok=True)
+    copied: list[str] = []
+    for path in sorted(source.glob("*.json"), key=lambda item: item.name):
+        if path.name.endswith("_curves.json") and not include_curves:
+            continue
+        filename = _dashboard_artifact_name(path.name)
+        shutil.copy2(path, target / filename)
+        copied.append(filename)
+    return sorted(copied)
+
+
+def publish_battery_dashboard_profile(
+    frontend_data_dir: Path,
+    source_dir: Path,
+    include_curves: bool = False,
+    profile_name: str = "battery-soh-diagnostics",
+) -> dict:
+    with tempfile.TemporaryDirectory(prefix="battery-dashboard-") as tmp:
+        staged_dir = Path(tmp)
+        artifacts = stage_battery_dashboard_artifacts(source_dir, staged_dir, include_curves=include_curves)
+        manifest = {
+            "source": "battery_SOH_dashboard",
+            "kind": "battery_soh_diagnostics",
+            "include_curves": bool(include_curves),
+            "diagnostic_artifacts": artifacts,
+        }
+        return publish_frontend_profile(
+            frontend_data_dir,
+            profile_name,
+            manifest,
+            source_dirs=[staged_dir],
+            artifact_files=artifacts,
+        )
+
+
+def _dashboard_artifact_name(filename: str) -> str:
+    return filename if filename.startswith(ARTIFACT_PREFIX) else f"{ARTIFACT_PREFIX}{filename}"
+
+## New File: tests/test_battery_dashboard_import.py
+import json
+import threading
+import urllib.request
+from http.server import ThreadingHTTPServer
+
+from sohbench.api_server import create_handler
+from sohbench.battery_dashboard_import import (
+    publish_battery_dashboard_profile,
+    stage_battery_dashboard_artifacts,
+)
+from sohbench.evaluation_service import EvaluationService
+
+
+def _write_json(path, payload):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _source_dashboard_dir(tmp_path):
+    source = tmp_path / "dashboard" / "data"
+    _write_json(source / "manifest.json", {"source_manifest": True})
+    _write_json(source / "overview.json", {"overview": True})
+    _write_json(source / "xjtu.json", {"scenario": "xjtu"})
+    _write_json(source / "ess_detection.json", {"scenario": "ess_detection"})
+    _write_json(source / "xjtu_curves.json", {"curve": "xjtu"})
+    _write_json(source / "ess_detection_curves.json", {"curve": "ess"})
+    (source / "notes.txt").write_text("not dashboard json", encoding="utf-8")
+    return source
+
+
+def _post_json(base_url, path, payload):
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        base_url + path,
+        data=data,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _serve(service):
+    server = ThreadingHTTPServer(("127.0.0.1", 0), create_handler(service))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, f"http://127.0.0.1:{server.server_address[1]}"
+
+
+def test_default_staging_excludes_curves_and_prefixes_json_names(tmp_path):
+    source = _source_dashboard_dir(tmp_path)
+    target = tmp_path / "staged"
+
+    copied = stage_battery_dashboard_artifacts(source, target)
+
+    assert copied == [
+        "battery_dashboard_ess_detection.json",
+        "battery_dashboard_manifest.json",
+        "battery_dashboard_overview.json",
+        "battery_dashboard_xjtu.json",
+    ]
+    assert sorted(path.name for path in target.iterdir()) == copied
+    assert json.loads((target / "battery_dashboard_manifest.json").read_text(encoding="utf-8")) == {
+        "source_manifest": True
+    }
+
+
+def test_staging_can_include_curves(tmp_path):
+    source = _source_dashboard_dir(tmp_path)
+    target = tmp_path / "staged"
+
+    copied = stage_battery_dashboard_artifacts(source, target, include_curves=True)
+
+    assert copied == [
+        "battery_dashboard_ess_detection.json",
+        "battery_dashboard_ess_detection_curves.json",
+        "battery_dashboard_manifest.json",
+        "battery_dashboard_overview.json",
+        "battery_dashboard_xjtu.json",
+        "battery_dashboard_xjtu_curves.json",
+    ]
+    assert (target / "battery_dashboard_xjtu_curves.json").exists()
+    assert (target / "battery_dashboard_ess_detection_curves.json").exists()
+
+
+def test_publish_creates_profile_manifest_without_source_manifest_collision(tmp_path):
+    source = _source_dashboard_dir(tmp_path)
+    frontend_data = tmp_path / "frontend_data"
+
+    result = publish_battery_dashboard_profile(frontend_data, source, include_curves=False)
+
+    profile_dir = frontend_data / "profiles" / "battery-soh-diagnostics"
+    manifest_path = profile_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert result["name"] == "battery-soh-diagnostics"
+    assert manifest["source"] == "battery_SOH_dashboard"
+    assert manifest["kind"] == "battery_soh_diagnostics"
+    assert manifest["include_curves"] is False
+    assert manifest["diagnostic_artifacts"] == [
+        "battery_dashboard_ess_detection.json",
+        "battery_dashboard_manifest.json",
+        "battery_dashboard_overview.json",
+        "battery_dashboard_xjtu.json",
+    ]
+    assert manifest["artifact_files"] == manifest["diagnostic_artifacts"]
+    assert "source_manifest" not in manifest
+    assert (profile_dir / "battery_dashboard_manifest.json").exists()
+    assert (frontend_data / "profiles" / "index.json").exists()
+
+
+def test_api_import_battery_dashboard_publishes_profile(tmp_path):
+    source = _source_dashboard_dir(tmp_path)
+    service = EvaluationService(
+        data_dir=tmp_path / "data",
+        work_dir=tmp_path / "work",
+        runs_dir=tmp_path / "runs",
+        frontend_data_dir=tmp_path / "frontend_data",
+    )
+    server, base_url = _serve(service)
+    try:
+        response = _post_json(
+            base_url,
+            "/api/import/battery-dashboard",
+            {"source_dir": str(source), "include_curves": True},
+        )
+    finally:
+        server.shutdown()
+
+    assert response["ok"] is True
+    manifest = response["profile"]["manifest"]
+    assert manifest["profile"] == "battery-soh-diagnostics"
+    assert manifest["include_curves"] is True
+    assert "battery_dashboard_xjtu_curves.json" in manifest["diagnostic_artifacts"]
+    assert (tmp_path / "frontend_data" / "profiles" / "battery-soh-diagnostics" / "manifest.json").exists()
+
+## New File: scripts/import_battery_dashboard_profile.py
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+from sohbench.battery_dashboard_import import publish_battery_dashboard_profile
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser("import-battery-dashboard-profile")
+    parser.add_argument("--source-dir", default=r"D:\battery_SOH\dashboard\data")
+    parser.add_argument("--frontend-data-dir", default="frontend/app/data")
+    parser.add_argument("--profile-name", default="battery-soh-diagnostics")
+    parser.add_argument("--include-curves", action="store_true")
+    return parser.parse_args(argv)
+
+
+def main(argv=None) -> None:
+    args = parse_args(argv)
+    result = publish_battery_dashboard_profile(
+        Path(args.frontend_data_dir),
+        Path(args.source_dir),
+        include_curves=args.include_curves,
+        profile_name=args.profile_name,
+    )
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

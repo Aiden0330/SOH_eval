@@ -1,0 +1,651 @@
+{
+ "schema_version": "1.0.0",
+ "generated_at": "2026-08-17T06:55:07.909481+00:00",
+ "migration_strategy": "B-curated-supervised",
+ "source_root": "D:\\battery_SOH\\data",
+ "data_root": "D:\\SOH_eval\\data",
+ "summary": {
+  "local_files": 306,
+  "local_bytes": 24288608875,
+  "processed_datasets": 9,
+  "records": 235320,
+  "cycles": 235288,
+  "batteries": 226
+ },
+ "verification": {
+  "inventory_checks": [
+   {
+    "path": "processed",
+    "source_files": 51,
+    "target_files": 51,
+    "bytes": 35866582,
+    "inventory_match": true
+   },
+   {
+    "path": "checksums",
+    "source_files": 0,
+    "target_files": 0,
+    "bytes": 0,
+    "inventory_match": true
+   },
+   {
+    "path": "registry",
+    "source_files": 0,
+    "target_files": 0,
+    "bytes": 0,
+    "inventory_match": true
+   },
+   {
+    "path": "raw/nasa",
+    "source_files": 4,
+    "target_files": 4,
+    "bytes": 56536711,
+    "inventory_match": true
+   },
+   {
+    "path": "raw/nasa_full",
+    "source_files": 43,
+    "target_files": 43,
+    "bytes": 198546178,
+    "inventory_match": true
+   },
+   {
+    "path": "raw/nasa_full_zips",
+    "source_files": 6,
+    "target_files": 6,
+    "bytes": 209659202,
+    "inventory_match": true
+   },
+   {
+    "path": "raw/calce",
+    "source_files": 14,
+    "target_files": 14,
+    "bytes": 702124169,
+    "inventory_match": true
+   },
+   {
+    "path": "raw/hust",
+    "source_files": 78,
+    "target_files": 78,
+    "bytes": 5433867679,
+    "inventory_match": true
+   },
+   {
+    "path": "raw/oxford",
+    "source_files": 2,
+    "target_files": 2,
+    "bytes": 266169933,
+    "inventory_match": true
+   },
+   {
+    "path": "raw/snl_batterylife",
+    "source_files": 81,
+    "target_files": 81,
+    "bytes": 744945244,
+    "inventory_match": true
+   },
+   {
+    "path": "raw/uconn_lfp",
+    "source_files": 3,
+    "target_files": 3,
+    "bytes": 16330570449,
+    "inventory_match": true
+   },
+   {
+    "path": "raw/nasa_B0005_sample.mat",
+    "source_files": 1,
+    "target_files": 1,
+    "bytes": 15956874,
+    "inventory_match": true
+   },
+   {
+    "path": "raw/nasa_battery_dataset.zip",
+    "source_files": 1,
+    "target_files": 1,
+    "bytes": 209708670,
+    "inventory_match": true
+   }
+  ],
+  "all_inventory_checks_passed": true,
+  "runtime_artifacts_sha256_recorded": true
+ },
+ "datasets": [
+  {
+   "name": "calce_cs2",
+   "status": "ready",
+   "supervision": "soh_supervised",
+   "roles": [
+    "training",
+    "same_dataset_holdout",
+    "inference",
+    "audit"
+   ],
+   "processed": {
+    "path": "processed/calce_cs2_features.pkl",
+    "bytes": 2282515,
+    "sha256": "4f144b1a1c37cf4e429ff21ae8be7daa6fc5a44e18d23e69a059555511cd7715",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "time_s_max",
+     "voltage_mean",
+     "voltage_std",
+     "voltage_min",
+     "voltage_max",
+     "current_mean",
+     "current_std",
+     "abs_current_mean",
+     "temperature_mean",
+     "charge_capacity_max",
+     "q_win_ah",
+     "t_win_s",
+     "ic_peak_ah_per_v",
+     "ic_peak_voltage_v",
+     "cycle_index_feature",
+     "cycle_fraction"
+    ],
+    "partial_window_v": [
+     3.85,
+     4.05
+    ]
+   },
+   "record_count": 15411,
+   "cycle_count": 15411,
+   "battery_count": 13,
+   "chemistry": "LCO",
+   "max_capacity_ah": 1.1,
+   "capacity_source": "rated_metadata",
+   "label_source": "calibration_capacity",
+   "held_out_ready": true,
+   "raw_paths": [
+    "raw/calce"
+   ],
+   "raw_local": true,
+   "curve_path": "curves/calce_curves.json",
+   "curve_sha256": "5fd40a15bbfda861ed36de86d3ecc32708b8de86b69abec50254aa1190429915",
+   "license": "academic-use",
+   "source": "CALCE Battery Data"
+  },
+  {
+   "name": "hust",
+   "status": "ready",
+   "supervision": "soh_supervised",
+   "roles": [
+    "training",
+    "same_dataset_holdout",
+    "inference",
+    "audit"
+   ],
+   "processed": {
+    "path": "processed/hust_features.pkl",
+    "bytes": 21628580,
+    "sha256": "40a4e3c46861a3d065a9a531b479718467a497c764b68a9e92329156d4d777d1",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "time_s_max",
+     "voltage_mean",
+     "voltage_std",
+     "voltage_min",
+     "voltage_max",
+     "current_mean",
+     "current_std",
+     "abs_current_mean",
+     "temperature_mean",
+     "charge_capacity_max",
+     "q_win_ah",
+     "t_win_s",
+     "ic_peak_ah_per_v",
+     "ic_peak_voltage_v",
+     "cycle_index_feature",
+     "cycle_fraction"
+    ],
+    "partial_window_v": [
+     3.3,
+     3.52
+    ]
+   },
+   "record_count": 146122,
+   "cycle_count": 146122,
+   "battery_count": 77,
+   "chemistry": "LFP",
+   "max_capacity_ah": 1.1,
+   "capacity_source": "rated_metadata",
+   "label_source": "calibration_capacity",
+   "held_out_ready": true,
+   "raw_paths": [
+    "raw/hust"
+   ],
+   "raw_local": true,
+   "curve_path": "curves/hust_curves.json",
+   "curve_sha256": "3109db334b2955ab9dd49a3d2c6939409c0e84d7a226b33da4e31d10988a2b81",
+   "license": "CC-BY-4.0",
+   "source": "Ma et al. 2022 / Mendeley Data"
+  },
+  {
+   "name": "nasa",
+   "status": "ready",
+   "supervision": "soh_supervised",
+   "roles": [
+    "training",
+    "same_dataset_holdout",
+    "inference",
+    "audit"
+   ],
+   "processed": {
+    "path": "processed/nasa_features.pkl",
+    "bytes": 426457,
+    "sha256": "f7523b4e6b1dcbcceb940834878967cfaff2392805c9992c3768f721ebb8586b",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "time_s_max",
+     "voltage_mean",
+     "voltage_std",
+     "voltage_min",
+     "voltage_max",
+     "current_mean",
+     "current_std",
+     "abs_current_mean",
+     "temperature_mean",
+     "charge_capacity_max",
+     "q_win_ah",
+     "t_win_s",
+     "ic_peak_ah_per_v",
+     "ic_peak_voltage_v",
+     "ambient_temp_c",
+     "cycle_index_feature",
+     "cycle_fraction"
+    ]
+   },
+   "record_count": 2723,
+   "cycle_count": 2723,
+   "battery_count": 32,
+   "chemistry": "LCO",
+   "max_capacity_ah": 2.0,
+   "capacity_source": "rated_metadata",
+   "label_source": "calibration_capacity",
+   "held_out_ready": true,
+   "raw_paths": [
+    "raw/nasa",
+    "raw/nasa_full",
+    "raw/nasa_full_zips",
+    "raw/nasa_B0005_sample.mat",
+    "raw/nasa_battery_dataset.zip"
+   ],
+   "raw_local": true,
+   "curve_path": "curves/nasa_curves.json",
+   "curve_sha256": "f0a515c8643be8f589b754d97e0419054bb768c9189a449007f2ca7e5c3296f8",
+   "license": "public",
+   "source": "NASA PCoE Li-ion Battery Aging Datasets"
+  },
+  {
+   "name": "oxford",
+   "status": "ready",
+   "supervision": "soh_supervised",
+   "roles": [
+    "training",
+    "same_dataset_holdout",
+    "inference",
+    "audit"
+   ],
+   "processed": {
+    "path": "processed/oxford_features.pkl",
+    "bytes": 78314,
+    "sha256": "9db249a5ae4a6d677045a79fedcbee83dc0c2846e145f7256f8a5eb78b9809a8",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "time_s_max",
+     "voltage_mean",
+     "voltage_std",
+     "voltage_min",
+     "voltage_max",
+     "current_mean",
+     "current_std",
+     "abs_current_mean",
+     "temperature_mean",
+     "charge_capacity_max",
+     "q_win_ah",
+     "t_win_s",
+     "ic_peak_ah_per_v",
+     "ic_peak_voltage_v",
+     "cycle_index_feature",
+     "cycle_fraction"
+    ]
+   },
+   "record_count": 519,
+   "cycle_count": 519,
+   "battery_count": 8,
+   "chemistry": "LCO/NCO",
+   "max_capacity_ah": 0.74,
+   "capacity_source": "rated_metadata",
+   "label_source": "calibration_capacity",
+   "held_out_ready": true,
+   "raw_paths": [
+    "raw/oxford"
+   ],
+   "raw_local": true,
+   "curve_path": "curves/oxford_curves.json",
+   "curve_sha256": "41b24309d6bb6584748768e8844db324e02cc7c1adda60ae945f56c04b57debd",
+   "license": "ODC-ODbL",
+   "source": "Oxford Battery Degradation Dataset 1"
+  },
+  {
+   "name": "rwth_isea_public",
+   "status": "ready",
+   "supervision": "soh_supervised",
+   "roles": [
+    "training",
+    "same_dataset_holdout",
+    "inference",
+    "audit"
+   ],
+   "processed": {
+    "path": "processed/rwth_isea_public_features.pkl",
+    "bytes": 209701,
+    "sha256": "e2e716e2f9723f38c106af7f59ac0c89544f25f793784c78c991e2b6ceb1f07b",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "capacity_ah",
+     "cycle_index_feature"
+    ]
+   },
+   "record_count": 2707,
+   "cycle_count": 2707,
+   "battery_count": 8,
+   "chemistry": "LFP",
+   "max_capacity_ah": 1.845058495451667,
+   "capacity_source": "measured_capacity",
+   "label_source": "calibration_capacity",
+   "held_out_ready": true,
+   "raw_paths": [],
+   "raw_local": false,
+   "curve_path": "curves/rwth_curves.json",
+   "curve_sha256": "bad2d5e2f8db9078492a6f044b0fdced05589faf131c811b8e02a47736624872",
+   "license": "CC-BY-4.0",
+   "source": "RWTH ISEA public battery data"
+  },
+  {
+   "name": "smoke_eval_demo",
+   "status": "ready",
+   "supervision": "soh_supervised",
+   "roles": [
+    "training",
+    "same_dataset_holdout",
+    "inference",
+    "audit"
+   ],
+   "processed": {
+    "path": "processed/smoke_eval_demo_features.pkl",
+    "bytes": 6218,
+    "sha256": "81c55b8d3cad184dec6dc596118850fbc10c4a0d5976811578068c6e5b105c0b",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "voltage_mean",
+     "voltage_std",
+     "voltage_min",
+     "voltage_max",
+     "resistance_proxy",
+     "smoke_cycle_norm",
+     "smoke_fade_from_full"
+    ]
+   },
+   "record_count": 42,
+   "cycle_count": 42,
+   "battery_count": 3,
+   "chemistry": "unknown",
+   "max_capacity_ah": null,
+   "capacity_source": "unknown",
+   "label_source": "unknown",
+   "held_out_ready": true,
+   "raw_paths": [],
+   "raw_local": false,
+   "curve_path": "",
+   "curve_sha256": "",
+   "license": "internal-demo",
+   "source": "generated or pending registration"
+  },
+  {
+   "name": "snl_lfp",
+   "status": "ready",
+   "supervision": "soh_supervised",
+   "roles": [
+    "training",
+    "same_dataset_holdout",
+    "inference",
+    "audit"
+   ],
+   "processed": {
+    "path": "processed/snl_lfp_features.pkl",
+    "bytes": 9608354,
+    "sha256": "0347fbd318435364030693be7535b8dac4e5ebdf303fa7d3287c8375ea39c773",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "time_s_max",
+     "voltage_mean",
+     "voltage_std",
+     "voltage_min",
+     "voltage_max",
+     "current_mean",
+     "current_std",
+     "abs_current_mean",
+     "temperature_mean",
+     "charge_capacity_max",
+     "q_win_ah",
+     "t_win_s",
+     "ic_peak_ah_per_v",
+     "ic_peak_voltage_v",
+     "cycle_index_feature",
+     "cycle_fraction"
+    ],
+    "partial_window_v": [
+     3.3,
+     3.38
+    ]
+   },
+   "record_count": 64905,
+   "cycle_count": 64905,
+   "battery_count": 18,
+   "chemistry": "LFP",
+   "max_capacity_ah": null,
+   "capacity_source": "unknown",
+   "label_source": "calibration_capacity",
+   "held_out_ready": true,
+   "raw_paths": [
+    "raw/snl_batterylife"
+   ],
+   "raw_local": true,
+   "curve_path": "curves/snl_lfp_curves.json",
+   "curve_sha256": "c086d114e8c2e5b619a6138ed6f023e2a05ab527a2310809e34ba146bab6073d",
+   "license": "CC-BY-4.0",
+   "source": "BatteryLife / BatteryArchive / Preger 2020"
+  },
+  {
+   "name": "soh_quickstart_demo",
+   "status": "ready",
+   "supervision": "soh_supervised",
+   "roles": [
+    "training",
+    "same_dataset_holdout",
+    "inference",
+    "audit"
+   ],
+   "processed": {
+    "path": "processed/soh_quickstart_demo_features.pkl",
+    "bytes": 4690,
+    "sha256": "4a6fc3abfce9e5d9d9c74cd2e23410682ead17726d7963abd70305b74c61b5fd",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "voltage_mean",
+     "voltage_std",
+     "voltage_min",
+     "voltage_max"
+    ]
+   },
+   "record_count": 36,
+   "cycle_count": 36,
+   "battery_count": 3,
+   "chemistry": "unknown",
+   "max_capacity_ah": null,
+   "capacity_source": "unknown",
+   "label_source": "unknown",
+   "held_out_ready": true,
+   "raw_paths": [],
+   "raw_local": false,
+   "curve_path": "",
+   "curve_sha256": "",
+   "license": "internal-demo",
+   "source": "generated or pending registration"
+  },
+  {
+   "name": "uconn",
+   "status": "ready",
+   "supervision": "soh_supervised",
+   "roles": [
+    "training",
+    "same_dataset_holdout",
+    "inference",
+    "audit"
+   ],
+   "processed": {
+    "path": "processed/uconn_features.pkl",
+    "bytes": 424570,
+    "sha256": "9756c28a946404496996c5fd917690075cea71c95865c4f80401549eed653828",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "time_s_max",
+     "voltage_mean",
+     "voltage_std",
+     "voltage_min",
+     "voltage_max",
+     "current_mean",
+     "current_std",
+     "abs_current_mean",
+     "temperature_mean",
+     "charge_capacity_max",
+     "q_win_ah",
+     "t_win_s",
+     "ic_peak_ah_per_v",
+     "ic_peak_voltage_v",
+     "cycle_index_feature",
+     "cycle_fraction"
+    ],
+    "partial_window_v": [
+     3.3,
+     3.37
+    ]
+   },
+   "record_count": 2855,
+   "cycle_count": 2823,
+   "battery_count": 64,
+   "chemistry": "LFP",
+   "max_capacity_ah": null,
+   "capacity_source": "unknown",
+   "label_source": "calibration_capacity",
+   "held_out_ready": true,
+   "raw_paths": [
+    "raw/uconn_lfp"
+   ],
+   "raw_local": true,
+   "curve_path": "curves/uconn_curves.json",
+   "curve_sha256": "6f2d3a3a5af5993b85719dd855d064586cda56ff79c4caa002946fe495318d15",
+   "license": "CC-BY-4.0",
+   "source": "UConn-ISU-ILCC / Nowacki et al. 2025"
+  }
+ ],
+ "external_resources": [
+  {
+   "name": "rwth_hss",
+   "source_path": "D:\\battery_SOH\\data\\raw\\rwth_hss",
+   "status": "field_no_supervised_soh",
+   "reason": "RWTH 户储现场原始数据；当前不进入监督 SOH 训练",
+   "present": true,
+   "files": 414,
+   "bytes": 51299744051
+  },
+  {
+   "name": "m5bat",
+   "source_path": "D:\\battery_SOH\\data\\raw\\m5bat",
+   "status": "field_no_supervised_soh",
+   "reason": "M5BAT 电站数据；当前仅用于工况画像",
+   "present": true,
+   "files": 13,
+   "bytes": 1625940141
+  },
+  {
+   "name": "real_ess",
+   "source_path": "D:\\battery_SOH\\data\\raw\\real_ESS",
+   "status": "field_no_supervised_soh",
+   "reason": "ESS 现场数据；尚未接入监督标签",
+   "present": true,
+   "files": 601,
+   "bytes": 282889823
+  },
+  {
+   "name": "isu_ilcc",
+   "source_path": "D:\\battery_SOH\\data\\raw\\isu_ilcc",
+   "status": "registered_not_connected",
+   "reason": "已登记但尚未完成 adapter 与质检",
+   "present": true,
+   "files": 257,
+   "bytes": 978202596
+  },
+  {
+   "name": "calce_a123",
+   "source_path": "D:\\battery_SOH\\data\\raw\\calce_a123",
+   "status": "registered_not_connected",
+   "reason": "CALCE A123 尚未形成项目 processed 数据集",
+   "present": true,
+   "files": 2,
+   "bytes": 26853472
+  },
+  {
+   "name": "gbrain_evals",
+   "source_path": "D:\\battery_SOH\\data\\raw\\gbrain-evals",
+   "status": "unrelated",
+   "reason": "历史工程依赖，不属于电池数据资产",
+   "present": true,
+   "files": 15135,
+   "bytes": 365784835
+  }
+ ],
+ "exclusions": [
+  "source root duplicate archives",
+  "SOHbenchmark code archive",
+  "gbrain-evals historical engineering dependencies",
+  "RWTH HSS and other field data without supervised SOH labels"
+ ]
+}

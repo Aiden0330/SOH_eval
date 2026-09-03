@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SOH 比较与证据工作台 Mockup · 第二轮</title>
+  <style>
+    :root {
+      --nav: #132033;
+      --nav-soft: #1d2c43;
+      --ink: #182235;
+      --muted: #68758b;
+      --line: #dce3ed;
+      --soft: #f4f7fb;
+      --blue: #3568e8;
+      --blue-soft: #edf3ff;
+      --green: #168565;
+      --green-soft: #eaf8f2;
+      --amber: #ad6a08;
+      --amber-soft: #fff6dd;
+      --red: #c44444;
+      --red-soft: #fff0f0;
+      --white: #ffffff;
+      --shadow: 0 8px 24px rgba(24, 34, 53, .08);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      color: var(--ink);
+      background: #eef2f7;
+      font-family: Inter, "Microsoft YaHei", "Segoe UI", sans-serif;
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+    button, select, input { font: inherit; }
+    button { cursor: pointer; }
+    .app { min-height: 100vh; display: grid; grid-template-columns: 216px minmax(0, 1fr); }
+    .side {
+      position: sticky; top: 0; height: 100vh; overflow: hidden;
+      display: flex; flex-direction: column; background: var(--nav); color: #dfe8f5;
+      border-right: 1px solid rgba(255,255,255,.08);
+    }
+    .brand { height: 70px; display: flex; align-items: center; gap: 11px; padding: 0 18px; border-bottom: 1px solid rgba(255,255,255,.09); }
+    .brand-mark { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 7px; background: #4576f1; color: white; font-weight: 800; }
+    .brand strong { display: block; color: white; font-size: 15px; }
+    .brand small { display: block; margin-top: 2px; color: #95a7c0; font-size: 11px; }
+    .nav-group { padding: 18px 10px 8px; color: #8092aa; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+    .nav { display: grid; gap: 3px; padding: 0 9px; }
+    .nav button { position: relative; min-height: 40px; border: 0; border-radius: 6px; padding: 0 12px 0 32px; color: #b9c6d8; background: transparent; text-align: left; }
+    .nav button::before { content: ""; position: absolute; left: 13px; top: 16px; width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 2px; }
+    .nav button:hover { color: white; background: rgba(255,255,255,.06); }
+    .nav button.active { color: white; background: var(--nav-soft); box-shadow: inset 3px 0 0 #5a83f4; }
+    .nav button.active::before { background: #6d91f8; border-color: #6d91f8; }
+    .side-foot { margin-top: auto; padding: 14px 16px 18px; border-top: 1px solid rgba(255,255,255,.08); color: #91a4bb; font-size: 11px; line-height: 1.6; }
+    .side-foot b { display: block; color: #d9e3ef; font-weight: 600; }
+    .workspace { min-width: 0; }
+    .topbar {
+      position: sticky; top: 0; z-index: 10; height: 70px; display: flex; align-items: center; justify-content: space-between;
+      padding: 0 22px; background: rgba(255,255,255,.96); border-bottom: 1px solid var(--line); backdrop-filter: blur(8px);
+    }
+    .title-row { min-width: 0; display: flex; align-items: center; gap: 14px; }
+    h1 { margin: 0; font-size: 19px; }
+    .crumb { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .status { display: inline-flex; align-items: center; gap: 7px; color: var(--green); font-weight: 700; }
+    .status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px var(--green-soft); }
+    .top-actions { display: flex; gap: 8px; }
+    .btn { min-height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 0 13px; color: var(--ink); background: white; font-weight: 700; }
+    .btn:hover { border-color: #9fb2d2; background: var(--soft); }
+    .btn.primary { color: white; border-color: var(--blue); background: var(--blue); }
+    .btn.primary:hover { background: #2859d4; }
+    main { padding: 16px 18px 22px; }
+    .context {
+      display: grid; grid-template-columns: 1.4fr repeat(4, minmax(108px, .6fr)) auto; gap: 0;
+      min-height: 66px; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: white; box-shadow: var(--shadow);
+    }
+    .ctx { min-width: 0; padding: 12px 15px; border-right: 1px solid var(--line); }
+    .ctx:last-child { border-right: 0; }
+    .ctx span { display: block; margin-bottom: 5px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+    .ctx b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+    .ctx.verdict { display: grid; place-items: center; min-width: 118px; color: var(--green); background: var(--green-soft); }
+    .ctx.verdict b { font-size: 16px; }
+    .command-bar {
+      min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      margin-top: 10px; padding: 5px 7px 5px 11px; border: 1px solid var(--line); border-radius: 7px; background: white;
+    }
+    .command-copy { min-width: 0; display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 10px; }
+    .health-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 9px; border-radius: 999px; background: var(--soft); white-space: nowrap; }
+    .health-chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+    .health-chip.warn::before { background: var(--amber); }
+    .segmented { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 6px; background: var(--soft); }
+    .segmented button { min-height: 28px; border: 0; border-radius: 4px; padding: 0 10px; color: var(--muted); background: transparent; font-size: 10px; font-weight: 800; }
+    .segmented button.active { color: #1745ad; background: white; box-shadow: 0 1px 4px rgba(24,34,53,.12); }
+    .workbench { display: grid; grid-template-columns: 278px minmax(460px, 1fr) 292px; gap: 12px; margin-top: 12px; align-items: stretch; }
+    .panel { min-width: 0; border: 1px solid var(--line); border-radius: 7px; background: white; box-shadow: 0 3px 14px rgba(24,34,53,.05); }
+    .panel-head { min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+    .panel-head h2, .panel-head h3 { margin: 0; font-size: 14px; }
+    .panel-head small { color: var(--muted); font-size: 10px; }
+    .scope-panel, .inspector { height: 630px; overflow: hidden; }
+    .scope-body { height: calc(100% - 52px); overflow: auto; }
+    .section-label { display: flex; justify-content: space-between; padding: 13px 13px 7px; color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+    .candidate-list, .domain-list, .asset-list { display: grid; gap: 4px; padding: 0 8px 8px; }
+    .scope-view[hidden] { display: none; }
+    .scope-head-actions { display: flex; align-items: center; gap: 7px; }
+    .scope-head-actions button { min-height: 26px; border: 1px solid var(--line); border-radius: 5px; padding: 0 7px; color: var(--muted); background: white; font-size: 9px; font-weight: 800; }
+    .scope-head-actions button.active { color: #1745ad; border-color: #b9caf3; background: var(--blue-soft); }
+    .matrix-wrap { padding: 8px; overflow: auto; }
+    .matrix { display: grid; grid-template-columns: 92px repeat(7, 48px); width: max-content; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+    .matrix > div, .matrix button { min-height: 39px; display: grid; place-items: center; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .matrix .corner, .matrix .col-head, .matrix .row-head { color: var(--muted); background: #f5f7fb; font-size: 8px; font-weight: 800; }
+    .matrix .row-head { place-items: center start; padding: 0 7px; }
+    .matrix button { color: #31415a; font-family: Consolas, monospace; font-size: 9px; }
+    .matrix button:hover, .matrix button.active { outline: 2px solid var(--blue); outline-offset: -2px; }
+    .matrix-note { margin: 10px 2px 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
+    .candidate, .domain, .asset {
+      width: 100%; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--ink); text-align: left;
+    }
+    .candidate { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; gap: 8px; align-items: center; min-height: 57px; padding: 7px 8px; }
+    .candidate:hover, .domain:hover, .asset:hover { background: var(--soft); }
+    .candidate.active { border-color: #b9caf3; background: var(--blue-soft); }
+    .rank { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 5px; background: #e9eef7; color: #516078; font-size: 11px; font-weight: 800; }
+    .candidate.active .rank { color: white; background: var(--blue); }
+    .candidate b, .candidate span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .candidate b { font-size: 12px; }
+    .candidate span { margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .metric { text-align: right; }
+    .metric b { font-family: "SFMono-Regular", Consolas, monospace; font-size: 13px; }
+    .metric span { color: var(--green); }
+    .domain { display: grid; grid-template-columns: minmax(0,1fr) 54px 44px; align-items: center; min-height: 38px; padding: 5px 9px; }
+    .domain.active { border-color: #b9caf3; background: var(--blue-soft); }
+    .domain span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+    .domain b { font-family: Consolas, monospace; font-size: 11px; text-align: right; }
+    .tag { display: inline-grid; place-items: center; min-height: 20px; border-radius: 999px; padding: 0 7px; color: var(--green); background: var(--green-soft); font-size: 9px; font-weight: 800; }
+    .tag.warn { color: var(--amber); background: var(--amber-soft); }
+    .asset { display: flex; align-items: center; justify-content: space-between; min-height: 34px; padding: 4px 9px; }
+    .asset.active { color: #1745ad; background: var(--blue-soft); }
+    .asset small { color: var(--muted); }
+    .evidence-column { min-width: 0; display: grid; grid-template-rows: 350px 268px; gap: 12px; }
+    .chart-panel { overflow: hidden; }
+    .chart-head { min-height: 58px; display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; border-bottom: 1px solid var(--line); }
+    .chart-head h2 { margin: 0 0 4px; font-size: 15px; }
+    .chart-head p { margin: 0; color: var(--muted); font-size: 10px; }
+    .legend { display: flex; gap: 12px; color: var(--muted); font-size: 10px; }
+    .legend span::before { content: ""; display: inline-block; width: 12px; height: 3px; margin-right: 5px; vertical-align: middle; border-radius: 2px; background: currentColor; }
+    .legend .truth { color: var(--ink); }
+    .legend .pred { color: var(--blue); }
+    .legend .ci { color: #9db7f3; }
+    .chart-wrap { position: relative; height: calc(100% - 58px); padding: 10px 12px 8px; }
+    .chart { width: 100%; height: 100%; display: block; }
+    .chart-grid { stroke: #e6ebf2; stroke-width: 1; }
+    .chart-label { fill: #7b8799; font-size: 10px; }
+    .truth-line { fill: none; stroke: var(--ink); stroke-width: 2.2; }
+    .pred-line { fill: none; stroke: var(--blue); stroke-width: 2.4; }
+    .ci-area { fill: #dfe8ff; opacity: .8; }
+    .limit-line { stroke: var(--amber); stroke-width: 1.2; stroke-dasharray: 5 5; }
+    .point { fill: white; stroke: var(--blue); stroke-width: 2.5; cursor: pointer; }
+    .point:hover, .point.active { fill: var(--blue); stroke: white; filter: drop-shadow(0 0 3px rgba(53,104,232,.7)); }
+    .tip { position: absolute; min-width: 138px; pointer-events: none; border: 1px solid #cbd7e9; border-radius: 6px; padding: 8px 10px; background: rgba(255,255,255,.96); box-shadow: var(--shadow); font-size: 10px; }
+    .tip b { display: block; margin-bottom: 4px; font-size: 11px; }
+    .detail-panel { overflow: hidden; }
+    .detail-tabs { height: 39px; display: flex; align-items: end; gap: 4px; padding: 0 11px; border-bottom: 1px solid var(--line); }
+    .detail-tabs button { height: 34px; border: 0; border-bottom: 2px solid transparent; padding: 0 10px; color: var(--muted); background: transparent; font-weight: 700; }
+    .detail-tabs button.active { color: var(--blue); border-bottom-color: var(--blue); }
+    .cycle-compare { min-height: 31px; display: flex; align-items: center; gap: 5px; padding: 3px 11px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+    .cycle-compare span { flex: 0 0 auto; color: var(--muted); font-size: 9px; font-weight: 800; }
+    .cycle-chip { flex: 0 0 auto; min-height: 23px; border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; color: #536076; background: white; font-size: 9px; }
+    .cycle-chip.active { color: #1745ad; border-color: #9db7f3; background: var(--blue-soft); }
+    .detail-content { height: calc(100% - 70px); display: grid; grid-template-columns: minmax(0,1fr) 182px; }
+    .mini-chart { min-width: 0; padding: 10px 12px 8px; border-right: 1px solid var(--line); }
+    .mini-chart svg { width: 100%; height: 100%; }
+    .feature-summary { padding: 12px; overflow: auto; }
+    .feature-summary span { display: block; color: var(--muted); font-size: 10px; }
+    .feature-summary b { display: block; margin: 3px 0 11px; font-family: Consolas, monospace; font-size: 12px; }
+    .feature-bar { height: 7px; margin: 5px 0 12px; overflow: hidden; border-radius: 4px; background: #e8edf4; }
+    .feature-bar i { display: block; width: 62%; height: 100%; margin-left: 21%; background: #e6a93d; }
+    .inspector { display: flex; flex-direction: column; }
+    .inspector-body { flex: 1; min-height: 0; overflow: auto; padding: 12px; }
+    .verdict-box { border-left: 3px solid var(--green); padding: 11px 12px; background: var(--green-soft); }
+    .verdict-box span { color: var(--green); font-size: 10px; font-weight: 800; }
+    .verdict-box b { display: block; margin-top: 4px; font-size: 15px; }
+    .verdict-box p { margin: 6px 0 0; color: #4e6b60; font-size: 10px; line-height: 1.5; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 10px; }
+    .kpi { min-width: 0; border: 1px solid var(--line); padding: 8px; }
+    .kpi span { display: block; color: var(--muted); font-size: 9px; }
+    .kpi b { display: block; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; font-family: Consolas, monospace; font-size: 13px; white-space: nowrap; }
+    .evidence-group { margin-top: 15px; }
+    .evidence-group h3 { margin: 0 0 7px; color: var(--muted); font-size: 10px; text-transform: uppercase; }
+    .check-list { display: grid; gap: 6px; }
+    .check { display: grid; grid-template-columns: 12px minmax(0,1fr) auto; gap: 7px; align-items: center; min-height: 31px; border-bottom: 1px solid #eef1f5; }
+    .check::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+    .check.warn::before { background: var(--amber); }
+    .check span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+    .check b { color: var(--green); font-size: 9px; }
+    .check.warn b { color: var(--amber); }
+    .lineage { display: grid; gap: 7px; }
+    .lineage div { position: relative; padding-left: 15px; }
+    .lineage div::before { content: ""; position: absolute; left: 3px; top: 4px; width: 6px; height: 6px; border: 1px solid #8fa2bf; background: white; }
+    .lineage div:not(:last-child)::after { content: ""; position: absolute; left: 6px; top: 12px; width: 1px; height: 17px; background: #c8d2e1; }
+    .lineage span { display: block; color: var(--muted); font-size: 9px; }
+    .lineage b { display: block; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; font-family: Consolas, monospace; font-size: 10px; white-space: nowrap; }
+    .issue-flow { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; }
+    .issue-step { min-width: 0; text-align: center; }
+    .issue-step i { width: 18px; height: 18px; display: grid; place-items: center; margin: 0 auto 4px; border: 1px solid #bdc9d9; border-radius: 50%; color: #7e8ca2; background: white; font-style: normal; font-size: 8px; }
+    .issue-step span { display: block; overflow: hidden; color: var(--muted); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+    .issue-step.done i { color: white; border-color: var(--green); background: var(--green); }
+    .issue-step.active i { color: white; border-color: var(--blue); background: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
+    .inspector-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 10px 12px 12px; border-top: 1px solid var(--line); }
+    .sample-panel { margin-top: 12px; overflow: hidden; }
+    .sample-head { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 13px; border-bottom: 1px solid var(--line); }
+    .sample-head-left { min-width: 0; }
+    .sample-head h2 { margin: 0; font-size: 14px; }
+    .sample-head span { color: var(--muted); font-size: 10px; }
+    .table-wrap { height: 190px; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th { position: sticky; top: 0; z-index: 1; height: 34px; padding: 0 10px; color: #536076; background: #f1f5fa; border-bottom: 1px solid var(--line); font-size: 10px; text-align: left; }
+    td { height: 36px; padding: 0 10px; overflow: hidden; border-bottom: 1px solid #edf0f5; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover, tbody tr.active { background: var(--blue-soft); }
+    .distribution-view { height: 190px; padding: 12px 14px 10px; }
+    .distribution-view[hidden] { display: none; }
+    .distribution-legend { display: flex; gap: 14px; color: var(--muted); font-size: 9px; }
+    .distribution-legend i { display: inline-block; width: 9px; height: 9px; margin-right: 5px; vertical-align: middle; background: #cfd8e7; }
+    .distribution-legend .selected { background: var(--blue); }
+    .distribution-chart { height: 135px; display: flex; align-items: end; gap: 7px; padding: 8px 4px 0; border-bottom: 1px solid var(--line); }
+    .dist-bin { flex: 1; min-width: 0; height: 100%; display: flex; align-items: end; justify-content: center; gap: 2px; position: relative; }
+    .dist-bin i { width: 38%; min-height: 3px; background: #d1d9e6; }
+    .dist-bin i.selected { background: var(--blue); }
+    .dist-bin span { position: absolute; bottom: -18px; left: 0; right: 0; overflow: hidden; color: var(--muted); font-size: 8px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+    .mono { font-family: Consolas, monospace; }
+    .error-bad { color: var(--red); font-weight: 700; }
+    .error-ok { color: var(--green); font-weight: 700; }
+    @media (max-width: 1360px) {
+      .app { grid-template-columns: 188px minmax(0,1fr); }
+      .workbench { grid-template-columns: 246px minmax(420px,1fr) 260px; }
+      .context { grid-template-columns: 1.2fr repeat(3,minmax(96px,.55fr)) auto; }
+      .context .hide-mid { display: none; }
+    }
+    @media (max-width: 1100px) {
+      .app { grid-template-columns: 70px minmax(0,1fr); }
+      .brand { justify-content: center; padding: 0; }
+      .brand div:last-child, .nav button span, .nav-group, .side-foot { display: none; }
+      .nav button { padding: 0; }
+      .nav button::before { left: 28px; }
+      .workbench { grid-template-columns: 240px minmax(0,1fr); }
+      .inspector { grid-column: 1 / -1; width: 100%; height: auto; }
+      .inspector-body { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .scope-panel { height: 630px; }
+    }
+    @media (max-width: 820px) {
+      .app { display: block; }
+      .side { position: static; width: 100%; height: auto; }
+      .brand { justify-content: flex-start; padding: 0 14px; }
+      .brand div:last-child { display: block; }
+      .nav { display: flex; overflow-x: auto; padding: 6px 8px; }
+      .nav button { flex: 0 0 auto; padding: 0 11px; }
+      .nav button::before, .nav-group { display: none; }
+      .nav button span { display: inline; }
+      .topbar { position: static; height: auto; min-height: 64px; align-items: flex-start; padding: 11px 13px; }
+      .crumb, .top-actions .btn:first-child { display: none; }
+      main { padding: 10px; }
+      .context { grid-template-columns: 1fr 1fr; }
+      .command-bar { align-items: flex-start; flex-direction: column; }
+      .command-copy { width: 100%; overflow-x: auto; }
+      .ctx { border-bottom: 1px solid var(--line); }
+      .workbench { display: flex; flex-direction: column; }
+      .scope-panel, .evidence-column { height: auto; }
+      .scope-panel { max-height: 420px; }
+      .evidence-column { display: contents; }
+      .chart-panel { height: 360px; }
+      .detail-panel { height: 300px; }
+      .inspector-body { display: block; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><div class="brand-mark">B</div><div><strong>Battery Bench</strong><small>可信算法测评</small></div></div>
+    <div class="nav-group">验证工作流</div>
+    <nav class="nav" aria-label="主导航">
+      <button><span>可信总览</span></button>
+      <button><span>实验设计</span></button>
+      <button><span>运行中心</span></button>
+      <button class="active"><span>比较与证据</span></button>
+      <button><span>数据与协议</span></button>
+      <button><span>模型资产</span></button>
+      <button><span>发布与审计</span></button>
+    </nav>
+    <div class="side-foot">当前工作区<b>SOH / LFP 核心公平榜</b>本机可信模式</div>
+  </aside>
+
+  <section class="workspace">
+    <header class="topbar">
+      <div class="title-row"><h1>比较与证据</h1><span class="crumb">核心公平榜 / LOCO / RWTH ISEA / cell_04</span><span class="status">证据完整</span></div>
+      <div class="top-actions"><button class="btn">固定证据</button><button class="btn primary">提交审阅</button></div>
+    </header>
+
+    <main>
+      <section class="context" aria-label="比较上下文">
+        <div class="ctx"><span>Comparison</span><b>7 数据集 LOCO 核心公平榜</b></div>
+        <div class="ctx"><span>协议</span><b>LOCO v2.1</b></div>
+        <div class="ctx"><span>数据快照</span><b>rwth@9f72c1</b></div>
+        <div class="ctx hide-mid"><span>特征预算</span><b>cycle-summary / 20</b></div>
+        <div class="ctx"><span>Seed</span><b>0, 17, 42</b></div>
+        <div class="ctx verdict"><span>发布判定</span><b>通过</b></div>
+      </section>
+
+      <section class="command-bar" aria-label="证据健康与视图">
+        <div class="command-copy">
+          <span class="health-chip">逐样本覆盖 100%</span>
+          <span class="health-chip warn">原始曲线覆盖 96.8%</span>
+          <span class="health-chip">快照同步于 18 分钟前</span>
+        </div>
+        <div class="segmented" aria-label="工作台视图">
+          <button class="active" type="button" data-workbench-home>证据工作台</button>
+          <button type="button" data-scope-view="matrix">跨域矩阵</button>
+          <button type="button" data-bottom-view="distribution">误差分布</button>
+        </div>
+      </section>
+
+      <section class="workbench">
+        <aside class="panel scope-panel">
+          <div class="panel-head"><h2>比较范围</h2><div class="scope-head-actions"><button class="active" type="button" data-scope-view="rank">排名</button><button type="button" data-scope-view="matrix">矩阵</button></div></div>
+          <div class="scope-body">
+            <div class="scope-view" id="rank-view">
+              <div class="section-label"><span>候选算法</span><span>MAE ↓</span></div>
+              <div class="candidate-list" id="candidate-list"></div>
+              <div class="section-label"><span>Held-out 数据域</span><span>Coverage</span></div>
+              <div class="domain-list" id="domain-list"></div>
+              <div class="section-label"><span>电芯 / 最坏优先</span><span>贡献</span></div>
+              <div class="asset-list" id="asset-list"></div>
+            </div>
+            <div class="scope-view" id="matrix-view" hidden>
+              <div class="section-label"><span>候选 × 数据域</span><span>MAE ↓</span></div>
+              <div class="matrix-wrap"><div class="matrix" id="transfer-matrix"></div><p class="matrix-note">点击单元格即可锁定候选算法和 held-out 数据域，主轨迹、分布与证据检查器同步更新。</p></div>
+            </div>
+          </div>
+        </aside>
+
+        <div class="evidence-column">
+          <section class="panel chart-panel">
+            <div class="chart-head">
+              <div><h2>SOH 真值、预测与置信区间</h2><p id="chart-subtitle">RWTH ISEA · cell_04 · 点击轨迹点查看周期证据</p></div>
+              <div class="legend"><span class="truth">真值</span><span class="pred">预测</span><span class="ci">95% CI</span></div>
+            </div>
+            <div class="chart-wrap"><svg class="chart" id="soh-chart" viewBox="0 0 760 286" preserveAspectRatio="none"></svg><div class="tip" id="chart-tip"></div></div>
+          </section>
+
+          <section class="panel detail-panel">
+            <div class="detail-tabs" id="detail-tabs">
+              <button class="active" data-detail="ic">充电 IC</button>
+              <button data-detail="voltage">电压 / 容量</button>
+              <button data-detail="temperature">温度 / 电流</button>
+              <button data-detail="feature">特征窗口</button>
+            </div>
+            <div class="cycle-compare" id="cycle-compare"><span>多周期对照（最多 3 个）</span></div>
+            <div class="detail-content">
+              <div class="mini-chart"><svg id="detail-chart" viewBox="0 0 520 205" preserveAspectRatio="none"></svg></div>
+              <div class="feature-summary">
+                <span>当前周期</span><b id="selected-cycle">cycle_287</b>
+                <span>特征来源</span><b id="feature-name">ic_peak_area</b>
+                <div class="feature-bar"><i></i></div>
+                <span>窗口</span><b id="feature-window">3.54V – 3.73V</b>
+                <span>处理</span><b>Savitzky-Golay / 11 / 3</b>
+                <span>原始点覆盖</span><b>100% · 418 points</b>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside class="panel inspector">
+          <div class="panel-head"><h2>证据检查器</h2><small id="evidence-id">EV-287</small></div>
+          <div class="inspector-body">
+            <div>
+              <div class="verdict-box"><span>当前样本判据</span><b id="sample-verdict">误差在门限内</b><p id="sample-explain">绝对误差 1.20%，未超过 2.00% 门限；区间覆盖真值。</p></div>
+              <div class="kpi-grid">
+                <div class="kpi"><span>Truth SOH</span><b id="truth-kpi">84.80%</b></div>
+                <div class="kpi"><span>Pred SOH</span><b id="pred-kpi">83.60%</b></div>
+                <div class="kpi"><span>Absolute error</span><b id="error-kpi">1.20%</b></div>
+                <div class="kpi"><span>Interval</span><b id="interval-kpi">82.1–85.1%</b></div>
+              </div>
+            </div>
+            <div>
+              <div class="evidence-group"><h3>判据与数据健康</h3><div class="check-list">
+                <div class="check"><span>SOH 绝对误差 ≤ 2%</span><b>PASS</b></div>
+                <div class="check"><span>95% 区间覆盖真值</span><b>PASS</b></div>
+                <div class="check"><span>原始曲线覆盖率</span><b>100%</b></div>
+                <div class="check warn"><span>容量再生局部波动</span><b>REVIEW</b></div>
+              </div></div>
+              <div class="evidence-group"><h3>证据谱系</h3><div class="lineage">
+                <div><span>DatasetSnapshot</span><b>rwth_isea_public@9f72c1</b></div>
+                <div><span>FeatureState</span><b>ic_voltage_v3@b02d8a</b></div>
+                <div><span>ModelArtifact</span><b id="lineage-model">hybrid_gbdt@14a7fe</b></div>
+                <div><span>PredictionRecord</span><b id="lineage-prediction">rwth:cell_04:287</b></div>
+              </div></div>
+              <div class="evidence-group"><h3>问题与复测闭环</h3><div class="issue-flow" id="issue-flow"></div></div>
+            </div>
+          </div>
+          <div class="inspector-actions"><button class="btn" id="issue-action" type="button">创建问题</button><button class="btn primary" id="evidence-action" type="button">加入证据包</button></div>
+        </aside>
+      </section>
+
+      <section class="panel sample-panel">
+        <div class="sample-head"><div class="sample-head-left"><h2 id="sample-title">逐周期指标贡献</h2><span id="sample-subtitle">点击行与主轨迹同步 · 表格区域独立滚动</span></div><div class="segmented"><button class="active" type="button" data-bottom-view="table">逐周期</button><button type="button" data-bottom-view="distribution">误差分布</button></div></div>
+        <div class="table-wrap" id="sample-table-view"><table>
+          <thead><tr><th style="width:12%">周期</th><th style="width:18%">真值 SOH</th><th style="width:18%">预测 SOH</th><th style="width:18%">绝对误差</th><th style="width:20%">证据</th><th style="width:14%">判据</th></tr></thead>
+          <tbody id="sample-table"></tbody>
+        </table></div>
+        <div class="distribution-view" id="distribution-view" hidden><div class="distribution-legend"><span><i></i>全部电芯</span><span><i class="selected"></i>当前电芯</span><span id="distribution-note">P95 误差 2.91%</span></div><div class="distribution-chart" id="distribution-chart"></div></div>
+      </section>
+    </main>
+  </section>
+</div>
+
+<script>
+  const candidates = [
+    { id: 'hybrid_gbdt', name: 'Hybrid GBDT', meta: 'IC + voltage · 3 seeds', mae: .0184, delta: '-12.7%' },
+    { id: 'tabular_ensemble', name: 'Tabular SOH Ensemble', meta: 'cycle summary · 3 seeds', mae: .0211, delta: '-3.8%' },
+    { id: 'ridge_voltage', name: 'Ridge Voltage', meta: 'voltage window · 3 seeds', mae: .0278, delta: 'baseline' }
+  ];
+  const domains = [
+    { id: 'rwth', name: 'RWTH ISEA', mae: .019, coverage: '100%', status: 'pass' },
+    { id: 'calce', name: 'CALCE CS2', mae: .016, coverage: '100%', status: 'pass' },
+    { id: 'nasa', name: 'NASA PCoE', mae: .024, coverage: '96%', status: 'warn' },
+    { id: 'hust', name: 'HUST', mae: .017, coverage: '100%', status: 'pass' },
+    { id: 'oxford', name: 'Oxford', mae: .021, coverage: '100%', status: 'pass' },
+    { id: 'snl', name: 'SNL LFP', mae: .026, coverage: '92%', status: 'warn' },
+    { id: 'uconn', name: 'UConn', mae: .020, coverage: '100%', status: 'pass' }
+  ];
+  const assets = [
+    { id: 'cell_04', name: 'cell_04', error: '2.91%', note: '最坏' },
+    { id: 'cell_02', name: 'cell_02', error: '2.18%', note: 'P95' },
+    { id: 'cell_07', name: 'cell_07', error: '1.73%', note: '中位' },
+    { id: 'cell_01', name: 'cell_01', error: '1.21%', note: '稳定' }
+  ];
+  const state = {
+    candidate: candidates[0], domain: domains[0], asset: assets[0], cycle: 287, detail: 'ic',
+    scopeView: 'rank', bottomView: 'table', compareCycles: [40, 160, 287], issueStage: 0, evidenceAdded: false
+  };
+  const cycleRows = [40, 82, 126, 160, 203, 244, 287, 321, 356];
+  const matrixValues = {
+    hybrid_gbdt: [.019,.016,.024,.017,.021,.026,.020],
+    tabular_ensemble: [.022,.018,.027,.020,.023,.029,.023],
+    ridge_voltage: [.029,.023,.034,.026,.030,.038,.027]
+  };
+
+  function renderScope() {
+    document.getElementById('candidate-list').innerHTML = candidates.map((x, i) => `
+      <button class="candidate ${state.candidate.id === x.id ? 'active' : ''}" data-candidate="${x.id}">
+        <span class="rank">${i + 1}</span><span><b>${x.name}</b><span>${x.meta}</span></span>
+        <span class="metric"><b>${x.mae.toFixed(4)}</b><span>${x.delta}</span></span>
+      </button>`).join('');
+    document.getElementById('domain-list').innerHTML = domains.map(x => `
+      <button class="domain ${state.domain.id === x.id ? 'active' : ''}" data-domain="${x.id}"><span>${x.name}</span><b>${x.mae.toFixed(3)}</b><span class="tag ${x.status === 'warn' ? 'warn' : ''}">${x.coverage}</span></button>`).join('');
+    document.getElementById('asset-list').innerHTML = assets.map(x => `
+      <button class="asset ${state.asset.id === x.id ? 'active' : ''}" data-asset="${x.id}"><span><b>${x.name}</b> <small>${x.note}</small></span><span class="mono">${x.error}</span></button>`).join('');
+    document.getElementById('rank-view').hidden = state.scopeView !== 'rank';
+    document.getElementById('matrix-view').hidden = state.scopeView !== 'matrix';
+    document.querySelectorAll('[data-scope-view]').forEach(x => x.classList.toggle('active', x.dataset.scopeView === state.scopeView));
+    renderMatrix();
+  }
+
+  function matrixTone(value) {
+    if (value <= .020) return '#dff4eb';
+    if (value <= .026) return '#edf3ff';
+    if (value <= .031) return '#fff0c9';
+    return '#ffe1e1';
+  }
+
+  function renderMatrix() {
+    const matrix = document.getElementById('transfer-matrix');
+    matrix.innerHTML = `<div class="corner">MAE</div>${domains.map(x => `<div class="col-head" title="${x.name}">${x.name.slice(0,4)}</div>`).join('')}` +
+      candidates.map(candidate => `<div class="row-head" title="${candidate.name}">${candidate.name.replace('Tabular SOH ','Tab. ')}</div>${domains.map((domain, index) => {
+        const value = matrixValues[candidate.id][index];
+        const active = state.candidate.id === candidate.id && state.domain.id === domain.id;
+        return `<button class="${active ? 'active' : ''}" style="background:${matrixTone(value)}" data-matrix-candidate="${candidate.id}" data-matrix-domain="${domain.id}" title="${candidate.name} × ${domain.name}: ${value.toFixed(3)}">${value.toFixed(3)}</button>`;
+      }).join('')}`).join('');
+  }
+
+  function seriesForState() {
+    const offset = candidates.findIndex(x => x.id === state.candidate.id) * .004;
+    return cycleRows.map((cycle, i) => {
+      const truth = .985 - i * .019 - Math.max(0, i - 5) * .004 + Math.sin(i * 1.4) * .003;
+      const signed = (Math.sin(i * 1.8 + offset * 20) * .009) + offset;
+      return { cycle, truth, pred: truth + signed, low: truth + signed - .015, high: truth + signed + .015 };
+    });
+  }
+
+  function pathFor(values, key, sx, sy) { return values.map((d, i) => `${i ? 'L' : 'M'} ${sx(d.cycle).toFixed(1)} ${sy(d[key]).toFixed(1)}`).join(' '); }
+
+  function renderSohChart() {
+    const svg = document.getElementById('soh-chart');
+    const data = seriesForState();
+    if (!data.some(x => x.cycle === state.cycle)) state.cycle = data[6].cycle;
+    const W=760,H=286,m={l:48,r:18,t:12,b:30};
+    const sx = v => m.l + (v - 40) / (356 - 40) * (W-m.l-m.r);
+    const sy = v => m.t + (1.0-v) / .22 * (H-m.t-m.b);
+    const gridY=[1,.95,.9,.85,.8];
+    const gridX=[40,120,200,280,356];
+    const area = pathFor(data,'high',sx,sy) + ' ' + data.slice().reverse().map(d => `L ${sx(d.cycle).toFixed(1)} ${sy(d.low).toFixed(1)}`).join(' ') + ' Z';
+    svg.innerHTML = `
+      ${gridY.map(v=>`<line class="chart-grid" x1="${m.l}" x2="${W-m.r}" y1="${sy(v)}" y2="${sy(v)}"/><text class="chart-label" x="7" y="${sy(v)+4}">${Math.round(v*100)}%</text>`).join('')}
+      ${gridX.map(v=>`<line class="chart-grid" x1="${sx(v)}" x2="${sx(v)}" y1="${m.t}" y2="${H-m.b}"/><text class="chart-label" x="${sx(v)-10}" y="${H-7}">${v}</text>`).join('')}
+      <rect x="${m.l}" y="${sy(.80)}" width="${W-m.l-m.r}" height="${H-m.b-sy(.80)}" fill="#fff3e5" opacity=".7"/>
+      <line class="limit-line" x1="${m.l}" x2="${W-m.r}" y1="${sy(.80)}" y2="${sy(.80)}"/>
+      <path class="ci-area" d="${area}"/><path class="truth-line" d="${pathFor(data,'truth',sx,sy)}"/><path class="pred-line" d="${pathFor(data,'pred',sx,sy)}"/>
+      ${data.map(d=>`<circle class="point ${state.cycle===d.cycle?'active':''}" data-cycle="${d.cycle}" cx="${sx(d.cycle)}" cy="${sy(d.pred)}" r="5"/>`).join('')}
+      <text class="chart-label" x="${W-160}" y="${sy(.80)-7}">EOL / 80% 判据</text>`;
+    const selected = data.find(x => x.cycle === state.cycle);
+    const tip = document.getElementById('chart-tip');
+    tip.style.left = `${Math.min(72, sx(selected.cycle)/W*100)}%`;
+    tip.style.top = `${Math.max(18, sy(selected.pred)/H*100-3)}%`;
+    tip.innerHTML = `<b>Cycle ${selected.cycle}</b>真值 ${(selected.truth*100).toFixed(2)}% · 预测 ${(selected.pred*100).toFixed(2)}%`;
+    document.getElementById('chart-subtitle').textContent = `${state.domain.name} · ${state.asset.name} · 点击轨迹点查看周期证据`;
+  }
+
+  function detailValues(kind, cycle = state.cycle) {
+    const values=[];
+    const aging = cycle / 520;
+    for(let i=0;i<42;i++){
+      const x=i/41;
+      let y;
+      if(kind==='ic') y=.18 + (1.24-aging*.22)*Math.exp(-Math.pow((x-.58-aging*.035)*7,2)) + .42*Math.exp(-Math.pow((x-.28)*10,2));
+      else if(kind==='voltage') y=.08 + (.84-aging*.07)*x + .05*Math.sin(x*7) - aging*.025;
+      else if(kind==='temperature') y=.18 + .18*Math.sin(x*3.1) + (.40+aging*.12)*Math.exp(-Math.pow((x-.72)*5,2));
+      else y=.25 + (.64-aging*.12)*Math.exp(-Math.pow((x-.5-aging*.02)*4,2));
+      values.push({x,y});
+    }
+    return values;
+  }
+
+  function renderDetailChart() {
+    const svg=document.getElementById('detail-chart');
+    const W=520,H=205,m={l:36,r:12,t:12,b:27};
+    const sx=v=>m.l+v*(W-m.l-m.r), sy=v=>H-m.b-v/1.55*(H-m.t-m.b);
+    const compareColors=['#93a4bd','#5b83e8','#1745ad'];
+    const highlight=state.detail==='feature'||state.detail==='ic';
+    svg.innerHTML=`
+      ${[.25,.5,.75,1].map(v=>`<line class="chart-grid" x1="${m.l}" x2="${W-m.r}" y1="${sy(v)}" y2="${sy(v)}"/>`).join('')}
+      ${highlight?`<rect x="${sx(.42)}" y="${m.t}" width="${sx(.68)-sx(.42)}" height="${H-m.t-m.b}" fill="#fff0c9" opacity=".75"/>`:''}
+      ${state.compareCycles.map((cycle,index) => {
+        const values=detailValues(state.detail,cycle);
+        const p=values.map((d,i)=>`${i?'L':'M'} ${sx(d.x)} ${sy(d.y)}`).join(' ');
+        const color=state.detail==='temperature' ? ['#8ec7b4','#42a081','#14795d'][index] : state.detail==='feature' ? ['#dbc28d','#c28a2a','#8f5805'][index] : compareColors[index];
+        return `<path d="${p}" fill="none" stroke="${color}" stroke-width="${cycle===state.cycle?2.7:1.7}" opacity="${cycle===state.cycle?1:.78}"/>`;
+      }).join('')}
+      <text class="chart-label" x="${m.l}" y="${H-6}">${state.detail==='ic'?'3.2V':'0'}</text><text class="chart-label" x="${W-42}" y="${H-6}">${state.detail==='ic'?'3.9V':'100%'}</text>`;
+    const labels={ic:['ic_peak_area','3.54V – 3.73V'],voltage:['q_voltage_window','3.45V – 3.78V'],temperature:['temp_rise_rate','18% – 82% SOC'],feature:['feature_source','highlighted raw segment']};
+    document.getElementById('feature-name').textContent=labels[state.detail][0];
+    document.getElementById('feature-window').textContent=labels[state.detail][1];
+    renderCycleCompare();
+  }
+
+  function renderCycleCompare() {
+    const choices=[40,82,160,244,287,356];
+    document.getElementById('cycle-compare').innerHTML = `<span>多周期对照（${state.compareCycles.length}/3）</span>` + choices.map(cycle =>
+      `<button class="cycle-chip ${state.compareCycles.includes(cycle)?'active':''}" type="button" data-compare-cycle="${cycle}">${cycle}</button>`
+    ).join('');
+  }
+
+  function renderIssueFlow() {
+    const labels=['发现','指派','复测','关闭'];
+    document.getElementById('issue-flow').innerHTML=labels.map((label,index)=>`<div class="issue-step ${index<state.issueStage?'done':index===state.issueStage?'active':''}"><i>${index+1}</i><span>${label}</span></div>`).join('');
+    const actions=['创建问题','指派并复测','完成复测','重新打开'];
+    document.getElementById('issue-action').textContent=actions[state.issueStage];
+    const evidenceButton=document.getElementById('evidence-action');
+    evidenceButton.textContent=state.evidenceAdded?'已加入证据包':'加入证据包';
+    evidenceButton.disabled=state.evidenceAdded;
+  }
+
+  function renderBottomView() {
+    const isTable=state.bottomView==='table';
+    document.getElementById('sample-table-view').hidden=!isTable;
+    document.getElementById('distribution-view').hidden=isTable;
+    document.getElementById('sample-title').textContent=isTable?'逐周期指标贡献':'选中电芯与总体误差分布';
+    document.getElementById('sample-subtitle').textContent=isTable?'点击行与主轨迹同步 · 表格区域独立滚动':'蓝色为当前电芯，灰色为全部 held-out 电芯';
+    document.querySelectorAll('[data-bottom-view]').forEach(x=>x.classList.toggle('active',x.dataset.bottomView===state.bottomView));
+    document.querySelector('[data-workbench-home]').classList.toggle('active',state.scopeView==='rank'&&state.bottomView==='table');
+    const base=[32,58,88,112,95,67,36,14];
+    const candidateShift=candidates.findIndex(x=>x.id===state.candidate.id)*8;
+    const selected=[8,18,34,62,84-candidateShift,58+candidateShift,28+candidateShift,10+candidateShift];
+    const max=Math.max(...base,...selected);
+    const labels=['0–0.5','0.5–1','1–1.5','1.5–2','2–2.5','2.5–3','3–4','>4%'];
+    document.getElementById('distribution-chart').innerHTML=base.map((value,index)=>`<div class="dist-bin"><i style="height:${value/max*100}%"></i><i class="selected" style="height:${selected[index]/max*100}%"></i><span>${labels[index]}</span></div>`).join('');
+    document.getElementById('distribution-note').textContent=`${state.domain.name} · 当前 P95 ${(2.91+candidateShift*.06).toFixed(2)}%`;
+  }
+
+  function renderInspectorAndTable() {
+    const data=seriesForState(); const selected=data.find(x=>x.cycle===state.cycle) || data[0];
+    const err=Math.abs(selected.truth-selected.pred); const pass=err<=.02;
+    document.getElementById('selected-cycle').textContent=`cycle_${state.cycle}`;
+    document.getElementById('evidence-id').textContent=`EV-${state.cycle}`;
+    document.getElementById('sample-verdict').textContent=pass?'误差在门限内':'误差超过门限';
+    document.getElementById('sample-explain').textContent=`绝对误差 ${(err*100).toFixed(2)}%，${pass?'未超过':'超过'} 2.00% 门限；区间覆盖真值。`;
+    document.getElementById('truth-kpi').textContent=`${(selected.truth*100).toFixed(2)}%`;
+    document.getElementById('pred-kpi').textContent=`${(selected.pred*100).toFixed(2)}%`;
+    document.getElementById('error-kpi').textContent=`${(err*100).toFixed(2)}%`;
+    document.getElementById('interval-kpi').textContent=`${(selected.low*100).toFixed(1)}–${(selected.high*100).toFixed(1)}%`;
+    document.getElementById('lineage-model').textContent=`${state.candidate.id}@14a7fe`;
+    document.getElementById('lineage-prediction').textContent=`${state.domain.id}:${state.asset.id}:${state.cycle}`;
+    document.getElementById('sample-table').innerHTML=data.map(d=>{
+      const e=Math.abs(d.truth-d.pred); return `<tr class="${d.cycle===state.cycle?'active':''}" data-cycle="${d.cycle}"><td class="mono">cycle_${d.cycle}</td><td>${(d.truth*100).toFixed(2)}%</td><td>${(d.pred*100).toFixed(2)}%</td><td class="${e>.02?'error-bad':'error-ok'}">${(e*100).toFixed(2)}%</td><td>SOH / IC / voltage</td><td><span class="tag ${e>.02?'warn':''}">${e>.02?'复核':'通过'}</span></td></tr>`;
+    }).join('');
+    renderIssueFlow();
+    renderBottomView();
+  }
+
+  function renderAll() { renderScope(); renderSohChart(); renderDetailChart(); renderInspectorAndTable(); }
+  document.addEventListener('click', e=>{
+    const c=e.target.closest('[data-candidate]'); if(c){state.candidate=candidates.find(x=>x.id===c.dataset.candidate); renderAll(); return;}
+    const d=e.target.closest('[data-domain]'); if(d){state.domain=domains.find(x=>x.id===d.dataset.domain); renderAll(); return;}
+    const a=e.target.closest('[data-asset]'); if(a){state.asset=assets.find(x=>x.id===a.dataset.asset); renderAll(); return;}
+    const cy=e.target.closest('[data-cycle]'); if(cy){state.cycle=Number(cy.dataset.cycle); renderAll(); return;}
+    const matrixCell=e.target.closest('[data-matrix-candidate]'); if(matrixCell){state.candidate=candidates.find(x=>x.id===matrixCell.dataset.matrixCandidate);state.domain=domains.find(x=>x.id===matrixCell.dataset.matrixDomain);renderAll();return;}
+    const scopeView=e.target.closest('[data-scope-view]'); if(scopeView){state.scopeView=scopeView.dataset.scopeView;renderAll();return;}
+    const bottomView=e.target.closest('[data-bottom-view]'); if(bottomView){state.bottomView=bottomView.dataset.bottomView;renderAll();return;}
+    const home=e.target.closest('[data-workbench-home]'); if(home){state.scopeView='rank';state.bottomView='table';renderAll();return;}
+    const compare=e.target.closest('[data-compare-cycle]'); if(compare){
+      const cycle=Number(compare.dataset.compareCycle); const exists=state.compareCycles.includes(cycle);
+      if(exists && state.compareCycles.length>1) state.compareCycles=state.compareCycles.filter(x=>x!==cycle);
+      else if(!exists) state.compareCycles=[...state.compareCycles.slice(-2),cycle];
+      state.cycle=cycle; renderAll(); return;
+    }
+    if(e.target.closest('#issue-action')){state.issueStage=state.issueStage===3?0:state.issueStage+1;renderIssueFlow();return;}
+    if(e.target.closest('#evidence-action')){state.evidenceAdded=true;renderIssueFlow();return;}
+    const tab=e.target.closest('[data-detail]'); if(tab){state.detail=tab.dataset.detail; document.querySelectorAll('[data-detail]').forEach(x=>x.classList.toggle('active',x===tab)); renderDetailChart();}
+  });
+  renderAll();
+</script>
+</body>
+</html>

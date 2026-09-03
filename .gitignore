@@ -17,3 +17,10 @@ data/**
 !data/manifest.json
 .DS_Store
 logs/
+# Generated / synced assets (rebuild: scripts/sync_battery_dashboard_native.py, scripts/build_standalone_frontend.py)
+frontend/app/battery-dashboard/
+frontend/mockups.zip
+docs/exports/soh-eval-standalone.html
+docs/exports/Archive.zip
+# superpowers brainstorm server state (the SDD task reports under .superpowers/sdd are tracked)
+.superpowers/brainstorm/

@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SOH 测评工具设计说明书</title>
+  <style>
+    :root {
+      --ink: #101827;
+      --muted: #61708a;
+      --line: #dbe5f3;
+      --soft: #f5f8fc;
+      --panel: #ffffff;
+      --blue: #315be8;
+      --cyan: #11a6c8;
+      --green: #2d8a57;
+      --amber: #b87608;
+      --red: #be3b46;
+      --violet: #7257d6;
+      --shadow: 0 22px 70px rgba(28, 43, 77, .12);
+      --radius: 20px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 8% 2%, rgba(49, 91, 232, .12), transparent 32rem),
+        radial-gradient(circle at 88% 5%, rgba(17, 166, 200, .12), transparent 28rem),
+        linear-gradient(180deg, #f7faff 0%, #edf3fb 100%);
+      color: var(--ink);
+      font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+      line-height: 1.72;
+    }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .page { width: min(1180px, calc(100% - 44px)); margin: 0 auto; }
+    .hero {
+      margin: 30px auto 22px;
+      padding: 42px;
+      border: 1px solid rgba(219, 229, 243, .95);
+      border-radius: 28px;
+      background: linear-gradient(135deg, rgba(255,255,255,.96), rgba(247,250,255,.9));
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap: 32px;
+      align-items: center;
+      overflow: hidden;
+    }
+    .eyebrow {
+      color: var(--blue);
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+    h1 {
+      margin: 0 0 18px;
+      font-size: clamp(40px, 6vw, 76px);
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+    .lead { font-size: 20px; color: var(--muted); margin: 0; max-width: 760px; }
+    .hero-badges, .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+    .badge, .chip {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 999px;
+      padding: 8px 13px;
+      color: #31405b;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .badge strong { color: var(--blue); }
+    .hero-art {
+      min-height: 360px;
+      border-radius: 26px;
+      background: linear-gradient(145deg, #0e1b38, #172b5d 54%, #1b6581);
+      position: relative;
+      overflow: hidden;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.13);
+    }
+    .hero-art svg { width: 100%; height: 100%; display: block; }
+    .toc {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin: 0 0 22px;
+    }
+    .toc a {
+      display: block;
+      background: rgba(255,255,255,.86);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 13px 14px;
+      color: #24344f;
+      font-weight: 800;
+    }
+    section {
+      background: rgba(255,255,255,.94);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 32px;
+      margin: 20px 0;
+      box-shadow: 0 12px 42px rgba(31, 49, 87, .07);
+    }
+    h2 { font-size: 34px; margin: 0 0 18px; line-height: 1.18; }
+    h3 { font-size: 22px; margin: 24px 0 10px; }
+    p { margin: 0 0 12px; }
+    .muted { color: var(--muted); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 20px;
+      background: linear-gradient(180deg, #fff, #f9fbff);
+    }
+    .metric { font-size: 36px; line-height: 1.05; font-weight: 900; letter-spacing: 0; margin: 5px 0; }
+    .metric small { font-size: 15px; color: var(--muted); font-weight: 700; }
+    .label { color: var(--muted); font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
+    .figure {
+      margin: 24px 0;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 20px;
+      overflow: hidden;
+    }
+    .figure svg { display: block; width: 100%; height: auto; }
+    .caption {
+      padding: 10px 16px 14px;
+      color: var(--muted);
+      font-size: 13px;
+      border-top: 1px solid var(--line);
+      background: #f8fbff;
+    }
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+      margin: 14px 0 22px;
+      font-size: 14px;
+    }
+    th, td { padding: 13px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { text-align: left; background: #eef4ff; color: #31405b; font-weight: 900; }
+    tr:last-child td { border-bottom: 0; }
+    .pill {
+      display: inline-block;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      background: #edf4ff;
+      color: #315be8;
+      margin: 2px 4px 2px 0;
+      white-space: nowrap;
+    }
+    .pill.green { background: #eaf8ef; color: var(--green); }
+    .pill.amber { background: #fff5d9; color: var(--amber); }
+    .pill.red { background: #ffecef; color: var(--red); }
+    .code {
+      font-family: Consolas, "SFMono-Regular", monospace;
+      background: #f0f4fb;
+      border: 1px solid #d9e4f3;
+      border-radius: 8px;
+      padding: 2px 6px;
+      color: #17233c;
+    }
+    .bar-list { display: grid; gap: 12px; margin: 14px 0; }
+    .bar-row { display: grid; grid-template-columns: 150px 1fr 80px; gap: 12px; align-items: center; }
+    .bar-track { background: #edf3fb; height: 16px; border-radius: 999px; overflow: hidden; border: 1px solid #dce7f6; }
+    .bar-fill { height: 100%; background: linear-gradient(90deg, var(--blue), var(--cyan)); border-radius: 999px; }
+    .callout {
+      border-left: 5px solid var(--blue);
+      background: #f2f6ff;
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin: 18px 0;
+    }
+    .callout.green { border-left-color: var(--green); background: #f1fbf5; }
+    .callout.amber { border-left-color: var(--amber); background: #fff8e5; }
+    .steps { counter-reset: step; display: grid; gap: 12px; }
+    .step {
+      display: grid;
+      grid-template-columns: 42px 1fr;
+      gap: 14px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 15px;
+      padding: 16px;
+    }
+    .step:before {
+      counter-increment: step;
+      content: counter(step);
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: #315be8;
+      color: #fff;
+      font-weight: 900;
+    }
+    .refs { columns: 2; column-gap: 28px; }
+    .refs li { break-inside: avoid; margin: 0 0 9px; }
+    .source-note { font-size: 13px; color: var(--muted); }
+    @media (max-width: 920px) {
+      .hero { grid-template-columns: 1fr; padding: 28px; }
+      .toc, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+      .refs { columns: 1; }
+      .bar-row { grid-template-columns: 1fr; }
+      section { padding: 24px; }
+    }
+    @media print {
+      body { background: #fff; }
+      .hero, section { box-shadow: none; break-inside: avoid; }
+      .toc { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div>
+        <div class="eyebrow">Battery SOH Evaluation Workbench</div>
+        <h1>SOH 测评工具设计说明书</h1>
+        <p class="lead">
+          本说明书整合 <span class="code">D:\battery_SOH</span> 的数据湖、算法设计与完整 SOH 看板，以及
+          <span class="code">D:\SOH_eval</span> 的训练测评、推理测评、模型资产库、全局诊断和离线打包能力。
+          目标是形成一套可信、可复现、可扩展的锂电池健康状态测评系统。
+        </p>
+        <div class="hero-badges">
+          <span class="badge"><strong>9</strong> 个前端登记数据集</span>
+          <span class="badge"><strong>235,320</strong> 条处理数据记录</span>
+          <span class="badge"><strong>841</strong> 个模型资产</span>
+          <span class="badge"><strong>训练 / 推理</strong> 分离测评</span>
+        </div>
+      </div>
+      <div class="hero-art" aria-label="SOH 数据流插图">
+        <svg viewBox="0 0 560 380" role="img">
+          <defs>
+            <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#7aa2ff"/>
+              <stop offset=".55" stop-color="#12c6de"/>
+              <stop offset="1" stop-color="#8ff0b6"/>
+            </linearGradient>
+            <filter id="glow"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+          <rect x="36" y="42" width="142" height="64" rx="18" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.34)"/>
+          <rect x="54" y="62" width="92" height="24" rx="12" fill="url(#g1)"/>
+          <rect x="152" y="67" width="12" height="15" rx="4" fill="#8ff0b6"/>
+          <text x="56" y="134" fill="#dce8ff" font-size="18" font-weight="800">数据源</text>
+          <text x="56" y="160" fill="#9fb2d5" font-size="13">NASA / CALCE / HUST</text>
+          <path d="M188 74 C260 72 260 155 330 154" fill="none" stroke="url(#g1)" stroke-width="4" filter="url(#glow)"/>
+          <path d="M188 94 C250 130 260 230 330 246" fill="none" stroke="#6ee7d8" stroke-width="3" opacity=".85"/>
+          <rect x="330" y="112" width="178" height="88" rx="20" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.38)"/>
+          <text x="356" y="147" fill="#fff" font-size="22" font-weight="900">训练测评</text>
+          <text x="356" y="174" fill="#b8c7e6" font-size="13">LOCO / LODO / LCHO</text>
+          <rect x="330" y="222" width="178" height="88" rx="20" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.38)"/>
+          <text x="356" y="257" fill="#fff" font-size="22" font-weight="900">推理测评</text>
+          <text x="356" y="284" fill="#b8c7e6" font-size="13">Pickle 泛化与速度</text>
+          <path d="M418 201 L418 221" stroke="#8ff0b6" stroke-width="4" stroke-linecap="round"/>
+          <g transform="translate(70 230)">
+            <rect x="0" y="0" width="190" height="92" rx="20" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.34)"/>
+            <polyline points="18,58 46,50 72,54 104,34 136,38 168,24" fill="none" stroke="#8ff0b6" stroke-width="4" stroke-linecap="round"/>
+            <path d="M18 70 C55 64 82 74 116 52 C142 36 158 44 170 34 L170 76 L18 76Z" fill="rgba(143,240,182,.18)"/>
+            <text x="18" y="28" fill="#dce8ff" font-size="15" font-weight="800">SOH 轨迹与 CI</text>
+          </g>
+          <circle cx="280" cy="190" r="38" fill="none" stroke="rgba(255,255,255,.24)" stroke-width="2"/>
+          <circle cx="280" cy="190" r="8" fill="#8ff0b6"/>
+          <circle cx="280" cy="190" r="18" fill="none" stroke="#13c6de" stroke-width="3" opacity=".8"/>
+        </svg>
+      </div>
+    </header>
+
+    <nav class="toc" aria-label="目录">
+      <a href="#scope">项目定位</a>
+      <a href="#architecture">系统架构</a>
+      <a href="#data">数据说明</a>
+      <a href="#algorithm">算法原理</a>
+      <a href="#workflow">工具操作</a>
+      <a href="#visual">看板关联</a>
+      <a href="#literature">文献综述</a>
+      <a href="#roadmap">后续路线</a>
+    </nav>
+
+    <section id="scope">
+      <h2>一、项目定位与整合范围</h2>
+      <p>
+        本项目不是单一模型脚本，而是围绕锂电池 SOH 估计建立的评测工作台。它把
+        <span class="code">D:\battery_SOH</span> 作为数据、曲线、算法设计和原生看板资产来源，把
+        <span class="code">D:\SOH_eval</span> 作为统一测评入口、前后端系统、模型资产库和离线交付层。
+      </p>
+      <div class="grid-3">
+        <div class="card">
+          <div class="label">数据湖</div>
+          <div class="metric">多源</div>
+          <p class="muted">保留原始数据、处理缓存、曲线导出、场景指标、特征窗和数据登记信息。</p>
+        </div>
+        <div class="card">
+          <div class="label">测评工作台</div>
+          <div class="metric">闭环</div>
+          <p class="muted">统一算法接口、数据选择、训练任务、Pickle 模型推理、排行榜和诊断。</p>
+        </div>
+        <div class="card">
+          <div class="label">交付形态</div>
+          <div class="metric">离线</div>
+          <p class="muted">支持同步原生看板资产、生成目录包和单 HTML 展示包，便于迁移演示。</p>
+        </div>
+      </div>
+      <div class="callout">
+        <strong>核心边界：</strong>训练页签面向“生成模型与公平训练评测”，推理页签面向“已有 Pickle 模型在新数据集上的迁移泛化与速度测评”。这一区分让模型开发、模型资产复用和线上推理能力验证互不混淆。
+      </div>
+      <h3>已整合的本地材料</h3>
+      <table>
+        <thead><tr><th>来源</th><th>内容</th><th>进入说明书的方式</th></tr></thead>
+        <tbody>
+          <tr><td><span class="code">D:\SOH_eval</span></td><td>README、用户指南、前端数据产物、排行榜、推理测速、模型资产库、算法推荐与同步打包设计。</td><td>形成系统架构、操作说明、指标说明和交付策略。</td></tr>
+          <tr><td><span class="code">D:\battery_SOH</span></td><td>SOH 系统设计、算法设计、数据登记、方法调研、原生 SOH 可视化看板、特征窗与曲线预览。</td><td>形成算法原理、数据说明、曲线看板关联和文献综述基础。</td></tr>
+          <tr><td>公开资料</td><td>官方数据页、开源 benchmark 仓库、共形预测论文页和代表性电池寿命预测论文页。</td><td>用于补全数据来源与方法综述，并在参考资料中给出链接。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="architecture">
+      <h2>二、系统架构设计</h2>
+      <p>
+        融合后的系统采用“数据资产生产者 + 测评工作台消费者”的结构。battery_SOH 负责沉淀数据、曲线、场景指标和原生看板；SOH_eval 负责统一任务编排、可信本机插件、训练/推理后端、中文前端与交付包。
+      </p>
+      <div class="figure">
+        <svg viewBox="0 0 1120 430" role="img" aria-label="系统架构图">
+          <defs>
+            <linearGradient id="archBlue" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#edf4ff"/>
+              <stop offset="1" stop-color="#dff9f8"/>
+            </linearGradient>
+            <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+              <path d="M2,2 L10,6 L2,10" fill="#315be8"/>
+            </marker>
+          </defs>
+          <rect width="1120" height="430" fill="#fbfdff"/>
+          <rect x="45" y="58" width="260" height="300" rx="22" fill="url(#archBlue)" stroke="#cddbf1"/>
+          <text x="76" y="100" fill="#101827" font-size="26" font-weight="900">battery_SOH</text>
+          <text x="76" y="132" fill="#60708b" font-size="16">数据湖与原生 SOH 看板</text>
+          <g font-size="15" fill="#263653" font-weight="700">
+            <text x="76" y="184">raw / processed / registry</text>
+            <text x="76" y="224">SOH 轨迹、V/I/T 曲线、IC 曲线</text>
+            <text x="76" y="264">特征窗、算法详情、场景门控</text>
+            <text x="76" y="304">可重建 dashboard/data 资产</text>
+          </g>
+          <rect x="430" y="40" width="300" height="340" rx="24" fill="#fff" stroke="#cddbf1"/>
+          <text x="463" y="85" fill="#101827" font-size="26" font-weight="900">SOH_eval 后端</text>
+          <text x="463" y="116" fill="#60708b" font-size="16">统一任务编排与可信插件</text>
+          <rect x="462" y="150" width="226" height="46" rx="14" fill="#eef4ff" stroke="#d5e2f6"/>
+          <text x="486" y="180" fill="#315be8" font-size="17" font-weight="900">数据集与特征契约</text>
+          <rect x="462" y="212" width="226" height="46" rx="14" fill="#eefaf1" stroke="#caebd3"/>
+          <text x="486" y="242" fill="#2d8a57" font-size="17" font-weight="900">训练任务与 Pickle 产出</text>
+          <rect x="462" y="274" width="226" height="46" rx="14" fill="#fff7df" stroke="#edd89a"/>
+          <text x="486" y="304" fill="#b87608" font-size="17" font-weight="900">推理测速与迁移诊断</text>
+          <rect x="815" y="58" width="260" height="300" rx="22" fill="url(#archBlue)" stroke="#cddbf1"/>
+          <text x="846" y="100" fill="#101827" font-size="26" font-weight="900">中文前端</text>
+          <text x="846" y="132" fill="#60708b" font-size="16">测评、诊断、看板与打包</text>
+          <g font-size="15" fill="#263653" font-weight="700">
+            <text x="846" y="184">训练测评 / 推理测评</text>
+            <text x="846" y="224">全局诊断 / 算法推荐</text>
+            <text x="846" y="264">完整 SOH 看板 / 曲线下钻</text>
+            <text x="846" y="304">同步资产 / 离线单页包</text>
+          </g>
+          <path d="M306 170 C360 170 370 170 423 170" stroke="#315be8" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+          <path d="M732 170 C775 170 775 170 812 170" stroke="#315be8" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+          <path d="M306 278 C365 338 762 338 815 278" stroke="#11a6c8" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+          <text x="330" y="150" fill="#61708a" font-size="14">导入清单 / 曲线预览</text>
+          <text x="738" y="150" fill="#61708a" font-size="14">API / JSON 产物</text>
+          <text x="500" y="366" fill="#61708a" font-size="14">原生看板资产同步到 SOH_eval 前端资料区</text>
+        </svg>
+        <div class="caption">架构图：两套工程不互相吞并，而是通过数据契约、导入器和前端资产目录形成稳定边界。</div>
+      </div>
+      <h3>模块职责</h3>
+      <table>
+        <thead><tr><th>模块</th><th>职责</th><th>关键输入</th><th>关键输出</th></tr></thead>
+        <tbody>
+          <tr><td>数据发现</td><td>扫描 <span class="code">processed</span> 特征文件，检查必需列和数据集登记。</td><td>特征帧、registry、QC 规则。</td><td>数据集目录、行数、可用特征。</td></tr>
+          <tr><td>训练测评</td><td>按协议执行算法 × 特征 × 数据集 × 折叠的公平训练测评。</td><td>数据选择、算法插件、特征方案、协议和随机种子。</td><td>排行榜、逐折结果、Pickle 模型、任务档案。</td></tr>
+          <tr><td>推理测评</td><td>加载已有 Pickle 模型，在目标数据集上测试迁移精度和推理速度。</td><td>模型资产、目标数据集、特征列兼容性。</td><td>迁移 MAE/RMSE、吞吐、延迟、失败原因。</td></tr>
+          <tr><td>资产同步</td><td>从 battery_SOH 导入 SOH 轨迹、特征窗、算法设计和曲线预览。</td><td>原生 dashboard/data、设计 JSON、曲线文件。</td><td>前端资料区 profile、完整看板页签、曲线下钻数据。</td></tr>
+          <tr><td>离线打包</td><td>生成可迁移目录包或单文件展示包，摆脱本机原始数据依赖。</td><td>前端静态资源、已保存排行榜、同步看板数据。</td><td>可拷贝到其他电脑的 HTML 或目录包。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="data">
+      <h2>三、数据说明与测评范围</h2>
+      <p>
+        当前前端测评主线登记九个处理数据集（七个正式数据集、两个演示数据集），数据目录默认位于 <span class="code">D:\SOH_eval\data</span>。
+        处理后的特征帧要求至少包含 <span class="code">dataset</span>、<span class="code">cell_id</span>、<span class="code">cycle_index</span>、<span class="code">soh</span> 四类字段；SOH 定义为当前容量除以额定容量。
+      </p>
+      <div class="grid-3">
+        <div class="card"><div class="label">处理数据</div><div class="metric">235,320</div><p class="muted">项目内登记的行级记录。</p></div>
+        <div class="card"><div class="label">剔除</div><div class="metric">18</div><p class="muted">主要为非正 SOH 或范围异常样本。</p></div>
+        <div class="card"><div class="label">通过率</div><div class="metric">99.992%</div><p class="muted">前端全局诊断可展示数据质量边界。</p></div>
+      </div>
+      <h3>前端主测评数据集</h3>
+      <table>
+        <thead><tr><th>数据集</th><th>当前样本量</th><th>来源与特点</th><th>在本项目中的作用</th></tr></thead>
+        <tbody>
+          <tr><td><strong>calce_cs2</strong></td><td>15,411</td><td>CALCE 开放电池数据，包含 CS2 等循环老化数据，覆盖 LCO/LFP/NMC 等多种电芯形态。</td><td>深退化、实验室数据的泛化测试。</td></tr>
+          <tr><td><strong>hust</strong></td><td>146,122</td><td>HUST LFP/graphite 电芯，固定充电协议与多阶段放电协议。</td><td>检验放电工况变化下的充电侧特征稳定性。</td></tr>
+          <tr><td><strong>nasa</strong></td><td>2,705</td><td>NASA Ames PCoE 电池老化数据，含充电、放电和阻抗流程。</td><td>经典基准，用于温度与工况敏感场景评测。</td></tr>
+          <tr><td><strong>oxford</strong></td><td>519</td><td>Oxford 长期循环老化数据，规模小但曲线质量高。</td><td>小样本曲线特征验证与轨迹下钻展示。</td></tr>
+          <tr><td><strong>rwth_isea_public</strong></td><td>2,707</td><td>RWTH ISEA 户储现场数据，系统级电压、电流、功率和温度测量。</td><td>现场数据通道、容量估计与降级展示。</td></tr>
+          <tr><td><strong>snl_lfp</strong></td><td>64,905</td><td>SNL 商用 18650 电芯长期退化研究，涵盖温度、DOD 与放电倍率影响。</td><td>温度域、DOD 域和 LFP 泛化压力测试。</td></tr>
+          <tr><td><strong>uconn</strong></td><td>2,855</td><td>UConn-ISU-ILCC LFP/Gr 电芯，多工况、含 RPT 脉冲与循环数据。</td><td>本项目仅使用部署可得的充电侧信息，避免脉冲内阻泄漏。</td></tr>
+        </tbody>
+      </table>
+      <div class="grid-2">
+        <div class="card">
+          <h3>样本规模对比</h3>
+          <div class="bar-list">
+            <div class="bar-row"><strong>hust</strong><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span>146,122</span></div>
+            <div class="bar-row"><strong>snl_lfp</strong><div class="bar-track"><div class="bar-fill" style="width:44%"></div></div><span>64,905</span></div>
+            <div class="bar-row"><strong>calce_cs2</strong><div class="bar-track"><div class="bar-fill" style="width:10.5%"></div></div><span>15,411</span></div>
+            <div class="bar-row"><strong>uconn</strong><div class="bar-track"><div class="bar-fill" style="width:2%"></div></div><span>2,855</span></div>
+            <div class="bar-row"><strong>rwth</strong><div class="bar-track"><div class="bar-fill" style="width:1.9%"></div></div><span>2,707</span></div>
+            <div class="bar-row"><strong>nasa</strong><div class="bar-track"><div class="bar-fill" style="width:1.8%"></div></div><span>2,705</span></div>
+            <div class="bar-row"><strong>oxford</strong><div class="bar-track"><div class="bar-fill" style="width:.4%"></div></div><span>519</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>测评协议</h3>
+          <p><span class="pill">LOCO</span> 留电池测评，考察同一数据集内未见电芯泛化能力。</p>
+          <p><span class="pill green">LODO</span> 留数据集测评，考察跨数据集迁移能力，是算法公平对比的关键协议。</p>
+          <p><span class="pill amber">LCHO</span> 留化学体系测评，考察跨材料体系泛化能力，适合多化学体系扩展后启用。</p>
+          <p class="muted">三类协议都禁止把同一电芯的循环随机切到训练与测试两侧，否则会把时间相关性误当成泛化能力。</p>
+        </div>
+      </div>
+      <h3>原生 SOH 看板场景</h3>
+      <p>
+        battery_SOH 的完整看板提供 XJTU、MIT、NASA、CALCE、Oxford、HUST、SNL-LFP、UConn 等实验室场景，以及 RWTH 户储现场场景。它强调 SOH 轨迹、95% 区间、误差分布、特征窗、原始曲线和场景门控，是 SOH_eval 中“完整 SOH 看板”页签的主要内容来源。
+      </p>
+    </section>
+
+    <section id="algorithm">
+      <h2>四、算法原理介绍</h2>
+      <p>
+        本项目的算法设计遵循“可部署特征、严格切分、点估计与不确定度并行验收”的原则。重点不是只追求单次最低误差，而是确保模型在跨电芯、跨数据集和跨场景迁移时仍能解释失败、量化风险并复现实验。
+      </p>
+      <div class="figure">
+        <svg viewBox="0 0 1120 380" role="img" aria-label="算法流程图">
+          <defs>
+            <marker id="arr2" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M2,2 L10,6 L2,10" fill="#11a6c8"/></marker>
+          </defs>
+          <rect width="1120" height="380" fill="#fbfdff"/>
+          <g font-family="Microsoft YaHei, Arial" font-weight="900" font-size="18">
+            <rect x="40" y="75" width="150" height="88" rx="18" fill="#eef4ff" stroke="#ccd9ef"/>
+            <text x="72" y="112" fill="#101827">特征帧</text>
+            <text x="62" y="140" fill="#61708a" font-size="13" font-weight="700">cell / cycle / soh</text>
+            <rect x="250" y="75" width="150" height="88" rx="18" fill="#f1fbf5" stroke="#caebd3"/>
+            <text x="282" y="112" fill="#101827">切分纪律</text>
+            <text x="278" y="140" fill="#61708a" font-size="13" font-weight="700">留电池 / 留域</text>
+            <rect x="460" y="75" width="200" height="88" rx="18" fill="#fff7df" stroke="#edd89a"/>
+            <text x="492" y="112" fill="#101827">点估计集成</text>
+            <text x="492" y="140" fill="#61708a" font-size="13" font-weight="700">Ridge + HistGBDT + RF</text>
+            <rect x="720" y="75" width="150" height="88" rx="18" fill="#f5f0ff" stroke="#dacdf8"/>
+            <text x="751" y="112" fill="#101827">共形区间</text>
+            <text x="747" y="140" fill="#61708a" font-size="13" font-weight="700">覆盖率 + 宽度</text>
+            <rect x="930" y="75" width="150" height="88" rx="18" fill="#eefaf1" stroke="#caebd3"/>
+            <text x="962" y="112" fill="#101827">物理后处理</text>
+            <text x="957" y="140" fill="#61708a" font-size="13" font-weight="700">非增 + 有界回升</text>
+          </g>
+          <path d="M195 119 L244 119" stroke="#11a6c8" stroke-width="4" marker-end="url(#arr2)"/>
+          <path d="M405 119 L454 119" stroke="#11a6c8" stroke-width="4" marker-end="url(#arr2)"/>
+          <path d="M665 119 L714 119" stroke="#11a6c8" stroke-width="4" marker-end="url(#arr2)"/>
+          <path d="M875 119 L924 119" stroke="#11a6c8" stroke-width="4" marker-end="url(#arr2)"/>
+          <rect x="240" y="230" width="640" height="70" rx="20" fill="#fff" stroke="#d7e2f1"/>
+          <text x="284" y="260" fill="#315be8" font-size="18" font-weight="900">输出契约</text>
+          <text x="284" y="288" fill="#263653" font-size="15">SOH 点估计 + 95% 区间 + MAE/RMSE/覆盖率/宽度/物理一致性 + 可复现任务档案</text>
+          <path d="M560 166 L560 224" stroke="#315be8" stroke-width="4" marker-end="url(#arr2)"/>
+        </svg>
+        <div class="caption">算法流程图：从特征帧进入模型之前，先由切分纪律和特征准入控制泄漏；输出端同时验收精度、不确定度与物理一致性。</div>
+      </div>
+      <h3>SOH 与标签</h3>
+      <p>
+        SOH 表示电芯健康状态，计算方式为 <span class="code">SOH = capacity_Ah / C_rated</span>。
+        <span class="code">C_rated</span> 来自数据集元信息，不在代码中硬编码。标签清洗会剔除明显容量尖刺和非物理值，避免模型学习由部分充放电、标定异常或记录错误导致的噪声。
+      </p>
+      <h3>特征工程</h3>
+      <table>
+        <thead><tr><th>特征族</th><th>核心特征</th><th>物理含义</th><th>准入原则</th></tr></thead>
+        <tbody>
+          <tr><td>充电电压窗</td><td><span class="code">q_win_ah</span>、<span class="code">t_win_s</span></td><td>指定电压窗内的充入容量和充电时长，直接反映容量退化。</td><td>只使用测试时可获得的当前循环信息。</td></tr>
+          <tr><td>IC 曲线</td><td><span class="code">ic_peak_ah_per_v</span>、<span class="code">ic_peak_voltage_v</span></td><td>增量容量曲线峰高与峰位，反映相变平台与极化漂移。</td><td>对电压排序、插值、平滑，并剔除边界假峰。</td></tr>
+          <tr><td>操作统计</td><td>电压、电流、温度、时间、容量统计特征。</td><td>对不同采样频率和循环长度形成稳健摘要。</td><td>归一化只在训练集拟合，避免测试域信息泄漏。</td></tr>
+          <tr><td>禁止项</td><td>DCIR、RPT 脉冲、<span class="code">cycle_fraction</span></td><td>内阻脉冲并非所有部署场景可得；全寿命归一化依赖未来信息。</td><td>即使文献中强相关，也不能进入默认公平测评。</td></tr>
+        </tbody>
+      </table>
+      <h3>点估计模型</h3>
+      <p>
+        battery_SOH 的主模型族为 <strong>TabularSOHEnsemble</strong>，由 Ridge、HistGradientBoosting 和 RandomForest 三个分支组成。Ridge 提供线性外推主干，HistGBDT 捕捉非线性退化，RandomForest 抑制方差。SOH_eval 当前训练测评还包含 GBDT 等插件算法，并支持用户上传新的可信本机算法。
+      </p>
+      <div class="grid-3">
+        <div class="card"><h3>Ridge</h3><p class="muted">简单、稳定、推理快，适合作为线性基线与速度参考。</p></div>
+        <div class="card"><h3>HistGBDT</h3><p class="muted">对表格特征强，能处理非线性退化，是当前推荐默认算法的重要候选。</p></div>
+        <div class="card"><h3>RandomForest</h3><p class="muted">通过树集成降低方差，对异常点和局部非线性更稳健。</p></div>
+      </div>
+      <h3>不确定度、后处理与门控</h3>
+      <p>
+        SOH 输出必须包含 95% 区间。系统支持 split conformal、CQR、组条件化共形和自校准半宽等策略。评估时不只看覆盖率，还要同时看区间宽度：单纯拉宽区间可以提高覆盖率，但会失去工程价值。
+      </p>
+      <p>
+        后处理采用“等渗非增地板 + 有界回升”。锂电池容量总体随循环下降，但静置恢复和测量噪声会出现小幅回升；算法允许受控回升，同时防止预测曲线出现非物理振荡。
+      </p>
+      <table>
+        <thead><tr><th>门控</th><th>目的</th><th>典型指标</th></tr></thead>
+        <tbody>
+          <tr><td>精度门控</td><td>判断模型是否能满足场景误差要求。</td><td>MAE、RMSE、MAPE、EOL 区域误差。</td></tr>
+          <tr><td>校准门控</td><td>判断区间是否既覆盖真实值又不过宽。</td><td>PICP、平均区间宽度、alpha accuracy。</td></tr>
+          <tr><td>物理一致性</td><td>判断 SOH 范围与退化趋势是否可信。</td><td>单调性违例率、范围违例率、最大回升。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="workflow">
+      <h2>五、工具使用操作说明</h2>
+      <p>
+        前端应被理解为“测评运营工作台”：左侧导航选择不同职责页签，主区完成资源上传、组合选择、任务启动和结果浏览，右侧或下方展示任务状态、风险提示和模型资产。
+      </p>
+      <h3>页面职责</h3>
+      <table>
+        <thead><tr><th>页签</th><th>主要用户问题</th><th>核心操作</th><th>主要输出</th></tr></thead>
+        <tbody>
+          <tr><td>训练测评</td><td>一个新算法或新特征方案，在公平协议下表现如何？</td><td>上传源码插件或特征方案，选择数据集/协议/种子，启动训练。</td><td>训练排行榜、逐折指标、Pickle 模型。</td></tr>
+          <tr><td>推理测评</td><td>已有模型迁移到新数据集时精度和速度如何？</td><td>上传或选择 Pickle 模型，勾选目标数据集，执行 inference-only 测速。</td><td>迁移 MAE/RMSE、吞吐、延迟、特征兼容性报告。</td></tr>
+          <tr><td>模型资产库</td><td>哪些模型可复用、来自哪里、训练范围是什么？</td><td>查看模型列表、筛选算法/特征/训练数据、定位模型清单。</td><td>模型详情、特征列、训练来源、推荐使用场景。</td></tr>
+          <tr><td>算法推荐</td><td>当前数据范围下默认算法应选谁？</td><td>按训练或推理结果比较算法，查看推荐理由与风险提示。</td><td>默认模型建议、场景化推荐、速度/精度取舍。</td></tr>
+          <tr><td>全局诊断</td><td>数据、模型、任务、打包和同步是否健康？</td><td>查看 QC、失败组合、后端状态、打包记录。</td><td>问题定位、失败原因、后续动作建议。</td></tr>
+          <tr><td>完整 SOH 看板</td><td>某个场景的 SOH 轨迹、曲线和特征窗如何对应？</td><td>选择场景、电芯、循环点，查看真值/预测/CI 与 V/I/T/IC 下钻。</td><td>可解释轨迹、逐点曲线、场景级门控。</td></tr>
+          <tr><td>数据同步与打包</td><td>如何把本机结果变成可迁移展示物？</td><td>同步 battery_SOH 看板资产，生成目录包或单 HTML 包。</td><td>离线可打开的展示文件，不依赖原始数据目录。</td></tr>
+        </tbody>
+      </table>
+      <div class="figure">
+        <svg viewBox="0 0 1120 560" role="img" aria-label="前端工作台示意图">
+          <rect width="1120" height="560" fill="#f7faff"/>
+          <rect x="34" y="34" width="1052" height="492" rx="26" fill="#fff" stroke="#d7e2f1"/>
+          <rect x="58" y="62" width="190" height="436" rx="20" fill="#f2f6ff" stroke="#d7e2f1"/>
+          <text x="82" y="100" font-size="21" font-weight="900" fill="#101827">SOH 工作台</text>
+          <g font-size="15" font-weight="800">
+            <rect x="78" y="132" width="146" height="40" rx="12" fill="#315be8"/><text x="102" y="158" fill="#fff">训练测评</text>
+            <rect x="78" y="184" width="146" height="40" rx="12" fill="#fff"/><text x="102" y="210" fill="#40506b">推理测评</text>
+            <rect x="78" y="236" width="146" height="40" rx="12" fill="#fff"/><text x="102" y="262" fill="#40506b">模型资产库</text>
+            <rect x="78" y="288" width="146" height="40" rx="12" fill="#fff"/><text x="102" y="314" fill="#40506b">算法推荐</text>
+            <rect x="78" y="340" width="146" height="40" rx="12" fill="#fff"/><text x="102" y="366" fill="#40506b">全局诊断</text>
+            <rect x="78" y="392" width="146" height="40" rx="12" fill="#fff"/><text x="102" y="418" fill="#40506b">完整看板</text>
+          </g>
+          <rect x="280" y="62" width="770" height="74" rx="18" fill="#fff" stroke="#d7e2f1"/>
+          <text x="310" y="106" font-size="26" font-weight="900" fill="#101827">训练 / 推理分离的 SOH 测评流程</text>
+          <rect x="280" y="158" width="355" height="220" rx="20" fill="#fff" stroke="#d7e2f1"/>
+          <text x="310" y="200" font-size="24" font-weight="900" fill="#101827">资源接入</text>
+          <rect x="310" y="226" width="285" height="42" rx="13" fill="#eef4ff"/><text x="334" y="253" fill="#315be8" font-size="15" font-weight="900">上传数据集 / 算法 / 特征方案</text>
+          <rect x="310" y="286" width="285" height="42" rx="13" fill="#eefaf1"/><text x="334" y="313" fill="#2d8a57" font-size="15" font-weight="900">选择数据范围与协议</text>
+          <rect x="310" y="346" width="156" height="46" rx="14" fill="#315be8"/><text x="340" y="375" fill="#fff" font-size="16" font-weight="900">启动测评</text>
+          <rect x="665" y="158" width="385" height="220" rx="20" fill="#fff" stroke="#d7e2f1"/>
+          <text x="695" y="200" font-size="24" font-weight="900" fill="#101827">结果面板</text>
+          <g transform="translate(696 230)">
+            <rect x="0" y="0" width="98" height="86" rx="14" fill="#f2f6ff"/><text x="18" y="33" fill="#61708a" font-size="13">MAE</text><text x="18" y="65" fill="#101827" font-size="24" font-weight="900">0.074</text>
+            <rect x="116" y="0" width="98" height="86" rx="14" fill="#f1fbf5"/><text x="134" y="33" fill="#61708a" font-size="13">PICP</text><text x="134" y="65" fill="#101827" font-size="24" font-weight="900">0.88</text>
+            <rect x="232" y="0" width="116" height="86" rx="14" fill="#fff7df"/><text x="250" y="33" fill="#61708a" font-size="13">速度</text><text x="250" y="65" fill="#101827" font-size="24" font-weight="900">13ms</text>
+          </g>
+          <rect x="280" y="406" width="770" height="78" rx="18" fill="#fbfdff" stroke="#d7e2f1"/>
+          <text x="310" y="440" font-size="17" font-weight="900" fill="#101827">输出：排行榜 / 模型 Pickle / 推理测速 / 失败组合 / 离线展示包</text>
+          <text x="310" y="466" font-size="14" fill="#61708a">前端保存所有已生成数据产物，新增数据源或算法后可直接触发新一轮测评。</text>
+        </svg>
+        <div class="caption">前端示意：每个页签承担不同职责，避免训练、推理、资产管理和可解释看板内容重复。</div>
+      </div>
+      <h3>典型操作流程</h3>
+      <div class="steps">
+        <div class="step"><div><strong>准备数据</strong><br><span class="muted">将公开数据集或自有数据放入数据目录，处理为统一特征帧。前端目录刷新后即可勾选。</span></div></div>
+        <div class="step"><div><strong>接入算法或特征</strong><br><span class="muted">训练页签可上传可信本机算法插件或特征方案；推理页签优先上传已训练好的 Pickle 模型。</span></div></div>
+        <div class="step"><div><strong>配置测评</strong><br><span class="muted">选择数据集、算法、特征、协议和种子。公平比较必须保证同一数据范围、同一协议和同一指标口径。</span></div></div>
+        <div class="step"><div><strong>启动任务并查看状态</strong><br><span class="muted">训练任务时间较长属于正常现象，因为它包含 fit、predict、区间和指标计算；推理任务只加载模型并预测，通常更快。</span></div></div>
+        <div class="step"><div><strong>进入结果与看板</strong><br><span class="muted">排行榜用于算法比较，完整 SOH 看板用于解释某个场景或电芯的轨迹、区间、误差和原始曲线。</span></div></div>
+        <div class="step"><div><strong>同步与打包</strong><br><span class="muted">完成测评后生成离线包，交付给没有本地原始数据的机器进行浏览和汇报。</span></div></div>
+      </div>
+    </section>
+
+    <section id="visual">
+      <h2>六、完整 SOH 看板与测评页签的关联</h2>
+      <p>
+        训练和推理页签回答“哪种算法在给定数据范围上更好”；完整 SOH 看板回答“为什么这个结果可信或失败”。二者通过数据集、模型、特征集、协议和 held-out key 关联：排行榜给出指标，完整看板给出轨迹、曲线和逐点证据。
+      </p>
+      <div class="grid-2">
+        <div class="card">
+          <h3>排行榜视角</h3>
+          <p>当前主线训练比较中，GBDT 与 TabularSOHEnsemble 在 <span class="code">battery_soh_operational</span> 特征集和 LOCO 协议下形成基准对照。推理测评记录显示，已有模型可在多个目标数据集上完成迁移测速，最快记录约为每千样本 13ms 量级。</p>
+        </div>
+        <div class="card">
+          <h3>轨迹视角</h3>
+          <p>原生看板提供真值、预测、95% 区间、误差分布、V/I/T 原始曲线和 IC 曲线。它让用户能从“一个 MAE 数字”下钻到“某个循环点的特征窗与曲线形态”。</p>
+        </div>
+      </div>
+      <div class="figure">
+        <svg viewBox="0 0 1120 430" role="img" aria-label="SOH 曲线与特征窗示意">
+          <rect width="1120" height="430" fill="#fbfdff"/>
+          <rect x="50" y="50" width="660" height="310" rx="22" fill="#fff" stroke="#d7e2f1"/>
+          <text x="85" y="92" font-size="25" font-weight="900" fill="#101827">SOH 轨迹与置信区间</text>
+          <line x1="105" y1="305" x2="650" y2="305" stroke="#d7e2f1"/>
+          <line x1="105" y1="125" x2="105" y2="305" stroke="#d7e2f1"/>
+          <path d="M110 150 C190 155 230 170 290 190 C360 214 430 226 500 252 C565 276 602 286 645 294 L645 320 L110 320 Z" fill="rgba(49,91,232,.13)"/>
+          <path d="M110 143 C185 151 235 164 292 184 C360 207 430 220 500 242 C565 264 602 274 645 282" fill="none" stroke="#315be8" stroke-width="5" stroke-linecap="round"/>
+          <path d="M110 158 C185 160 235 175 292 197 C360 220 430 232 500 258 C565 280 602 292 645 300" fill="none" stroke="#11a6c8" stroke-width="4" stroke-dasharray="8 8" stroke-linecap="round"/>
+          <circle cx="430" cy="232" r="9" fill="#fff" stroke="#315be8" stroke-width="4"/>
+          <text x="126" y="336" fill="#61708a" font-size="13">循环</text>
+          <text x="76" y="138" fill="#61708a" font-size="13">SOH</text>
+          <rect x="760" y="50" width="310" height="310" rx="22" fill="#fff" stroke="#d7e2f1"/>
+          <text x="795" y="92" font-size="25" font-weight="900" fill="#101827">点选循环曲线</text>
+          <rect x="806" y="128" width="216" height="116" rx="16" fill="#f2f6ff"/>
+          <path d="M820 217 C850 178 885 198 910 160 C950 115 980 160 1010 145" fill="none" stroke="#315be8" stroke-width="4"/>
+          <rect x="894" y="128" width="66" height="116" fill="rgba(45,138,87,.14)"/>
+          <text x="820" y="270" fill="#61708a" font-size="14">加粗电压窗用于解释特征来源</text>
+          <rect x="806" y="288" width="216" height="36" rx="12" fill="#eefaf1"/>
+          <text x="828" y="312" fill="#2d8a57" font-size="15" font-weight="900">IC 峰位 / 峰高 / V-I-T</text>
+          <path d="M712 214 C733 214 735 214 755 214" stroke="#315be8" stroke-width="4"/>
+        </svg>
+        <div class="caption">SOH 看板用于解释排行榜：点选某条预测轨迹上的循环点，即可查看对应曲线和特征窗。</div>
+      </div>
+      <h3>关联规则</h3>
+      <table>
+        <thead><tr><th>关联键</th><th>训练/推理结果</th><th>完整看板</th></tr></thead>
+        <tbody>
+          <tr><td>数据集</td><td>用于筛选排行榜、推理目标和失败组合。</td><td>用于切换场景、化学体系、容量规格和曲线集合。</td></tr>
+          <tr><td>电芯或 held-out key</td><td>用于定位 LOCO/LODO 的逐折结果。</td><td>用于下钻单电芯 SOH 轨迹和误差分布。</td></tr>
+          <tr><td>特征集</td><td>用于比较不同特征方案的泛化表现。</td><td>用于展示特征窗、IC 曲线和特征来源。</td></tr>
+          <tr><td>模型资产</td><td>用于推理迁移和速度测评。</td><td>用于解释某模型在场景中的预测形态与失败模式。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="literature">
+      <h2>七、文献综述与方法定位</h2>
+      <p>
+        本项目的方法路线属于“多数据集 SOH 评估 + 传统表格模型/深度模型基线 + 共形不确定度 + 可解释曲线下钻”。与多数公开 benchmark 相比，差异点在于训练/推理分离、模型资产持久化、区间门控、物理一致性和离线交付。
+      </p>
+      <h3>研究脉络</h3>
+      <div class="grid-2">
+        <div class="card">
+          <h3>早期循环特征与曲线特征</h3>
+          <p>代表性工作使用早期循环电压或容量曲线预测寿命，证明曲线形态在容量明显下降前已经包含退化信息。本项目借鉴这一思想，但任务从寿命预测转为逐循环 SOH 估计，并强调部署可得的充电侧特征。</p>
+        </div>
+        <div class="card">
+          <h3>多数据集 Benchmark</h3>
+          <p>BatteryML 和 SOHbenchmark 提供了公开数据集整合与多模型对照。本项目吸收它们的基线矩阵思想，同时加入数据泄漏约束、区间输出和门控。</p>
+        </div>
+        <div class="card">
+          <h3>物理约束与 PINN</h3>
+          <p>PINN4SOH 等工作把退化机理融入神经网络。本项目目前以物理一致性门控和后处理实现工程约束，后续可将物理模型作为候选算法插件接入。</p>
+        </div>
+        <div class="card">
+          <h3>不确定度与共形预测</h3>
+          <p>共形预测为区间覆盖提供有限样本保证，CQR 进一步让区间随样本难度变化。本项目把覆盖率和区间宽度作为并列验收对象。</p>
+        </div>
+      </div>
+      <h3>与本项目相关的公开资源</h3>
+      <table>
+        <thead><tr><th>资源</th><th>贡献</th><th>本项目采用方式</th></tr></thead>
+        <tbody>
+          <tr><td><a href="https://www.nasa.gov/intelligent-systems-division/discovery-and-systems-health/pcoe/pcoe-data-set-repository/">NASA PCoE Data Set Repository</a></td><td>PCoE 经典锂电老化数据，含充放电和阻抗流程。</td><td>作为 nasa 数据集的来源与跨工况验证场景。</td></tr>
+          <tr><td><a href="https://calce.umd.edu/battery-data">CALCE Battery Data</a></td><td>开放实验室电池测试数据，覆盖多种电芯形态和化学体系。</td><td>作为 calce_cs2 等深退化场景的数据来源。</td></tr>
+          <tr><td><a href="https://ora.ox.ac.uk/objects/uuid:03ba4b01-cfed-46d3-9b1a-7d4a7bdf6fac">Oxford Battery Degradation Dataset</a></td><td>长期循环的 Oxford 电池退化数据。</td><td>用于小样本曲线特征、轨迹和下钻展示。</td></tr>
+          <tr><td><a href="https://zenodo.org/records/12091223">RWTH ISEA field measurements</a></td><td>户储现场长期系统级测量数据，包含电流、电压、功率和温度。</td><td>用于现场数据通道、容量估计和降级看板。</td></tr>
+          <tr><td><a href="https://data.mendeley.com/datasets/nsc7hnsg4s/2">HUST LFP/graphite dataset</a></td><td>77 颗 LFP/graphite 电芯，固定充电和多阶段放电。</td><td>用于放电工况变化下的泛化压力测试。</td></tr>
+          <tr><td><a href="https://www.batteryarchive.org/snl_study.html">SNL / BatteryArchive study</a></td><td>商用 18650 NCA/NMC/LFP 电芯，覆盖温度、DOD 和电流因素。</td><td>用于温度域和 DOD 域验证，当前主线使用 LFP 子集。</td></tr>
+          <tr><td><a href="https://digitalcommons.lib.uconn.edu/reil_datasets/1/">UConn-ISU-ILCC LFP/Gr dataset</a></td><td>64 颗 LithiumWerks 电芯，多工况循环和 RPT 数据。</td><td>仅接入充电侧可部署特征，避免脉冲阻抗特征造成部署不一致。</td></tr>
+          <tr><td><a href="https://github.com/microsoft/BatteryML">BatteryML</a></td><td>开放电池退化机器学习工具，包含数据集合、预处理和多模型基线。</td><td>作为 benchmark 广度、数据组织和基线矩阵的参照。</td></tr>
+          <tr><td><a href="https://github.com/wang-fujin/SOHbenchmark">SOHbenchmark</a></td><td>面向 SOH 估计的公开数据和深度模型 benchmark。</td><td>作为 XJTU/MIT 场景和深度模型对照的重要参考。</td></tr>
+          <tr><td><a href="https://github.com/wang-fujin/PINN4SOH">PINN4SOH</a></td><td>物理信息神经网络用于 SOH 估计。</td><td>作为后续物理约束算法插件和深度模型对照方向。</td></tr>
+          <tr><td><a href="https://www.nature.com/articles/s41560-019-0356-8">Data-driven prediction of battery cycle life before capacity degradation</a></td><td>展示早期循环曲线特征对电池寿命预测的价值。</td><td>支撑本项目强调曲线特征、早期信号和跨电芯泛化的设计。</td></tr>
+          <tr><td><a href="https://arxiv.org/abs/1905.03222">Conformalized Quantile Regression</a></td><td>结合分位回归和共形预测，构造自适应预测区间。</td><td>支撑本项目的区间估计和覆盖率/宽度双门控。</td></tr>
+        </tbody>
+      </table>
+      <div class="callout green">
+        <strong>本项目的方法定位：</strong>传统机器学习模型仍是强基线，尤其适合表格特征、小样本和可部署推理；深度模型适合作为长跑矩阵和复杂曲线输入对照；物理模型与 PINN 适合作为后续插件接入，而不是替代当前测评契约。
+      </div>
+    </section>
+
+    <section id="roadmap">
+      <h2>八、设计取舍与后续路线</h2>
+      <h3>当前设计取舍</h3>
+      <table>
+        <thead><tr><th>问题</th><th>设计选择</th><th>原因</th></tr></thead>
+        <tbody>
+          <tr><td>训练和推理是否区分？</td><td>强制区分。</td><td>训练评测包含 fit、区间和指标计算；推理评测只加载模型预测，更适合验证模型资产迁移和线上速度。</td></tr>
+          <tr><td>上传新模型应传源码还是 Pickle？</td><td>训练页传源码插件；推理页传 Pickle 模型。</td><td>源码用于产出新模型，Pickle 用于复用已有模型并验证泛化。</td></tr>
+          <tr><td>是否复制 battery_SOH 原始数据？</td><td>按受控子集迁入项目：正式数据集保留原始证据与曲线，其余大型或未接入数据不复制。</td><td>兼顾项目自包含、可解释展示与磁盘占用；迁移范围以 <span class="code">data/manifest.json</span> 为准。</td></tr>
+          <tr><td>是否保留异常检测页签？</td><td>从 SOH 主工作台移除。</td><td>异常检测语义与 SOH 估计门控不一致，容易造成评测目标混淆。</td></tr>
+          <tr><td>是否用单一排行榜说明优劣？</td><td>排行榜 + 场景看板 + 失败组合共同解释。</td><td>算法优劣依赖数据范围、协议、速度、区间质量和物理一致性。</td></tr>
+        </tbody>
+      </table>
+      <h3>建议路线</h3>
+      <div class="steps">
+        <div class="step"><div><strong>补齐全量公平矩阵</strong><br><span class="muted">以七数据集为默认范围，完成 LOCO、LODO 与关键算法组合的可复现实验，避免局部结果误导推荐。</span></div></div>
+        <div class="step"><div><strong>加强模型兼容性检查</strong><br><span class="muted">推理页在启动前明确显示模型所需特征列、目标数据集缺失列、可自动填补列和不可运行原因。</span></div></div>
+        <div class="step"><div><strong>把完整看板与排行榜深链接</strong><br><span class="muted">从排行榜某一 held-out key 直接跳转到对应电芯轨迹、误差和曲线下钻。</span></div></div>
+        <div class="step"><div><strong>沉淀报告模板</strong><br><span class="muted">将训练、推理、数据同步和打包任务自动生成验收报告，便于评审与交付。</span></div></div>
+        <div class="step"><div><strong>扩展算法生态</strong><br><span class="muted">新增深度序列模型、物理约束模型、分位回归模型和轻量在线推理模型，但统一进入相同测评契约。</span></div></div>
+      </div>
+      <h3>参考资料</h3>
+      <ul class="refs">
+        <li><a href="https://www.nasa.gov/intelligent-systems-division/discovery-and-systems-health/pcoe/pcoe-data-set-repository/">NASA PCoE Data Set Repository</a></li>
+        <li><a href="https://calce.umd.edu/battery-data">CALCE Battery Data</a></li>
+        <li><a href="https://ora.ox.ac.uk/objects/uuid:03ba4b01-cfed-46d3-9b1a-7d4a7bdf6fac">Oxford Battery Degradation Dataset</a></li>
+        <li><a href="https://zenodo.org/records/12091223">RWTH ISEA home storage field measurements</a></li>
+        <li><a href="https://data.mendeley.com/datasets/nsc7hnsg4s/2">HUST LFP/graphite battery dataset</a></li>
+        <li><a href="https://www.batteryarchive.org/snl_study.html">SNL study on BatteryArchive</a></li>
+        <li><a href="https://digitalcommons.lib.uconn.edu/reil_datasets/1/">UConn-ISU-ILCC LFP/Gr Battery Aging Dataset</a></li>
+        <li><a href="https://github.com/microsoft/BatteryML">BatteryML</a></li>
+        <li><a href="https://github.com/wang-fujin/SOHbenchmark">SOHbenchmark</a></li>
+        <li><a href="https://github.com/wang-fujin/PINN4SOH">PINN4SOH</a></li>
+        <li><a href="https://www.nature.com/articles/s41560-019-0356-8">Data-driven prediction of battery cycle life before capacity degradation</a></li>
+        <li><a href="https://arxiv.org/abs/1905.03222">Conformalized Quantile Regression</a></li>
+      </ul>
+      <p class="source-note">
+        本 HTML 为单文件说明书，样式和插图均内嵌，可直接在浏览器中打开；其中图形为根据项目架构和数据产物绘制的说明性插图。
+      </p>
+    </section>
+  </main>
+</body>
+</html>

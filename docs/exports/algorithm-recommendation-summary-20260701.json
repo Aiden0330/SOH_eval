@@ -1,0 +1,189 @@
+{
+  "generated_at": "2026-07-02T05:16:50.762542+00:00",
+  "scope": {
+    "datasets": [
+      "calce_cs2",
+      "hust",
+      "nasa",
+      "oxford",
+      "rwth_isea_public",
+      "snl_lfp",
+      "uconn"
+    ],
+    "featureset": "battery_soh_operational",
+    "protocols": [
+      "lodo",
+      "loco"
+    ]
+  },
+  "overall": {
+    "recommended_default": "gbdt",
+    "why": [
+      "跨数据集迁移能力中 gbdt 的平均 MAE 最低。",
+      "同数据集跨电芯泛化能力中 gbdt 的平均 MAE 最低。"
+    ],
+    "caveats": [
+      "跨数据集迁移能力的最快推理模型是 ridge，不是默认推荐 gbdt。",
+      "跨数据集迁移能力的训练过程均值最佳是 battery_soh_tabular_ensemble，推理推荐仍以迁移结果为准。"
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "lodo_transfer",
+      "title": "跨数据集迁移能力",
+      "description": "模型在未见过数据源上的迁移精度与速度。",
+      "protocol": "lodo",
+      "datasets": [
+        "calce_cs2",
+        "hust",
+        "nasa",
+        "oxford",
+        "rwth_isea_public",
+        "snl_lfp",
+        "uconn"
+      ],
+      "featureset": "battery_soh_operational",
+      "train_job_id": "20260701T192542-b9f52437",
+      "inference_job_id": "20260701T192724-f683b9a1",
+      "folds": null,
+      "records": 147,
+      "succeeded": 147,
+      "success_rate": 1.0,
+      "recommended_algorithm": "gbdt",
+      "accuracy_winner": "gbdt",
+      "speed_winner": "ridge",
+      "training_winner": "battery_soh_tabular_ensemble",
+      "ranking": [
+        {
+          "algorithm": "gbdt",
+          "records": 49,
+          "succeeded": 49,
+          "mean_mae": 0.08960426489624912,
+          "median_mae": 0.060376100841071,
+          "mean_rmse": 0.11687428959486043,
+          "mean_ms_per_1000": 5.455110571838842,
+          "median_ms_per_1000": 4.1105360426000095
+        },
+        {
+          "algorithm": "battery_soh_tabular_ensemble",
+          "records": 49,
+          "succeeded": 49,
+          "mean_mae": 0.09337009973258625,
+          "median_mae": 0.06093568943492728,
+          "mean_rmse": 0.11592283985009968,
+          "mean_ms_per_1000": 39.11546146350181,
+          "median_ms_per_1000": 28.693134849666798
+        },
+        {
+          "algorithm": "ridge",
+          "records": 49,
+          "succeeded": 49,
+          "mean_mae": 0.11636550188161471,
+          "median_mae": 0.0809942220967418,
+          "mean_rmse": 0.13816557736768575,
+          "mean_ms_per_1000": 0.8959691022678697,
+          "median_ms_per_1000": 0.5779460665431337
+        }
+      ],
+      "training_ranking": [
+        {
+          "algorithm": "battery_soh_tabular_ensemble",
+          "mae_mean": 0.1322408932161063,
+          "mae_std": 0.08553282996419484,
+          "rmse_mean": 0.16091028824761736,
+          "rmse_std": 0.11019369425554564,
+          "alpha_accuracy_mean": 0.6707985095322527,
+          "backend": "battery_soh"
+        },
+        {
+          "algorithm": "gbdt",
+          "mae_mean": 0.134762611634365,
+          "mae_std": 0.08184699220214313,
+          "rmse_mean": 0.16783601964626718,
+          "rmse_std": 0.10745787577249978,
+          "alpha_accuracy_mean": 0.6613643040283016,
+          "backend": "sklearn"
+        },
+        {
+          "algorithm": "ridge",
+          "mae_mean": 0.13578513138068113,
+          "mae_std": 0.0908317429209013,
+          "rmse_mean": 0.15739257494489808,
+          "rmse_std": 0.11314478454965957,
+          "alpha_accuracy_mean": 0.6823149395518804,
+          "backend": "sklearn"
+        }
+      ],
+      "recommendation": "跨数据集迁移能力优先使用 gbdt。若只看推理速度，可对比 ridge。训练过程最优为 battery_soh_tabular_ensemble，需与推理迁移结果分开解释。"
+    },
+    {
+      "id": "loco_cell_generalization",
+      "title": "同数据集跨电芯泛化能力",
+      "description": "模型在同一数据源不同电芯上的泛化精度与速度。",
+      "protocol": "loco",
+      "datasets": [
+        "calce_cs2",
+        "hust",
+        "nasa",
+        "oxford",
+        "rwth_isea_public",
+        "snl_lfp",
+        "uconn"
+      ],
+      "featureset": "battery_soh_operational",
+      "train_job_id": "20260701T193439-fea520f7",
+      "inference_job_id": "20260701T201934-5577017e",
+      "folds": 220,
+      "records": 3080,
+      "succeeded": 3080,
+      "success_rate": 1.0,
+      "recommended_algorithm": "gbdt",
+      "accuracy_winner": "gbdt",
+      "speed_winner": "gbdt",
+      "training_winner": "gbdt",
+      "ranking": [
+        {
+          "algorithm": "gbdt",
+          "records": 1540,
+          "succeeded": 1540,
+          "mean_mae": 0.08007739359381533,
+          "median_mae": 0.05555485566752659,
+          "mean_rmse": 0.10599544864444521,
+          "mean_ms_per_1000": 8.530577136573598,
+          "median_ms_per_1000": 6.698242790257944
+        },
+        {
+          "algorithm": "battery_soh_tabular_ensemble",
+          "records": 1540,
+          "succeeded": 1540,
+          "mean_mae": 0.0856757957585465,
+          "median_mae": 0.05694741402394085,
+          "mean_rmse": 0.10714628269796611,
+          "mean_ms_per_1000": 45.91855074945663,
+          "median_ms_per_1000": 28.786257850197167
+        }
+      ],
+      "training_ranking": [
+        {
+          "algorithm": "gbdt",
+          "mae_mean": 0.07392501402095285,
+          "mae_std": 0.11070163696516527,
+          "rmse_mean": 0.08786146705619664,
+          "rmse_std": 0.12101538842547355,
+          "alpha_accuracy_mean": 0.8692580113269744,
+          "backend": "sklearn"
+        },
+        {
+          "algorithm": "battery_soh_tabular_ensemble",
+          "mae_mean": 0.07745422923400111,
+          "mae_std": 0.10940738398270661,
+          "rmse_mean": 0.08866702140351437,
+          "rmse_std": 0.11955421095039376,
+          "alpha_accuracy_mean": 0.8720170873802533,
+          "backend": "battery_soh"
+        }
+      ],
+      "recommendation": "同数据集跨电芯泛化能力优先使用 gbdt。"
+    }
+  ]
+}

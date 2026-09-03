@@ -1,0 +1,1051 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>SOH 评测案例工作台｜面板功能、使用说明与简化建议</title>
+  <style>
+    :root {
+      --ink: #10233d;
+      --muted: #61758e;
+      --subtle: #8a9aab;
+      --paper: #f3f7fb;
+      --panel: #ffffff;
+      --panel-soft: #f8fbfe;
+      --line: #d8e3ee;
+      --line-strong: #bdcddd;
+      --navy: #061d2e;
+      --navy-2: #0c3550;
+      --blue: #0b8fc6;
+      --blue-soft: #e8f6fc;
+      --green: #07875c;
+      --green-soft: #e9f8f1;
+      --amber: #b66f00;
+      --amber-soft: #fff5dc;
+      --red: #c52f2f;
+      --red-soft: #fff0f0;
+      --violet: #5c62d6;
+      --violet-soft: #f0f0ff;
+      --shadow: 0 18px 48px rgba(31, 58, 84, .10);
+      --radius: 18px;
+      --radius-sm: 11px;
+      --content: 1180px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 78% 4%, rgba(36, 176, 221, .12), transparent 28rem),
+        linear-gradient(180deg, #eef5fa 0, var(--paper) 34rem, #f7f9fc 100%);
+      font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+      line-height: 1.65;
+    }
+    a { color: inherit; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    code, .mono {
+      font-family: Consolas, "SFMono-Regular", monospace;
+      font-size: .94em;
+    }
+    code {
+      padding: .08rem .34rem;
+      border: 1px solid #dce6ef;
+      border-radius: 5px;
+      background: #f2f6fa;
+    }
+    :focus-visible { outline: 3px solid rgba(11, 143, 198, .33); outline-offset: 3px; }
+
+    .skip-link {
+      position: fixed;
+      left: 1rem;
+      top: -5rem;
+      z-index: 99;
+      padding: .7rem 1rem;
+      color: white;
+      background: var(--navy);
+      border-radius: 8px;
+    }
+    .skip-link:focus { top: 1rem; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 258px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .toc {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      overflow: auto;
+      padding: 28px 22px;
+      color: #dcecf8;
+      background: linear-gradient(180deg, var(--navy), #071826);
+      border-right: 1px solid rgba(255,255,255,.08);
+    }
+    .toc-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 22px;
+      border-bottom: 1px solid rgba(255,255,255,.15);
+    }
+    .toc-mark {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      color: #042032;
+      background: linear-gradient(135deg, #36d48f, #17bde1);
+      font-weight: 900;
+      letter-spacing: .04em;
+    }
+    .toc-brand b { display: block; color: white; font-size: 1.02rem; }
+    .toc-brand small { color: #86aac1; }
+    .toc-label {
+      margin: 24px 10px 8px;
+      color: #6f95ae;
+      font-size: .73rem;
+      font-weight: 800;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+    .toc nav { display: grid; gap: 4px; }
+    .toc nav a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 42px;
+      padding: 8px 10px;
+      color: #bdd2e1;
+      text-decoration: none;
+      border-radius: 9px;
+    }
+    .toc nav a:hover, .toc nav a.active { color: white; background: rgba(34, 183, 231, .13); }
+    .toc-index {
+      display: inline-grid;
+      place-items: center;
+      min-width: 24px;
+      height: 24px;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 7px;
+      font-size: .72rem;
+      font-weight: 800;
+    }
+    .toc-note {
+      margin-top: 26px;
+      padding: 13px;
+      color: #a9c2d2;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 12px;
+      font-size: .78rem;
+    }
+
+    .main { min-width: 0; padding: 24px 34px 72px; }
+    .content { width: min(100%, var(--content)); margin: 0 auto; }
+    section[id], article[id] { scroll-margin-top: 20px; }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: clamp(28px, 4vw, 52px);
+      color: white;
+      background:
+        linear-gradient(120deg, rgba(8, 38, 59, .98), rgba(8, 57, 83, .96)),
+        var(--navy);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -80px;
+      top: -120px;
+      width: 380px;
+      height: 380px;
+      border: 70px solid rgba(40, 192, 229, .11);
+      border-radius: 50%;
+    }
+    .eyebrow {
+      position: relative;
+      z-index: 1;
+      color: #55d5f2;
+      font-size: .78rem;
+      font-weight: 850;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .hero h1 {
+      position: relative;
+      z-index: 1;
+      max-width: 820px;
+      margin: 8px 0 12px;
+      font-size: clamp(2rem, 4.5vw, 3.6rem);
+      line-height: 1.12;
+      letter-spacing: -.035em;
+    }
+    .hero p {
+      position: relative;
+      z-index: 1;
+      max-width: 760px;
+      margin: 0;
+      color: #c2d8e6;
+      font-size: 1.02rem;
+    }
+    .hero-meta {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 24px;
+    }
+    .hero-meta span {
+      padding: 6px 10px;
+      color: #d9edf6;
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 999px;
+      font-size: .79rem;
+    }
+
+    .toolbar {
+      position: sticky;
+      top: 12px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 14px 0 28px;
+      padding: 9px;
+      background: rgba(255,255,255,.88);
+      border: 1px solid rgba(190, 207, 222, .9);
+      border-radius: 13px;
+      box-shadow: 0 10px 28px rgba(36, 66, 93, .08);
+      backdrop-filter: blur(12px);
+    }
+    .toolbar label { flex: 1; min-width: 160px; }
+    .toolbar input {
+      width: 100%;
+      min-height: 39px;
+      padding: 8px 12px;
+      color: var(--ink);
+      background: #f7fafc;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .toolbar button {
+      min-height: 39px;
+      padding: 7px 12px;
+      color: var(--ink);
+      background: white;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      font-weight: 750;
+    }
+    .toolbar button[aria-pressed="true"] { color: #06658d; background: var(--blue-soft); border-color: #75c8e6; }
+    .result-count { color: var(--muted); font-size: .78rem; white-space: nowrap; }
+
+    .section { margin-top: 46px; }
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      align-items: end;
+      margin-bottom: 18px;
+    }
+    .section-kicker { color: var(--blue); font-weight: 850; font-size: .76rem; letter-spacing: .1em; text-transform: uppercase; }
+    .section h2 { margin: 4px 0 0; font-size: clamp(1.55rem, 2.7vw, 2.15rem); line-height: 1.2; letter-spacing: -.02em; }
+    .section-head p { max-width: 700px; margin: 8px 0 0; color: var(--muted); }
+    .section-number { color: #d5e2ec; font: 800 3rem/1 Consolas, monospace; }
+
+    .executive-grid {
+      display: grid;
+      grid-template-columns: 1.25fr .75fr;
+      gap: 16px;
+    }
+    .callout, .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 8px 24px rgba(31, 58, 84, .055);
+    }
+    .callout { padding: 24px; }
+    .callout h3 { margin: 0 0 8px; font-size: 1.25rem; }
+    .callout p { margin: 0; color: var(--muted); }
+    .callout.decision { border-left: 6px solid var(--blue); }
+    .callout.warning { border-left: 6px solid var(--amber); background: linear-gradient(90deg, var(--amber-soft), white 45%); }
+    .decision-list { display: grid; gap: 12px; margin-top: 18px; }
+    .decision-item { display: grid; grid-template-columns: 84px minmax(0,1fr); gap: 12px; align-items: start; }
+    .decision-item b { color: var(--blue); }
+    .decision-item span { color: var(--muted); }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .flow-step {
+      position: relative;
+      min-height: 170px;
+      padding: 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+    }
+    .flow-step:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      right: -21px;
+      top: 66px;
+      z-index: 3;
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      color: var(--blue);
+      background: var(--paper);
+      border-radius: 50%;
+      font-weight: 900;
+    }
+    .flow-step .num {
+      display: inline-grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      color: white;
+      background: var(--navy-2);
+      border-radius: 10px;
+      font: 800 .9rem Consolas, monospace;
+    }
+    .flow-step h3 { margin: 16px 0 4px; font-size: 1.18rem; }
+    .flow-step p { margin: 0; color: var(--muted); font-size: .9rem; }
+    .flow-step .handoff { display: block; margin-top: 12px; color: var(--green); font-size: .78rem; font-weight: 800; }
+
+    .aux-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+      padding: 14px;
+      background: #e8eff5;
+      border: 1px solid #d3dfe9;
+      border-radius: 14px;
+    }
+    .aux-strip div { padding: 10px 12px; background: rgba(255,255,255,.7); border-radius: 10px; }
+    .aux-strip b { display: block; font-size: .9rem; }
+    .aux-strip small { color: var(--muted); }
+
+    .context-map {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 10px;
+    }
+    .context-chip {
+      min-height: 92px;
+      padding: 16px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 13px;
+    }
+    .context-chip span { display: block; color: var(--muted); font-size: .76rem; }
+    .context-chip b { display: block; margin: 5px 0 3px; font-size: .96rem; }
+    .context-chip small { color: var(--subtle); }
+
+    .panel-stack { display: grid; gap: 22px; }
+    .panel-card {
+      overflow: hidden;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 12px 30px rgba(31, 58, 84, .065);
+    }
+    .panel-card[hidden] { display: none; }
+    .panel-card-head {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+      padding: 22px 24px;
+      background: linear-gradient(100deg, #f5f9fc, white);
+      border-bottom: 1px solid var(--line);
+    }
+    .panel-icon {
+      display: grid;
+      place-items: center;
+      width: 52px;
+      height: 52px;
+      color: white;
+      background: var(--navy-2);
+      border-radius: 14px;
+      font: 900 1.12rem Consolas, monospace;
+      box-shadow: inset 0 0 0 4px rgba(255,255,255,.08);
+    }
+    .panel-card[data-category="aux"] .panel-icon { color: var(--navy); background: #dce8f1; }
+    .panel-card h3 { margin: 0; font-size: 1.4rem; line-height: 1.2; }
+    .panel-card-head p { margin: 4px 0 0; color: var(--muted); font-size: .9rem; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: .75rem;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+    .badge.keep { color: #076746; background: var(--green-soft); border: 1px solid #9edfc3; }
+    .badge.merge { color: #805000; background: var(--amber-soft); border: 1px solid #ebc267; }
+    .badge.core { color: #06678f; background: var(--blue-soft); border: 1px solid #9ad4ea; }
+    .badge.down { color: #53667a; background: #edf2f6; border: 1px solid #d3dfe9; }
+
+    .panel-body { padding: 24px; }
+    .panel-summary {
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 16px;
+    }
+    .purpose {
+      padding: 18px;
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: 13px;
+    }
+    .purpose h4 { margin: 0 0 8px; font-size: .94rem; }
+    .purpose p { margin: 0; color: var(--muted); }
+    .io-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .io-box { padding: 14px; border-radius: 12px; border: 1px solid var(--line); }
+    .io-box.input { background: #f3f8ff; }
+    .io-box.output { background: #effaf5; }
+    .io-box b { display: block; margin-bottom: 5px; font-size: .82rem; }
+    .io-box span { color: var(--muted); font-size: .84rem; }
+
+    .guide-block {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: white;
+    }
+    .guide-block summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 16px;
+      font-weight: 850;
+      cursor: pointer;
+      list-style: none;
+    }
+    .guide-block summary::-webkit-details-marker { display: none; }
+    .guide-block summary::after { content: "+"; color: var(--blue); font-size: 1.25rem; }
+    .guide-block[open] summary::after { content: "−"; }
+    .guide-block[open] summary { border-bottom: 1px solid var(--line); }
+    .guide-content { padding: 16px; }
+
+    .steps { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; counter-reset: steps; }
+    .steps li {
+      position: relative;
+      min-height: 42px;
+      padding: 9px 12px 9px 48px;
+      color: var(--muted);
+      background: #f8fafc;
+      border-radius: 9px;
+      counter-increment: steps;
+    }
+    .steps li::before {
+      content: counter(steps);
+      position: absolute;
+      left: 10px;
+      top: 8px;
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      color: #076b94;
+      background: #dff2fa;
+      border-radius: 8px;
+      font: 800 .75rem Consolas, monospace;
+    }
+    .steps b { color: var(--ink); }
+
+    .table-wrap { width: 100%; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 720px; font-size: .86rem; }
+    th, td { padding: 11px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+    th { color: #4c647c; background: #f3f7fa; font-size: .76rem; letter-spacing: .02em; }
+    td { color: var(--muted); }
+    td strong { color: var(--ink); }
+
+    .tip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .tip {
+      padding: 15px;
+      border-radius: 11px;
+      border: 1px solid var(--line);
+      background: #fbfcfd;
+    }
+    .tip b { display: block; margin-bottom: 6px; }
+    .tip p { margin: 0; color: var(--muted); font-size: .85rem; }
+    .tip.good { border-left: 4px solid var(--green); }
+    .tip.risk { border-left: 4px solid var(--amber); }
+
+    .simplify {
+      display: grid;
+      grid-template-columns: auto minmax(0,1fr);
+      gap: 14px;
+      align-items: start;
+      margin-top: 16px;
+      padding: 17px;
+      background: linear-gradient(100deg, var(--blue-soft), #f7fbfd);
+      border: 1px solid #b9dceb;
+      border-radius: 13px;
+    }
+    .simplify .signal {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      color: white;
+      background: var(--blue);
+      border-radius: 10px;
+      font-weight: 900;
+    }
+    .simplify h4 { margin: 0 0 4px; }
+    .simplify p { margin: 0; color: #47637a; font-size: .88rem; }
+
+    .evidence-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .evidence-card {
+      padding: 18px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+    .evidence-card b { display: block; color: var(--blue); font: 850 1.55rem/1.2 Consolas, monospace; }
+    .evidence-card span { display: block; margin-top: 8px; font-weight: 800; }
+    .evidence-card p { margin: 4px 0 0; color: var(--muted); font-size: .82rem; }
+
+    .target-ia {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 14px;
+      padding: 20px;
+      background: var(--navy);
+      border-radius: 18px;
+      color: white;
+    }
+    .target-main { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .target-node { padding: 17px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15); border-radius: 12px; }
+    .target-node small { color: #79cfee; }
+    .target-node b { display: block; margin-top: 4px; }
+    .target-tools { padding: 17px; background: rgba(42, 197, 139, .11); border: 1px solid rgba(86, 220, 169, .25); border-radius: 12px; }
+    .target-tools b { color: #7ee2bd; }
+    .target-tools p { margin: 8px 0 0; color: #bfd3df; font-size: .84rem; }
+
+    .priority-table td:first-child { width: 64px; }
+    .priority {
+      display: inline-grid;
+      place-items: center;
+      min-width: 34px;
+      height: 27px;
+      border-radius: 8px;
+      font: 900 .76rem Consolas, monospace;
+    }
+    .priority.p0 { color: #a11e1e; background: var(--red-soft); }
+    .priority.p1 { color: #825000; background: var(--amber-soft); }
+    .priority.p2 { color: #216a51; background: var(--green-soft); }
+
+    .impact {
+      display: inline-flex;
+      padding: 3px 7px;
+      border-radius: 6px;
+      font-size: .72rem;
+      font-weight: 800;
+    }
+    .impact.high { color: #08704d; background: var(--green-soft); }
+    .impact.medium { color: #8a5500; background: var(--amber-soft); }
+
+    .performance-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 13px; }
+    .performance-item { padding: 19px; background: white; border: 1px solid var(--line); border-radius: 14px; }
+    .performance-item .label { color: var(--blue); font: 800 .74rem Consolas, monospace; }
+    .performance-item h3 { margin: 6px 0; font-size: 1.05rem; }
+    .performance-item p { margin: 0; color: var(--muted); font-size: .86rem; }
+    .performance-item ul { margin: 10px 0 0; padding-left: 18px; color: var(--muted); font-size: .84rem; }
+
+    .acceptance-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .acceptance-item { padding: 15px; background: #f8fbfd; border: 1px solid var(--line); border-radius: 11px; }
+    .acceptance-item b { display: block; }
+    .acceptance-item span { color: var(--muted); font-size: .82rem; }
+
+    .faq { display: grid; gap: 10px; }
+    .faq details { background: white; border: 1px solid var(--line); border-radius: 11px; }
+    .faq summary { padding: 14px 16px; font-weight: 800; cursor: pointer; }
+    .faq p { margin: 0; padding: 0 16px 16px; color: var(--muted); }
+
+    .source-note {
+      margin-top: 46px;
+      padding: 20px;
+      color: #64778a;
+      background: #edf3f7;
+      border: 1px solid #d7e2eb;
+      border-radius: 14px;
+      font-size: .8rem;
+    }
+    .source-note b { color: var(--ink); }
+    .source-note ul { margin: 8px 0 0; padding-left: 19px; }
+    .footer { margin-top: 18px; color: #8293a3; text-align: center; font-size: .76rem; }
+
+    body.compact .guide-block:not(.always-open),
+    body.compact .tip-grid,
+    body.compact .source-note { display: none; }
+
+    @media (max-width: 1060px) {
+      .layout { grid-template-columns: 1fr; }
+      .toc { position: static; width: auto; height: auto; padding: 18px 22px; }
+      .toc nav { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .toc-label, .toc-note { display: none; }
+      .main { padding: 20px; }
+      .context-map { grid-template-columns: repeat(2, 1fr); }
+      .target-ia { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 760px) {
+      .toc nav { display: flex; overflow: auto; padding-top: 12px; }
+      .toc nav { scrollbar-width: none; }
+      .toc nav::-webkit-scrollbar { display: none; }
+      .toc nav a { white-space: nowrap; }
+      .toolbar { flex-wrap: wrap; top: 4px; }
+      .toolbar label { flex-basis: 100%; }
+      .executive-grid, .panel-summary, .performance-grid { grid-template-columns: 1fr; }
+      .flow, .aux-strip, .evidence-grid, .acceptance-grid, .target-main { grid-template-columns: 1fr; }
+      .flow-step:not(:last-child)::after { content: "↓"; right: calc(50% - 14px); top: auto; bottom: -21px; }
+      .panel-card-head { grid-template-columns: auto minmax(0,1fr); padding: 18px; }
+      .panel-card-head > .badge { grid-column: 1 / -1; width: fit-content; }
+      .panel-body { padding: 18px; }
+      .tip-grid, .io-grid, .context-map { grid-template-columns: 1fr; }
+      .section-head { grid-template-columns: 1fr; }
+      .section-number { display: none; }
+    }
+    @media print {
+      body { background: white; font-size: 10pt; }
+      .layout { display: block; }
+      .toc, .toolbar { display: none !important; }
+      .main { padding: 0; }
+      .content { width: 100%; max-width: none; }
+      .hero { border-radius: 0; box-shadow: none; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .section { break-before: page; margin-top: 22px; }
+      .section:first-of-type { break-before: auto; }
+      .panel-card, .callout, .card { break-inside: avoid; box-shadow: none; }
+      details { display: block; }
+      details > * { display: block !important; }
+      .guide-block summary::after { display: none; }
+      a { text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+<a class="skip-link" href="#main">跳到正文</a>
+<div class="layout">
+  <aside class="toc" aria-label="报告目录">
+    <div class="toc-brand">
+      <div class="toc-mark">SOH</div>
+      <div><b>面板使用指南</b><small>阶段 3.1.2 现状审查</small></div>
+    </div>
+    <div class="toc-label">总览</div>
+    <nav>
+      <a href="#summary"><span class="toc-index">00</span>结论</a>
+      <a href="#workflow"><span class="toc-index">01</span>主流程</a>
+      <a href="#context"><span class="toc-index">02</span>跨页上下文</a>
+      <a href="#panels"><span class="toc-index">03</span>面板说明</a>
+      <a href="#simplification"><span class="toc-index">04</span>简化方案</a>
+      <a href="#performance"><span class="toc-index">05</span>运行提速</a>
+      <a href="#acceptance"><span class="toc-index">06</span>验收门槛</a>
+      <a href="#faq"><span class="toc-index">07</span>常见问题</a>
+    </nav>
+    <div class="toc-note">
+      <b>阅读建议</b><br />
+      操作人员先看“主流程”和三个核心面板；产品与开发人员重点看“简化方案”和“运行提速”。
+    </div>
+  </aside>
+
+  <main class="main" id="main">
+    <div class="content">
+      <header class="hero">
+        <div class="eyebrow">SOH Evaluation Case Workbench · Usage &amp; Optimization Guide</div>
+        <h1>各面板功能、使用说明与简化提速建议</h1>
+        <p>以当前“设计与训练 → 推理验证 → 评测与证据”真实案例流水线为基准，说明六个入口分别解决什么问题、怎样操作、何时不应进入，并给出减少按钮、缩短路径和降低首屏开销的落地方案。</p>
+        <div class="hero-meta">
+          <span>审查日期：2026-08-16</span>
+          <span>对象：D:\SOH_eval 当前前端</span>
+          <span>覆盖：3 个主流程 + 3 个辅助入口</span>
+          <span>交付：单文件离线 HTML</span>
+        </div>
+      </header>
+
+      <div class="toolbar" aria-label="报告工具栏">
+        <label><span class="sr-only" style="position:absolute;clip:rect(0 0 0 0)">搜索报告</span><input id="guide-search" type="search" placeholder="搜索面板、操作或建议，例如：Cycle、Pickle、PICP" /></label>
+        <button type="button" data-filter="all" aria-pressed="true">全部面板</button>
+        <button type="button" data-filter="core" aria-pressed="false">仅主流程</button>
+        <button type="button" data-filter="aux" aria-pressed="false">仅辅助</button>
+        <button type="button" id="compact-toggle" aria-pressed="false">精简阅读</button>
+        <button type="button" id="print-report">打印 / PDF</button>
+        <span class="result-count" id="result-count">6 个面板</span>
+      </div>
+
+      <section class="section" id="summary">
+        <div class="section-head">
+          <div><span class="section-kicker">Executive decision</span><h2>先给结论：保留三步主线，辅助能力降级</h2><p>当前功能已经能贯通真实案例，但导航仍把“完成任务”和“管理工具”放在同一层，增加理解成本，也诱发无关数据预加载。</p></div>
+          <span class="section-number">00</span>
+        </div>
+        <div class="executive-grid">
+          <div class="callout decision">
+            <h3>建议从 6 个可见入口收敛为 3 + 1</h3>
+            <p>始终展示三个主流程；只保留一个“工具”入口。“洞察建议”不再单列页面，而是回到用户做决定的训练、推理和评测上下文中。</p>
+            <div class="decision-list">
+              <div class="decision-item"><b>保留</b><span>设计与训练、推理验证、评测与证据——它们构成同一 Evaluation Case 的连续状态。</span></div>
+              <div class="decision-item"><b>下沉</b><span>算法包管理、可信总览进入“工具”抽屉，并按角色显示；普通评测人员无需频繁进入。</span></div>
+              <div class="decision-item"><b>合并</b><span>洞察建议分别嵌入训练组合推荐、推理迁移建议和评测失败解释，不再成为重复结果页。</span></div>
+            </div>
+          </div>
+          <div class="callout warning">
+            <h3>简化不等于删除可信控制</h3>
+            <p>摘要、证据血缘、判据和审计轨迹必须保留；简化方式是“默认只显示当前决策所需内容”，把完整细节放入可展开区或抽屉，而不是绕过门禁。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="workflow">
+        <div class="section-head">
+          <div><span class="section-kicker">One case, one flow</span><h2>一分钟理解主流程</h2><p>三页不是三个独立工具，而是同一案例的三个阶段。上一页的选择和产物应自动成为下一页的默认输入。</p></div>
+          <span class="section-number">01</span>
+        </div>
+        <div class="flow" aria-label="三步主流程">
+          <article class="flow-step"><span class="num">01</span><h3>设计与训练</h3><p>固定数据范围，选择特征表达和算法候选，按同一协议运行公平比较。</p><span class="handoff">交付：训练任务、候选算法包、案例身份</span></article>
+          <article class="flow-step"><span class="num">02</span><h3>推理验证</h3><p>继承训练候选，选择目标数据集，验证迁移误差、吞吐和特征兼容性。</p><span class="handoff">交付：推理记录、预测快照、代表证据</span></article>
+          <article class="flow-step"><span class="num">03</span><h3>评测与证据</h3><p>用同一记录查看 SOH 轨迹、原始曲线、判据、证据覆盖和闭环动作。</p><span class="handoff">交付：评审结论、问题闭环、EvidencePack</span></article>
+        </div>
+        <div class="aux-strip" aria-label="辅助工具">
+          <div><b>算法包管理</b><small>外部 Pickle、manifest 与插件的唯一接入口</small></div>
+          <div><b>可信总览</b><small>跨案例诊断；同步、打包应进一步下沉</small></div>
+          <div><b>洞察建议</b><small>属于上下文提示，建议并回主流程</small></div>
+        </div>
+      </section>
+
+      <section class="section" id="context">
+        <div class="section-head">
+          <div><span class="section-kicker">Shared evaluation context</span><h2>跨页必须保持一致的八类信息</h2><p>判断“三页是否是同一组合”时，不只看算法名称；案例、快照、特征、协议、产物摘要和预测记录都需要一致。</p></div>
+          <span class="section-number">02</span>
+        </div>
+        <div class="context-map">
+          <div class="context-chip"><span>案例身份</span><b>Case ID / Version</b><small>跨页主键；刷新与返回后不应变化</small></div>
+          <div class="context-chip"><span>数据身份</span><b>Dataset / Snapshot</b><small>名称相同但摘要不同，也不是同一数据</small></div>
+          <div class="context-chip"><span>候选身份</span><b>Algorithm / Model artifact</b><small>训练算法与推理包摘要共同确认</small></div>
+          <div class="context-chip"><span>输入表达</span><b>Feature set / Schema</b><small>列名、顺序、版本与预处理必须兼容</small></div>
+          <div class="context-chip"><span>实验口径</span><b>Protocol / Seed / Criterion</b><small>LOCO、LODO、LCHO 不可混读</small></div>
+          <div class="context-chip"><span>样本定位</span><b>Asset / Cycle / Record ID</b><small>轨迹与原始曲线共享同一记录</small></div>
+          <div class="context-chip"><span>证据状态</span><b>Coverage / Source</b><small>实测、派生、缺失与 Mock 必须分层</small></div>
+          <div class="context-chip"><span>审计状态</span><b>Review / EvidencePack</b><small>草稿、评审、签署和归档不可混淆</small></div>
+        </div>
+        <details class="guide-block always-open" open>
+          <summary>三页信息如何传递</summary>
+          <div class="guide-content table-wrap">
+            <table>
+              <thead><tr><th>上下文</th><th>设计与训练</th><th>推理验证</th><th>评测与证据</th></tr></thead>
+              <tbody>
+                <tr><td><strong>案例</strong></td><td>首次提交后创建或绑定</td><td>自动继承；不重新建案例</td><td>作为页面、事件和证据包的主身份</td></tr>
+                <tr><td><strong>数据</strong></td><td>固定训练数据与快照</td><td>选择 held-out / 目标数据并记录快照</td><td>选择的是已有证据范围，不重新定义数据</td></tr>
+                <tr><td><strong>算法与特征</strong></td><td>形成候选组合</td><td>消费已校验模型包并核对 schema</td><td>显示最终候选、artifact 与特征方案</td></tr>
+                <tr><td><strong>协议与判据</strong></td><td>协议、seed 写入 RunSpec</td><td>沿用对应迁移口径</td><td>用于判据、指标贡献和签署边界</td></tr>
+                <tr><td><strong>样本证据</strong></td><td>尚未产生预测记录</td><td>生成 prediction record 与曲线引用</td><td>按 asset / cycle / record_id 连续下钻</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <section class="section" id="panels">
+        <div class="section-head">
+          <div><span class="section-kicker">Panel handbook</span><h2>六个面板的功能与使用说明</h2><p>以下说明按当前真实界面命名。工具栏可筛选主流程或辅助入口。</p></div>
+          <span class="section-number">03</span>
+        </div>
+
+        <div class="panel-stack" id="panel-stack">
+          <article class="panel-card" id="panel-training" data-category="core" data-search="设计 训练 特征 算法 数据集 协议 seed 组合">
+            <header class="panel-card-head"><span class="panel-icon">01</span><div><h3>设计与训练</h3><p>核心阶段 · 把“想比较什么”变成可复现训练任务</p></div><span class="badge keep">✓ 保留并精简</span></header>
+            <div class="panel-body">
+              <div class="panel-summary">
+                <div class="purpose"><h4>功能</h4><p>在统一数据与协议下，组合特征方案和算法候选，进行权威预检后启动训练。训练成功的模型包自动进入算法包管理，不需要在此手工上传 Pickle。</p></div>
+                <div class="io-grid"><div class="io-box input"><b>主要输入</b><span>数据范围、特征方案、算法、LOCO/LODO/LCHO、seed</span></div><div class="io-box output"><b>主要输出</b><span>RunSpec、训练任务、候选模型包、案例上下文</span></div></div>
+              </div>
+              <details class="guide-block always-open" open><summary>推荐操作顺序</summary><div class="guide-content"><ol class="steps">
+                <li><b>确认数据源与案例。</b> 顶部“数据源”是发布的资料快照，不等于本页的数据集勾选；先确认正在使用正确 Profile。</li>
+                <li><b>选择数据范围。</b> 同一轮比较只放入可按相同协议解释的数据集；不要把训练域和目标 held-out 域混为一个含义。</li>
+                <li><b>先选特征，再选算法。</b> 先看特征列覆盖和可解释性，再选基线与候选算法，界面会形成特征 × 算法组合。</li>
+                <li><b>确认协议与 seed。</b> 日常快速比较可用 LOCO + seed 0；正式稳定性评测再展开多协议、多 seed。</li>
+                <li><b>查看预检与组合数。</b> 只提交 ready / warning 组合；blocked 代表 schema、资源或可信执行条件不足。</li>
+                <li><b>点击“运行所选组合”。</b> 等待任务成功后，主按钮应转为“进入推理验证”，继续沿用同一案例。</li>
+              </ol></div></details>
+              <details class="guide-block"><summary>当前子面板分别做什么</summary><div class="guide-content table-wrap"><table>
+                <thead><tr><th>区域</th><th>功能</th><th>操作要点</th></tr></thead><tbody>
+                  <tr><td><strong>数据范围</strong></td><td>决定本轮组合在哪些数据上训练/比较</td><td>优先选择 QC 通过、schema 明确的数据</td></tr>
+                  <tr><td><strong>组合特征与算法</strong></td><td>生成公平比较矩阵</td><td>组合过多时先缩小特征，再扩算法；避免无意义笛卡尔积</td></tr>
+                  <tr><td><strong>组合预览 / Run plan</strong></td><td>显示预计任务数和预检状态</td><td>确认没有重复组合、缺列或不可执行项</td></tr>
+                  <tr><td><strong>验证协议与 seed</strong></td><td>定义泛化口径与重复性</td><td>协议含义要与最终结论一致</td></tr>
+                  <tr><td><strong>训练产物</strong></td><td>显示任务、候选与包登记状态</td><td>只作为结果摘要；资产管理去“算法包管理”</td></tr>
+                </tbody></table></div></details>
+              <div class="tip-grid"><div class="tip good"><b>适合在此完成</b><p>选择特征和算法组合、查看兼容性、启动训练、跟踪训练产物。</p></div><div class="tip risk"><b>不应放在此处</b><p>上传外部 Pickle、管理 manifest、手工打包离线文件——这些属于资产或系统工具。</p></div></div>
+              <div class="simplify"><span class="signal">→</span><div><h4>进一步简化</h4><p>默认显示“推荐组合 + 一个主按钮”；协议、多 seed、超参数和批量展开收进“高级设置”。只渲染可兼容组合，并用组合指纹去重，避免用户提交同一 dataset snapshot × feature × algorithm × protocol × seed。</p></div></div>
+            </div>
+          </article>
+
+          <article class="panel-card" id="panel-inference" data-category="core" data-search="推理 验证 迁移 兼容 模型 数据集 MAE 吞吐 速度">
+            <header class="panel-card-head"><span class="panel-icon">02</span><div><h3>推理验证</h3><p>核心阶段 · 检查训练候选能否在目标数据上正确、稳定、快速地运行</p></div><span class="badge keep">✓ 保留并自动继承</span></header>
+            <div class="panel-body">
+              <div class="panel-summary"><div class="purpose"><h4>功能</h4><p>默认继承本案例的训练候选，选择目标数据集后执行 inference-only 测评，给出迁移误差、速度/吞吐、特征兼容性和风险解释。它不是第二个训练页。</p></div><div class="io-grid"><div class="io-box input"><b>主要输入</b><span>已校验模型包、目标数据集、运行策略</span></div><div class="io-box output"><b>主要输出</b><span>预测记录、迁移指标、曲线引用、评测候选</span></div></div></div>
+              <details class="guide-block always-open" open><summary>推荐操作顺序</summary><div class="guide-content"><ol class="steps">
+                <li><b>确认“本次训练候选”。</b> 正常情况下无需重新选模型；只有复验历史包时才展开“高级：改选其他算法包”。</li>
+                <li><b>选择目标数据集。</b> 目标集应与训练域的角色清楚区分，且具备模型所需 feature schema。</li>
+                <li><b>阅读兼容性结论。</b> ready 可直接运行，warning 需理解风险，blocked 不应通过换按钮绕过。</li>
+                <li><b>选择运行策略。</b> 默认“仅运行兼容组合”；“包含风险组合”只用于受控诊断，并保留原因。</li>
+                <li><b>点击“启动推理测评”。</b> 完成后查看迁移 MAE、吞吐和失败组合，并进入同一案例的评测与证据。</li>
+              </ol></div></details>
+              <details class="guide-block"><summary>结果如何解读</summary><div class="guide-content table-wrap"><table>
+                <thead><tr><th>结果</th><th>回答的问题</th><th>不能单独推出什么</th></tr></thead><tbody>
+                  <tr><td><strong>迁移 MAE</strong></td><td>模型在目标域上的点预测误差</td><td>不能替代区间校准、切片最坏值和物理一致性</td></tr>
+                  <tr><td><strong>推理速度 / 吞吐</strong></td><td>已固定模型的 inference-only 工程表现</td><td>不能与包含训练耗时的全局任务时间直接比较</td></tr>
+                  <tr><td><strong>兼容性</strong></td><td>模型所需列、schema、运行环境是否匹配</td><td>兼容不代表精度一定达标</td></tr>
+                  <tr><td><strong>预测记录</strong></td><td>后续证据画布的 record_id 与曲线入口</td><td>未绑定记录时不能生成可信原始曲线</td></tr>
+                </tbody></table></div></details>
+              <div class="tip-grid"><div class="tip good"><b>默认路径</b><p>继承训练候选 → 选目标集 → 仅运行兼容组合 → 进入评测与证据。</p></div><div class="tip risk"><b>常见误区</b><p>在 1,000+ 包中重新寻找刚训练的模型，或把训练 CV 最优直接当作迁移最优。</p></div></div>
+              <div class="simplify"><span class="signal">→</span><div><h4>进一步简化</h4><p>把兼容性从常驻大面板改为顶部状态条：无风险时只显示“全部兼容”；有问题时才展开详情。高级模型库保持折叠并改为服务端搜索/分页，成功后主按钮原位变为“进入评测与证据”。</p></div></div>
+            </div>
+          </article>
+
+          <article class="panel-card" id="panel-audit" data-category="core" data-search="评测 证据 SOH 轨迹 原始 电压 电流 温度 IC DV Cycle 判据 评审 EvidencePack 闭环">
+            <header class="panel-card-head"><span class="panel-icon">03</span><div><h3>评测与证据</h3><p>核心阶段 · 从聚合结论连续下钻到电芯、Cycle、原始曲线和审计闭环</p></div><span class="badge keep">✓ 核心证据页</span></header>
+            <div class="panel-body">
+              <div class="panel-summary"><div class="purpose"><h4>功能</h4><p>用三栏工作区把“比较谁”“证据是什么”“为什么通过/阻断”放在同一屏。SOH 轨迹与原始 V/I/T/IC/DV 使用同一个 candidate + dataset + asset + cycle + record_id。</p></div><div class="io-grid"><div class="io-box input"><b>主要输入</b><span>案例、候选、证据数据集、电芯、Cycle、判据</span></div><div class="io-box output"><b>主要输出</b><span>判定、证据覆盖、问题/复测、审计轨迹、EvidencePack</span></div></div></div>
+              <details class="guide-block always-open" open><summary>推荐操作顺序</summary><div class="guide-content"><ol class="steps">
+                <li><b>先看上下文带。</b> 确认三页组合一致：案例、数据集、算法、特征、协议/判据必须匹配。</li>
+                <li><b>在左栏确定比较范围。</b> 选择判据集、候选算法、证据数据集和代表电芯；一次选择会同步驱动中栏与右栏。</li>
+                <li><b>从轨迹选择 Cycle。</b> 点击 SOH 轨迹点，或在 Cycle 数字输入框输入有效编号并按 Enter；“等待选择 Cycle”消失后才有逐点记录。</li>
+                <li><b>切到“原始 V / I / T / IC / DV”。</b> 读取同一 record_id 的测量/派生曲线；IC/DV 如由实测信号派生，来源应明确标注。</li>
+                <li><b>阅读右侧判定检查器。</b> 先处理 blocker，再查看指标贡献、证据完整度、血缘和不可变事件。</li>
+                <li><b>需要时建立闭环。</b> 固定当前 Cycle → 加入回归集 → 同协议复测/证据重放 → 自动回填；证据完整后再提交评审。</li>
+              </ol></div></details>
+              <details class="guide-block"><summary>三栏与页签说明</summary><div class="guide-content table-wrap"><table>
+                <thead><tr><th>区域</th><th>功能</th><th>使用原则</th></tr></thead><tbody>
+                  <tr><td><strong>左：比较范围</strong></td><td>判据、候选、数据集、电芯</td><td>它定义当前证据视图，不应在中栏再放一套重复筛选器</td></tr>
+                  <tr><td><strong>中：SOH 轨迹</strong></td><td>真值、预测、区间、异常点和 Cycle 选择</td><td>用轨迹找异常点；统计指标仍基于全量，不用视觉降采样值重算</td></tr>
+                  <tr><td><strong>中：原始曲线</strong></td><td>V/I/T、IC/DV、特征窗和采样摘要</td><td>只有选中有效 Cycle/record 后按需加载；失败需显示真实原因</td></tr>
+                  <tr><td><strong>中：逐 Cycle 闭环</strong></td><td>固定样本、问题、回归与复测</td><td>只有发现问题时展开；不可覆盖已签署案例</td></tr>
+                  <tr><td><strong>右：判定检查器</strong></td><td>结论、阈值、覆盖、血缘、评审和 EvidencePack</td><td>默认优先显示 blocker；完整事件轨迹按需展开</td></tr>
+                </tbody></table></div></details>
+              <div class="tip-grid"><div class="tip good"><b>曲线可用的前提</b><p>推理成功且 prediction record、CurveSegmentRef 与数据摘要已经绑定，随后选中有效 Cycle。</p></div><div class="tip risk"><b>遇到 HTTP 404</b><p>通常代表当前记录没有对应曲线、曲线键不匹配或源摘要变化；应追查绑定，不生成演示曲线冒充证据。</p></div></div>
+              <div class="simplify"><span class="signal">→</span><div><h4>进一步简化</h4><p>保留三栏，但让右栏默认只显示“结论 + blocker + 覆盖度”，血缘、审计轨迹和复测表单折叠；逐 Cycle 闭环仅在选点或失败判据后出现。Cycle 选择固定在证据页签右上角，轨迹和原始曲线共用，避免用户找不到入口。</p></div></div>
+            </div>
+          </article>
+
+          <article class="panel-card" id="panel-models" data-category="aux" data-search="算法包 管理 Pickle manifest 导入 校验 插件 特征 数据 资产 模型">
+            <header class="panel-card-head"><span class="panel-icon">A1</span><div><h3>算法包管理</h3><p>辅助入口 · 外部模型与可信插件的唯一接入、校验和追踪位置</p></div><span class="badge down">↓ 下沉到工具</span></header>
+            <div class="panel-body">
+              <div class="panel-summary"><div class="purpose"><h4>功能</h4><p>集中导入 Pickle + manifest，查看训练自动登记的算法包，并核对内容摘要、特征 schema、来源和可信执行边界。普通训练不需要手工上传。</p></div><div class="io-grid"><div class="io-box input"><b>主要输入</b><span>可信 Pickle、JSON manifest；高级插件或数据文件</span></div><div class="io-box output"><b>主要输出</b><span>已注册模型资产、不可变摘要、兼容性状态</span></div></div></div>
+              <details class="guide-block always-open" open><summary>推荐操作顺序</summary><div class="guide-content"><ol class="steps">
+                <li><b>优先使用训练自动产物。</b> 只有导入外部既有模型时，才选择 Pickle 和对应 manifest。</li>
+                <li><b>核对来源。</b> Pickle 反序列化可执行代码，只允许可信本机模式和可信来源。</li>
+                <li><b>点击“导入并校验”。</b> 系统应同时验证内容摘要、manifest 版本、算法类型和 feature schema。</li>
+                <li><b>查看已注册算法包。</b> 通过摘要、训练数据、特征列和最近推理指标定位资产，而不是只看文件名。</li>
+                <li><b>高级接入按需展开。</b> Python 算法插件、特征插件、数据集和 battery_SOH 根目录属于管理员操作。</li>
+              </ol></div></details>
+              <details class="guide-block"><summary>当前子面板分别做什么</summary><div class="guide-content table-wrap"><table>
+                <thead><tr><th>区域</th><th>功能</th><th>主要风险</th></tr></thead><tbody>
+                  <tr><td><strong>导入算法包</strong></td><td>Pickle + manifest 成对接入</td><td>来源不可信、manifest 与二进制不一致</td></tr>
+                  <tr><td><strong>高级接入</strong></td><td>源码算法、特征插件、数据和 battery_SOH</td><td>执行任意代码、插件契约漂移</td></tr>
+                  <tr><td><strong>已注册算法包</strong></td><td>展示训练产物与外部包的统一资产表</td><td>列表过大、名称相似导致选错版本</td></tr>
+                  <tr><td><strong>包校验</strong></td><td>摘要、契约与执行边界</td><td>只显示“已导入”但未确认可复验</td></tr>
+                </tbody></table></div></details>
+              <div class="simplify"><span class="signal">→</span><div><h4>进一步简化</h4><p>导航中下沉为“工具 → 算法资产”。把四类导入动作统一成一个“导入资产”向导，默认类型为 Pickle 包；高级类型按角色解锁。模型表改为服务端分页/搜索和详情抽屉，首屏只取摘要与前 30–50 条。</p></div></div>
+            </div>
+          </article>
+
+          <article class="panel-card" id="panel-diagnostics" data-category="aux" data-search="可信 总览 诊断 QC 稳定性 矩阵 排行榜 PICP 同步 打包 离线 验收">
+            <header class="panel-card-head"><span class="panel-icon">A2</span><div><h3>可信总览</h3><p>辅助入口 · 跨案例查看数据质量、稳定性、校准与交付状态</p></div><span class="badge down">↓ 拆分并下沉</span></header>
+            <div class="panel-body">
+              <div class="panel-summary"><div class="purpose"><h4>功能</h4><p>当前页面同时承载 battery_SOH 诊断、数据同步、离线打包、交付验收、数据范围、多 seed 稳定性、特征 × 算法矩阵、排行榜、PICP 和 QC。它是信息最多、职责也最混杂的入口。</p></div><div class="io-grid"><div class="io-box input"><b>主要输入</b><span>全局结果、QC、诊断资产、打包目录</span></div><div class="io-box output"><b>主要输出</b><span>跨案例诊断、质量风险、离线交付物与验收结果</span></div></div></div>
+              <details class="guide-block always-open" open><summary>推荐操作顺序</summary><div class="guide-content"><ol class="steps">
+                <li><b>先确定目的。</b> 若要看当前案例结论，应返回“评测与证据”；本页适合看全局质量和跨组合趋势。</li>
+                <li><b>先看 QC 与数据范围。</b> 质量门控不通过时，不继续解释排行榜或 PICP。</li>
+                <li><b>再看稳定性和矩阵。</b> 多 seed 波动、跨域 MAE 和校准性用于找稳健候选，不替代当前案例判据。</li>
+                <li><b>交付操作谨慎执行。</b> 同步、目录包、单 HTML 和验收属于管理员/发布工作，不应成为日常评测步骤。</li>
+              </ol></div></details>
+              <details class="guide-block"><summary>现有内容如何重新归类</summary><div class="guide-content table-wrap"><table>
+                <thead><tr><th>现有内容</th><th>建议归属</th><th>默认可见性</th></tr></thead><tbody>
+                  <tr><td><strong>QC、数据范围、稳定性、矩阵、PICP</strong></td><td>保留在“诊断总览”</td><td>只展示摘要，点击下钻</td></tr>
+                  <tr><td><strong>battery_SOH 诊断摘要</strong></td><td>诊断总览的一个数据源卡</td><td>对应 Profile 时显示</td></tr>
+                  <tr><td><strong>排行榜、算法优劣</strong></td><td>与洞察合并；在训练/推理中显示上下文版本</td><td>总览仅保留跨案例入口</td></tr>
+                  <tr><td><strong>数据同步、目录包、单 HTML</strong></td><td>工具 → 交付与维护</td><td>仅管理员角色</td></tr>
+                  <tr><td><strong>交付包验收报告</strong></td><td>发布动作完成后的自动结果</td><td>无需独立“刷新验收”主按钮</td></tr>
+                </tbody></table></div></details>
+              <div class="simplify"><span class="signal">→</span><div><h4>进一步简化</h4><p>把页面拆成“只读诊断”和“交付工具”两个标签，但都留在一个工具入口。诊断首屏只保留 4 个状态卡：数据 QC、泛化稳定性、校准性、物理一致性；重图表进入详情后再加载。同步 → 打包 → 验收合并为一个“生成交付包”流程，自动执行依赖步骤。</p></div></div>
+            </div>
+          </article>
+
+          <article class="panel-card" id="panel-recommendations" data-category="aux" data-search="洞察 建议 推荐 算法 LODO LOCO 迁移 速度 排名 场景">
+            <header class="panel-card-head"><span class="panel-icon">A3</span><div><h3>洞察建议</h3><p>辅助入口 · 把 LOCO/LODO、精度和速度结果转成场景化建议</p></div><span class="badge merge">↔ 合并到主流程</span></header>
+            <div class="panel-body">
+              <div class="panel-summary"><div class="purpose"><h4>功能</h4><p>汇总迁移推理 MAE、跨电芯泛化、训练稳定性和速度权衡，解释“推荐哪个算法以及为什么”。推荐是决策辅助，不是自动评审结论。</p></div><div class="io-grid"><div class="io-box input"><b>主要输入</b><span>LOCO/LODO 结果、速度、校准与当前场景</span></div><div class="io-box output"><b>主要输出</b><span>推荐候选、理由、边界和替代方案</span></div></div></div>
+              <details class="guide-block always-open" open><summary>推荐如何使用</summary><div class="guide-content"><ol class="steps">
+                <li><b>先选场景。</b> 新数据集迁移优先看迁移 MAE；低延迟部署同时看 inference-only 速度；严谨评审还要看校准与物理一致性。</li>
+                <li><b>看推荐理由和边界。</b> 训练 CV 最优不自动等于迁移最优，速度最快也不代表证据最完整。</li>
+                <li><b>回到对应主流程执行。</b> 在训练页选择推荐组合，在推理页验证目标域，在评测页查看真实证据。</li>
+              </ol></div></details>
+              <div class="tip-grid"><div class="tip good"><b>应保留的能力</b><p>场景化推荐、权衡解释、推荐依据与可追溯的结果链接。</p></div><div class="tip risk"><b>不应保留的形态</b><p>与训练/推理结果重复的独立大页面，以及没有当前案例上下文的“全局最佳”。</p></div></div>
+              <div class="simplify"><span class="signal">→</span><div><h4>进一步简化</h4><p>移除顶层入口：训练页显示“推荐特征 × 算法”，推理页显示“迁移优先 / 速度优先”两种建议，评测页只在失败判据旁显示“下一步建议”。完整依据放入“为什么”抽屉，并链接回原始结果，不重复计算和渲染整页。</p></div></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="simplification">
+        <div class="section-head"><div><span class="section-kicker">Simplified information architecture</span><h2>建议的目标界面：3 个阶段 + 1 个工具入口</h2><p>普通用户只需沿主线前进；资产管理、系统诊断和交付能力按需打开。</p></div><span class="section-number">04</span></div>
+        <div class="target-ia">
+          <div class="target-main">
+            <div class="target-node"><small>阶段 1</small><b>设计与训练</b><span>组合推荐内嵌</span></div>
+            <div class="target-node"><small>阶段 2</small><b>推理验证</b><span>迁移建议内嵌</span></div>
+            <div class="target-node"><small>阶段 3</small><b>评测与证据</b><span>失败建议内嵌</span></div>
+          </div>
+          <div class="target-tools"><b>工具</b><p>算法资产<br />诊断总览<br />交付与维护（管理员）</p></div>
+        </div>
+
+        <details class="guide-block always-open" open><summary>简化优先级清单</summary><div class="guide-content table-wrap">
+          <table class="priority-table">
+            <thead><tr><th>优先级</th><th>改动</th><th>用户收益</th><th>运行收益</th><th>建议验收</th></tr></thead>
+            <tbody>
+              <tr><td><span class="priority p0">P0</span></td><td><strong>导航从 6 收敛为 3 + 1</strong><br />洞察内嵌；包管理、总览进入工具</td><td><span class="impact high">高</span> 主线一眼可懂</td><td><span class="impact medium">中</span> 为按页加载建立边界</td><td>完成案例无需进入工具页；可见顶层入口 ≤ 4</td></tr>
+              <tr><td><span class="priority p0">P0</span></td><td><strong>每页一个主操作</strong><br />训练运行、推理运行、提交评审</td><td><span class="impact high">高</span> 减少犹豫和误点</td><td><span class="impact medium">中</span> 减少重复状态处理</td><td>视口内最多 1 个实心主按钮；其余进“更多”</td></tr>
+              <tr><td><span class="priority p0">P0</span></td><td><strong>上一阶段自动继承</strong><br />模型、数据、特征、协议不重复选择</td><td><span class="impact high">高</span> 降低选错组合</td><td><span class="impact high">高</span> 减少目录与预检请求</td><td>三页同一组合检查 100% 通过；刷新后恢复</td></tr>
+              <tr><td><span class="priority p0">P0</span></td><td><strong>高级内容渐进展开</strong><br />协议/seed、全量包、血缘/轨迹、交付操作</td><td><span class="impact high">高</span> 首屏更轻</td><td><span class="impact high">高</span> 避免隐藏 DOM 构建</td><td>未展开区域不请求数据、不创建重图表</td></tr>
+              <tr><td><span class="priority p1">P1</span></td><td><strong>可信总览职责拆分</strong><br />诊断只读；打包验收进入管理员流程</td><td><span class="impact high">高</span> 语义更清楚</td><td><span class="impact medium">中</span> 重资产按需加载</td><td>诊断首屏不出现打包按钮；一个动作生成完整交付物</td></tr>
+              <tr><td><span class="priority p1">P1</span></td><td><strong>状态驱动动作</strong><br />只显示当前状态可执行的下一步</td><td><span class="impact high">高</span> 减少无效按钮</td><td><span class="impact medium">中</span> 降低错误请求</td><td>blocked 状态只显示原因与修复入口，不显示无效提交</td></tr>
+              <tr><td><span class="priority p2">P2</span></td><td><strong>角色化工具</strong><br />评测人员 / 资产管理员 / 发布人员</td><td><span class="impact medium">中</span> 专注当前职责</td><td><span class="impact medium">中</span> 降低后台工具初始化</td><td>普通角色默认不加载插件导入和打包模块</td></tr>
+            </tbody>
+          </table>
+        </div></details>
+      </section>
+
+      <section class="section" id="performance">
+        <div class="section-head"><div><span class="section-kicker">Runtime efficiency</span><h2>运行效率：当前可确认的三类开销与改造方式</h2><p>性能优化首先针对“无关数据也加载、隐藏页面也渲染、超大目录一次下发”，然后才是微调 CSS 或动画。</p></div><span class="section-number">05</span></div>
+        <div class="evidence-grid">
+          <div class="evidence-card"><b>8 + 7 + 1</b><span>核心 Profile 数据文件类型</span><p>当前加载路径同时读取 8 类 benchmark、7 类 diagnostics 和 metric contributions；还未计算 profiles/session/catalog/case 等 API。</p></div>
+          <div class="evidence-card"><b>1,146</b><span>根目录模型记录</span><p><span class="mono">model_catalog.json</span> 约 1.31 MiB；界面虽限制表格显示数量，浏览器仍先下载和解析全量目录。</p></div>
+          <div class="evidence-card"><b>0</b><span>隐藏面板目标渲染次数</span><p>当前全局 render 会调用评测及全部诊断渲染函数；目标是非活动页面不渲染重组件。</p></div>
+        </div>
+
+        <div class="performance-grid" style="margin-top:14px">
+          <article class="performance-item"><span class="label">P0 · DATA LOADING</span><h3>按活动面板加载，而不是一次装入全部资料</h3><p>拆出 <span class="mono">loadTraining / loadInference / loadAudit / loadDiagnostics / loadModels</span>。首屏只加载全局案例摘要与当前面板最小数据；进入诊断、模型库或原始曲线时再请求。</p><ul><li>切换 Profile 时取消过期请求，避免旧响应覆盖新上下文</li><li>按 case/profile/version 建缓存，返回页面直接复用</li><li>重数据使用 stale-while-revalidate，不阻塞已有内容</li></ul></article>
+          <article class="performance-item"><span class="label">P0 · RENDERING</span><h3>按页面局部更新，停止全局重绘</h3><p>当前 <span class="mono">render()</span> 在多种交互后重建全局 KPI、评测画布和诊断图。改为状态订阅：切换 Cycle 只更新轨迹高亮、曲线区和判定贡献；切换模型只更新相关结果。</p><ul><li>活动面板之外不运行 render 函数</li><li>表单输入不触发整页 innerHTML 替换</li><li>图表实例复用，仅更新 series / selection</li></ul></article>
+          <article class="performance-item"><span class="label">P0 · MODEL CATALOG</span><h3>模型目录改为摘要 + 服务端搜索/分页</h3><p>Profile 首屏只返回总数、状态统计和最近/当前案例资产。用户展开高级模型选择后，按关键词、算法、特征和训练数据查询 30–50 条。</p><ul><li>不再把 1,000+ 包全部注入 DOM 或前端内存</li><li>模型详情与 manifest 点击时读取</li><li>用 artifact digest 精确选择，避免同名版本混淆</li></ul></article>
+          <article class="performance-item"><span class="label">P1 · CURVES</span><h3>轨迹视觉降采样，原始曲线按 Cycle 延迟读取</h3><p>SOH 轨迹可按视口降采样到约 1,000–1,500 个视觉点，但判据与指标仍使用全量记录；原始 V/I/T/IC/DV 只在“原始曲线”页签激活且 Cycle 有效时读取。</p><ul><li>缓存键：case + candidate + dataset + asset + cycle + record_id</li><li>同一 Cycle 再次切换页签不重复请求</li><li>失败响应带缺失原因，不回退到其他 Cycle</li></ul></article>
+          <article class="performance-item"><span class="label">P1 · JOB EXECUTION</span><h3>训练与推理避免重复计算</h3><p>提交前生成组合指纹；相同数据快照、特征、算法、协议、seed 和代码摘要已有成功产物时，提示复用或显式重跑。特征缓存与模型缓存分别校验，不把缓存命中伪装成复测。</p><ul><li>仅提交预检 ready / 用户确认的 warning</li><li>批量推理复用同一目标数据的特征加载</li><li>完成任务停止轮询；后台任务使用退避策略</li></ul></article>
+          <article class="performance-item"><span class="label">P2 · CODE BOUNDARY</span><h3>拆分单体前端并建立性能预算</h3><p>将约 251 KB 的单体 <span class="mono">app.js</span> 按页面与领域拆分，公共层只保留 EvaluationContext、请求缓存、路由和设计组件。每次自动回归同时记录请求数、脚本执行和重图表渲染次数。</p><ul><li>代码分块：core / training / inference / audit / tools</li><li>隐藏面板网络请求与重渲染均为 0</li><li>性能回退纳入阶段 3.x 自动门禁</li></ul></article>
+        </div>
+      </section>
+
+      <section class="section" id="acceptance">
+        <div class="section-head"><div><span class="section-kicker">Acceptance gates</span><h2>建议纳入自动回归的验收门槛</h2><p>这些指标既约束界面复杂度，也能防止“视觉变简单但后台仍全部运行”。</p></div><span class="section-number">06</span></div>
+        <div class="acceptance-grid">
+          <div class="acceptance-item"><b>主线完成率</b><span>从训练到评审无需进入辅助工具页</span></div>
+          <div class="acceptance-item"><b>上下文丢失率 0%</b><span>返回、刷新、深链接后组合不变</span></div>
+          <div class="acceptance-item"><b>每页 1 个主按钮</b><span>当前状态无关动作隐藏或收进“更多”</span></div>
+          <div class="acceptance-item"><b>首屏数据类型 ≤ 4</b><span>全局摘要 + 当前面板最小数据；工具资料不预取</span></div>
+          <div class="acceptance-item"><b>隐藏面板渲染 0 次</b><span>切页前不创建矩阵、排行榜、PICP 或曲线 DOM</span></div>
+          <div class="acceptance-item"><b>模型首批 ≤ 50 条</b><span>其余由搜索、筛选与分页加载</span></div>
+          <div class="acceptance-item"><b>曲线按需读取</b><span>无 Cycle 或未打开原始页签时不请求 V/I/T/IC/DV</span></div>
+          <div class="acceptance-item"><b>结论到曲线 ≤ 3 次交互</b><span>选候选/电芯 → 选 Cycle → 看原始证据</span></div>
+          <div class="acceptance-item"><b>证据门禁不退化</b><span>缺必需证据时仍不可签署或发布</span></div>
+        </div>
+      </section>
+
+      <section class="section" id="faq">
+        <div class="section-head"><div><span class="section-kicker">Operator FAQ</span><h2>常见问题与快速判断</h2><p>优先排查上下文和证据绑定，不用重复点击或手工绕过。</p></div><span class="section-number">07</span></div>
+        <div class="faq">
+          <details><summary>为什么训练页不能手工上传 Pickle？</summary><p>这是刻意的职责分离。训练页只负责选择特征 × 算法组合；外部 Pickle 和 manifest 只能在“算法包管理”导入。训练成功的产物会自动登记。</p></details>
+          <details><summary>为什么推理页看不到刚修改的算法或特征？</summary><p>先确认训练任务已成功、产物已绑定到当前 Case，且推理页继承的是同一案例。若修改导致新的 feature schema，应先完成权威预检和新模型包登记。</p></details>
+          <details><summary>为什么评测页显示“等待选择 Cycle”？</summary><p>先在左栏选定证据数据集和代表电芯，再点击 SOH 轨迹点；也可以在页签右侧的数字输入框填写有效 Cycle 并按 Enter。没有有效 prediction record 时，Cycle 选择也不能产生曲线。</p></details>
+          <details><summary>为什么轨迹或原始 V/I/T/IC/DV 显示 404？</summary><p>常见原因是当前 prediction record 没有 CurveSegmentRef、曲线键不匹配、源文件摘要变化，或所选 Cycle 不在数据中。应在证据链中修复引用，不自动切到其他 Cycle，也不生成 Mock 曲线。</p></details>
+          <details><summary>“可信总览”里的排行榜能直接决定发布吗？</summary><p>不能。排行榜是跨组合诊断；正式结论还需要当前案例的协议、切片、区间校准、物理一致性、证据覆盖和人工评审。</p></details>
+          <details><summary>推荐算法是否一定是最终候选？</summary><p>不一定。推荐只是基于当前场景和已记录指标的决策辅助。迁移优先、速度优先、校准优先可能得到不同候选，最终要回到同一案例证据中判断。</p></details>
+        </div>
+      </section>
+
+      <aside class="source-note">
+        <b>审查依据与边界</b>
+        <ul>
+          <li>当前导航与面板结构：<span class="mono">frontend/app/index.html</span>；加载、渲染和模型目录路径：<span class="mono">frontend/app/app.js</span>、<span class="mono">frontend/app/data/model_catalog.json</span>。</li>
+          <li>业务原则：案例上下文常驻、每页一个主决策、原始曲线按 asset/cycle 分段读取、缺失证据显式失败、EvidencePack 不可在证据不足时签署。</li>
+          <li>文档参考：深度融合重构、阶段 2.4 案例流水线、阶段 3.1 原生证据画布、阶段 3.1.1 生产稳定化。</li>
+          <li>本文的请求数、条数和文件体积来自当前本地代码/数据静态审查；实际耗时目标需在 1280/1440 桌面与真实 Profile 上采集浏览器性能基线后固化。</li>
+        </ul>
+      </aside>
+      <p class="footer">SOH Evaluation Case Workbench · Panel Guide &amp; Simplification Review · 2026-08-16</p>
+    </div>
+  </main>
+</div>
+
+<script>
+  const cards = [...document.querySelectorAll('.panel-card')];
+  const search = document.getElementById('guide-search');
+  const count = document.getElementById('result-count');
+  const filterButtons = [...document.querySelectorAll('[data-filter]')];
+  let activeFilter = 'all';
+
+  function applyFilters() {
+    const query = search.value.trim().toLowerCase();
+    let visible = 0;
+    cards.forEach((card) => {
+      const categoryMatch = activeFilter === 'all' || card.dataset.category === activeFilter;
+      const haystack = `${card.dataset.search || ''} ${card.innerText}`.toLowerCase();
+      const queryMatch = !query || haystack.includes(query);
+      card.hidden = !(categoryMatch && queryMatch);
+      if (!card.hidden) visible += 1;
+    });
+    count.textContent = `${visible} 个面板`;
+  }
+
+  filterButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      activeFilter = button.dataset.filter;
+      filterButtons.forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+      applyFilters();
+    });
+  });
+  search.addEventListener('input', applyFilters);
+
+  document.getElementById('compact-toggle').addEventListener('click', (event) => {
+    const compact = document.body.classList.toggle('compact');
+    event.currentTarget.setAttribute('aria-pressed', String(compact));
+    event.currentTarget.textContent = compact ? '完整阅读' : '精简阅读';
+  });
+  document.getElementById('print-report').addEventListener('click', () => window.print());
+
+  const tocLinks = [...document.querySelectorAll('.toc nav a')];
+  const observed = tocLinks.map((link) => document.querySelector(link.getAttribute('href'))).filter(Boolean);
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver((entries) => {
+      const current = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (!current) return;
+      tocLinks.forEach((link) => link.classList.toggle('active', link.getAttribute('href') === `#${current.target.id}`));
+    }, { rootMargin: '-20% 0px -68% 0px', threshold: [0, .2, .6] });
+    observed.forEach((section) => observer.observe(section));
+  }
+</script>
+</body>
+</html>

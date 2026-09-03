@@ -1,0 +1,60 @@
+{
+  "train_job_id": "20260701T193439-fea520f7",
+  "inference_job_id": "20260701T201934-5577017e",
+  "datasets": [
+    "calce_cs2",
+    "hust",
+    "nasa",
+    "oxford",
+    "rwth_isea_public",
+    "snl_lfp",
+    "uconn"
+  ],
+  "featureset": "battery_soh_operational",
+  "protocol": "loco",
+  "folds": 220,
+  "training_models": 440,
+  "inference_records": 3080,
+  "inference_by_algorithm": [
+    {
+      "algorithm": "gbdt",
+      "records": 1540,
+      "succeeded": 1540,
+      "mean_mae": 0.08007739359381533,
+      "median_mae": 0.05555485566752659,
+      "mean_rmse": 0.10599544864444521,
+      "mean_ms_per_1000": 8.530577136573598,
+      "median_ms_per_1000": 6.698242790257944
+    },
+    {
+      "algorithm": "battery_soh_tabular_ensemble",
+      "records": 1540,
+      "succeeded": 1540,
+      "mean_mae": 0.0856757957585465,
+      "median_mae": 0.05694741402394085,
+      "mean_rmse": 0.10714628269796611,
+      "mean_ms_per_1000": 45.91855074945663,
+      "median_ms_per_1000": 28.786257850197167
+    }
+  ],
+  "train_by_algorithm": [
+    {
+      "algorithm": "gbdt",
+      "mae_mean": 0.07392501402095285,
+      "mae_std": 0.11070163696516527,
+      "rmse_mean": 0.08786146705619664,
+      "rmse_std": 0.12101538842547355,
+      "alpha_accuracy_mean": 0.8692580113269744,
+      "backend": "sklearn"
+    },
+    {
+      "algorithm": "battery_soh_tabular_ensemble",
+      "mae_mean": 0.07745422923400111,
+      "mae_std": 0.10940738398270661,
+      "rmse_mean": 0.08866702140351437,
+      "rmse_std": 0.11955421095039376,
+      "alpha_accuracy_mean": 0.8720170873802533,
+      "backend": "battery_soh"
+    }
+  ]
+}

@@ -1,0 +1,1149 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SOH 评测证据工作台 · 深度融合 Mockup V3</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --navy-950: #07111f;
+      --navy-900: #0f172a;
+      --navy-800: #1e293b;
+      --slate-700: #334155;
+      --slate-600: #475569;
+      --slate-500: #64748b;
+      --slate-400: #94a3b8;
+      --slate-300: #cbd5e1;
+      --slate-200: #e2e8f0;
+      --slate-100: #f1f5f9;
+      --slate-50: #f8fafc;
+      --white: #ffffff;
+      --blue-700: #0369a1;
+      --blue-600: #0284c7;
+      --blue-500: #0ea5e9;
+      --blue-100: #e0f2fe;
+      --cyan-600: #0891b2;
+      --emerald-700: #047857;
+      --emerald-600: #059669;
+      --emerald-100: #d1fae5;
+      --amber-700: #a16207;
+      --amber-600: #ca8a04;
+      --amber-100: #fef3c7;
+      --red-700: #b91c1c;
+      --red-600: #dc2626;
+      --red-100: #fee2e2;
+      --violet-600: #7c3aed;
+      --line: #dfe6ee;
+      --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px rgba(15, 23, 42, .05);
+      --radius: 8px;
+      --sidebar: 204px;
+      --font: Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--slate-100); }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--navy-900);
+      background: var(--slate-100);
+      font-family: var(--font);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    button, select, input { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, [tabindex]:focus-visible, select:focus-visible {
+      outline: 3px solid rgba(14, 165, 233, .28);
+      outline-offset: 2px;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .icon {
+      width: 17px;
+      height: 17px;
+      flex: 0 0 auto;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: var(--sidebar) minmax(0, 1fr);
+    }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      color: #cbd5e1;
+      background:
+        radial-gradient(circle at 15% 5%, rgba(14, 165, 233, .16), transparent 26%),
+        var(--navy-950);
+      border-right: 1px solid rgba(148, 163, 184, .14);
+    }
+    .brand {
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(148, 163, 184, .14);
+    }
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      color: #e0f2fe;
+      background: linear-gradient(135deg, #0284c7, #0891b2);
+      border: 1px solid rgba(255, 255, 255, .18);
+      border-radius: 7px;
+      font-weight: 800;
+      letter-spacing: -.04em;
+    }
+    .brand strong { display: block; color: #f8fafc; font-size: 14px; }
+    .brand small { display: block; margin-top: 1px; color: #7dd3fc; font-size: 10px; }
+    .nav { padding: 12px 10px; }
+    .nav-label {
+      padding: 8px 9px 5px;
+      color: #64748b;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .nav button {
+      width: 100%;
+      min-height: 38px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 2px 0;
+      padding: 8px 10px;
+      color: #94a3b8;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: left;
+    }
+    .nav button:hover { color: #e2e8f0; background: rgba(148, 163, 184, .08); }
+    .nav button.active {
+      color: #f8fafc;
+      background: rgba(14, 165, 233, .13);
+      border-color: rgba(56, 189, 248, .24);
+      box-shadow: inset 3px 0 0 #38bdf8;
+    }
+    .sidebar-foot {
+      margin-top: auto;
+      padding: 12px 14px 16px;
+      border-top: 1px solid rgba(148, 163, 184, .14);
+    }
+    .sidebar-foot .source {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: #fcd34d;
+      font-size: 11px;
+    }
+    .source-dot { width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; }
+    .sidebar-foot p { margin: 5px 0 0; color: #64748b; font-size: 10px; }
+
+    .main { min-width: 0; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 18;
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, .94);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+    }
+    .crumbs { min-width: 0; color: var(--slate-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .crumbs strong { color: var(--slate-700); }
+    .top-actions { display: flex; align-items: center; gap: 7px; }
+    .btn {
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 7px 11px;
+      background: var(--white);
+      border: 1px solid var(--slate-300);
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 650;
+    }
+    .btn:hover { border-color: var(--slate-400); background: var(--slate-50); }
+    .btn.primary { color: white; background: var(--blue-700); border-color: var(--blue-700); }
+    .btn.primary:hover { background: #075985; }
+    .btn.subtle { color: var(--slate-600); background: var(--slate-50); }
+    .btn.small { min-height: 30px; padding: 5px 9px; font-size: 12px; }
+
+    .case-head {
+      padding: 14px 16px 12px;
+      background: var(--white);
+      border-bottom: 1px solid var(--line);
+    }
+    .case-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+    .eyebrow { color: var(--blue-700); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { margin: 2px 0 3px; font-size: 21px; line-height: 1.25; letter-spacing: -.02em; }
+    .case-sub { color: var(--slate-500); font-size: 12px; }
+    .status-stack { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border: 1px solid;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .status.complete { color: var(--emerald-700); background: #ecfdf5; border-color: #a7f3d0; }
+    .status.conditional { color: var(--amber-700); background: #fffbeb; border-color: #fde68a; }
+    .status.review { color: var(--blue-700); background: #f0f9ff; border-color: #bae6fd; }
+
+    .stage-rail {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      overflow: hidden;
+      background: var(--slate-50);
+    }
+    .stage {
+      position: relative;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      color: var(--slate-500);
+      border-right: 1px solid var(--line);
+    }
+    .stage:last-child { border-right: 0; }
+    .stage .num {
+      width: 20px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--slate-300);
+      border-radius: 50%;
+      font-size: 10px;
+      font-weight: 800;
+      flex: 0 0 auto;
+    }
+    .stage b { display: block; color: var(--slate-700); font-size: 11px; }
+    .stage small { display: block; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .stage.done .num { color: white; background: var(--emerald-600); border-color: var(--emerald-600); }
+    .stage.active { color: var(--blue-700); background: var(--blue-100); box-shadow: inset 0 -2px 0 var(--blue-600); }
+    .stage.active .num { color: white; background: var(--blue-700); border-color: var(--blue-700); }
+    .stage.active b { color: var(--blue-700); }
+
+    .context-ribbon {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr 1fr 1.2fr .8fr .8fr;
+      background: #fbfdff;
+      border-bottom: 1px solid var(--line);
+    }
+    .context-item { min-width: 0; padding: 8px 12px; border-right: 1px solid var(--line); }
+    .context-item:last-child { border-right: 0; }
+    .context-item span { display: block; color: var(--slate-500); font-size: 9px; letter-spacing: .03em; }
+    .context-item strong { display: block; margin-top: 1px; color: var(--slate-700); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .context-item strong.good { color: var(--emerald-700); }
+    .context-item strong.warn { color: var(--amber-700); }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 252px minmax(480px, 1fr) 292px;
+      gap: 12px;
+      align-items: start;
+      padding: 12px 12px 0;
+    }
+    .panel {
+      min-width: 0;
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 42px;
+      padding: 9px 11px;
+      border-bottom: 1px solid var(--line);
+    }
+    .panel-head h2, .panel-head h3 { margin: 0; font-size: 12px; }
+    .panel-head p { margin: 1px 0 0; color: var(--slate-500); font-size: 10px; }
+    .panel-body { padding: 10px; }
+    .section-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 11px 0 6px;
+      color: var(--slate-500);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .section-label:first-child { margin-top: 0; }
+    .section-label em { color: var(--slate-400); font-style: normal; font-weight: 600; letter-spacing: 0; text-transform: none; }
+
+    .scope-select {
+      width: 100%;
+      min-height: 34px;
+      padding: 6px 28px 6px 8px;
+      color: var(--slate-700);
+      background: var(--slate-50);
+      border: 1px solid var(--slate-300);
+      border-radius: 6px;
+    }
+    .candidate-list { display: grid; gap: 6px; }
+    .candidate-btn {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr) auto;
+      gap: 7px;
+      align-items: center;
+      padding: 8px;
+      background: white;
+      border: 1px solid var(--slate-200);
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: left;
+    }
+    .candidate-btn:hover { border-color: var(--slate-400); }
+    .candidate-btn.active { background: #f0f9ff; border-color: #7dd3fc; box-shadow: inset 3px 0 0 var(--blue-600); }
+    .candidate-rank { width: 20px; height: 20px; display: grid; place-items: center; color: var(--slate-600); background: var(--slate-100); border-radius: 4px; font-size: 10px; font-weight: 800; }
+    .candidate-btn.active .candidate-rank { color: white; background: var(--blue-700); }
+    .candidate-name { min-width: 0; }
+    .candidate-name b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+    .candidate-name small { color: var(--slate-500); font-size: 9px; }
+    .candidate-score { text-align: right; }
+    .candidate-score b { display: block; font-size: 12px; }
+    .candidate-score small { color: var(--emerald-700); font-size: 9px; }
+
+    .slice-grid { display: grid; grid-template-columns: 1.2fr repeat(3, .8fr); border: 1px solid var(--slate-200); border-radius: 6px; overflow: hidden; }
+    .slice-grid > * { min-height: 30px; display: flex; align-items: center; justify-content: center; padding: 5px 4px; border-right: 1px solid var(--slate-200); border-bottom: 1px solid var(--slate-200); font-size: 9px; }
+    .slice-grid > *:nth-child(4n) { border-right: 0; }
+    .slice-grid > *:nth-last-child(-n+4) { border-bottom: 0; }
+    .slice-grid .head { color: var(--slate-500); background: var(--slate-50); font-weight: 750; }
+    .slice-grid .row-head { justify-content: flex-start; color: var(--slate-600); background: #fbfdff; font-weight: 700; }
+    .slice-cell { border-top: 0; border-left: 0; background: white; cursor: pointer; }
+    .slice-cell.pass { color: var(--emerald-700); background: #ecfdf5; }
+    .slice-cell.warn { color: var(--amber-700); background: #fffbeb; }
+    .slice-cell.fail { color: var(--red-700); background: #fff1f2; font-weight: 800; }
+    .slice-cell.active { box-shadow: inset 0 0 0 2px currentColor; }
+
+    .asset-list { display: grid; gap: 5px; }
+    .asset-btn {
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      padding: 7px 8px;
+      background: white;
+      border: 1px solid var(--slate-200);
+      border-radius: 5px;
+      cursor: pointer;
+      text-align: left;
+    }
+    .asset-btn:hover { border-color: var(--slate-400); }
+    .asset-btn.active { border-color: #38bdf8; background: #f0f9ff; }
+    .asset-btn b { font-size: 11px; }
+    .asset-btn small { display: block; color: var(--slate-500); font-size: 9px; }
+    .asset-btn .metric { color: var(--slate-700); font-weight: 800; }
+    .asset-btn.risk .metric { color: var(--red-700); }
+
+    .center-stack { display: grid; gap: 12px; }
+    .kpi-strip { display: grid; grid-template-columns: 1.25fr repeat(3, 1fr); border-bottom: 1px solid var(--line); }
+    .kpi { min-width: 0; padding: 9px 10px; border-right: 1px solid var(--line); }
+    .kpi:last-child { border-right: 0; }
+    .kpi span { display: block; color: var(--slate-500); font-size: 9px; }
+    .kpi strong { display: block; margin-top: 2px; font-size: 17px; line-height: 1.1; letter-spacing: -.02em; }
+    .kpi strong.blue { color: var(--blue-700); }
+    .kpi strong.red { color: var(--red-700); }
+    .kpi small { display: block; margin-top: 3px; color: var(--slate-500); font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .tab-row { display: flex; align-items: center; gap: 2px; overflow-x: auto; }
+    .tab-btn {
+      min-height: 31px;
+      padding: 6px 9px;
+      color: var(--slate-500);
+      background: transparent;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      white-space: nowrap;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .tab-btn:hover { color: var(--slate-800); }
+    .tab-btn.active { color: var(--blue-700); border-bottom-color: var(--blue-600); }
+    .chart-wrap { position: relative; padding: 8px 9px 2px; }
+    .chart-view[hidden], .evidence-view[hidden] { display: none; }
+    .chart-svg { display: block; width: 100%; height: auto; min-height: 225px; }
+    .chart-svg text { font-family: var(--font); fill: var(--slate-500); font-size: 10px; }
+    .chart-svg .grid { stroke: #e8edf3; stroke-width: 1; }
+    .chart-svg .axis { stroke: #94a3b8; stroke-width: 1; }
+    .chart-svg .truth { fill: none; stroke: var(--navy-800); stroke-width: 2.4; }
+    .chart-svg .prediction { fill: none; stroke: var(--blue-600); stroke-width: 2.4; stroke-dasharray: 7 5; }
+    .chart-svg .band { fill: rgba(14, 165, 233, .13); stroke: none; }
+    .chart-svg .threshold { fill: rgba(245, 158, 11, .08); }
+    .chart-svg .eol { stroke: var(--red-600); stroke-width: 1.2; stroke-dasharray: 4 4; }
+    .chart-point { fill: white; stroke: var(--blue-700); stroke-width: 2; cursor: pointer; }
+    .chart-point:hover, .chart-point.selected { fill: var(--blue-600); stroke: white; stroke-width: 3; filter: drop-shadow(0 0 2px rgba(2,132,199,.8)); }
+    .cursor-line { stroke: var(--blue-500); stroke-width: 1; stroke-dasharray: 3 4; }
+    .chart-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 0 12px 8px; color: var(--slate-500); font-size: 9px; }
+    .legend-key { display: inline-flex; align-items: center; gap: 5px; }
+    .legend-line { width: 18px; height: 2px; background: var(--navy-800); }
+    .legend-line.pred { background: repeating-linear-gradient(90deg, var(--blue-600) 0 5px, transparent 5px 8px); }
+    .legend-box { width: 18px; height: 8px; background: rgba(14,165,233,.15); }
+    .selection-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr) auto;
+      gap: 1px;
+      align-items: stretch;
+      margin: 0 10px 10px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .selection-stat { padding: 7px 8px; background: #fbfdff; }
+    .selection-stat span { display: block; color: var(--slate-500); font-size: 8px; }
+    .selection-stat strong { display: block; margin-top: 1px; font-size: 11px; }
+    .selection-bar .btn { border: 0; border-radius: 0; min-height: 100%; }
+
+    .evidence-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; color: var(--slate-600); background: #fbfdff; border-bottom: 1px solid var(--line); }
+    .evidence-summary strong { color: var(--slate-800); }
+    .compare-cycles { display: flex; align-items: center; gap: 4px; min-width: 0; }
+    .cycle-chip { padding: 3px 6px; color: var(--blue-700); background: var(--blue-100); border: 1px solid #bae6fd; border-radius: 4px; font-size: 9px; white-space: nowrap; }
+    .evidence-body { padding: 10px; }
+    .signal-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .signal-card { min-width: 0; padding: 7px; background: var(--slate-50); border: 1px solid var(--slate-200); border-radius: 6px; }
+    .signal-card header { display: flex; align-items: center; justify-content: space-between; gap: 5px; margin-bottom: 4px; }
+    .signal-card b { font-size: 10px; }
+    .signal-card small { color: var(--slate-500); font-size: 8px; }
+    .signal-svg { display: block; width: 100%; height: 82px; }
+    .signal-svg .grid { stroke: #e2e8f0; stroke-width: 1; }
+    .signal-svg .line-v { fill: none; stroke: var(--blue-600); stroke-width: 2; }
+    .signal-svg .line-i { fill: none; stroke: var(--violet-600); stroke-width: 2; }
+    .signal-svg .line-t { fill: none; stroke: var(--red-600); stroke-width: 2; }
+    .signal-svg .window { fill: rgba(5,150,105,.12); }
+    .feature-table, .mini-table { width: 100%; border-collapse: collapse; }
+    .feature-table th, .feature-table td, .mini-table th, .mini-table td { padding: 7px 8px; border-bottom: 1px solid var(--slate-200); text-align: left; font-size: 10px; }
+    .feature-table th, .mini-table th { color: var(--slate-500); background: var(--slate-50); font-weight: 700; }
+    .contribution-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 10px; }
+    .formula { padding: 10px; color: var(--slate-600); background: var(--slate-50); border: 1px solid var(--slate-200); border-radius: 6px; }
+    .formula strong { color: var(--slate-800); }
+    .bar-row { display: grid; grid-template-columns: 100px 1fr 48px; gap: 7px; align-items: center; margin: 7px 0; font-size: 10px; }
+    .bar-track { height: 7px; background: var(--slate-200); border-radius: 2px; overflow: hidden; }
+    .bar-fill { height: 100%; background: var(--blue-600); }
+    .bar-fill.risk { background: var(--red-600); }
+
+    .verdict-banner { padding: 11px; background: linear-gradient(135deg, #fffbeb, #fff7ed); border-bottom: 1px solid #fde68a; }
+    .verdict-banner .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .verdict-banner strong { color: var(--amber-700); font-size: 16px; }
+    .verdict-banner p { margin: 5px 0 0; color: #7c5b17; font-size: 10px; }
+    .criterion-list { padding: 8px 10px 10px; }
+    .criterion { display: grid; grid-template-columns: 18px minmax(0,1fr) auto; gap: 7px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--slate-100); }
+    .criterion:last-child { border-bottom: 0; }
+    .criterion-icon { width: 17px; height: 17px; display: grid; place-items: center; border-radius: 50%; color: white; font-size: 10px; font-weight: 900; }
+    .criterion-icon.pass { background: var(--emerald-600); }
+    .criterion-icon.fail { background: var(--red-600); }
+    .criterion-icon.warn { background: var(--amber-600); }
+    .criterion b { display: block; font-size: 10px; }
+    .criterion small { display: block; margin-top: 2px; color: var(--slate-500); font-size: 9px; }
+    .criterion-value { text-align: right; font-weight: 800; font-size: 10px; }
+    .criterion-value.fail { color: var(--red-700); }
+
+    .coverage { padding: 10px; }
+    .coverage-meter { height: 7px; display: flex; gap: 2px; margin: 7px 0 8px; }
+    .coverage-meter span { flex: 1; background: var(--emerald-600); border-radius: 2px; }
+    .coverage-meter span.missing { background: var(--amber-400, #fbbf24); }
+    .coverage-list { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 8px; }
+    .coverage-item { display: flex; align-items: center; gap: 5px; color: var(--slate-600); font-size: 9px; }
+    .coverage-item::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--emerald-600); }
+    .coverage-item.missing { color: var(--amber-700); }
+    .coverage-item.missing::before { background: #f59e0b; }
+
+    .lineage { padding: 9px 10px 10px; }
+    .lineage-step { position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 7px; padding-bottom: 8px; }
+    .lineage-step:last-child { padding-bottom: 0; }
+    .lineage-step:not(:last-child)::after { content: ""; position: absolute; left: 8px; top: 18px; bottom: 0; width: 1px; background: var(--slate-300); }
+    .lineage-node { position: relative; z-index: 1; width: 17px; height: 17px; display: grid; place-items: center; color: var(--blue-700); background: var(--blue-100); border: 1px solid #7dd3fc; border-radius: 4px; font-size: 8px; font-weight: 800; }
+    .lineage-step b { display: block; font-size: 9px; }
+    .lineage-step small { display: block; color: var(--slate-500); font-family: Consolas, monospace; font-size: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .action-card { padding: 10px; background: #fff7ed; border-top: 1px solid #fed7aa; }
+    .action-card strong { color: #9a3412; font-size: 10px; }
+    .action-card p { margin: 4px 0 8px; color: #9a5a29; font-size: 9px; }
+    .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+    .table-panel { margin: 12px; }
+    .table-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 11px; border-bottom: 1px solid var(--line); }
+    .table-toolbar h2 { margin: 0; font-size: 12px; }
+    .table-toolbar p { margin: 2px 0 0; color: var(--slate-500); font-size: 9px; }
+    .table-scroll { overflow-x: auto; }
+    .sample-table { width: 100%; min-width: 920px; border-collapse: collapse; }
+    .sample-table th, .sample-table td { padding: 8px 10px; border-bottom: 1px solid var(--slate-100); text-align: left; font-size: 10px; }
+    .sample-table th { position: sticky; top: 0; color: var(--slate-500); background: var(--slate-50); font-weight: 750; }
+    .sample-table tbody tr { cursor: pointer; }
+    .sample-table tbody tr:hover { background: #f8fbff; }
+    .sample-table tbody tr.selected { background: #f0f9ff; box-shadow: inset 3px 0 0 var(--blue-600); }
+    .resid-high { color: var(--red-700); font-weight: 800; }
+    .tag { display: inline-flex; align-items: center; padding: 2px 5px; border: 1px solid var(--slate-300); border-radius: 4px; color: var(--slate-600); background: white; font-size: 8px; }
+    .tag.measured { color: var(--emerald-700); border-color: #a7f3d0; background: #ecfdf5; }
+    .tag.weak { color: var(--red-700); border-color: #fecaca; background: #fff1f2; }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 50;
+      max-width: min(360px, calc(100vw - 36px));
+      padding: 10px 12px;
+      color: white;
+      background: var(--navy-900);
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 6px;
+      box-shadow: 0 14px 42px rgba(15,23,42,.28);
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      transition: opacity .16s ease, transform .16s ease;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 1220px) {
+      :root { --sidebar: 184px; }
+      .workspace { grid-template-columns: 236px minmax(450px, 1fr) 270px; }
+      .context-ribbon { grid-template-columns: repeat(3, 1fr); }
+      .context-item:nth-child(3) { border-right: 0; }
+      .context-item:nth-child(-n+3) { border-bottom: 1px solid var(--line); }
+    }
+    @media (max-width: 1080px) {
+      .workspace { grid-template-columns: 236px minmax(0, 1fr); }
+      .verdict-panel { grid-column: 1 / -1; }
+      .verdict-panel .panel-body-grid { display: grid; grid-template-columns: 1fr 1fr; }
+      .verdict-panel .panel-body-grid > * { border-right: 1px solid var(--line); }
+      .verdict-panel .panel-body-grid > *:last-child { border-right: 0; }
+      .signal-grid { grid-template-columns: 1fr 1fr; }
+      .signal-card:last-child { grid-column: 1 / -1; }
+    }
+    @media (max-width: 860px) {
+      .app-shell { display: block; }
+      .sidebar { position: static; height: auto; }
+      .brand { min-height: 54px; }
+      .nav { display: flex; gap: 5px; padding: 7px 10px; overflow-x: auto; border-bottom: 1px solid rgba(148,163,184,.14); }
+      .nav-label, .sidebar-foot { display: none; }
+      .nav button { width: auto; min-width: max-content; margin: 0; }
+      .topbar { top: 0; }
+      .case-title-row { display: block; }
+      .status-stack { margin-top: 8px; justify-content: flex-start; }
+      .stage-rail { grid-template-columns: repeat(5, minmax(118px, 1fr)); overflow-x: auto; }
+      .stage { min-width: 118px; }
+      .workspace { grid-template-columns: 1fr; }
+      .scope-panel, .verdict-panel { grid-column: auto; }
+      .scope-panel .panel-body { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .scope-panel .section-block:first-child { grid-column: 1 / -1; }
+      .verdict-panel .panel-body-grid { display: block; }
+      .verdict-panel .panel-body-grid > * { border-right: 0; }
+      .context-ribbon { grid-template-columns: repeat(2, 1fr); }
+      .context-item:nth-child(3) { border-right: 1px solid var(--line); }
+      .context-item:nth-child(even) { border-right: 0; }
+      .context-item:nth-child(-n+4) { border-bottom: 1px solid var(--line); }
+    }
+    @media (max-width: 560px) {
+      body { font-size: 12px; }
+      .btn, .nav button, .tab-btn, .candidate-btn, .asset-btn, .slice-cell { min-height: 44px; }
+      .topbar { padding: 7px 10px; }
+      .top-actions .btn:not(.primary) { display: none; }
+      .case-head { padding: 12px 10px 10px; }
+      h1 { font-size: 18px; }
+      .context-ribbon { display: flex; overflow-x: auto; }
+      .context-item { min-width: 138px; border-bottom: 0 !important; }
+      .workspace { padding: 8px 8px 0; gap: 8px; }
+      .table-panel { margin: 8px; }
+      .scope-panel .panel-body { display: block; }
+      .kpi-strip { grid-template-columns: 1fr 1fr; }
+      .kpi:nth-child(2) { border-right: 0; }
+      .kpi:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .selection-bar { grid-template-columns: 1fr 1fr; }
+      .selection-bar .btn { grid-column: 1 / -1; min-height: 38px; }
+      .signal-grid, .contribution-grid { grid-template-columns: 1fr; }
+      .signal-card:last-child { grid-column: auto; }
+      .chart-svg { min-height: 190px; }
+      .chart-legend { gap: 7px; }
+      .evidence-summary { align-items: flex-start; flex-direction: column; }
+      .action-row { grid-template-columns: 1fr; }
+      .verdict-panel .panel-body-grid { display: block; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="主导航">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">SOH</div>
+        <div><strong>Evidence Bench</strong><small>独立测评证据层</small></div>
+      </div>
+      <nav class="nav">
+        <div class="nav-label">Workspace</div>
+        <button type="button" data-nav="overview">
+          <svg class="icon" aria-hidden="true"><path d="M3 3h5v5H3zM12 3h5v5h-5zM3 12h5v5H3zM12 12h5v5h-5z"/></svg>
+          可信总览
+        </button>
+        <button type="button" class="active" data-nav="cases" aria-current="page">
+          <svg class="icon" aria-hidden="true"><path d="M4 3h12v14H4zM7 7h6M7 11h6M7 15h3"/></svg>
+          评测案例
+        </button>
+        <button type="button" data-nav="protocols">
+          <svg class="icon" aria-hidden="true"><path d="M3 5h14M5 3v4M15 3v4M4 9h12v8H4z"/></svg>
+          数据与协议
+        </button>
+        <button type="button" data-nav="models">
+          <svg class="icon" aria-hidden="true"><path d="M4 6l6-3 6 3-6 3zM4 10l6 3 6-3M4 14l6 3 6-3"/></svg>
+          模型资产
+        </button>
+        <div class="nav-label">Governance</div>
+        <button type="button" data-nav="audit">
+          <svg class="icon" aria-hidden="true"><path d="M10 2l6 3v5c0 4-2.5 6.5-6 8-3.5-1.5-6-4-6-8V5zM7 10l2 2 4-5"/></svg>
+          发布与审计
+        </button>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="source"><span class="source-dot"></span><strong>设计数据 · Mock</strong></div>
+        <p>用于验证信息架构与交互，不代表真实测评结论。</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="crumbs"><strong>评测案例</strong> / EV-2026-0142 / 比较与证据</div>
+        <div class="top-actions">
+          <button class="btn subtle" type="button" data-action="share">
+            <svg class="icon" aria-hidden="true"><path d="M7 10l6-4M7 10l6 4M5 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM15 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM15 16a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>
+            复制证据链接
+          </button>
+          <button class="btn" type="button" data-action="pack">预览 EvidencePack</button>
+          <button class="btn primary" type="button" data-action="review">提交评审</button>
+        </div>
+      </header>
+
+      <section class="case-head" aria-labelledby="case-title">
+        <div class="case-title-row">
+          <div>
+            <div class="eyebrow">Evaluation case · EV-2026-0142</div>
+            <h1 id="case-title">MATR · LOCO 候选算法入库验收</h1>
+            <div class="case-sub">同一协议、数据快照与算力信封下比较 3 个候选；结论与逐 cycle 证据在同一上下文中联动。</div>
+          </div>
+          <div class="status-stack" aria-label="案例状态">
+            <span class="status complete">执行 · 已完成</span>
+            <span class="status conditional">证据 · 8/9</span>
+            <span class="status conditional">判定 · 有条件通过</span>
+            <span class="status review">评审 · 待签署</span>
+          </div>
+        </div>
+        <div class="stage-rail" aria-label="案例阶段">
+          <div class="stage done"><span class="num">✓</span><span><b>设计并冻结</b><small>协议 · 数据 · 判据</small></span></div>
+          <div class="stage done"><span class="num">✓</span><span><b>运行并观察</b><small>3/3 runs completed</small></span></div>
+          <div class="stage active"><span class="num">3</span><span><b>比较并下钻</b><small>结论 → 原始证据</small></span></div>
+          <div class="stage"><span class="num">4</span><span><b>评审并闭环</b><small>问题 · 回归 · 复测</small></span></div>
+          <div class="stage"><span class="num">5</span><span><b>签署并发布</b><small>报告 · EvidencePack</small></span></div>
+        </div>
+      </section>
+
+      <section class="context-ribbon" aria-label="当前评测上下文">
+        <div class="context-item"><span>比较</span><strong>CMP-07 · Champion vs 2 challengers</strong></div>
+        <div class="context-item"><span>协议</span><strong>matr.loco.v2 · EOL 80%</strong></div>
+        <div class="context-item"><span>数据快照</span><strong>matr@1.4 · 7be4…c21a</strong></div>
+        <div class="context-item"><span>当前选择</span><strong id="context-selection">PINN4SOH · b2c9 · cycle 438</strong></div>
+        <div class="context-item"><span>来源</span><strong class="good">实测 · Measured</strong></div>
+        <div class="context-item"><span>证据覆盖</span><strong class="warn">8 / 9 · 1 待补</strong></div>
+      </section>
+
+      <section class="workspace" aria-label="比较与证据工作区">
+        <aside class="panel scope-panel" aria-label="比较范围">
+          <div class="panel-head"><div><h2>比较范围</h2><p>选择会同步驱动全部证据视图</p></div><span class="tag">锁定协议</span></div>
+          <div class="panel-body">
+            <div class="section-block">
+              <div class="section-label">判据集 <em>criterion.v3</em></div>
+              <label class="sr-only" for="criterion-select">判据集</label>
+              <select class="scope-select" id="criterion-select">
+                <option>入库 T1 · Overall ±5% + slice guard</option>
+                <option>工程 T2 · Overall ±8%</option>
+                <option>研究 · 指标比较无门禁</option>
+              </select>
+            </div>
+
+            <div class="section-block">
+              <div class="section-label">候选算法 <em>同协议重测</em></div>
+              <div class="candidate-list" role="listbox" aria-label="候选算法">
+                <button class="candidate-btn active" type="button" role="option" aria-selected="true" data-candidate="pinn">
+                  <span class="candidate-rank">1</span><span class="candidate-name"><b>PINN4SOH v1.2</b><small>challenger · run-142</small></span><span class="candidate-score"><b>0.87</b><small>−0.12 pp</small></span>
+                </button>
+                <button class="candidate-btn" type="button" role="option" aria-selected="false" data-candidate="lgbm">
+                  <span class="candidate-rank">2</span><span class="candidate-name"><b>LightGBM v3.8</b><small>champion · run-139</small></span><span class="candidate-score"><b>0.99</b><small>baseline</small></span>
+                </button>
+                <button class="candidate-btn" type="button" role="option" aria-selected="false" data-candidate="vendor">
+                  <span class="candidate-rank">3</span><span class="candidate-name"><b>Vendor Blackbox X2</b><small>sealed · run-141</small></span><span class="candidate-score"><b>1.36</b><small>+0.37 pp</small></span>
+                </button>
+              </div>
+            </div>
+
+            <div class="section-block">
+              <div class="section-label">工况切片 · MAE pp <em>点击下钻</em></div>
+              <div class="slice-grid" aria-label="温度倍率切片矩阵">
+                <div class="head">温度 \ 倍率</div><div class="head">0.5C</div><div class="head">1C</div><div class="head">2C</div>
+                <div class="row-head">−10°C</div><button class="slice-cell warn" type="button" data-slice="cold" aria-label="−10°C 0.5C，MAE 1.74 pp">1.74</button><button class="slice-cell pass" type="button" data-slice="cold" aria-label="−10°C 1C，MAE 1.46 pp">1.46</button><button class="slice-cell warn" type="button" data-slice="cold" aria-label="−10°C 2C，MAE 1.91 pp">1.91</button>
+                <div class="row-head">25°C</div><button class="slice-cell pass" type="button" data-slice="normal" aria-label="25°C 0.5C，MAE 0.63 pp">0.63</button><button class="slice-cell pass" type="button" data-slice="normal" aria-label="25°C 1C，MAE 0.58 pp">0.58</button><button class="slice-cell pass" type="button" data-slice="normal" aria-label="25°C 2C，MAE 0.92 pp">0.92</button>
+                <div class="row-head">43°C</div><button class="slice-cell pass" type="button" data-slice="hot" aria-label="43°C 0.5C，MAE 1.08 pp">1.08</button><button class="slice-cell warn" type="button" data-slice="hot" aria-label="43°C 1C，MAE 1.82 pp">1.82</button><button class="slice-cell fail active" type="button" data-slice="hot" aria-label="43°C 2C，MAE 2.46 pp，弱切片">2.46</button>
+              </div>
+            </div>
+
+            <div class="section-block">
+              <div class="section-label">代表电芯 <em>按贡献排序</em></div>
+              <div class="asset-list" role="listbox" aria-label="代表电芯">
+                <button class="asset-btn" type="button" role="option" aria-selected="false" data-asset="b1c0"><span><b>b1c0</b><small>25°C · 1C · 520 cycles</small></span><span class="metric">0.62</span></button>
+                <button class="asset-btn active risk" type="button" role="option" aria-selected="true" data-asset="b2c9"><span><b>b2c9</b><small>43°C · 2C · 508 cycles</small></span><span class="metric">1.28</span></button>
+                <button class="asset-btn" type="button" role="option" aria-selected="false" data-asset="b3c14"><span><b>b3c14</b><small>−10°C · 0.5C · 451 cycles</small></span><span class="metric">1.11</span></button>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <div class="center-stack">
+          <section class="panel" aria-labelledby="trajectory-title">
+            <div class="kpi-strip" aria-label="当前候选比较摘要">
+              <div class="kpi"><span>比较结论</span><strong class="blue" id="kpi-verdict">排名 #1</strong><small id="kpi-delta">整体显著优于 champion 0.12 pp</small></div>
+              <div class="kpi"><span>MAE / 95% CI</span><strong id="kpi-mae">0.87 pp</strong><small id="kpi-ci">[0.81, 0.93]</small></div>
+              <div class="kpi"><span>PICP@90 / MPIW</span><strong id="kpi-picp">0.94</strong><small id="kpi-mpiw">宽度 3.8 pp · 校准良好</small></div>
+              <div class="kpi"><span>最弱切片</span><strong class="red" id="kpi-slice">2.46 pp</strong><small>43°C × 2C · 超 slice guard</small></div>
+            </div>
+            <div class="panel-head">
+              <div><h2 id="trajectory-title">比较证据</h2><p>聚合、切片、电芯与 cycle 使用同一记录主键</p></div>
+              <div class="tab-row" role="tablist" aria-label="分析图表">
+                <button class="tab-btn active" type="button" role="tab" aria-selected="true" data-chart-tab="trajectory">SOH 轨迹</button>
+                <button class="tab-btn" type="button" role="tab" aria-selected="false" data-chart-tab="parity">Parity</button>
+                <button class="tab-btn" type="button" role="tab" aria-selected="false" data-chart-tab="error">误差演化</button>
+                <button class="tab-btn" type="button" role="tab" aria-selected="false" data-chart-tab="heatmap">工况矩阵</button>
+              </div>
+            </div>
+
+            <div class="chart-wrap">
+              <div class="chart-view" data-chart-view="trajectory">
+                <svg class="chart-svg" viewBox="0 0 760 280" role="img" aria-label="b2c9 SOH 真值、预测与置信区间轨迹">
+                  <rect x="55" y="18" width="675" height="224" fill="#fff"/>
+                  <rect class="threshold" x="55" y="181" width="675" height="61"/>
+                  <line class="grid" x1="55" y1="18" x2="730" y2="18"/><line class="grid" x1="55" y1="74" x2="730" y2="74"/><line class="grid" x1="55" y1="130" x2="730" y2="130"/><line class="grid" x1="55" y1="186" x2="730" y2="186"/><line class="grid" x1="55" y1="242" x2="730" y2="242"/>
+                  <line class="grid" x1="55" y1="18" x2="55" y2="242"/><line class="grid" x1="190" y1="18" x2="190" y2="242"/><line class="grid" x1="325" y1="18" x2="325" y2="242"/><line class="grid" x1="460" y1="18" x2="460" y2="242"/><line class="grid" x1="595" y1="18" x2="595" y2="242"/><line class="grid" x1="730" y1="18" x2="730" y2="242"/>
+                  <line class="axis" x1="55" y1="242" x2="730" y2="242"/><line class="axis" x1="55" y1="18" x2="55" y2="242"/>
+                  <line class="eol" x1="55" y1="214" x2="730" y2="214"/><text x="650" y="209" fill="#b91c1c">EOL 80%</text>
+                  <polygon id="confidence-band" class="band" points="80,31 195,48 310,77 425,111 540,157 655,198 655,228 540,187 425,141 310,107 195,78 80,61"/>
+                  <path id="truth-path" class="truth" d="M80 43 L195 61 L310 90 L425 123 L540 170 L655 212"/>
+                  <path id="prediction-path" class="prediction" d="M80 46 L195 57 L310 84 L425 114 L540 154 L655 199"/>
+                  <line id="cycle-cursor" class="cursor-line" x1="540" y1="18" x2="540" y2="242"/>
+                  <g id="chart-points">
+                    <circle class="chart-point" tabindex="0" role="button" aria-label="cycle 42" data-cycle="42" cx="80" cy="46" r="5"/>
+                    <circle class="chart-point" tabindex="0" role="button" aria-label="cycle 128" data-cycle="128" cx="195" cy="57" r="5"/>
+                    <circle class="chart-point" tabindex="0" role="button" aria-label="cycle 214" data-cycle="214" cx="310" cy="84" r="5"/>
+                    <circle class="chart-point" tabindex="0" role="button" aria-label="cycle 306" data-cycle="306" cx="425" cy="114" r="5"/>
+                    <circle class="chart-point selected" tabindex="0" role="button" aria-label="cycle 438" data-cycle="438" cx="540" cy="154" r="6"/>
+                    <circle class="chart-point" tabindex="0" role="button" aria-label="cycle 512" data-cycle="512" cx="655" cy="199" r="5"/>
+                  </g>
+                  <text x="20" y="22">102</text><text x="24" y="78">96</text><text x="24" y="134">90</text><text x="24" y="190">84</text><text x="24" y="246">78</text>
+                  <text x="72" y="263">0</text><text x="181" y="263">100</text><text x="316" y="263">200</text><text x="451" y="263">300</text><text x="586" y="263">400</text><text x="716" y="263">500</text>
+                  <text x="360" y="278">循环数</text><text transform="translate(12 156) rotate(-90)">SOH (%)</text>
+                </svg>
+                <div class="chart-legend"><span class="legend-key"><span class="legend-line"></span>标签真值</span><span class="legend-key"><span class="legend-line pred"></span>模型预测</span><span class="legend-key"><span class="legend-box"></span>90% 区间</span><span>点击预测点定位逐 cycle 证据</span></div>
+              </div>
+
+              <div class="chart-view" data-chart-view="parity" hidden>
+                <svg class="chart-svg" viewBox="0 0 760 280" role="img" aria-label="预测值与真值 Parity Plot">
+                  <rect x="95" y="18" width="540" height="224" fill="#fff"/>
+                  <polygon points="95,205 598,18 635,55 132,242" fill="rgba(245,158,11,.10)"/>
+                  <line class="grid" x1="95" y1="242" x2="635" y2="242"/><line class="grid" x1="95" y1="186" x2="635" y2="186"/><line class="grid" x1="95" y1="130" x2="635" y2="130"/><line class="grid" x1="95" y1="74" x2="635" y2="74"/><line class="grid" x1="95" y1="18" x2="635" y2="18"/>
+                  <line class="axis" x1="95" y1="242" x2="635" y2="18"/>
+                  <g fill="#0284c7" opacity=".75"><circle cx="146" cy="225" r="5"/><circle cx="175" cy="211" r="5"/><circle cx="210" cy="194" r="5"/><circle cx="249" cy="175" r="5"/><circle cx="282" cy="163" r="5"/><circle cx="317" cy="144" r="5"/><circle cx="352" cy="131" r="5"/><circle cx="389" cy="111" r="5"/><circle cx="423" cy="102" r="5"/><circle cx="458" cy="82" r="5"/><circle cx="495" cy="72" r="5"/><circle cx="532" cy="49" r="5"/><circle cx="571" cy="43" r="5"/></g>
+                  <circle cx="317" cy="124" r="7" fill="#dc2626"/><text x="330" y="121" fill="#b91c1c">b2c9 · 43°C×2C</text>
+                  <text x="325" y="275">标签真值 SOH (%)</text><text transform="translate(40 172) rotate(-90)">预测 SOH (%)</text>
+                  <text x="94" y="260">78</text><text x="617" y="260">102</text><text x="72" y="242">78</text><text x="66" y="23">102</text>
+                </svg>
+              </div>
+
+              <div class="chart-view" data-chart-view="error" hidden>
+                <svg class="chart-svg" viewBox="0 0 760 280" role="img" aria-label="误差随循环演化">
+                  <line class="grid" x1="55" y1="30" x2="730" y2="30"/><line class="grid" x1="55" y1="85" x2="730" y2="85"/><line class="grid" x1="55" y1="140" x2="730" y2="140"/><line class="grid" x1="55" y1="195" x2="730" y2="195"/><line class="grid" x1="55" y1="242" x2="730" y2="242"/>
+                  <line class="eol" x1="55" y1="85" x2="730" y2="85"/><text x="620" y="79" fill="#b91c1c">slice guard 2.0 pp</text>
+                  <path d="M55 218 L150 210 L245 197 L340 181 L435 154 L530 119 L625 83 L730 51" fill="none" stroke="#dc2626" stroke-width="2.5"/>
+                  <path d="M55 223 L150 216 L245 207 L340 196 L435 181 L530 163 L625 144 L730 124" fill="none" stroke="#0284c7" stroke-width="2"/>
+                  <path d="M55 228 L150 224 L245 218 L340 210 L435 202 L530 191 L625 181 L730 168" fill="none" stroke="#94a3b8" stroke-width="1.4"/>
+                  <text x="60" y="214" fill="#dc2626">b2c9</text><text x="60" y="238">0</text><text x="718" y="260">500</text><text x="12" y="35">3.0</text><text x="20" y="246">0</text><text x="360" y="276">循环数</text><text transform="translate(12 175) rotate(-90)">绝对误差 (pp)</text>
+                </svg>
+              </div>
+
+              <div class="chart-view" data-chart-view="heatmap" hidden>
+                <svg class="chart-svg" viewBox="0 0 760 280" role="img" aria-label="温度倍率工况 MAE 热力图">
+                  <text x="155" y="34">0.5C</text><text x="340" y="34">1C</text><text x="520" y="34">2C</text>
+                  <text x="55" y="91">−10°C</text><text x="62" y="157">25°C</text><text x="62" y="223">43°C</text>
+                  <g><rect x="125" y="53" width="150" height="48" rx="4" fill="#fef3c7"/><rect x="305" y="53" width="150" height="48" rx="4" fill="#d1fae5"/><rect x="485" y="53" width="150" height="48" rx="4" fill="#fef3c7"/>
+                  <rect x="125" y="119" width="150" height="48" rx="4" fill="#d1fae5"/><rect x="305" y="119" width="150" height="48" rx="4" fill="#d1fae5"/><rect x="485" y="119" width="150" height="48" rx="4" fill="#d1fae5"/>
+                  <rect x="125" y="185" width="150" height="48" rx="4" fill="#d1fae5"/><rect x="305" y="185" width="150" height="48" rx="4" fill="#fef3c7"/><rect x="485" y="185" width="150" height="48" rx="4" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/></g>
+                  <g text-anchor="middle" font-weight="700"><text x="200" y="82">1.74</text><text x="380" y="82">1.46</text><text x="560" y="82">1.91</text><text x="200" y="148">0.63</text><text x="380" y="148">0.58</text><text x="560" y="148">0.92</text><text x="200" y="214">1.08</text><text x="380" y="214">1.82</text><text x="560" y="214" fill="#b91c1c">2.46 pp</text></g>
+                  <text x="650" y="214" fill="#b91c1c">← 弱切片</text>
+                </svg>
+              </div>
+            </div>
+
+            <div class="selection-bar" aria-live="polite">
+              <div class="selection-stat"><span>电芯</span><strong id="selected-asset">b2c9</strong></div>
+              <div class="selection-stat"><span>循环</span><strong id="selected-cycle">438</strong></div>
+              <div class="selection-stat"><span>真值 / 预测</span><strong><span id="selected-truth">84.6</span> / <span id="selected-pred">87.5</span>%</strong></div>
+              <div class="selection-stat"><span>残差 / 本点贡献</span><strong><span id="selected-residual">+2.9</span> / <span id="selected-contribution">0.57</span>%</strong></div>
+              <button class="btn small" id="add-compare" type="button">加入 cycle 对比</button>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="cycle-evidence-title">
+            <div class="evidence-summary">
+              <div><strong id="cycle-evidence-title">逐 cycle 证据</strong> · record <span id="record-id">pred:b2c9:438</span></div>
+              <div class="compare-cycles" id="compare-cycles"><span>对比：</span><span class="cycle-chip">cycle 306</span><span class="cycle-chip">cycle 438</span></div>
+            </div>
+            <div class="panel-head">
+              <div class="tab-row" role="tablist" aria-label="逐 cycle 证据类型">
+                <button class="tab-btn active" type="button" role="tab" aria-selected="true" data-evidence-tab="raw">原始 V / I / T</button>
+                <button class="tab-btn" type="button" role="tab" aria-selected="false" data-evidence-tab="icdv">IC / DV</button>
+                <button class="tab-btn" type="button" role="tab" aria-selected="false" data-evidence-tab="features">特征窗</button>
+                <button class="tab-btn" type="button" role="tab" aria-selected="false" data-evidence-tab="contribution">指标贡献</button>
+              </div>
+              <span class="tag measured">实测 · 1 Hz · QC 通过</span>
+            </div>
+            <div class="evidence-body">
+              <div class="evidence-view" data-evidence-view="raw">
+                <div class="signal-grid">
+                  <article class="signal-card"><header><b>电压 V</b><small>3.02–4.18 V</small></header><svg class="signal-svg" viewBox="0 0 210 82" aria-label="电压曲线"><rect class="window" x="103" y="7" width="72" height="64"/><line class="grid" x1="8" y1="70" x2="202" y2="70"/><path class="line-v" d="M8 66 C34 64 50 57 72 51 S108 42 126 30 S161 17 202 10"/></svg></article>
+                  <article class="signal-card"><header><b>电流 I</b><small>CC-CV · 2C</small></header><svg class="signal-svg" viewBox="0 0 210 82" aria-label="电流曲线"><line class="grid" x1="8" y1="70" x2="202" y2="70"/><path class="line-i" d="M8 20 L122 20 C139 21 146 29 154 39 S174 58 202 67"/></svg></article>
+                  <article class="signal-card"><header><b>温度 T</b><small>43.0–46.8 °C</small></header><svg class="signal-svg" viewBox="0 0 210 82" aria-label="温度曲线"><line class="grid" x1="8" y1="70" x2="202" y2="70"/><path class="line-t" d="M8 64 C42 62 59 57 80 49 S118 32 147 25 S178 18 202 17"/></svg></article>
+                </div>
+              </div>
+              <div class="evidence-view" data-evidence-view="icdv" hidden>
+                <div class="signal-grid">
+                  <article class="signal-card"><header><b>IC · dQ/dV</b><small>峰位偏移 +18 mV</small></header><svg class="signal-svg" viewBox="0 0 210 82"><path class="line-v" d="M8 70 C31 69 45 58 55 24 S72 18 82 55 S105 66 119 37 S141 22 151 53 S177 66 202 65"/></svg></article>
+                  <article class="signal-card"><header><b>DV · dV/dQ</b><small>主峰幅值 −7.2%</small></header><svg class="signal-svg" viewBox="0 0 210 82"><path class="line-i" d="M8 65 C42 64 58 59 70 42 S92 30 107 52 S137 63 150 31 S174 31 202 62"/></svg></article>
+                  <article class="signal-card"><header><b>峰特征差异</b><small>相对训练域</small></header><div class="bar-row"><span>IC peak 1</span><span class="bar-track"><span class="bar-fill risk" style="width:82%"></span></span><b>+18mV</b></div><div class="bar-row"><span>DV amplitude</span><span class="bar-track"><span class="bar-fill" style="width:58%"></span></span><b>−7.2%</b></div></article>
+                </div>
+              </div>
+              <div class="evidence-view" data-evidence-view="features" hidden>
+                <table class="feature-table"><thead><tr><th>特征</th><th>当前值</th><th>训练域 P5–P95</th><th>状态</th><th>来源窗口</th></tr></thead><tbody><tr><td>charge_time_3.7_4.1V</td><td>1,284 s</td><td>880–1,190 s</td><td><span class="tag weak">OOD</span></td><td>V · 3.7–4.1 V</td></tr><tr><td>ic_peak_voltage</td><td>3.861 V</td><td>3.822–3.854 V</td><td><span class="tag weak">偏移</span></td><td>CC 段</td></tr><tr><td>temp_rise</td><td>3.8 °C</td><td>0.8–3.2 °C</td><td><span class="tag weak">偏高</span></td><td>完整充电段</td></tr><tr><td>coulombic_eff</td><td>99.2%</td><td>98.8–99.8%</td><td><span class="tag measured">正常</span></td><td>V/I 积分</td></tr></tbody></table>
+              </div>
+              <div class="evidence-view" data-evidence-view="contribution" hidden>
+                <div class="contribution-grid"><div><div class="bar-row"><span>cycle 438</span><span class="bar-track"><span class="bar-fill risk" style="width:91%"></span></span><b>2.9 pp</b></div><div class="bar-row"><span>电芯 b2c9</span><span class="bar-track"><span class="bar-fill risk" style="width:64%"></span></span><b>1.28 pp</b></div><div class="bar-row"><span>43°C × 2C</span><span class="bar-track"><span class="bar-fill risk" style="width:82%"></span></span><b>2.46 pp</b></div><div class="bar-row"><span>整体案例</span><span class="bar-track"><span class="bar-fill" style="width:29%"></span></span><b>0.87 pp</b></div></div><div class="formula"><strong>贡献解释</strong><p>该点绝对误差 2.9 pp；按 cycle 宏平均权重计入整体 MAE，占当前候选总绝对误差的 <b>0.57%</b>。</p><code>metric_contribution_id<br>mc:mae:b2c9:438</code></div></div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside class="panel verdict-panel" aria-label="判定与证据检查器">
+          <div class="panel-head"><div><h2>判定检查器</h2><p>结论、完整度、血缘与动作同屏</p></div><span class="tag">criterion.v3</span></div>
+          <div class="verdict-banner"><div class="top"><span>当前候选</span><strong id="verdict-title">有条件通过</strong></div><p id="verdict-copy">整体精度与 UQ 通过；43°C × 2C 弱切片超 2.0 pp 门禁，需关闭问题并补齐 1 项证据后签署。</p></div>
+          <div class="panel-body-grid">
+            <section>
+              <div class="criterion-list">
+                <div class="criterion"><span class="criterion-icon pass">✓</span><span><b>整体 MAE</b><small>scope: all test cycles</small></span><span class="criterion-value" id="criterion-mae">0.87 ≤ 2.00</span></div>
+                <div class="criterion"><span class="criterion-icon pass">✓</span><span><b>PICP@90</b><small>名义覆盖率门禁</small></span><span class="criterion-value" id="criterion-picp">0.94 ≥ 0.90</span></div>
+                <div class="criterion"><span class="criterion-icon fail">!</span><span><b>弱切片 guard</b><small>43°C × 2C · 148 cycles</small></span><span class="criterion-value fail">2.46 &gt; 2.00</span></div>
+                <div class="criterion"><span class="criterion-icon pass">✓</span><span><b>物理一致性</b><small>单调性与范围约束</small></span><span class="criterion-value">0 violations</span></div>
+              </div>
+            </section>
+            <section>
+              <div class="panel-head"><div><h3>证据完整度</h3><p>必需证据 8 / 9</p></div><span class="status conditional">待补 1</span></div>
+              <div class="coverage"><div class="coverage-meter" aria-label="证据覆盖 8/9"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span class="missing"></span></div><div class="coverage-list"><span class="coverage-item">RunSpec</span><span class="coverage-item">数据快照</span><span class="coverage-item">划分指纹</span><span class="coverage-item">模型 digest</span><span class="coverage-item">逐点预测</span><span class="coverage-item">原始 V/I/T</span><span class="coverage-item">指标贡献</span><span class="coverage-item">判据版本</span><span class="coverage-item missing">温度校准证书</span></div></div>
+            </section>
+            <section>
+              <div class="panel-head"><div><h3>当前证据血缘</h3><p>从 cycle 回溯到不可变输入</p></div></div>
+              <div class="lineage">
+                <div class="lineage-step"><span class="lineage-node">R</span><span><b>PredictionRecord</b><small id="lineage-record">pred:b2c9:438</small></span></div>
+                <div class="lineage-step"><span class="lineage-node">M</span><span><b>ModelArtifact</b><small>sha256:e51d…8f0b</small></span></div>
+                <div class="lineage-step"><span class="lineage-node">F</span><span><b>FeatureState</b><small>native-window@3.7–4.1V</small></span></div>
+                <div class="lineage-step"><span class="lineage-node">S</span><span><b>SplitAssignment</b><small>loco:train110:test10</small></span></div>
+                <div class="lineage-step"><span class="lineage-node">D</span><span><b>DatasetSnapshot</b><small>sha256:7be4…c21a</small></span></div>
+              </div>
+            </section>
+            <section class="action-card">
+              <strong>ISSUE-248 · 高温高倍率晚期误差抬升</strong>
+              <p>证据已定位 b2c9 / cycle 438；建议加入回归集并按同协议发起复测。</p>
+              <div class="action-row"><button class="btn small" type="button" data-action="regression">加入回归集</button><button class="btn small primary" type="button" data-action="retest">发起同协议复测</button></div>
+            </section>
+          </div>
+        </aside>
+      </section>
+
+      <section class="panel table-panel" aria-labelledby="sample-table-title">
+        <div class="table-toolbar"><div><h2 id="sample-table-title">逐样本贡献表</h2><p>图表与表格共享 prediction_record_id；点击行同步定位电芯、cycle 与全部证据。</p></div><div><span class="tag measured">实测</span> <span class="tag">148 rows in slice</span></div></div>
+        <div class="table-scroll">
+          <table class="sample-table">
+            <thead><tr><th>记录 ID</th><th>电芯</th><th>Cycle</th><th>工况</th><th>真值</th><th>预测</th><th>残差</th><th>区间</th><th>MAE 贡献</th><th>证据</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr data-row-asset="b1c0" data-row-cycle="306"><td>pred:b1c0:306</td><td>b1c0</td><td>306</td><td>25°C · 1C</td><td>91.2%</td><td>92.1%</td><td>+0.9 pp</td><td>[89.8, 94.4]</td><td>0.13%</td><td>V/I/T · IC</td><td><span class="tag measured">通过</span></td></tr>
+              <tr class="selected" data-row-asset="b2c9" data-row-cycle="438"><td>pred:b2c9:438</td><td>b2c9</td><td>438</td><td>43°C · 2C</td><td>84.6%</td><td>87.5%</td><td class="resid-high">+2.9 pp</td><td>[85.0, 90.0]</td><td class="resid-high">0.57%</td><td>V/I/T · IC/DV</td><td><span class="tag weak">弱切片</span></td></tr>
+              <tr data-row-asset="b2c9" data-row-cycle="512"><td>pred:b2c9:512</td><td>b2c9</td><td>512</td><td>43°C · 2C</td><td>79.8%</td><td>82.2%</td><td class="resid-high">+2.4 pp</td><td>[79.6, 84.8]</td><td>0.48%</td><td>V/I/T · IC/DV</td><td><span class="tag weak">EOL 邻域</span></td></tr>
+              <tr data-row-asset="b3c14" data-row-cycle="214"><td>pred:b3c14:214</td><td>b3c14</td><td>214</td><td>−10°C · 0.5C</td><td>93.8%</td><td>95.4%</td><td>+1.6 pp</td><td>[92.7, 98.1]</td><td>0.29%</td><td>V/I/T · IC</td><td><span class="tag">观察</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      const candidates = {
+        pinn: { name: "PINN4SOH v1.2", slug: "pinn-v1.2", rank: "排名 #1", mae: "0.87 pp", ci: "[0.81, 0.93]", picp: "0.94", mpiw: "宽度 3.8 pp · 校准良好", delta: "整体显著优于 champion 0.12 pp", criterionMae: "0.87 ≤ 2.00", criterionPicp: "0.94 ≥ 0.90", verdict: "有条件通过", prediction: [46,57,84,114,154,199] },
+        lgbm: { name: "LightGBM v3.8", slug: "lightgbm-v3.8", rank: "当前 Champion", mae: "0.99 pp", ci: "[0.92, 1.07]", picp: "0.91", mpiw: "宽度 4.2 pp · 临界通过", delta: "基线版本 · 作为比较锚点", criterionMae: "0.99 ≤ 2.00", criterionPicp: "0.91 ≥ 0.90", verdict: "有条件通过", prediction: [48,61,88,119,162,205] },
+        vendor: { name: "Vendor Blackbox X2", slug: "vendor-x2", rank: "排名 #3", mae: "1.36 pp", ci: "[1.23, 1.49]", picp: "0.86", mpiw: "宽度 3.1 pp · 覆盖不足", delta: "较 champion 退化 0.37 pp", criterionMae: "1.36 ≤ 2.00", criterionPicp: "0.86 < 0.90", verdict: "不通过", prediction: [51,66,94,128,171,214] }
+      };
+      const assets = {
+        b1c0: { cycles: [42,128,214,306,438,512], truth: [99.4,97.8,94.8,91.2,86.8,82.1], pred: [99.1,97.5,95.1,92.1,87.7,82.8], contrib: ["0.04","0.05","0.06","0.13","0.15","0.11"] },
+        b2c9: { cycles: [42,128,214,306,438,512], truth: [99.3,97.4,94.2,90.6,84.6,79.8], pred: [99.0,97.9,94.8,91.7,87.5,82.2], contrib: ["0.05","0.08","0.10","0.22","0.57","0.48"] },
+        b3c14: { cycles: [42,128,214,306,438,512], truth: [99.5,97.9,93.8,89.9,84.2,79.2], pred: [99.2,98.5,95.4,91.1,85.8,80.6], contrib: ["0.04","0.09","0.29","0.21","0.30","0.24"] }
+      };
+      const x = [80,195,310,425,540,655];
+      const truthY = value => 18 + (102 - value) * (224 / 24);
+      let state = { candidate: "pinn", asset: "b2c9", cycle: 438, evidence: "raw", chart: "trajectory", compare: [306,438] };
+      const $ = selector => document.querySelector(selector);
+      const $$ = selector => Array.from(document.querySelectorAll(selector));
+
+      function toast(message) {
+        const el = $("#toast");
+        el.textContent = message;
+        el.classList.add("show");
+        window.clearTimeout(toast.timer);
+        toast.timer = window.setTimeout(() => el.classList.remove("show"), 2200);
+      }
+
+      function selectedIndex() {
+        const idx = assets[state.asset].cycles.indexOf(Number(state.cycle));
+        return idx < 0 ? 0 : idx;
+      }
+
+      function renderCandidate() {
+        const c = candidates[state.candidate];
+        $$(".candidate-btn").forEach(btn => {
+          const active = btn.dataset.candidate === state.candidate;
+          btn.classList.toggle("active", active);
+          btn.setAttribute("aria-selected", String(active));
+        });
+        $("#kpi-verdict").textContent = c.rank;
+        $("#kpi-mae").textContent = c.mae;
+        $("#kpi-ci").textContent = c.ci;
+        $("#kpi-picp").textContent = c.picp;
+        $("#kpi-mpiw").textContent = c.mpiw;
+        $("#kpi-delta").textContent = c.delta;
+        $("#criterion-mae").textContent = c.criterionMae;
+        $("#criterion-picp").textContent = c.criterionPicp;
+        $("#verdict-title").textContent = c.verdict;
+        $("#verdict-copy").textContent = state.candidate === "vendor"
+          ? "UQ 覆盖率与高温高倍率切片均未通过，不能进入签署；需补齐校准并按同协议复测。"
+          : "整体精度与 UQ 通过；43°C × 2C 弱切片超 2.0 pp 门禁，需关闭问题并补齐 1 项证据后签署。";
+      }
+
+      function renderTrajectory() {
+        const a = assets[state.asset];
+        const c = candidates[state.candidate];
+        const candidateBias = state.candidate === "pinn" ? 0 : state.candidate === "lgbm" ? 3 : 7;
+        const predValues = a.pred.map((v, i) => v + (candidateBias * (i + 1) / 8));
+        const truthPoints = a.truth.map((v, i) => `${x[i]} ${truthY(v).toFixed(1)}`).join(" L");
+        const predPoints = predValues.map((v, i) => `${x[i]} ${truthY(v).toFixed(1)}`).join(" L");
+        $("#truth-path").setAttribute("d", `M${truthPoints}`);
+        $("#prediction-path").setAttribute("d", `M${predPoints}`);
+        const upper = predValues.map((v, i) => `${x[i]},${(truthY(v)-15).toFixed(1)}`);
+        const lower = predValues.map((v, i) => `${x[i]},${(truthY(v)+15).toFixed(1)}`).reverse();
+        $("#confidence-band").setAttribute("points", upper.concat(lower).join(" "));
+        $$(".chart-point").forEach((point, i) => {
+          point.setAttribute("cx", x[i]);
+          point.setAttribute("cy", truthY(predValues[i]).toFixed(1));
+        });
+      }
+
+      function renderSelection() {
+        const a = assets[state.asset];
+        let idx = selectedIndex();
+        const cBias = state.candidate === "pinn" ? 0 : state.candidate === "lgbm" ? 0.45 : 1.1;
+        const truth = a.truth[idx];
+        const pred = a.pred[idx] + cBias;
+        const residual = pred - truth;
+        $$(".asset-btn").forEach(btn => {
+          const active = btn.dataset.asset === state.asset;
+          btn.classList.toggle("active", active);
+          btn.setAttribute("aria-selected", String(active));
+        });
+        $$(".chart-point").forEach(point => point.classList.toggle("selected", Number(point.dataset.cycle) === Number(state.cycle)));
+        const cursorX = x[idx];
+        $("#cycle-cursor").setAttribute("x1", cursorX);
+        $("#cycle-cursor").setAttribute("x2", cursorX);
+        $("#selected-asset").textContent = state.asset;
+        $("#selected-cycle").textContent = state.cycle;
+        $("#selected-truth").textContent = truth.toFixed(1);
+        $("#selected-pred").textContent = pred.toFixed(1);
+        $("#selected-residual").textContent = `${residual >= 0 ? "+" : ""}${residual.toFixed(1)}`;
+        $("#selected-contribution").textContent = a.contrib[idx];
+        $("#record-id").textContent = `pred:${state.asset}:${state.cycle}`;
+        $("#lineage-record").textContent = `pred:${state.asset}:${state.cycle}`;
+        $("#context-selection").textContent = `${candidates[state.candidate].name} · ${state.asset} · cycle ${state.cycle}`;
+        $$(".sample-table tbody tr").forEach(row => row.classList.toggle("selected", row.dataset.rowAsset === state.asset && Number(row.dataset.rowCycle) === Number(state.cycle)));
+        renderTrajectory();
+        renderHash();
+      }
+
+      function renderHash() {
+        const c = candidates[state.candidate];
+        const params = new URLSearchParams({ case: "EV-2026-0142", candidate: c.slug, asset: state.asset, cycle: String(state.cycle), tab: state.evidence, compare: state.compare.join(",") });
+        history.replaceState(null, "", `#${params.toString()}`);
+      }
+
+      function renderCompare() {
+        const target = $("#compare-cycles");
+        target.innerHTML = "<span>对比：</span>" + state.compare.map(c => `<span class="cycle-chip">cycle ${c}</span>`).join("");
+      }
+
+      function renderEvidenceTab() {
+        $$("[data-evidence-tab]").forEach(tab => {
+          const active = tab.dataset.evidenceTab === state.evidence;
+          tab.classList.toggle("active", active);
+          tab.setAttribute("aria-selected", String(active));
+        });
+        $$("[data-evidence-view]").forEach(view => {
+          view.hidden = view.dataset.evidenceView !== state.evidence;
+        });
+      }
+
+      function hydrateFromHash() {
+        if (!location.hash) return;
+        const params = new URLSearchParams(location.hash.slice(1));
+        const candidateEntry = Object.entries(candidates).find(([, value]) => value.slug === params.get("candidate"));
+        const asset = params.get("asset");
+        const cycle = Number(params.get("cycle"));
+        const evidence = params.get("tab");
+        const compare = (params.get("compare") || "").split(",").map(Number).filter(Number.isFinite).slice(-3);
+        if (candidateEntry) state.candidate = candidateEntry[0];
+        if (asset && assets[asset]) state.asset = asset;
+        if (assets[state.asset].cycles.includes(cycle)) state.cycle = cycle;
+        if (["raw", "icdv", "features", "contribution"].includes(evidence)) state.evidence = evidence;
+        if (compare.length) state.compare = compare;
+      }
+
+      function selectCycle(cycle) {
+        state.cycle = Number(cycle);
+        renderSelection();
+      }
+
+      $$(".candidate-btn").forEach(btn => btn.addEventListener("click", () => {
+        state.candidate = btn.dataset.candidate;
+        renderCandidate();
+        renderSelection();
+      }));
+      $$(".asset-btn").forEach(btn => btn.addEventListener("click", () => {
+        state.asset = btn.dataset.asset;
+        state.cycle = state.asset === "b2c9" ? 438 : state.asset === "b1c0" ? 306 : 214;
+        renderSelection();
+      }));
+      $$(".slice-cell").forEach(btn => btn.addEventListener("click", () => {
+        $$(".slice-cell").forEach(cell => cell.classList.remove("active"));
+        btn.classList.add("active");
+        state.asset = btn.dataset.slice === "hot" ? "b2c9" : btn.dataset.slice === "cold" ? "b3c14" : "b1c0";
+        state.cycle = btn.dataset.slice === "hot" ? 438 : btn.dataset.slice === "cold" ? 214 : 306;
+        renderSelection();
+      }));
+      $$(".chart-point").forEach(point => {
+        point.addEventListener("click", () => selectCycle(point.dataset.cycle));
+        point.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectCycle(point.dataset.cycle); } });
+      });
+      $$("[data-chart-tab]").forEach(btn => btn.addEventListener("click", () => {
+        state.chart = btn.dataset.chartTab;
+        $$("[data-chart-tab]").forEach(t => { const on = t === btn; t.classList.toggle("active", on); t.setAttribute("aria-selected", String(on)); });
+        $$("[data-chart-view]").forEach(view => view.hidden = view.dataset.chartView !== state.chart);
+      }));
+      $$("[data-evidence-tab]").forEach(btn => btn.addEventListener("click", () => {
+        state.evidence = btn.dataset.evidenceTab;
+        renderEvidenceTab();
+        renderHash();
+      }));
+      $$(".sample-table tbody tr").forEach(row => row.addEventListener("click", () => {
+        state.asset = row.dataset.rowAsset;
+        state.cycle = Number(row.dataset.rowCycle);
+        renderSelection();
+        document.querySelector(".center-stack").scrollIntoView({ behavior: "smooth", block: "start" });
+      }));
+      $("#add-compare").addEventListener("click", () => {
+        const cycle = Number(state.cycle);
+        if (state.compare.includes(cycle)) {
+          toast(`cycle ${cycle} 已在对比中`);
+          return;
+        }
+        if (state.compare.length >= 3) state.compare.shift();
+        state.compare.push(cycle);
+        renderCompare();
+        renderHash();
+        toast(`已加入 cycle ${cycle}；最多保留 3 个 cycle`);
+      });
+      $$("[data-action]").forEach(btn => btn.addEventListener("click", () => {
+        const messages = {
+          share: "证据深链已包含候选、电芯、cycle 与证据页签",
+          pack: "EvidencePack 预览：当前 8/9 项，温度校准证书待补",
+          review: "发布门禁生效：请先关闭弱切片问题并补齐 1 项证据",
+          regression: `已将 ${state.asset} / cycle ${state.cycle} 加入 ISSUE-248 回归集`,
+          retest: "同协议复测草稿已创建，并关联原案例与 ISSUE-248"
+        };
+        toast(messages[btn.dataset.action] || "原型动作已记录");
+      }));
+      $$("[data-nav]").forEach(btn => btn.addEventListener("click", () => {
+        if (btn.dataset.nav !== "cases") toast("本 mockup 聚焦“评测案例”的深度融合工作台");
+      }));
+      $("#criterion-select").addEventListener("change", event => toast(`已切换判据展示：${event.target.selectedOptions[0].text}`));
+
+      hydrateFromHash();
+      renderCandidate();
+      renderSelection();
+      renderCompare();
+      renderEvidenceTab();
+    })();
+  </script>
+</body>
+</html>
