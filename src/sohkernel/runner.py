@@ -126,7 +126,7 @@ class BenchmarkRunner:
                             rec_base = dict(
                                 estimator=est_name, protocol=pname,
                                 held_out_key=fold.held_out_key, fold=fi,
-                                seed=seed, ci_source="conformal",
+                                seed=seed, status="ok", ci_source="conformal",
                                 featureset=fs_name, track=track,
                                 feature_mode=contract.feature_mode,
                                 backend=contract.backend,
@@ -174,10 +174,12 @@ class BenchmarkRunner:
                                 rec_base["ci_fallback"] = bool(getattr(est, "last_fallback", False))
                                 row["picp"] = M.picp(yte, lo, hi)
                                 row.update(self._trajectory_metrics(task, te, yp))
-                            except Exception as e:  # isolate failed fold
+                            except Exception as e:  # isolate the failed unit (Task 7e)
                                 row = {m: float("nan") for m in
                                        (*task.point_metrics, *task.interval_metrics,
                                         *task.trajectory_metrics)}
+                                rec_base["status"] = "failed"
+                                rec_base["error_type"] = type(e).__name__
                                 rec_base["error"] = str(e)
                             for metric, value in row.items():
                                 records.append({**rec_base, "metric": metric, "value": value})

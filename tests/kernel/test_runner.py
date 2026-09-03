@@ -33,6 +33,18 @@ def test_failed_estimator_isolated():
                                         protocols={"loco":LeaveOneCellOut()},
                                         estimators=[Boom])
     assert rs["value"].isna().any()                       # failed fold recorded, run completed
+    # Task 7e: the failure is explicit per unit, with its class and message
+    assert rs["status"].eq("failed").all()
+    assert rs["error_type"].eq("RuntimeError").all() and rs["error"].eq("boom").all()
+
+
+def test_successful_units_are_marked_ok():
+    from sohkernel.metadata import build_meta
+    t = _table(); meta = build_meta(t)
+    rs = BenchmarkRunner(seeds=[0]).run(SOHEstimationTask(), table=t, meta=meta,
+                                        protocols={"loco": LeaveOneCellOut()}, estimators=[RidgeEstimator])
+    assert rs["status"].eq("ok").all()
+    assert "error_type" not in rs.columns and "error" not in rs.columns
 
 
 def test_runner_featureset_loop():

@@ -10,7 +10,17 @@
       "track": {"enum":["unified","byo"]},
       "protocol": {"type":"string"},
       "metrics": {"type":"object"},
-      "verdicts": {"type":"object"}
+      "verdicts": {"type":"object"},
+      "units": {
+        "type": "object",
+        "required": ["attempted", "succeeded", "failed", "outcome"],
+        "properties": {
+          "attempted": {"type":"integer", "minimum": 0},
+          "succeeded": {"type":"integer", "minimum": 0},
+          "failed": {"type":"integer", "minimum": 0},
+          "outcome": {"enum": ["complete", "partial", "failed"]}
+        }
+      }
     }
   }
 }

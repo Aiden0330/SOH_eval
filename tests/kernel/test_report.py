@@ -181,3 +181,53 @@ def test_write_inference_artifacts(tmp_path):
     assert (run_dir / "inference_benchmark.json").exists()
     payload = json.loads((run_dir / "inference_benchmark.json").read_text(encoding="utf-8"))
     assert payload["records"][0]["model"] == "predict_only"
+
+
+# ---------------------------------------------------------------------------
+# explicit outcomes: failed units stay out of the evidence (Task 7e)
+# ---------------------------------------------------------------------------
+
+def _results_with_failures(failed_seeds, value_for_failed=0.0):
+    rows = []
+    for seed in range(3):
+        failed = seed in failed_seeds
+        for metric, val in [("mae", 0.01), ("picp", 0.92),
+                            ("monotonicity_violation_rate", 0.0), ("value_range_violation", 0.0)]:
+            rows.append(dict(estimator="ridge", feature_mode="unified", backend="sklearn",
+                             protocol="loco", dataset="ds", held_out_key="c1", fold=0, seed=seed,
+                             status="failed" if failed else "ok",
+                             error="boom" if failed else None,
+                             error_type="RuntimeError" if failed else None,
+                             metric=metric, value=value_for_failed if failed else val))
+    return pd.DataFrame(rows)
+
+
+def test_failed_units_are_excluded_from_aggregates_and_counted(tmp_path):
+    out = write_artifacts(_results_with_failures({2}), qc_report=None, task=SOHEstimationTask(),
+                          config={}, out_dir=tmp_path)
+    entry = json.loads((Path(out) / "leaderboard.json").read_text())[0]
+    # the failed unit carried finite garbage; it must not touch the mean
+    assert entry["metrics"]["mae"]["mean"] == 0.01 and entry["metrics"]["picp"]["mean"] == 0.92
+    assert entry["units"] == {"attempted": 3, "succeeded": 2, "failed": 1, "outcome": "partial"}
+    assert entry["verdicts"]["generalization"] is True
+
+
+def test_all_units_failed_is_an_explicit_failed_outcome(tmp_path):
+    out = write_artifacts(_results_with_failures({0, 1, 2}, value_for_failed=float("nan")), qc_report=None,
+                          task=SOHEstimationTask(), config={}, out_dir=tmp_path)
+    entry = json.loads((Path(out) / "leaderboard.json").read_text())[0]
+    assert entry["units"] == {"attempted": 3, "succeeded": 0, "failed": 3, "outcome": "failed"}
+    assert entry["metrics"]["mae"]["mean"] is None          # no evidence, keys still present
+    assert entry["verdicts"]["generalization"] is False
+    dataset_entry = json.loads((Path(out) / "dataset_leaderboard.json").read_text())[0]
+    assert dataset_entry["units"]["outcome"] == "failed"
+
+
+def test_complete_outcome_and_schema(tmp_path):
+    import jsonschema
+    import sohkernel.report
+    out = write_artifacts(_results(), qc_report=None, task=SOHEstimationTask(), config={}, out_dir=tmp_path)
+    lb = json.loads((Path(out) / "leaderboard.json").read_text())
+    assert lb[0]["units"] == {"attempted": 5, "succeeded": 5, "failed": 0, "outcome": "complete"}
+    schema = json.loads((Path(sohkernel.report.__file__).with_name("schemas") / "leaderboard.schema.json").read_text())
+    jsonschema.validate(lb, schema)

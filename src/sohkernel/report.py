@@ -23,6 +23,34 @@ def _dump(obj, path):
     path.write_text(json.dumps(_json_safe(obj), indent=2, allow_nan=False, default=str))
 
 
+UNIT_COLUMNS = ("estimator", "featureset", "protocol", "held_out_key", "fold", "seed")
+
+
+def _unit_outcomes(group: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    """Split a leaderboard group into its evidence rows and the unit accounting.
+
+    An execution unit is one (estimator, featureset, protocol, held-out key, fold, seed).
+    Units the runner marked ``failed`` (or, for legacy frames, units carrying an error
+    message) never enter the aggregates; the entry states how many were attempted,
+    succeeded and failed (``outcome``: complete | partial | failed).
+    """
+    unit_cols = [c for c in UNIT_COLUMNS if c in group.columns]
+    if "status" in group.columns:
+        failed_rows = group["status"].astype(str).eq("failed")
+    elif "error" in group.columns:
+        failed_rows = group["error"].notna() & group["error"].astype(str).str.strip().ne("")
+    else:
+        failed_rows = pd.Series(False, index=group.index)
+    units = group.assign(_failed=failed_rows)
+    units = units.drop_duplicates(unit_cols) if unit_cols else units.iloc[:1]
+    attempted = int(len(units))
+    failed = int(units["_failed"].sum())
+    succeeded = attempted - failed
+    outcome = "complete" if attempted and not failed else ("partial" if succeeded else "failed")
+    evidence = group.loc[~failed_rows] if succeeded else group
+    return evidence, {"attempted": attempted, "succeeded": succeeded, "failed": failed, "outcome": outcome}
+
+
 def _leaderboard_entries(results: pd.DataFrame, task, group_cols: list[str]) -> list[dict]:
     entries = []
     has_track = "track" in results.columns
@@ -42,7 +70,8 @@ def _leaderboard_entries(results: pd.DataFrame, task, group_cols: list[str]) -> 
             else:
                 track = results["feature_mode"].iloc[0] if "feature_mode" in results.columns else "unified"
 
-        agg = g.groupby("metric")["value"].agg(["mean", "std"])
+        evidence, units = _unit_outcomes(g)
+        agg = evidence.groupby("metric")["value"].agg(["mean", "std"])
         metrics = {m: {"mean": float(r["mean"]),
                         "std": float(r["std"] if r["std"] == r["std"] else 0.0)}
                    for m, r in agg.iterrows()}
@@ -58,6 +87,7 @@ def _leaderboard_entries(results: pd.DataFrame, task, group_cols: list[str]) -> 
             "metrics": metrics,
             "verdicts": verdicts,
             "ci_source": ci_source,
+            "units": units,
         }
         if "held_out_key" in keys:
             entry["held_out_key"] = str(keys["held_out_key"])
