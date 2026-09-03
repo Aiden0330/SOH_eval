@@ -1,7 +1,7 @@
 # ADR-001 — Extract the SOH kernel from `sohbench`; build the agent platform in a new repository
 
 - **Date:** 2026-09-02
-- **Status:** Proposed (awaiting owner decision)
+- **Status:** Accepted (2026-09-02 — the owner executed the branch decisions and started Wave 1 of the extraction on `kernel-extraction`)
 - **Deciders:** project owner
 - **Inputs:** *Agentic AutoML for Battery SOH* research report (2026-09-02, `projects/autoML/agentic-automl-soh-report.html`); repository state at HEAD `732923a` (`feat/phase2-dl`, 93 commits, ~20.5 k lines in `src/sohbench`, 414 tests passing on macOS); import-graph analysis of `src/sohbench` (2026-09-02).
 
@@ -54,6 +54,7 @@ The import-graph analysis shows the two halves are already separable:
 
 ## Follow-ups
 
+- Wave 1 executed 2026-09-02 on `kernel-extraction`: G3 (untracked docs/SDD reports committed, generated assets ignored), G4 (CI matrix Linux + macOS + kernel direction step), G5 (English README, historical index), K0 (environment-driven roots, no `D:\` defaults), K1 (`src/sohkernel` skeleton + import-direction test). Wave 2 starts with Task 2 of the extraction plan.
 - Extraction plan: `docs/superpowers/plans/2026-09-02-kernel-extraction.md`.
 - Kernel invariants spec: `docs/superpowers/specs/2026-09-02-soh-kernel-invariants.md`.
 - Platform architecture spec: `projects/soh-agent/docs/specs/agentic-automl-platform.md`.

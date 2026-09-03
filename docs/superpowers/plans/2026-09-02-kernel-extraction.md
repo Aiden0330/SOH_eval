@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development or superpowers:executing-plans, task by task. Steps use `- [ ]` checkboxes. Every task ends with the full suite green (`pytest -q`, 414+ tests) and the direction test green.
 
+> **Execution note (2026-09-02, Wave 1):** the superpowers plugin is not installed in the executing environment, so Tasks 0–1 were run directly by one agent following the executing-plans discipline (one task at a time, full suite + direction test as the gate, one commit per task). Subagent-driven dispatch is reserved for tasks that are independent enough to parallelise; the Wave 2 moves (Tasks 2–5) are sequential by construction and stay with one agent.
+
 **Goal:** carve the durable kernel out of `src/sohbench` into `src/sohkernel` without changing behaviour, so that the workbench keeps working and the new agent platform (`projects/soh-agent`) can depend on the kernel alone. See ADR-001 (`docs/adr/2026-09-02-ADR-001-kernel-extraction-and-agent-platform.md`).
 
 **Rules (locked):**
@@ -9,7 +11,7 @@
 - `sohkernel` never imports `sohbench`. Enforced by `tests/kernel/test_import_direction.py` from Task 1 onward.
 - Every moved module leaves a shim in `sohbench/<name>.py` (`from sohkernel.<name> import *  # noqa` plus explicit names used by the workbench) so no workbench file changes in the same task.
 - Registries (`registry.py`) move to the kernel; registration stays explicit (`sohkernel.estimators.register_all()`), not an import side effect.
-- Data root only via `SOHBENCH_DATA_DIR` (Task 0); no `D:\` literals remain in code or tests.
+- Data root only via `SOHBENCH_DATA_DIR` (Task 0); no `D:\` default path remains in code, scripts, tests or the frontend (Windows-era fixtures that exercise legacy-path relocation are the only permitted occurrences).
 
 ---
 
@@ -17,13 +19,13 @@
 
 **Files:** `.gitignore`, `src/sohbench/paths.py`, `.github/workflows/*.yml`, `README.md`
 
-- [ ] Commit or discard the uncommitted `frontend/app/data/*.json` changes (owner decision; they are generated artifacts, so `git checkout --` is acceptable if the last published run is already in `runs/`).
-- [ ] Decide the base branch (`feat/phase2-dl` vs `master`) and tag the baseline: `git tag v0-workbench` (owner runs this).
-- [ ] `paths.py`: single `data_root()` that reads `SOHBENCH_DATA_DIR`, falls back to `<repo>/data`; grep and replace every `D:\\` / `D:/` literal in `src/`, `scripts/`, `tests/` (`tests/test_real_data_smoke.py` uses `data_root()` and skips when absent).
-- [ ] CI: add a job that runs the full `pytest -q` on Linux and macOS, not only `scripts/run_phase311_production_stability.py`.
-- [ ] README: replace the Windows quick start with `python -m venv .venv && .venv/bin/pip install -e ".[dev]" && pytest -q`.
+- [x] Commit or discard the uncommitted `frontend/app/data/*.json` changes — done 2026-09-02: `recommendation_summary.json` tracked (the standalone build test needs it); the July docs/specs/exports and `.superpowers/sdd` reports committed; `frontend/app/battery-dashboard/` (79 MB synced asset), `frontend/mockups.zip` and the 11 MB standalone export ignored. Still untracked, owner's call: `frontend/app/data/invalidated_training_results.json` and the phase/quickstart/diagnostics profile directories.
+- [x] Decide the base branch (`feat/phase2-dl` vs `master`) and tag the baseline: `git tag v0-workbench` (owner ran this 2026-09-02; branch `kernel-extraction`).
+- [x] `paths.py`: single `data_root()` that reads `SOHBENCH_DATA_DIR`, falls back to `<repo>/data` (`default_data_dir()` kept as alias); `battery_soh_root()` reads `BATTERY_SOH_ROOT`, falls back to the sibling checkout; every `D:\\` default removed from `src/`, `scripts/`, the frontend and the API schema (empty `battery_soh_root` now means the server default); `tests/test_real_data_smoke.py` and `tests/test_label_leak_inventory.py` use `data_root()` and skip when absent; `tests/test_paths.py` pins it.
+- [x] CI: `regression` matrix job on `ubuntu-latest` + `macos-latest` (kernel direction step, full `pytest -q`, `node --test frontend/app/`); the Windows phase 3.1.1 gate job kept. Tests that inspect the untracked synced dashboard skip when it is absent so a clean checkout is green.
+- [x] README: English-first, cross-platform quick start, environment table, extraction status; `docs/architecture/README.md` marks the phase notes historical.
 
-Acceptance: suite green on macOS and in CI; `grep -rn "D:\\\\" src tests scripts` returns nothing.
+Acceptance: suite green on macOS and in a clean checkout (CI run pending push); no `D:\\` *default* remains — the grep now only hits Windows-era fixtures that exercise legacy-path relocation (`tests/test_model_store.py`, `tests/test_battery_dashboard_native_sync_package.py`) and the negative assertion in `tests/test_standalone_frontend.py`.
 
 ---
 
@@ -31,11 +33,11 @@ Acceptance: suite green on macOS and in CI; `grep -rn "D:\\\\" src tests scripts
 
 **Files:** `src/sohkernel/__init__.py`, `pyproject.toml`, `tests/kernel/__init__.py`, `tests/kernel/test_import_direction.py`
 
-- [ ] `pyproject.toml`: `[tool.setuptools.packages.find] where = ["src"]` already finds both packages; add `[project.optional-dependencies] torch = ["torch"]`; version `sohkernel` independently later (Task 11).
-- [ ] `src/sohkernel/__init__.py`: `__version__ = "0.1.0.dev0"`, no imports.
-- [ ] Direction test: walk `src/sohkernel/**/*.py` with `ast`, fail on any `import sohbench` / `from sohbench` / `import sohagent`.
+- [x] `pyproject.toml`: `[tool.setuptools.packages.find] where = ["src"]` already finds both packages; `torch = ["torch"]` extra added (alias of `dl`); version `sohkernel` independently later (Task 11).
+- [x] `src/sohkernel/__init__.py`: `__version__ = "0.1.0.dev0"`, no imports.
+- [x] Direction test: walks `src/sohkernel/**/*.py` with `ast`, fails on any `import sohbench` / `from sohbench` / `import sohagent` and on `importlib.import_module("sohbench…")` string imports (`tests/kernel/test_import_direction.py`, 3 tests).
 
-Acceptance: `pytest tests/kernel -q` passes (1 test).
+Acceptance: `pytest tests/kernel -q` passes (3 tests) — done 2026-09-02.
 
 ---
 
