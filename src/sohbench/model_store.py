@@ -24,6 +24,8 @@ from .feature_safety import (
     is_label_source_feature,
     suspicious_feature_names,
 )
+from sohkernel.feature_safety import FeatureSafetyError
+from sohkernel.inference_gate import assert_manifest_label_safe
 
 
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*$")
@@ -116,23 +118,14 @@ class LoadedModel:
             )
 
     def _ensure_label_safe(self, table: pd.DataFrame) -> None:
+        # The gate itself is the kernel's (Task 8); the store only maps its error type.
         target = str(self.manifest.get("target") or "soh")
-        banned = [
-            column for column in self.feature_columns()
-            if is_label_source_feature(column, target=target)
-        ]
-        if banned:
-            raise ModelStoreError(
-                f"model {self.name!r} inference blocked by {LABEL_SAFETY_CONTRACT}: "
-                f"feature columns are label sources (structurally banned): {banned}"
+        try:
+            assert_manifest_label_safe(
+                self.feature_columns(), table, target=target, model_name=self.name
             )
-        audit = audit_feature_frame(table, self.feature_columns(), target=target)
-        if audit["status"] == "passed":
-            return
-        reasons = "; ".join(item["reason"] for item in audit["violations"])
-        raise ModelStoreError(
-            f"model {self.name!r} inference blocked by {LABEL_SAFETY_CONTRACT}: {reasons}"
-        )
+        except FeatureSafetyError as exc:
+            raise ModelStoreError(str(exc)) from exc
 
 
 class ModelStore:

@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from sohbench.inference import _metrics
+from sohkernel.records import inference_metrics as _metrics
 
 
 def _declining_group():

@@ -132,10 +132,10 @@ Acceptance: new tests green; leaderboard `std` > 0 for stochastic models under 5
 
 ### Task 8: Trusted-inference gate and prediction records into the kernel
 
-- [ ] Move `model_store.LoadedModel._ensure_label_safe` logic into `sohkernel/inference_gate.py` as `assert_manifest_label_safe(manifest_columns, table)`; `model_store` calls it.
-- [ ] Move the prediction-record dataclasses/schema (`inference.py`, `schemas/evaluation-case.schema.json` parts that describe predictions) into `sohkernel/records.py`; `inference.py` imports them.
+- [x] `sohkernel/inference_gate.py::assert_manifest_label_safe(manifest_columns, table, *, target, model_name)` raises `FeatureSafetyError` (structural ban first, then the value probes) and returns the audit; `model_store.LoadedModel._ensure_label_safe` delegates and maps the error to `ModelStoreError` with the identical message (2026-09-03).
+- [x] `sohkernel/records.py` owns the PredictionRecord shape (`PREDICTION_RECORD_FIELDS`, `validate_prediction_record`), the row builder `prediction_evidence_rows`, the identity derivations (`candidate_id`, `id_token`, `split_assignment_id`), `inference_metrics` / `extended_metrics` / `per_cell_monotonicity_violation` and `failed_record`; `sohbench.inference` imports them under its old private names, so records stay byte-identical. The evaluation-case schema (`curveRef` etc.) is workbench evidence and stays there. Tests: `tests/kernel/test_inference_gate.py`, `test_records.py`, and `test_inference_metrics.py` moved to the kernel (2026-09-03).
 
-Acceptance: workbench inference tests green; direction test green.
+Acceptance: workbench inference tests green; direction test green — done 2026-09-03.
 
 ---
 
