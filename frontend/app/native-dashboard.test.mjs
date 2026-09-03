@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { test } from "node:test";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +9,14 @@ const nativeRoot = join(here, "battery-dashboard");
 const nativeHtmlPath = join(nativeRoot, "index.html");
 const nativeDataRoot = join(nativeRoot, "data");
 const syncManifestPath = join(nativeRoot, "SYNC_MANIFEST.json");
+
+// Synced from the battery_SOH checkout by scripts/sync_battery_dashboard_native.py;
+// not tracked in git, so a clean checkout skips instead of failing.
+const vendored = existsSync(nativeHtmlPath) && existsSync(nativeDataRoot) && existsSync(syncManifestPath);
+
+test("native battery dashboard is vendored and wired", {
+  skip: vendored ? false : "frontend/app/battery-dashboard not synced (run scripts/sync_battery_dashboard_native.py)",
+}, () => {
 
 assert.ok(existsSync(nativeHtmlPath), "native battery dashboard index.html should be vendored");
 assert.ok(existsSync(nativeDataRoot), "native battery dashboard data directory should be vendored");
@@ -106,3 +115,4 @@ for (const file of requiredFiles) {
 
 assert.ok(!dataFiles.has("ess_detection.json"), "native SOH dashboard should exclude ESS detection data by default");
 assert.ok(!dataFiles.has("ess_detection_curves.json"), "native SOH dashboard should exclude ESS detection curves by default");
+});

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .paths import DEFAULT_BATTERY_SOH_ROOT
 from .trusted_plugins import TrustedPluginStore
 
 
-DEFAULT_BATTERY_SOH_ROOT = Path(r"D:\battery_SOH")
 ESTIMATOR_NAME = "battery_soh_tabular_ensemble"
 FEATURESET_NAME = "battery_soh_operational"
 
@@ -13,10 +13,10 @@ FEATURESET_NAME = "battery_soh_operational"
 def register_battery_soh_plugins(
     store: TrustedPluginStore,
     *,
-    battery_root: str | Path = DEFAULT_BATTERY_SOH_ROOT,
+    battery_root: str | Path | None = None,
     replace: bool = False,
 ) -> dict:
-    root = validate_battery_soh_root(battery_root)
+    root = validate_battery_soh_root(resolve_battery_soh_root(battery_root))
     estimator = store.upload_estimator_plugin(
         ESTIMATOR_NAME,
         f"{ESTIMATOR_NAME}.py",
@@ -34,6 +34,13 @@ def register_battery_soh_plugins(
         "estimator": estimator,
         "featureset": featureset,
     }
+
+
+def resolve_battery_soh_root(root: str | Path | None) -> Path:
+    """An empty or missing root means the server default (``BATTERY_SOH_ROOT`` or the
+    sibling ``battery_SOH`` checkout); anything else is taken as given."""
+    text = str(root or "").strip()
+    return Path(text).expanduser() if text else DEFAULT_BATTERY_SOH_ROOT
 
 
 def validate_battery_soh_root(root: str | Path) -> Path:

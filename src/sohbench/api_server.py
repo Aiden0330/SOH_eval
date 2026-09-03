@@ -370,7 +370,7 @@ def create_handler(
                     self._send_json({"ok": True, "profile": profile})
                 elif path == "/api/import/battery-soh-plugins":
                     plugins = service.import_battery_soh_plugins(
-                        battery_soh_root=payload.get("battery_soh_root", r"D:\battery_SOH"),
+                        battery_soh_root=payload.get("battery_soh_root"),
                         replace=bool(payload.get("replace", False)),
                     )
                     self._send_json({"ok": True, "plugins": plugins})

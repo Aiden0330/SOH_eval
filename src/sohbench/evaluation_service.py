@@ -2096,7 +2096,7 @@ class EvaluationService:
         runs_root = self.runs_dir.resolve()
         if not run_dir.is_relative_to(runs_root) or not run_dir.is_dir():
             # Job records written on another machine store that host's absolute
-            # paths (e.g. D:\SOH_eval\runs\...); relocate by run-dir name under
+            # paths (e.g. a Windows drive path <drive>:\SOH_eval\runs\...); relocate by run-dir name under
             # the local runs root before giving up.
             leaf = raw_run_dir.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
             relocated = (runs_root / leaf).resolve() if leaf else runs_root
@@ -2775,9 +2775,10 @@ class EvaluationService:
     def import_battery_soh_plugins(
         self,
         *,
-        battery_soh_root: str | Path = r"D:\battery_SOH",
+        battery_soh_root: str | Path | None = None,
         replace: bool = False,
     ) -> dict:
+        # None / "" -> BATTERY_SOH_ROOT or the sibling checkout (see sohbench.paths).
         return register_battery_soh_plugins(
             self.store,
             battery_root=battery_soh_root,

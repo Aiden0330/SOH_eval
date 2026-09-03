@@ -5305,7 +5305,7 @@
           "battery_soh_root": {
             "type": "string",
             "title": "Battery Soh Root",
-            "default": "D:\\battery_SOH"
+            "default": ""
           },
           "replace": {
             "type": "boolean",

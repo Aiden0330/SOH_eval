@@ -531,7 +531,7 @@ class ModelStore:
 def _stored_path_parts(value: object) -> tuple[str, ...]:
     """Split a catalog path that may come from another OS.
 
-    Windows-era catalogs store ``D:\\SOH_eval\\...`` absolute paths and
+    Windows-era catalogs store drive-absolute paths (``<drive>:\\SOH_eval\\...``) and
     ``work\\trusted_plugins\\...`` backslash-relative paths; on POSIX those
     are single opaque filenames, so parse them with the Windows rules when
     they contain a backslash or a drive prefix.

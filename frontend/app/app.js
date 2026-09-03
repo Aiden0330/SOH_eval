@@ -55,7 +55,7 @@ import {
   trainingJobRuntimeState,
   trajectoryContextConsistency,
   auditCandidateViewProjection,
-} from "./dashboard-core.mjs?v=phase61-openai-provider-20260902a";
+} from "./dashboard-core.mjs?v=kernel-wave1-20260902a";
 
 const $ = (id) => document.getElementById(id);
 const URL_PARAMS = new URLSearchParams(location.search);
@@ -5864,9 +5864,10 @@ async function uploadResource(kind) {
 }
 
 async function importBatterySohPlugins() {
-  const batterySohRoot = (($("battery-soh-root")?.value || "D:\\battery_SOH").trim() || "D:\\battery_SOH");
+  // Empty -> the server resolves its default (BATTERY_SOH_ROOT or the sibling battery_SOH checkout).
+  const batterySohRoot = ($("battery-soh-root")?.value || "").trim();
   try {
-    setModelPackageMessage(`正在从 ${batterySohRoot} 接入算法与特征...`, "active");
+    setModelPackageMessage(`正在从 ${batterySohRoot || "服务端默认目录"} 接入算法与特征...`, "active");
     const response = await postJson("/api/import/battery-soh-plugins", { replace: true, battery_soh_root: batterySohRoot });
     const estimatorName = response.plugins?.estimator?.name || "battery_soh_tabular_ensemble";
     const featuresetName = response.plugins?.featureset?.name || "battery_soh_operational";

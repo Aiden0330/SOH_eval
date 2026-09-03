@@ -486,7 +486,6 @@ def _write_minimal_frontend_app(root):
 <!doctype html>
 <html><head><link rel="stylesheet" href="styles.css" /></head>
 <body>
-D:\\battery_SOH\\data
 <section id="package-operations-card"></section>
 <section id="package-report-card"></section>
 <script type="module" src="app.js"></script>

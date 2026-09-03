@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from sohbench.metadata import DATASET_CHEMISTRY, DATASET_C_RATED_AH, DATASET_LABEL_SOURCE  # noqa: E402
+from sohbench.paths import battery_soh_root  # noqa: E402
 
 
 RAW_BINDINGS = {
@@ -159,7 +160,7 @@ def dataset_entry(path: Path, data_root: Path) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", type=Path, default=ROOT / "data")
-    parser.add_argument("--source-root", type=Path, default=Path(r"D:\battery_SOH\data"))
+    parser.add_argument("--source-root", type=Path, default=battery_soh_root() / "data")
     args = parser.parse_args(argv)
     data_root = args.data_root.resolve()
     source_root = args.source_root.resolve()

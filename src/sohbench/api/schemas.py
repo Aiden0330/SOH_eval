@@ -258,7 +258,8 @@ class ImportBatteryDashboardResponse(ApiModel):
 
 
 class ImportBatterySohPluginsRequest(ApiModel):
-    battery_soh_root: str = r"D:\battery_SOH"
+    # Empty -> server default: BATTERY_SOH_ROOT or the sibling battery_SOH checkout.
+    battery_soh_root: str = ""
     replace: bool = False
 
 

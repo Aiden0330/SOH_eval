@@ -155,7 +155,6 @@ def build_standalone_html(app_dir: Path = APP_DIR) -> tuple[str, int]:
     app_dir = Path(app_dir)
     html = read_text(app_dir / "index.html")
     html = html.replace("<span>数据目录</span>", "<span>数据来源</span>")
-    html = html.replace("D:\\battery_SOH\\data", "离线内嵌数据")
     if "离线内嵌数据" not in html:
         html = html.replace("<body", '<body data-source-label="离线内嵌数据"', 1)
     css = style_safe(read_text(app_dir / "styles.css"))

@@ -17,8 +17,9 @@ import pandas as pd
 import pytest
 
 from sohbench.feature_safety import audit_feature_frame
+from sohbench.paths import data_root
 
-DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "processed"
+DATA_DIR = data_root() / "processed"
 
 # Reviewed 2026-08-20: soh labels on these datasets are computed from the
 # listed capacity columns (calibration capacity / rated capacity), confirmed

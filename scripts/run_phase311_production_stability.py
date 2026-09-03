@@ -112,7 +112,7 @@ def main() -> int:
         "checks": checks,
         "measured_release_gate": {
             "included": False,
-            "reason": "阶段 3.0 实测门禁依赖受控的 D:\\battery_SOH 数据，需在本地或自托管发布环境单独执行。",
+            "reason": "阶段 3.0 实测门禁依赖受控的 battery_SOH 数据（BATTERY_SOH_ROOT / SOHBENCH_DATA_DIR），需在本地或自托管发布环境单独执行。",
             "command": "python scripts/run_phase30_release_gate.py",
         },
     }

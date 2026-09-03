@@ -3,11 +3,17 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SOURCE = Path(r"D:\battery_SOH\dashboard")
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
+from sohbench.paths import battery_soh_root  # noqa: E402
+
+DEFAULT_SOURCE = battery_soh_root() / "dashboard"
 DEFAULT_TARGET = ROOT / "frontend" / "app" / "battery-dashboard"
 
 
