@@ -126,3 +126,10 @@ def test_window_coverage_falls_back_to_the_capacity_column_for_unknown_datasets(
     # no reference at all -> no coverage finding
     frame = _window_frame(0.95).drop(columns=["charge_capacity_max"])
     assert audit_feature_frame(frame, ["q_win_ah"])["status"] == "passed"
+
+
+def test_window_coverage_resolves_raw_source_labels_to_rated_capacity():
+    # calce pickles label their rows "CALCE" (the loader normalises later); the audit must
+    # still find the 1.1 Ah nameplate instead of falling back to the distorted column
+    audit = audit_feature_frame(_known_dataset_frame("CALCE", "CS2_33", q_win=1.0), ["q_win_ah"])
+    assert audit["status"] == "blocked" and audit["violations"][0]["reference"] == "rated capacity"

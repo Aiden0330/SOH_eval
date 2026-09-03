@@ -25,6 +25,17 @@ DATASET_LABEL_SOURCE = {  # all reference-discharge calibrated capacity
     "snl_lfp": "calibration_capacity", "uconn": "calibration_capacity",
     "rwth_isea_public": "calibration_capacity",
 }
+# Raw ingestion frames label datasets the way their source did (``CALCE``, ``SNL``,
+# ``HUST`` ...); the loader rewrites the column to the canonical file-derived name, and
+# metadata lookups on raw frames go through :func:`canonical_dataset_name`.
+DATASET_ALIASES = {"calce": "calce_cs2", "snl": "snl_lfp"}
+
+
+def canonical_dataset_name(name: object) -> str:
+    key = str(name).strip().lower()
+    return DATASET_ALIASES.get(key, key)
+
+
 # Cell-prefix overrides for datasets that mix cell formats: CALCE CX2 cells
 # are 1.35 Ah prismatic vs the CS2 series' 1.1 Ah.
 CELL_PREFIX_C_RATED_AH = {

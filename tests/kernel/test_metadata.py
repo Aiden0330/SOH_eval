@@ -27,3 +27,11 @@ def test_no_verify_markers_in_values():
         assert "VERIFY" not in str(v)
     for v in DATASET_C_RATED_AH.values():
         assert "VERIFY" not in str(v)
+
+
+def test_canonical_dataset_name_accepts_raw_source_labels():
+    from sohkernel.metadata import canonical_dataset_name
+    assert canonical_dataset_name("CALCE") == "calce_cs2"
+    assert canonical_dataset_name("SNL") == "snl_lfp"
+    assert canonical_dataset_name("HUST") == "hust"
+    assert canonical_dataset_name("snl_lfp") == "snl_lfp"

@@ -51,7 +51,8 @@ DATA_DIR = data_root() / "processed"
 # by the datasheet rated capacity from sohkernel.metadata (cell-prefix overrides
 # included) and falls back to the table's capacity column only for datasets without
 # metadata, so a distorted charge_capacity_max can no longer make it "falsely clean".
-# Median q_win / rated capacity on this date: calce_cs2 0.017; hust 0.486; nasa 0.276; oxford 0.594; snl_lfp 0.507; uconn 0.536. Findings unchanged.
+# Median q_win / rated capacity on this date (raw source labels such as CALCE/SNL
+# resolve through metadata.canonical_dataset_name): calce_cs2 0.371; hust 0.486; nasa 0.276; oxford 0.594; snl_lfp 0.449; uconn 0.536. Findings unchanged.
 EXPECTED_LABEL_SOURCE_COLUMNS = {
     "hust": ["charge_capacity_max"],
     "oxford": ["charge_capacity_max"],

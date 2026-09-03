@@ -88,11 +88,11 @@ def _coverage_reference(table: pd.DataFrame) -> tuple[np.ndarray, np.ndarray] | 
     capacity = np.full(n, np.nan, dtype=float)
     source = np.array(["none"] * n, dtype=object)
     if "dataset" in table.columns:
-        from .metadata import CELL_PREFIX_C_RATED_AH, DATASET_C_RATED_AH
+        from .metadata import CELL_PREFIX_C_RATED_AH, DATASET_C_RATED_AH, canonical_dataset_name
 
-        # raw ingestion frames may carry the dataset name in any case; the loader
-        # normalises it, the audit must not depend on that
-        datasets = table["dataset"].astype(str).str.lower().to_numpy()
+        # raw ingestion frames label datasets the way their source did (CALCE, SNL ...);
+        # the loader normalises the column, the audit must not depend on that
+        datasets = np.array([canonical_dataset_name(v) for v in table["dataset"].astype(str)], dtype=object)
         rated = np.array(pd.Series(datasets).map(DATASET_C_RATED_AH).to_numpy(dtype=float), dtype=float, copy=True)
         if "cell_id" in table.columns:
             cells = table["cell_id"].astype(str).to_numpy()
