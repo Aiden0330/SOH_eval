@@ -1,5 +1,5 @@
 import pandas as pd
-from sohbench.metadata import build_meta, DATASET_CHEMISTRY, DATASET_C_RATED_AH
+from sohkernel.metadata import build_meta, DATASET_CHEMISTRY, DATASET_C_RATED_AH
 
 def test_known_datasets_have_chemistry():
     for ds in ["nasa", "calce_cs2", "hust", "oxford"]:

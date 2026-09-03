@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from sohbench.feature_safety import audit_feature_frame
+from sohkernel.feature_safety import audit_feature_frame
 
 
 def _frame(n=400, seed=0):

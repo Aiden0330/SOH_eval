@@ -1,5 +1,5 @@
 import pytest
-from sohbench import registry as R
+from sohkernel import registry as R
 
 @pytest.fixture(autouse=True)
 def _isolate_registry():

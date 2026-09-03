@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from sohbench import metrics as M
+from sohkernel import metrics as M
 
 yt = np.array([1.00, 0.90, 0.80, 0.70])
 yp = np.array([0.98, 0.92, 0.78, 0.69])
@@ -50,7 +50,7 @@ def test_value_range_violation():
 def test_per_cell_monotonicity_ignores_cross_cell_level_jumps():
     import numpy as np
     import pytest
-    from sohbench.metrics import per_cell_monotonicity_violation_rate, monotonicity_violation_rate
+    from sohkernel.metrics import per_cell_monotonicity_violation_rate, monotonicity_violation_rate
     cells = ["a"] * 5 + ["b"] * 5
     cycles = list(range(5)) * 2
     pred = [1.0, 0.99, 0.98, 0.97, 0.96, 0.8, 0.79, 0.78, 0.77, 0.76]

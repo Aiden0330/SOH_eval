@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from sohbench.contracts import (
+from sohkernel.contracts import (
     ID_COLUMNS, feature_columns, CellMeta, Fold, QCReport, Verdict, Estimator,
 )
 

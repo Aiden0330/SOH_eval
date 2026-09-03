@@ -1,5 +1,5 @@
 import pytest
-from sohbench import registry as R
+from sohkernel import registry as R
 
 def test_register_and_get():
     R.clear()

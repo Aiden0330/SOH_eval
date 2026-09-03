@@ -16,7 +16,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from sohbench.feature_safety import audit_feature_frame
+from sohkernel.feature_safety import audit_feature_frame
 from sohbench.paths import data_root
 
 DATA_DIR = data_root() / "processed"
