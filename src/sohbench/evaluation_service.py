@@ -45,14 +45,18 @@ from .tasks import SOHEstimationTask
 from sohkernel.transforms import (  # the rule moved to the kernel (Task 5); agent_search imports the alias
     inference_transform_featuresets as _inference_transform_featuresets,
 )
+from sohkernel.api import (  # admission logic moved to the kernel (Task 6)
+    effective_training_featuresets as _effective_training_featuresets,
+    normalize_request as _kernel_normalize_request,
+    preflight as _kernel_preflight,
+    training_dataset_profiles as _training_dataset_profiles,
+    training_feature_profile as _training_feature_profile,
+    training_protocol_profile as _training_protocol_profile,
+)
 from .trusted_plugins import TrustedPluginStore
 
 
-PROTOCOLS = {
-    "loco": LeaveOneCellOut,
-    "lodo": LeaveOneDatasetOut,
-    "lcho": LeaveOneChemistryOut,
-}
+from sohkernel.protocols import PROTOCOLS  # noqa: E402 — the kernel owns the protocol menu (Task 6)
 TRAINING_PREFLIGHT_CONTRACT = "training-preflight/1.0"
 INFERENCE_JOB_SCHEMA_VERSION = "1.1.0"
 
@@ -152,17 +156,6 @@ def ensure_builtin_resources() -> None:
         return
     import sohbench.estimators.deep  # noqa: F401
     import sohbench.estimators.pinn  # noqa: F401
-
-
-def _effective_training_featuresets(estimator_names: list[str], requested: list[str]) -> list[str]:
-    """Include a joint method's preferred package when no selected feature is compatible."""
-    effective = list(dict.fromkeys(map(str, requested)))
-    for estimator_name in estimator_names:
-        contract = method_contract(R.get_estimator(estimator_name))
-        for feature_name in contract.feature_iterations(requested):
-            if feature_name != "(byo)" and feature_name not in effective:
-                effective.append(feature_name)
-    return effective
 
 
 class EvaluationService:
@@ -297,7 +290,10 @@ class EvaluationService:
 
         The result is derived from the loaded, QC-filtered tables and is bound
         to content digests for every selected processed dataset.  It is the
-        server-side authority used by both the UI and job admission.
+        server-side authority used by both the UI and job admission.  The
+        admission logic itself is the kernel's (``sohkernel.api.preflight``);
+        the workbench contributes its plugin-aware feature transform and the
+        provenance (snapshots, preflight id, timing).
         """
         started = time.perf_counter()
         request = self._normalize_request(payload)
@@ -307,91 +303,14 @@ class EvaluationService:
         snapshots = [self._dataset_snapshot(name) for name in datasets]
 
         table, meta, qc = loader.load(datasets)
-        effective_featuresets = _effective_training_featuresets(
-            request["estimators"], request["featuresets"]
+        result = _kernel_preflight(
+            request,
+            table=table,
+            meta=meta,
+            qc_report=qc,
+            transform=self.store.apply_feature_transforms,
         )
-        feature_transform_errors: dict[str, str] = {}
-        for feature_name in effective_featuresets:
-            try:
-                table = self.store.apply_feature_transforms(table, meta, [feature_name])
-            except Exception as exc:
-                feature_transform_errors[feature_name] = str(exc)
-        dataset_profiles = _training_dataset_profiles(table, datasets)
-        feature_profiles = {
-            name: _training_feature_profile(
-                table,
-                datasets,
-                name,
-                transform_error=feature_transform_errors.get(name, ""),
-            )
-            for name in effective_featuresets
-        }
-        protocol_profiles = {
-            name: _training_protocol_profile(table, meta, name)
-            for name in request["protocols"]
-        }
-
-        combinations: list[dict] = []
-        for estimator_name in request["estimators"]:
-            estimator = R.get_estimator(estimator_name)
-            contract = method_contract(estimator)
-            feature_names = ["(byo)"] if contract.feature_mode == "byo" else list(dict.fromkeys([
-                *request["featuresets"],
-                *contract.feature_iterations(request["featuresets"]),
-            ]))
-            for feature_name in feature_names:
-                feature = None if feature_name == "(byo)" else feature_profiles[feature_name]
-                for protocol_name in request["protocols"]:
-                    protocol = protocol_profiles[protocol_name]
-                    incompatible = bool(
-                        feature is not None
-                        and not contract.accepts_featureset(feature_name)
-                    )
-                    if incompatible:
-                        combinations.append(
-                            {
-                                "estimator": estimator_name,
-                                "featureset": feature_name,
-                                "protocol": protocol_name,
-                                **contract.catalog_metadata(),
-                                "selected_columns": [],
-                                "status": "not_applicable",
-                                "reasons": [],
-                                "warnings": [incompatible_pairing_reason(contract, feature_name)],
-                                "seed_count": len(request["seeds"]),
-                                "run_instances": 0,
-                            }
-                        )
-                        continue
-                    reasons = list(protocol["errors"])
-                    warnings = list(protocol["warnings"])
-                    selected_columns: list[str] = []
-                    if feature is not None:
-                        selected_columns = list(feature["selected_columns"])
-                        reasons.extend(feature["errors"])
-                        warnings.extend(feature["warnings"])
-                    if contract.feature_mode not in {"unified", "byo"}:
-                        reasons.append(f"unsupported estimator feature_mode: {contract.feature_mode}")
-                    status = "blocked" if reasons else ("warning" if warnings else "ready")
-                    combinations.append(
-                        {
-                            "estimator": estimator_name,
-                            "featureset": feature_name,
-                            "protocol": protocol_name,
-                            **contract.catalog_metadata(),
-                            "selected_columns": selected_columns,
-                            "status": status,
-                            "reasons": reasons,
-                            "warnings": warnings,
-                            "seed_count": len(request["seeds"]),
-                            "run_instances": len(request["seeds"]),
-                        }
-                    )
-
-        blocked = [item for item in combinations if item["status"] == "blocked"]
-        warned = [item for item in combinations if item["status"] == "warning"]
-        not_applicable = [item for item in combinations if item["status"] == "not_applicable"]
-        runnable = [item for item in combinations if item["status"] in {"ready", "warning"}]
+        combinations = result.combinations
         identity_payload = {
             "contract": TRAINING_PREFLIGHT_CONTRACT,
             "request": request,
@@ -414,25 +333,14 @@ class EvaluationService:
         return {
             "contract": TRAINING_PREFLIGHT_CONTRACT,
             "preflight_id": preflight_id,
-            "ready": bool(runnable) and not blocked,
+            "ready": result.ready,
             "request": request,
             "dataset_snapshots": snapshots,
-            "datasets": dataset_profiles,
-            "featuresets": list(feature_profiles.values()),
-            "protocols": list(protocol_profiles.values()),
+            "datasets": result.datasets,
+            "featuresets": result.featuresets,
+            "protocols": result.protocols,
             "combinations": combinations,
-            "summary": {
-                "rows": int(len(table)),
-                "datasets": len(datasets),
-                "base_combinations": len(combinations),
-                "applicable_combinations": len(runnable) + len(blocked),
-                "run_instances": sum(item["run_instances"] for item in combinations),
-                "runnable_combinations": len(runnable),
-                "warning_combinations": len(warned),
-                "blocked_combinations": len(blocked),
-                "not_applicable_combinations": len(not_applicable),
-                "qc_pass_rate": float(qc.pass_rate),
-            },
+            "summary": dict(result.summary),
             "duration_ms": round((time.perf_counter() - started) * 1000.0, 3),
             "checked_at": _now(),
         }
@@ -2397,26 +2305,9 @@ class EvaluationService:
             raise ValueError(f"unknown datasets: {missing}")
 
     def _normalize_request(self, payload: dict) -> dict:
-        datasets = _string_list(payload.get("datasets") or ["all"])
-        self._require_known_datasets(datasets)
-        estimators = _string_list(payload.get("estimators") or ["ridge"])
-        featuresets = _string_list(payload.get("featuresets") or ["full"])
-        protocols = _string_list(payload.get("protocols") or ["loco"])
-        seeds = [int(seed) for seed in (payload.get("seeds") or [0])]
-        unknown_protocols = [name for name in protocols if name not in PROTOCOLS]
-        if unknown_protocols:
-            raise ValueError(f"unknown protocols: {unknown_protocols}")
-        for name in estimators:
-            R.get_estimator(name)
-        for name in featuresets:
-            R.get_featureset(name)
-        return {
-            "datasets": datasets,
-            "estimators": estimators,
-            "featuresets": featuresets,
-            "protocols": protocols,
-            "seeds": seeds,
-        }
+        # The kernel validates the matrix (Task 6); unknown datasets fail here as a
+        # 400-mapped ValueError instead of a FileNotFoundError deep in the pipeline.
+        return _kernel_normalize_request(payload, data_dir=self.data_dir)
 
     def _normalize_inference_request(self, payload: dict) -> dict:
         datasets = _string_list(payload.get("datasets") or ["all"])
@@ -3010,119 +2901,6 @@ def _training_result_summary(results, *, datasets: list[str], model_artifacts: l
         "best_held_out_key": best_row.get("held_out_key"),
         "model_artifact_count": len(model_artifacts),
         "model_artifact_ids": [item.get("artifact_id") for item in model_artifacts if item.get("artifact_id")],
-    }
-
-
-def _training_dataset_profiles(table, datasets: list[str]) -> list[dict]:
-    profiles = []
-    for name in datasets:
-        frame = table[table["dataset"].astype(str) == str(name)]
-        usable = [
-            column for column in feature_columns(frame)
-            if column in frame.columns and bool(frame[column].notna().any())
-        ]
-        profiles.append(
-            {
-                "dataset": name,
-                "rows": int(len(frame)),
-                "cells": int(frame["cell_id"].astype(str).nunique()),
-                "usable_feature_columns": usable,
-            }
-        )
-    return profiles
-
-
-def _training_feature_profile(
-    table,
-    datasets: list[str],
-    name: str,
-    *,
-    transform_error: str = "",
-) -> dict:
-    feature_set = R.get_featureset(name)
-    selected = list(feature_set.columns(table))
-    expected = list(getattr(feature_set, "candidates", []) or selected)
-    dataset_coverage = []
-    errors: list[str] = []
-    warnings: list[str] = []
-    if transform_error:
-        errors.append(transform_error)
-    if not selected:
-        errors.append(f"feature set {name!r} selects zero usable columns")
-
-    label_safety = audit_feature_frame(table, selected)
-    errors.extend(item["reason"] for item in label_safety["violations"])
-    warnings.extend(item["reason"] for item in label_safety.get("warnings", []))
-
-    for dataset in datasets:
-        frame = table[table["dataset"].astype(str) == str(dataset)]
-        usable = [
-            column for column in selected
-            if column in frame.columns and bool(frame[column].notna().any())
-        ]
-        missing = [column for column in expected if column not in usable]
-        status = "ready"
-        if not usable:
-            status = "blocked"
-            errors.append(f"{dataset} has no usable columns for feature set {name}")
-        elif missing:
-            status = "warning"
-            warnings.append(f"{dataset} is missing {len(missing)} expected feature columns")
-        dataset_coverage.append(
-            {
-                "dataset": dataset,
-                "status": status,
-                "usable_columns": usable,
-                "missing_columns": missing,
-            }
-        )
-    return {
-        "name": name,
-        "selected_columns": selected,
-        "expected_columns": expected,
-        "dataset_coverage": dataset_coverage,
-        "errors": sorted(set(errors)),
-        "warnings": sorted(set(warnings)),
-        "label_safety": label_safety,
-    }
-
-
-def _training_protocol_profile(table, meta, name: str) -> dict:
-    errors: list[str] = []
-    warnings: list[str] = []
-    details: dict = {}
-    dataset_count = int(table["dataset"].astype(str).nunique())
-    cell_count = int(
-        table[["dataset", "cell_id"]].astype(str).drop_duplicates().shape[0]
-    )
-    if name == "loco":
-        details = {"cells": cell_count}
-        if cell_count < 2:
-            errors.append("LOCO requires at least two cells")
-    elif name == "lodo":
-        details = {"datasets": dataset_count}
-        if dataset_count < 2:
-            errors.append("LODO requires at least two datasets")
-    elif name == "lcho":
-        chemistry = meta.get("chemistry") if hasattr(meta, "get") else None
-        values = [] if chemistry is None else [str(value) for value in chemistry.dropna().unique()]
-        unknown = [value for value in values if not value or value.lower() == "unknown"]
-        known = sorted({value for value in values if value and value.lower() != "unknown"})
-        details = {"chemistries": known, "unknown_metadata": unknown}
-        if unknown:
-            errors.append("LCHO requires known chemistry metadata for every selected cell")
-        if len(known) < 2:
-            errors.append("LCHO requires at least two known chemistries")
-    else:
-        errors.append(f"unknown protocol: {name}")
-    if len(table) < 4:
-        warnings.append("selected scope contains fewer than four QC-passed rows")
-    return {
-        "name": name,
-        "status": "blocked" if errors else ("warning" if warnings else "ready"),
-        "details": details,
-        "errors": errors,
-        "warnings": warnings,
     }
 
 

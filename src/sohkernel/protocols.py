@@ -64,3 +64,12 @@ class LeaveOneChemistryOut:
                 test_idx=idx[test_mask],
                 held_out_key=held_out_key,
             )
+
+
+# The protocol menu any tool may request by name (Spec 01 §3, §9).  ``forward``
+# (per-cell forward chaining) joins in Task 7a of the extraction plan.
+PROTOCOLS = {
+    "loco": LeaveOneCellOut,
+    "lodo": LeaveOneDatasetOut,
+    "lcho": LeaveOneChemistryOut,
+}

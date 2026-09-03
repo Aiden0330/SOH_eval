@@ -94,16 +94,16 @@ Acceptance: direction test green with `adaptation` in the kernel; adaptation tes
 
 Extract the *pure* parts of `evaluation_service` into six functions; leave job/case orchestration behind.
 
-- [ ] `load(datasets, *, data_dir=None, qc=True) -> (table, meta, QCReport)` (wraps `DatasetLoader.resolve_datasets` + `load`).
-- [ ] `preflight(request) -> Preflight` — the label-safety, window-DOD, coverage and protocol-feasibility checks now inside `EvaluationService.training_preflight`, without any store/job access; returns `ready`, per-combination `reasons` and `warnings`.
-- [ ] `transform(table, meta, featuresets) -> table` — `store.apply_feature_transforms` behind the label-isolation boundary (`feature_safety.apply_transform_without_label`).
-- [ ] `score(task, table, meta, protocols, estimators, featuresets, seeds) -> DataFrame` — thin wrapper over `BenchmarkRunner.run`.
-- [ ] `verdicts(metrics, task) -> list[Verdict]` — `acceptance.evaluate_verdicts`.
-- [ ] `write_artifacts(results, qc_report, task, config, out_dir) -> path` — `report.write_artifacts`.
-- [ ] `PROTOCOLS = {"loco": LeaveOneCellOut, "lodo": LeaveOneDatasetOut, "lcho": LeaveOneChemistryOut}` exported from `sohkernel.protocols`.
-- [ ] Tests: `preflight` rejects a request containing `charge_capacity_max`; blocks a ≥ 90 % window; warns at > 60 %; `transform` never receives the label column (assert via a spy featureset).
+- [x] `load(datasets, *, data_dir=None, qc=True) -> (table, meta, QCReport)` (wraps `DatasetLoader.resolve_datasets` + `load`; data root from the argument or `SOHBENCH_DATA_DIR`).
+- [x] `preflight(request, *, data_dir | table/meta/qc_report, transform=None) -> Preflight` — the label-safety, window-DOD, coverage and protocol-feasibility checks moved out of `EvaluationService.training_preflight` (which now delegates, injecting its plugin-aware store transform); returns `ready`, per-combination `reasons`/`warnings`, profiles, summary and the transformed table. `normalize_request` moved too (the service's `_normalize_request` delegates).
+- [x] `transform(table, meta, featuresets) -> table` — registered featureset transforms behind the label-isolation boundary (`feature_safety.apply_transform_without_label`); row count and required columns enforced, undeliverable candidates materialised as NaN.
+- [x] `score(task, table, meta, protocols, estimators, featuresets, seeds) -> DataFrame` — thin wrapper over `BenchmarkRunner.run` (protocols/estimators by name or object).
+- [x] `verdicts(metrics, task) -> list[Verdict]` — `acceptance.evaluate_verdicts`.
+- [x] `write_artifacts(results, qc_report, task, config, out_dir) -> path` — `report.write_artifacts`.
+- [x] `PROTOCOLS = {"loco": LeaveOneCellOut, "lodo": LeaveOneDatasetOut, "lcho": LeaveOneChemistryOut}` exported from `sohkernel.protocols`; the service imports it instead of keeping its own menu.
+- [x] Tests (`tests/kernel/test_api.py`, 10 tests): `preflight` never selects `charge_capacity_max` and blocks a featureset built on it; a transform that reconstructs the label blocks its combinations; a ≥ 90 % window blocks, > 60 % warns, 45 % is ready; `transform` never receives the label column (spy featureset); score → verdicts → artifacts round trip validates against the leaderboard schema.
 
-Acceptance: `evaluation_service.training_preflight` delegates to `sohkernel.api.preflight` (behaviour identical; existing service tests green).
+Acceptance: `evaluation_service.training_preflight` delegates to `sohkernel.api.preflight` (behaviour identical; existing service tests green) — done 2026-09-03.
 
 ---
 
