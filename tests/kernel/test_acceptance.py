@@ -1,5 +1,5 @@
-from sohbench.acceptance import evaluate_verdicts
-from sohbench.tasks import SOHEstimationTask
+from sohkernel.acceptance import evaluate_verdicts
+from sohkernel.tasks import SOHEstimationTask
 
 def test_pass_and_fail():
     task = SOHEstimationTask()

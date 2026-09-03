@@ -1,4 +1,4 @@
-from sohbench.tasks import SOHEstimationTask
+from sohkernel.tasks import SOHEstimationTask
 
 def test_task_defines_target_and_metrics():
     t = SOHEstimationTask()

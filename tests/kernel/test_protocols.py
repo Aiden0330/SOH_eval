@@ -1,7 +1,7 @@
 import warnings
 import numpy as np, pandas as pd
-from sohbench.protocols import LeaveOneCellOut, LeaveOneDatasetOut, LeaveOneChemistryOut
-from sohbench.metadata import build_meta
+from sohkernel.protocols import LeaveOneCellOut, LeaveOneDatasetOut, LeaveOneChemistryOut
+from sohkernel.metadata import build_meta
 
 def _table():
     """4-dataset fixture: nasa(LCO), calce_cs2(LCO), hust(LFP), oxford(LCO/NCO)."""

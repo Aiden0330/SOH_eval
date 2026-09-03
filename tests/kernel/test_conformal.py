@@ -1,5 +1,5 @@
 import numpy as np, pandas as pd
-from sohbench.conformal import ConformalWrapper, WeightedConformalWrapper
+from sohkernel.conformal import ConformalWrapper, WeightedConformalWrapper
 
 class ConstResidEstimator:
     name = "const"; feature_mode = "unified"; backend = "sklearn"

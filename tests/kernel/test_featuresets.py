@@ -1,13 +1,13 @@
-"""Tests for sohbench.featuresets — TDD: written before implementation."""
+"""Tests for sohkernel.featuresets — TDD: written before implementation."""
 from __future__ import annotations
 import warnings
 import numpy as np
 import pandas as pd
 import pytest
 
-from sohbench.contracts import ID_COLUMNS, feature_columns
-from sohbench import registry as R
-from sohbench.featuresets import FeatureSet, project, register_featureset, get_featureset
+from sohkernel.contracts import ID_COLUMNS, feature_columns
+from sohkernel import registry as R
+from sohkernel.featuresets import FeatureSet, project, register_featureset, get_featureset
 
 
 # ---------------------------------------------------------------------------
@@ -239,8 +239,8 @@ class TestProject:
 def test_partial_window_norm_produces_dimensionless_transferable_his():
     import pandas as pd
 
-    from sohbench.featuresets import _partial_window_norm_transform
-    from sohbench.registry import get_featureset
+    from sohkernel.featuresets import _partial_window_norm_transform
+    from sohkernel.registry import get_featureset
 
     table = pd.DataFrame({
         "dataset": ["a", "a", "b"],
@@ -273,8 +273,8 @@ def test_partial_window_norm_produces_dimensionless_transferable_his():
 def test_full_featureset_excludes_partial_window_derived_columns():
     import pandas as pd
 
-    from sohbench.featuresets import _partial_window_norm_transform
-    from sohbench.registry import get_featureset
+    from sohkernel.featuresets import _partial_window_norm_transform
+    from sohkernel.registry import get_featureset
 
     table = pd.DataFrame({
         "dataset": ["a"] * 4,

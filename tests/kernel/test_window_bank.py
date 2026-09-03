@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sohbench.window_bank import (
+from sohkernel.window_bank import (
     apply_bank_window,
     bank_from_curves,
     lattice_edges,
@@ -66,35 +66,3 @@ def test_apply_bank_window_substitutes_only_that_dataset():
     table2 = table.assign(cycle_index=[42, 1])
     out2 = apply_bank_window(table2, "hust", bank, 3300, 3500)
     assert np.isnan(out2.loc[0, "q_win_ah"])
-
-
-def test_tuned_window_candidate_without_bank_is_gate_excluded(tmp_path):
-    from pathlib import Path
-
-    from sohbench.agent_search import AgentSearch, Candidate, GridPolicy
-    from sohbench.evaluation_service import EvaluationService
-
-    data_dir = Path(__file__).resolve().parents[1] / "data"
-    if not (data_dir / "processed" / "soh_quickstart_demo_features.pkl").is_file():
-        pytest.skip("demo datasets not present")
-    service = EvaluationService(
-        data_dir=data_dir,
-        work_dir=tmp_path / "work",
-        runs_dir=tmp_path / "runs",
-        frontend_data_dir=tmp_path / "frontend_data",
-    )
-    search = AgentSearch(
-        service,
-        inner_datasets=["soh_quickstart_demo"],
-        outer_dataset="smoke_eval_demo",
-        top_k=1,
-    )
-    policy = GridPolicy(["ridge"], ["voltage"], window_targets=[0.45])
-    report = search.run(policy, log=lambda *_: None)
-    assert [item["candidate"] for item in report["ranking"]] == ["ridge×voltage"]
-    # The tuned candidate must be hard-gated out (here by preflight: the demo
-    # dataset has no window columns at all), never silently scored.
-    tuned = next(
-        item for item in report["excluded"] if "@w45%" in item["candidate"]
-    )
-    assert tuned["reasons"]

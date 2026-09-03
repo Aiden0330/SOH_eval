@@ -1,6 +1,6 @@
 import numpy as np, pandas as pd
-from sohbench.qc import qc_gate
-from sohbench.metadata import build_meta
+from sohkernel.qc import qc_gate
+from sohkernel.metadata import build_meta
 
 def _table():
     return pd.DataFrame({

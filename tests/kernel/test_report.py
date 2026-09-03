@@ -1,7 +1,7 @@
 import json, pandas as pd, numpy as np
 from pathlib import Path
-from sohbench.report import write_artifacts
-from sohbench.tasks import SOHEstimationTask
+from sohkernel.report import write_artifacts
+from sohkernel.tasks import SOHEstimationTask
 
 def _results():
     rows=[]
@@ -28,7 +28,9 @@ def test_leaderboard_matches_schema(tmp_path):
     out = write_artifacts(_results(), qc_report=None, task=SOHEstimationTask(),
                           config={}, out_dir=tmp_path)
     lb = json.loads((Path(out)/"leaderboard.json").read_text())
-    schema = json.loads((Path(__file__).parents[1]/"src/sohbench/schemas/leaderboard.schema.json").read_text())
+    import sohkernel.report
+    schema_path = Path(sohkernel.report.__file__).with_name("schemas") / "leaderboard.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
     jsonschema.validate(lb, schema)
 
 
@@ -152,7 +154,7 @@ def test_write_artifacts_emits_dataset_leaderboard(tmp_path):
 
 
 def test_write_inference_artifacts(tmp_path):
-    from sohbench.report import write_inference_artifacts
+    from sohkernel.report import write_inference_artifacts
 
     out = write_inference_artifacts(
         [

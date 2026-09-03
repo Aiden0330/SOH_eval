@@ -1,6 +1,6 @@
 import pandas as pd, numpy as np
 from pathlib import Path
-from sohbench.data import DatasetLoader
+from sohkernel.data import DatasetLoader
 
 def _write_fixture(tmp_path):
     proc = tmp_path / "processed"; proc.mkdir()

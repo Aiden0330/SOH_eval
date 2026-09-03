@@ -1,5 +1,5 @@
 import pandas as pd
-from sohbench.features import unified_features
+from sohkernel.features import unified_features
 
 def test_unified_features_excludes_ids():
     df = pd.DataFrame({"dataset":["a"],"cell_id":["c"],"cycle_index":[0],
