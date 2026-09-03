@@ -529,6 +529,7 @@ def score(
     seeds: Iterable[int] = (0, 1, 2, 3, 4),
     *,
     on_model_fitted: Callable | None = None,
+    feature_pipelines: Mapping[str, object] | None = None,
 ) -> pd.DataFrame:
     """Run the ``estimators × protocols × featuresets × seeds`` matrix (``BenchmarkRunner``).
 
@@ -553,6 +554,7 @@ def score(
         estimators=ests,
         featuresets=list(featuresets) if featuresets is not None else None,
         on_model_fitted=on_model_fitted,
+        feature_pipelines=feature_pipelines,
     )
 
 

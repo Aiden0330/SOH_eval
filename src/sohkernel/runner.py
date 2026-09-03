@@ -8,6 +8,7 @@ from .contracts import feature_columns
 from .feature_safety import is_label_source_feature
 from .features import unified_features
 from .featuresets import project
+from .pipelines import prepare_fold
 from .method_contracts import method_contract
 from .registry import get_featureset
 from . import featuresets as _featuresets  # noqa: F401 — ensure the named sets are registered
@@ -51,7 +52,7 @@ class BenchmarkRunner:
         self.seeds = list(seeds)
 
     def run(self, task, table, meta, protocols, estimators,
-            featuresets=None, on_model_fitted=None) -> pd.DataFrame:
+            featuresets=None, on_model_fitted=None, feature_pipelines=None) -> pd.DataFrame:
         """Run the benchmark matrix over estimators × protocols × featuresets × seeds.
 
         Parameters
@@ -61,9 +62,16 @@ class BenchmarkRunner:
             e.g. ``["full", "voltage"]``.  Defaults to ``["full"]`` when *None*
             (backward-compatible).  BYO estimators ignore this parameter and
             always receive the full (unprojected) table.
+        feature_pipelines:
+            Optional ordered mapping ``name -> pipeline`` (``sohkernel.pipelines``).
+            Each pipeline is fitted on the training rows of every fold only and
+            applied to both partitions before projection; its output is audited.
+            The fit is shared across estimators, featuresets and seeds of a fold.
         """
         if featuresets is None:
             featuresets = ["full"]
+        pipelines = dict(feature_pipelines or {})
+        fold_cache: dict = {}
 
         records = []
 
@@ -96,8 +104,23 @@ class BenchmarkRunner:
                 for pname, proto in protocols.items():
                     cross = getattr(proto, "cross_domain", False)
                     for fi, fold in enumerate(proto.generate(data_table, meta)):
-                        tr = data_table.iloc[fold.train_idx]
-                        te = data_table.iloc[fold.test_idx]
+                        pipeline_error = None
+                        if pipelines:
+                            # Fold-local pipelines: fitted on this fold's training rows
+                            # of the *unprojected* table, applied to both partitions,
+                            # then projected to the featureset (Task 7d).
+                            tr, te, pipeline_error = self._prepared_fold(
+                                fold_cache, (pname, fi), pipelines, table, fold, meta, task.target
+                            )
+                            if pipeline_error is None:
+                                if track == "byo":
+                                    keep = [c for c in tr.columns if not is_label_source_feature(c)]
+                                    tr, te = tr[keep], te[keep]
+                                else:
+                                    tr, te = project(tr, fs_name), project(te, fs_name)
+                        else:
+                            tr = data_table.iloc[fold.train_idx]
+                            te = data_table.iloc[fold.test_idx]
                         for seed in self.seeds:
                             np.random.seed(seed)
                             rec_base = dict(
@@ -114,6 +137,8 @@ class BenchmarkRunner:
                                 execution_contract=contract.execution_contract,
                             )
                             try:
+                                if pipeline_error is not None:
+                                    raise pipeline_error
                                 est = _instantiate_estimator(est_factory, seed)
                                 native_ci = hasattr(est, "predict_interval")
                                 if not native_ci:
@@ -158,6 +183,20 @@ class BenchmarkRunner:
                                 records.append({**rec_base, "metric": metric, "value": value})
 
         return pd.DataFrame.from_records(records)
+
+    @staticmethod
+    def _prepared_fold(cache, key, pipelines, table, fold, meta, target):
+        """Fit-once-per-fold pipeline application; errors are cached too so every
+        unit of a failed fold reports the same reason instead of re-raising."""
+        if key not in cache:
+            try:
+                train, test, _states = prepare_fold(
+                    pipelines, table.iloc[fold.train_idx], table.iloc[fold.test_idx], meta, target=target
+                )
+                cache[key] = (train, test, None)
+            except Exception as exc:  # reported per unit through the failure path
+                cache[key] = (None, None, exc)
+        return cache[key]
 
     def _point_metrics(self, task, yt, yp):
         out = {}
