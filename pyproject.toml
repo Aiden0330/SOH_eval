@@ -17,6 +17,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest"]
 dl = ["torch"]
+torch = ["torch"]  # kernel-facing alias of "dl" (ADR-001 extraction plan, Task 1)
 
 [build-system]
 requires = ["setuptools>=68"]
