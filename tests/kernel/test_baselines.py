@@ -1,6 +1,6 @@
 import numpy as np, pandas as pd
-from sohbench.estimators.baselines import RidgeEstimator
-from sohbench.contracts import Estimator
+from sohkernel.estimators.baselines import RidgeEstimator
+from sohkernel.contracts import Estimator
 
 def _xy(n=30):
     rng = np.random.default_rng(0)

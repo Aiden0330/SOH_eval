@@ -1,11 +1,11 @@
-"""Tests for sohbench.estimators.neural — TDD: written before implementation."""
+"""Tests for sohkernel.estimators.neural — TDD: written before implementation."""
 from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
 
-from sohbench.contracts import Estimator
-from sohbench.estimators.neural import MLPEstimator
+from sohkernel.contracts import Estimator
+from sohkernel.estimators.neural import MLPEstimator
 
 
 # ---------------------------------------------------------------------------

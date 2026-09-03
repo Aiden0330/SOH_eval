@@ -1,10 +1,10 @@
 import numpy as np, pandas as pd
 import pytest
-from sohbench.contracts import Estimator
-from sohbench.estimators.baselines import SOH_LOW, SOH_HIGH
+from sohkernel.contracts import Estimator
+from sohkernel.estimators.baselines import SOH_LOW, SOH_HIGH
 # Import byo module at module level so @register_estimator fires before registry snapshot.
-import sohbench.estimators.byo as _byo_mod
-from sohbench.estimators.byo import ByoSelectKBestRidge
+import sohkernel.estimators.byo as _byo_mod
+from sohkernel.estimators.byo import ByoSelectKBestRidge
 
 
 def _synthetic_table(n=120, n_features=8, seed=0):
@@ -37,7 +37,7 @@ def test_byo_attrs():
     assert est.backend == "sklearn"
 
 def test_byo_registered():
-    from sohbench.registry import get_estimator
+    from sohkernel.registry import get_estimator
     est_cls = get_estimator("byo_skb_ridge")
     assert est_cls is not None
 

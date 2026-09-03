@@ -1,4 +1,4 @@
-"""Tests for sohbench.estimators.pinn — Phase 2 physics-informed network."""
+"""Tests for sohkernel.estimators.pinn — Phase 2 physics-informed network."""
 from __future__ import annotations
 
 import numpy as np
@@ -7,11 +7,11 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from sohbench.contracts import Estimator
-from sohbench.estimators.baselines import SOH_HIGH, SOH_LOW
-from sohbench.estimators.pinn import PINNEstimator
-from sohbench.metrics import monotonicity_violation_rate
-from sohbench.registry import get_estimator
+from sohkernel.contracts import Estimator
+from sohkernel.estimators.baselines import SOH_HIGH, SOH_LOW
+from sohkernel.estimators.pinn import PINNEstimator
+from sohkernel.metrics import monotonicity_violation_rate
+from sohkernel.registry import get_estimator
 
 
 def _noisy_degradation_frame(n_cells: int = 3, n_cycles: int = 36, seed: int = 4):

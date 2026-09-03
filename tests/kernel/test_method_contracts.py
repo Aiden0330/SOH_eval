@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from sohbench.estimators.baselines import RidgeEstimator
-from sohbench.estimators.byo import ByoSelectKBestRidge
-from sohbench.estimators.mechanism import PLSEstimator, StressResidualEstimator
-from sohbench.estimators.physics import PhysicsResidualEstimator
-from sohbench.method_contracts import method_contract
+from sohkernel.estimators.baselines import RidgeEstimator
+from sohkernel.estimators.byo import ByoSelectKBestRidge
+from sohkernel.estimators.mechanism import PLSEstimator, StressResidualEstimator
+from sohkernel.estimators.physics import PhysicsResidualEstimator
+from sohkernel.method_contracts import method_contract
 
 
 def test_free_combination_contract_accepts_the_selected_feature_matrix():

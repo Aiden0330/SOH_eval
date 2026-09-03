@@ -1,11 +1,11 @@
-"""Tests for sohbench.estimators.physics — TDD: written before implementation."""
+"""Tests for sohkernel.estimators.physics — TDD: written before implementation."""
 from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
 
-from sohbench.contracts import Estimator
-from sohbench.estimators.physics import PhysicsResidualEstimator
+from sohkernel.contracts import Estimator
+from sohkernel.estimators.physics import PhysicsResidualEstimator
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +152,7 @@ class TestPhysicsResidualEstimator:
             def predict(self, X):
                 return np.zeros(len(X))
 
-        monkeypatch.setattr("sohbench.estimators.physics.HistGradientBoostingRegressor", SpyHGBR)
+        monkeypatch.setattr("sohkernel.estimators.physics.HistGradientBoostingRegressor", SpyHGBR)
         X, y = _sqrt_decay_table(n=100)
 
         PhysicsResidualEstimator(n_max=15).fit(X, y, meta=None)

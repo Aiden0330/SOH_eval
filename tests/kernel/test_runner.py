@@ -1,8 +1,8 @@
 import numpy as np, pandas as pd
-from sohbench.runner import BenchmarkRunner
-from sohbench.protocols import LeaveOneCellOut, LeaveOneDatasetOut
-from sohbench.tasks import SOHEstimationTask
-from sohbench.estimators.baselines import RidgeEstimator
+from sohkernel.runner import BenchmarkRunner
+from sohkernel.protocols import LeaveOneCellOut, LeaveOneDatasetOut
+from sohkernel.tasks import SOHEstimationTask
+from sohkernel.estimators.baselines import RidgeEstimator
 
 def _table():
     rows = []
@@ -12,7 +12,7 @@ def _table():
     return pd.DataFrame(rows, columns=["dataset","cell_id","cycle_index","soh","f1","f2"])
 
 def test_runner_produces_results_with_ci_and_seeds():
-    from sohbench.metadata import build_meta
+    from sohkernel.metadata import build_meta
     t = _table(); meta = build_meta(t)
     runner = BenchmarkRunner(seeds=[0,1,2,3,4])
     rs = runner.run(SOHEstimationTask(), table=t, meta=meta,
@@ -23,7 +23,7 @@ def test_runner_produces_results_with_ci_and_seeds():
     assert rs["seed"].nunique() == 5
 
 def test_failed_estimator_isolated():
-    from sohbench.metadata import build_meta
+    from sohkernel.metadata import build_meta
     class Boom:
         name="boom"; feature_mode="unified"; backend="sklearn"
         def fit(self,X,y,meta): raise RuntimeError("boom")
@@ -37,8 +37,8 @@ def test_failed_estimator_isolated():
 
 def test_runner_featureset_loop():
     """Passing featuresets=["full","voltage"] yields records for both featuresets."""
-    import sohbench.featuresets  # noqa: F401 — registers featuresets
-    from sohbench.metadata import build_meta
+    import sohkernel.featuresets  # noqa: F401 — registers featuresets
+    from sohkernel.metadata import build_meta
     # Table needs voltage_* cols so the "voltage" featureset has something to select
     rows = []
     for cell in ["c1", "c2", "c3"]:
@@ -64,8 +64,8 @@ def test_runner_featureset_loop():
 
 def test_runner_featureset_default_is_full():
     """Calling run() without featuresets= still produces featureset='full' records."""
-    import sohbench.featuresets  # noqa: F401
-    from sohbench.metadata import build_meta
+    import sohkernel.featuresets  # noqa: F401
+    from sohkernel.metadata import build_meta
     t = _table(); meta = build_meta(t)
     runner = BenchmarkRunner(seeds=[0])
     rs = runner.run(SOHEstimationTask(), table=t, meta=meta,
@@ -90,10 +90,10 @@ def _table_multi_dataset():
 def test_byo_estimator_track_is_byo_and_not_projected():
     """ByoSelectKBestRidge runs with track='byo', featureset='(byo)',
     even if featuresets=['voltage'] is passed — BYO ignores it."""
-    import sohbench.featuresets  # noqa: F401
-    import sohbench.estimators.byo  # noqa: F401 — registers byo_skb_ridge
-    from sohbench.estimators.byo import ByoSelectKBestRidge
-    from sohbench.metadata import build_meta
+    import sohkernel.featuresets  # noqa: F401
+    import sohkernel.estimators.byo  # noqa: F401 — registers byo_skb_ridge
+    from sohkernel.estimators.byo import ByoSelectKBestRidge
+    from sohkernel.metadata import build_meta
     t = _table(); meta = build_meta(t)
     runner = BenchmarkRunner(seeds=[0])
     rs = runner.run(SOHEstimationTask(), table=t, meta=meta,
@@ -107,8 +107,8 @@ def test_byo_estimator_track_is_byo_and_not_projected():
 
 def test_unified_estimator_has_track_unified():
     """A unified estimator (RidgeEstimator) gets track='unified' on all records."""
-    import sohbench.featuresets  # noqa: F401
-    from sohbench.metadata import build_meta
+    import sohkernel.featuresets  # noqa: F401
+    from sohkernel.metadata import build_meta
     t = _table(); meta = build_meta(t)
     runner = BenchmarkRunner(seeds=[0])
     rs = runner.run(SOHEstimationTask(), table=t, meta=meta,
@@ -123,7 +123,7 @@ def test_unified_estimator_has_track_unified():
 def test_cross_domain_protocol_uses_weighted_conformal():
     """Under LeaveOneDatasetOut (cross_domain=True), non-native estimators get
     ci_source='weighted_conformal'."""
-    from sohbench.metadata import build_meta
+    from sohkernel.metadata import build_meta
     t = _table_multi_dataset(); meta = build_meta(t)
     runner = BenchmarkRunner(seeds=[0])
     rs = runner.run(SOHEstimationTask(), table=t, meta=meta,
@@ -138,7 +138,7 @@ def test_cross_domain_protocol_uses_weighted_conformal():
 def test_loco_protocol_uses_plain_conformal():
     """Under LeaveOneCellOut (cross_domain=False), non-native estimators get
     ci_source='conformal'."""
-    from sohbench.metadata import build_meta
+    from sohkernel.metadata import build_meta
     t = _table(); meta = build_meta(t)
     runner = BenchmarkRunner(seeds=[0])
     rs = runner.run(SOHEstimationTask(), table=t, meta=meta,
@@ -152,7 +152,7 @@ def test_loco_protocol_uses_plain_conformal():
 def test_backward_compat_records_have_track_unified():
     """Existing callers that don't pass featuresets still get track='unified'
     and featureset='full' on every record."""
-    from sohbench.metadata import build_meta
+    from sohkernel.metadata import build_meta
     t = _table(); meta = build_meta(t)
     runner = BenchmarkRunner(seeds=[0])
     rs = runner.run(SOHEstimationTask(), table=t, meta=meta,
@@ -163,7 +163,7 @@ def test_backward_compat_records_have_track_unified():
 
 
 def test_runner_calls_on_model_fitted_after_successful_fit():
-    from sohbench.contracts import Fold
+    from sohkernel.contracts import Fold
 
     class TinyProtocol:
         def generate(self, table, meta):
@@ -217,7 +217,7 @@ def test_runner_calls_on_model_fitted_after_successful_fit():
 
 
 def test_estimators_never_see_the_label_inside_x():
-    from sohbench.metadata import build_meta
+    from sohkernel.metadata import build_meta
     seen = {}
     class Spy:
         name = "spy"; feature_mode = "unified"; backend = "sklearn"
@@ -237,7 +237,7 @@ def test_multi_cell_fold_monotonicity_is_scored_per_cell():
     """LODO test folds hold many cells; a predictor that is perfectly
     monotone within every cell must score zero violations even though the
     cells sit at different levels (a global cycle sort interleaves them)."""
-    from sohbench.metadata import build_meta
+    from sohkernel.metadata import build_meta
     rows = []
     for ds, offset in (("a", 0.0), ("b", 0.2)):
         for cell in ("c1", "c2"):

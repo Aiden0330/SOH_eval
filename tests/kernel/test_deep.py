@@ -1,4 +1,4 @@
-"""Tests for sohbench.estimators.deep — LSTM, CNN1D, Transformer estimators.
+"""Tests for sohkernel.estimators.deep — LSTM, CNN1D, Transformer estimators.
 
 Gated with pytest.importorskip("torch") so the suite stays green without PyTorch.
 
@@ -16,14 +16,14 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from sohbench.contracts import Estimator
-from sohbench.estimators.deep import (
+from sohkernel.contracts import Estimator
+from sohkernel.estimators.deep import (
     CNN1DEstimator,
     LSTMEstimator,
     TransformerEstimator,
 )
-from sohbench.estimators.baselines import SOH_LOW, SOH_HIGH
-from sohbench.registry import get_estimator
+from sohkernel.estimators.baselines import SOH_LOW, SOH_HIGH
+from sohkernel.registry import get_estimator
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +77,7 @@ def _multi_cell_smooth_frame(
 
 def _ood_frame(X: pd.DataFrame, val: float = 1e6) -> pd.DataFrame:
     """Copy of X with all feature columns set to ``val``."""
-    from sohbench.contracts import feature_columns
+    from sohkernel.contracts import feature_columns
     ood = X.copy()
     for col in feature_columns(X):
         ood[col] = val

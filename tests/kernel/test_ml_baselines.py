@@ -1,7 +1,7 @@
 import numpy as np, pandas as pd
 import pytest
-from sohbench.contracts import Estimator
-from sohbench.estimators.baselines import GBDTEstimator, SVREstimator, GPREstimator
+from sohkernel.contracts import Estimator
+from sohkernel.estimators.baselines import GBDTEstimator, SVREstimator, GPREstimator
 
 
 def _xy(n=60):
@@ -63,7 +63,7 @@ def test_gbdt_subsample_cap(monkeypatch):
         def predict(self, X):
             return np.zeros(len(X))
 
-    monkeypatch.setattr("sohbench.estimators.baselines.HistGradientBoostingRegressor", SpyHGBR)
+    monkeypatch.setattr("sohkernel.estimators.baselines.HistGradientBoostingRegressor", SpyHGBR)
     X, y = _xy(100)
 
     GBDTEstimator(n_max=12).fit(X, y, meta=None)

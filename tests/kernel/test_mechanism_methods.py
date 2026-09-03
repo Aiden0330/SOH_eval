@@ -3,17 +3,17 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from sohbench.estimators.mechanism import (
+from sohkernel.estimators.mechanism import (
     ElasticNetEstimator,
     ExtraTreesEstimator,
     PLSEstimator,
     StressResidualEstimator,
 )
-from sohbench.featuresets import _mechanism_proxy_transform, get_featureset
-from sohbench.metadata import build_meta
-from sohbench.protocols import LeaveOneCellOut
-from sohbench.runner import BenchmarkRunner
-from sohbench.tasks import SOHEstimationTask
+from sohkernel.featuresets import _mechanism_proxy_transform, get_featureset
+from sohkernel.metadata import build_meta
+from sohkernel.protocols import LeaveOneCellOut
+from sohkernel.runner import BenchmarkRunner
+from sohkernel.tasks import SOHEstimationTask
 
 
 def _mechanism_table() -> pd.DataFrame:

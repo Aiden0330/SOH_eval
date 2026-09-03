@@ -1,4 +1,4 @@
-"""Tests for sohbench.estimators.torch_base.
+"""Tests for sohkernel.estimators.torch_base.
 
 Gated with pytest.importorskip("torch") so the suite stays green even when
 PyTorch is not installed.
@@ -11,14 +11,14 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from sohbench.estimators.torch_base import (
+from sohkernel.estimators.torch_base import (
     build_windows,
     clamp,
     set_seed,
     subsample_idx,
     train_mlp_like,
 )
-from sohbench.estimators.baselines import SOH_LOW, SOH_HIGH
+from sohkernel.estimators.baselines import SOH_LOW, SOH_HIGH
 
 
 # ---------------------------------------------------------------------------
