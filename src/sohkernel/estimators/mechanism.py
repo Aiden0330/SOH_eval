@@ -89,6 +89,11 @@ class ExtraTreesEstimator:
         )
         self._cols: list[str] = []
 
+    def set_seed(self, seed: int) -> None:
+        """Re-seed the subsample and the forest (evaluation seeds must reach the model)."""
+        self._random_state = int(seed)
+        self._model.set_params(random_state=int(seed))
+
     def fit(self, X: pd.DataFrame, y, meta=None):
         del meta
         self._cols = feature_columns(X)
@@ -198,6 +203,12 @@ class StressResidualEstimator:
         self._cycle_scale = 1.0
         self._current_scale = 1.0
         self._baseline_soh = 1.0
+
+    def set_seed(self, seed: int) -> None:
+        """Re-seed the subsample and the residual booster built in ``fit``."""
+        self._random_state = int(seed)
+        if self._model is not None:
+            self._model.set_params(random_state=int(seed))
         self._prior_coeffs = np.zeros(4, dtype=float)
 
     def _cycle(self, X: pd.DataFrame) -> np.ndarray:

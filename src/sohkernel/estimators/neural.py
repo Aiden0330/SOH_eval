@@ -66,6 +66,11 @@ class MLPEstimator:
         )
         self._cols: list[str] | None = None
 
+    def set_seed(self, seed: int) -> None:
+        """Re-seed the subsample, the weight initialisation and the early-stopping split."""
+        self._random_state = int(seed)
+        self._model.set_params(random_state=int(seed))
+
     def fit(self, X: pd.DataFrame, y: np.ndarray, meta=None) -> "MLPEstimator":
         """Fit scaler and MLP on feature columns of *X*."""
         self._cols = feature_columns(X)

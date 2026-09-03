@@ -74,6 +74,11 @@ class GBDTEstimator:
         )
         self._cols = None
 
+    def set_seed(self, seed: int) -> None:
+        """Re-seed the subsample and the booster (evaluation seeds must reach the model)."""
+        self._random_state = int(seed)
+        self._model.set_params(random_state=int(seed))
+
     def fit(self, X, y, meta=None):
         self._cols = feature_columns(X)
         X_arr = self._imputer.fit(X, self._cols).transform_array(X)

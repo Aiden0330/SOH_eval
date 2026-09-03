@@ -91,6 +91,10 @@ class PINNEstimator:
         self._imputer = FeatureMedianImputer()
         self._net = None
 
+    def set_seed(self, seed: int) -> None:
+        """Evaluation seed for numpy/torch seeding and the training subsample."""
+        self.seed = int(seed)
+
     def _build_net(self, n_features: int):
         import torch.nn as nn
 

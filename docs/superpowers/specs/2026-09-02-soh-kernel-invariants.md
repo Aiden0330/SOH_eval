@@ -47,7 +47,7 @@ These are the rules that must hold regardless of which tool produces a number. T
 
 ## 6. Seeds and statistics
 
-- Any leaderboard entry or claim uses **≥ 5 seeds**; the seed must reach the estimator (`set_seed`/`random_state`), not only NumPy's global state.
+- Any leaderboard entry or claim uses **≥ 5 seeds**; the seed must reach the estimator (`set_seed`/`random_state`), not only NumPy's global state. Implemented 2026-09-03 (extraction plan Task 7b): the runner seeds every estimator instance and the weighted conformal wrapper.
 - Leaderboards report mean and std across folds and seeds separately; claims add cell-level bootstrap intervals and paired comparisons (Spec 04).
 
 ## 7. Adaptation legality

@@ -1,4 +1,6 @@
 from __future__ import annotations
+import copy
+import inspect
 import numpy as np, pandas as pd
 from . import metrics as M
 from .conformal import ConformalWrapper, WeightedConformalWrapper
@@ -9,6 +11,39 @@ from .featuresets import project
 from .method_contracts import method_contract
 from .registry import get_featureset
 from . import featuresets as _featuresets  # noqa: F401 — ensure the named sets are registered
+
+
+def _instantiate_estimator(factory, seed: int):
+    """A fresh estimator seeded with the evaluation seed (Spec 01 §6).
+
+    Classes receive ``random_state=seed`` or ``seed=seed`` when their constructor accepts
+    it; instances are deep-copied per fit (no state shared across folds or seeds) and
+    seeded through ``set_seed(seed)`` or a ``random_state`` / ``seed`` attribute.  Estimators
+    with no seed hook stay deterministic, which is what the leaderboard std reveals.
+    """
+    if isinstance(factory, type):
+        params = inspect.signature(factory).parameters
+        if "random_state" in params:
+            return factory(random_state=seed)
+        if "seed" in params:
+            return factory(seed=seed)
+        estimator = factory()
+    else:
+        try:
+            estimator = copy.deepcopy(factory)
+        except Exception as exc:  # pragma: no cover - exotic estimator state
+            raise TypeError(
+                f"estimator instance {factory!r} must support deepcopy so seeds and folds "
+                "do not share state"
+            ) from exc
+    setter = getattr(estimator, "set_seed", None)
+    if callable(setter):
+        setter(seed)
+    elif hasattr(estimator, "random_state"):
+        estimator.random_state = seed
+    elif hasattr(estimator, "seed"):
+        estimator.seed = seed
+    return estimator
 
 
 class BenchmarkRunner:
@@ -79,12 +114,12 @@ class BenchmarkRunner:
                                 execution_contract=contract.execution_contract,
                             )
                             try:
-                                est = est_factory() if isinstance(est_factory, type) else est_factory
+                                est = _instantiate_estimator(est_factory, seed)
                                 native_ci = hasattr(est, "predict_interval")
                                 if not native_ci:
                                     alpha = 1 - task.acceptance["calibration"]["nominal"]
                                     if cross:
-                                        est = WeightedConformalWrapper(est, alpha=alpha)
+                                        est = WeightedConformalWrapper(est, alpha=alpha, random_state=seed)
                                         rec_base["ci_source"] = "weighted_conformal"
                                     else:
                                         est = ConformalWrapper(est, alpha=alpha)

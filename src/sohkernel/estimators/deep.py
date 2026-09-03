@@ -71,6 +71,10 @@ class _DeepBase:
         self._feature_cols: Optional[list[str]] = None
         self._net = None  # nn.Module, set after fit
 
+    def set_seed(self, seed: int) -> None:
+        """Evaluation seed for numpy/torch seeding and the training subsample."""
+        self.seed = int(seed)
+
     # ------------------------------------------------------------------
     # Subclass hook
     # ------------------------------------------------------------------
