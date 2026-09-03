@@ -39,6 +39,19 @@ The import-graph analysis shows the two halves are already separable:
 - **Continue in place, add the agent platform inside `sohbench`.** Rejected: the search would inherit the closed menu, the service-centric orchestration and in-process execution; the direction rule cannot be enforced inside one package.
 - **Rewrite everything from scratch.** Rejected: re-deriving label safety and protocols would repeat the August 2026 leak episode without the regression net that caught it.
 
+## Branch decisions executed (2026-09-02)
+
+- `master` fast-forwarded to `feat/phase2-dl` (49 commits, no divergence) and tagged **`v0-workbench`**; extraction work continues on branch **`kernel-extraction`** from that tag.
+- `claude/gifted-burnell-c55ed8` deleted (no commits ahead).
+- `codex/verification-fabric-phase0` (103 ahead / 33 behind; 82 files, +30 k lines) archived as tag **`archive/verification-fabric-phase0`**. A cherry-pick dry run of the 16 kernel-relevant commits produced conflicts in every case: the branch rebuilt `runner.py` and `report.py` around a `sohbench/fabric` subpackage (feature pipelines, outcomes, failures, evidence, specs) that mainline never had. **Decision: no cherry-picks; port by task.** The ideas worth porting, with their reference commits, are now tasks K7b and K7d–K7h in the extraction plan:
+  - seed propagation into estimators (`_instantiate_estimator`: `random_state` / `set_seed`) — `d6b1efa`, `f86b753`;
+  - feature pipelines fitted inside evaluation folds with causal isolation — `1fdf6ed`, `320b250`, `fabric/feature_pipeline.py`;
+  - explicit failure and partial outcomes; failed units kept out of evidence — `45ed3a3`, `32d6884`, `fabric/outcomes.py`, `fabric/failures.py`;
+  - trajectory metrics aggregated per asset and ambiguous cycle identities rejected — `4a29255`, `b65a429`;
+  - EOL fold metric omitted when unavailable — `8ecb62a`;
+  - asset-level confidence intervals in reports — `f0e8d4d`.
+  Workbench-only material (run reservations, evidence-pack dual writes, Windows alias hardening, inference ranking ties) is not ported. The branch itself is kept until its stale Windows worktree reference is pruned (`git worktree prune && git branch -D codex/verification-fabric-phase0`), which the owner can run at any time since the tag preserves it.
+
 ## Follow-ups
 
 - Extraction plan: `docs/superpowers/plans/2026-09-02-kernel-extraction.md`.

@@ -113,7 +113,16 @@ Separate commits, each with tests.
 - [ ] Seed injection: `BenchmarkRunner` passes `seed` to estimators exposing `set_seed(seed)` or a `random_state` constructor argument; add `set_seed` to `gbdt`, `extra_trees`, `mlp`, torch estimators; test that two seeds give different predictions for `mlp` and identical for `ridge`.
 - [ ] `adaptation.calibration_split(..., strategy="earliest")` becomes the default in kernel API calls; `"spread"` stays available but the returned provenance carries `calibration_split="spread"` explicitly (already recorded — verify).
 
-Acceptance: new tests green; leaderboard `std` > 0 for stochastic models under 5 seeds.
+Ports from the archived Codex line (`archive/verification-fabric-phase0`; read the reference with `git show archive/verification-fabric-phase0:<path>`). Each is a behaviour change with its own tests; none is a cherry-pick (all conflict — see ADR-001).
+
+- [ ] **K7b reference:** seed propagation as in `d6b1efa` / `f86b753` — `_instantiate_estimator(factory, seed)` passes `random_state` when the constructor accepts it, else calls `set_seed`, else sets the attribute; a legacy random scope seeds `random` and `numpy` per fold.
+- [ ] **K7d — fit feature pipelines inside folds.** Any fitted transform (scalers, CORAL statistics, window bounds chosen from data) is fitted on the training fold only and applied to the test fold; verify current mainline behaviour first (`store.apply_feature_transforms` runs before `BenchmarkRunner.run`). Reference: `1fdf6ed`, `320b250`, `src/sohbench/fabric/feature_pipeline.py`, `tests/fabric/test_runner_leakage.py`. Test: a transform that peeks at test rows changes the score; the isolated version does not.
+- [ ] **K7e — explicit failure and partial outcomes.** A failed fold/seed produces an `outcome` record (`ok | failed | partial`) with the error class; failed units never enter leaderboard aggregates or evidence, and the leaderboard entry states how many units failed. Reference: `45ed3a3`, `32d6884`, `fabric/outcomes.py`, `fabric/failures.py`.
+- [ ] **K7f — trajectory metrics per asset.** Monotonicity and value-range metrics are aggregated per cell/asset (mainline already sorts per cell since 2026-08-30 — confirm parity) and ambiguous cycle identities (duplicate `cycle_index` within a cell) are rejected at QC. Reference: `4a29255`, `b65a429`.
+- [ ] **K7g — EOL fold metric omitted when unavailable** (no cell reaches the EOL threshold in the fold) instead of NaN-polluting aggregates. Reference: `8ecb62a`.
+- [ ] **K7h — asset-level confidence intervals in `report.py`** (cell-level bootstrap; feeds Spec 04 §4). Reference: `f0e8d4d`.
+
+Acceptance: new tests green; leaderboard `std` > 0 for stochastic models under 5 seeds; the leakage test of K7d passes; failed units visibly excluded.
 
 ---
 
