@@ -1,4 +1,5 @@
 import json, pandas as pd, numpy as np
+import pytest
 from pathlib import Path
 from sohkernel.report import write_artifacts
 from sohkernel.tasks import SOHEstimationTask
@@ -231,3 +232,55 @@ def test_complete_outcome_and_schema(tmp_path):
     assert lb[0]["units"] == {"attempted": 5, "succeeded": 5, "failed": 0, "outcome": "complete"}
     schema = json.loads((Path(sohkernel.report.__file__).with_name("schemas") / "leaderboard.schema.json").read_text())
     jsonschema.validate(lb, schema)
+
+
+# ---------------------------------------------------------------------------
+# asset-level bootstrap intervals (Task 7h)
+# ---------------------------------------------------------------------------
+
+def _loco_results(cells=("c1", "c2", "c3", "c4"), seeds=(0, 1), protocol="loco"):
+    rows = []
+    for i, cell in enumerate(cells):
+        for seed in seeds:
+            for metric, val in [("mae", 0.01 + 0.005 * i + 0.001 * seed), ("picp", 0.9 + 0.02 * (i % 2)),
+                                ("monotonicity_violation_rate", 0.0), ("value_range_violation", 0.0)]:
+                rows.append(dict(estimator="ridge", feature_mode="unified", backend="sklearn", protocol=protocol,
+                                 dataset="ds", held_out_key=f"ds/{cell}", fold=i, seed=seed, status="ok",
+                                 metric=metric, value=val))
+    return pd.DataFrame(rows)
+
+
+def test_loco_entries_carry_asset_level_bootstrap_intervals(tmp_path):
+    import jsonschema
+    import sohkernel.report
+    out = write_artifacts(_loco_results(), qc_report=None, task=SOHEstimationTask(), config={}, out_dir=tmp_path)
+    lb = json.loads((Path(out) / "leaderboard.json").read_text())
+    ci = lb[0]["confidence_intervals"]
+    assert ci["status"] == "available" and ci["unit"] == "asset" and ci["assets"] == 4 and ci["confidence"] == 0.9
+    mae = ci["intervals"]["mae"]
+    assert mae["lower"] <= mae["mean"] <= mae["upper"] and mae["n"] == 4
+    assert mae["mean"] == pytest.approx(lb[0]["metrics"]["mae"]["mean"])
+    assert "picp" in ci["intervals"]
+    schema = json.loads((Path(sohkernel.report.__file__).with_name("schemas") / "leaderboard.schema.json").read_text())
+    jsonschema.validate(lb, schema)
+    # per-asset (dataset leaderboard) entries have one asset each: explicitly unavailable
+    dataset_lb = json.loads((Path(out) / "dataset_leaderboard.json").read_text())
+    assert dataset_lb[0]["confidence_intervals"]["status"] == "unavailable"
+
+
+def test_pooled_folds_report_intervals_as_unavailable(tmp_path):
+    results = _loco_results(cells=("hust", "snl_lfp"), protocol="lodo")
+    out = write_artifacts(results, qc_report=None, task=SOHEstimationTask(), config={}, out_dir=tmp_path)
+    ci = json.loads((Path(out) / "leaderboard.json").read_text())[0]["confidence_intervals"]
+    assert ci["status"] == "unavailable" and "lodo" in ci["reason"]
+
+
+def test_bootstrap_is_deterministic_and_widens_with_spread():
+    from sohkernel.statistics import bootstrap_mean_ci
+    tight = bootstrap_mean_ci([0.01, 0.011, 0.012, 0.0105], seed=1)
+    wide = bootstrap_mean_ci([0.01, 0.05, 0.02, 0.09], seed=1)
+    assert bootstrap_mean_ci([0.01, 0.05, 0.02, 0.09], seed=1) == wide
+    assert (wide["upper"] - wide["lower"]) > (tight["upper"] - tight["lower"])
+    assert bootstrap_mean_ci([0.03])["lower"] == bootstrap_mean_ci([0.03])["upper"] == 0.03
+    with pytest.raises(ValueError):
+        bootstrap_mean_ci([float("nan")])

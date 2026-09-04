@@ -11,6 +11,15 @@
       "protocol": {"type":"string"},
       "metrics": {"type":"object"},
       "verdicts": {"type":"object"},
+      "confidence_intervals": {
+        "type": "object",
+        "required": ["status", "unit"],
+        "properties": {
+          "status": {"enum": ["available", "unavailable"]},
+          "unit": {"enum": ["asset"]},
+          "intervals": {"type": "object"}
+        }
+      },
       "units": {
         "type": "object",
         "required": ["attempted", "succeeded", "failed", "outcome"],

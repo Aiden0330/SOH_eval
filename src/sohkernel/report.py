@@ -4,6 +4,7 @@ from pathlib import Path
 import pandas as pd
 from .acceptance import evaluate_verdicts
 from .tasks import SOHEstimationTask
+from .statistics import asset_confidence_intervals
 
 
 def _json_safe(o):
@@ -88,6 +89,8 @@ def _leaderboard_entries(results: pd.DataFrame, task, group_cols: list[str]) -> 
             "verdicts": verdicts,
             "ci_source": ci_source,
             "units": units,
+            # Task 7h: cell-level bootstrap intervals when the folds are assets (loco / forward)
+            "confidence_intervals": asset_confidence_intervals(evidence),
         }
         if "held_out_key" in keys:
             entry["held_out_key"] = str(keys["held_out_key"])
