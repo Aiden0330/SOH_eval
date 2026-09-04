@@ -52,3 +52,8 @@ contracts and (for searchable windows) model manifests, so inference can
 re-derive the feature identically and audits can trace the choice. Old
 artifacts built on the previous bounds have different feature semantics —
 add them to the invalidation sweep.
+
+
+## Review note (2026-09-03, after the kernel extraction)
+
+Module map since ADR-001 Wave 2: label safety, protocols (now including `forward`), the runner, report statistics, adaptation, fold-local feature pipelines and the API facade live in `sohkernel` (`sohkernel.api`, `sohkernel.feature_safety`, `sohkernel.inference_gate`, `sohkernel.pipelines`, `sohkernel.records`, `sohkernel.datasheets`); the candidate model, search engine, sandbox, evaluator client and claim flow live in `sohagent` (`sohagent.candidates`, `sohagent.search`, `sohagent.sandbox`, `sohagent.evaluator`, `sohagent.claims`). `sohbench` is the frozen workbench and only re-exports the kernel. Any `sohbench.<module>` reference above is historical.
