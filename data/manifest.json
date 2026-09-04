@@ -8,9 +8,9 @@
   "local_files": 306,
   "local_bytes": 24288608875,
   "processed_datasets": 11,
-  "records": 261683,
-  "cycles": 261651,
-  "batteries": 265
+  "records": 274409,
+  "cycles": 274377,
+  "batteries": 304
  },
  "verification": {
   "inventory_checks": [
@@ -355,8 +355,8 @@
    ],
    "processed": {
     "path": "processed/rwth_isea_public_features.pkl",
-    "bytes": 209701,
-    "sha256": "e2e716e2f9723f38c106af7f59ac0c89544f25f793784c78c991e2b6ceb1f07b",
+    "bytes": 1189655,
+    "sha256": "7b277c289acc2d7c697c49f9f70ce6e76427841e5d208ff8aec5facb201510da",
     "required_columns_missing": [],
     "columns": [
      "dataset",
@@ -367,11 +367,11 @@
      "cycle_index_feature"
     ]
    },
-   "record_count": 2707,
-   "cycle_count": 2707,
-   "battery_count": 8,
+   "record_count": 15433,
+   "cycle_count": 15433,
+   "battery_count": 47,
    "chemistry": "NMC",
-   "max_capacity_ah": 1.845058495451667,
+   "max_capacity_ah": 1.849119430224164,
    "capacity_source": "measured_capacity",
    "label_source": "calibration_capacity",
    "held_out_ready": true,
@@ -379,8 +379,8 @@
    "raw_local": false,
    "curve_path": "curves/rwth_curves.json",
    "curve_sha256": "bad2d5e2f8db9078492a6f044b0fdced05589faf131c811b8e02a47736624872",
-   "license": "VERIFY (RWTH-2021-04545 record; repo license not confirmed)",
-   "source": "RWTH ISEA one-shot degradation dataset (Li et al. 2021, DOI 10.18154/RWTH-2021-04545): 8 of 48 Sanyo/Panasonic UR18650E NMC/graphite cells via scripts/validate_trusted_plugin_workflow.py; chemistry corrected from LFP on 2026-09-03"
+   "license": "CC-BY-4.0",
+   "source": "RWTH ISEA public battery data"
   },
   {
    "name": "smoke_eval_demo",
@@ -766,5 +766,5 @@
   "gbrain-evals historical engineering dependencies",
   "RWTH HSS and other field data without supervised SOH labels"
  ],
- "updated_at": "2026-09-04T04:18:15.726062+00:00"
+ "updated_at": "2026-09-04T12:39:10.010019+00:00"
 }

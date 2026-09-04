@@ -53,7 +53,7 @@ sampling:
 windows: VERIFY
 digests:
   raw: VERIFY
-  processed: e2e716e2f9723f38c106af7f59ac0c89544f25f793784c78c991e2b6ceb1f07b
+  processed: 7b277c289acc2d7c697c49f9f70ce6e76427841e5d208ff8aec5facb201510da
   curves: bad2d5e2f8db9078492a6f044b0fdced05589faf131c811b8e02a47736624872
 leak_scan:
   label_source_columns:
@@ -62,8 +62,12 @@ leak_scan:
   reference: tests/test_label_leak_inventory.py
 held_out_ready: true
 known_issues:
-- 8 of the 48 cells ingested (validate_trusted_plugin_workflow max_cells=8); raw curves
-  not local
+- '47 of the 48 cells ingested on 2026-09-04 (D1; until then 8, validate_trusted_plugin_workflow
+  max_cells=8; the builder skips one cell with fewer than 8 capacity points): the
+  8-cell subset reproduces exactly; artifacts trained on the 8-cell table are not
+  comparable with 47-cell results'
+- raw time series (V/I/T) are not ingested — only per-cycle capacity histories from
+  the ISEA .mat; no window or curve features
 - manifest curve_path curves/rwth_curves.json holds rwth_hss home-storage field curves
   from another source, not these cells
 - chemistry corrected from LFP to NMC and rated capacity set to 1.85 Ah on 2026-09-03
