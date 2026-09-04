@@ -370,7 +370,7 @@
    "record_count": 2707,
    "cycle_count": 2707,
    "battery_count": 8,
-   "chemistry": "LFP",
+   "chemistry": "NMC",
    "max_capacity_ah": 1.845058495451667,
    "capacity_source": "measured_capacity",
    "label_source": "calibration_capacity",
@@ -379,8 +379,8 @@
    "raw_local": false,
    "curve_path": "curves/rwth_curves.json",
    "curve_sha256": "bad2d5e2f8db9078492a6f044b0fdced05589faf131c811b8e02a47736624872",
-   "license": "CC-BY-4.0",
-   "source": "RWTH ISEA public battery data"
+   "license": "VERIFY (RWTH-2021-04545 record; repo license not confirmed)",
+   "source": "RWTH ISEA one-shot degradation dataset (Li et al. 2021, DOI 10.18154/RWTH-2021-04545): 8 of 48 Sanyo/Panasonic UR18650E NMC/graphite cells via scripts/validate_trusted_plugin_workflow.py; chemistry corrected from LFP on 2026-09-03"
   },
   {
    "name": "smoke_eval_demo",

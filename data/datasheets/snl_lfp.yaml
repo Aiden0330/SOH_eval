@@ -1,29 +1,38 @@
 name: snl_lfp
-status: draft (agent, 2026-09-03) — fields marked VERIFY await the owner
+status: signed 2026-09-03 (chemistry verified by owner-delegated web review); remaining
+  VERIFY fields are non-chemistry
 source:
-  citation: Preger, Y. et al. (2020). Degradation of commercial lithium-ion cells
-    as a function of chemistry and cycling conditions. J. Electrochem. Soc. 167; BatteryArchive
-    / BatteryLife mirror.
-  url: https://www.batteryarchive.org/
-  license: CC-BY-4.0
-  retrieved: VERIFY
+  citation: Preger, Y., Barkholtz, H. M., Fresquez, A., Campbell, D. L., Juba, B.
+    W., Roman-Kustas, J., Ferreira, S. R., Chalamala, B. (2020). Degradation of commercial
+    lithium-ion cells as a function of chemistry and cycling conditions. J. Electrochem.
+    Soc. 167(12), 120532, DOI 10.1149/1945-7111/abae37. Data via BatteryArchive (snl_study)
+    / BatteryLife mirror (data/raw/snl_batterylife).
+  url: https://doi.org/10.1149/1945-7111/abae37
+  license: VERIFY (the BatteryArchive study page states no license)
+  retrieved: 2026-09-03 (JES record via web review; BatteryArchive snl_study page
+    fetched)
 chemistry:
   cathode: LFP
   anode: graphite
   metadata_label: LFP
-  verified_by: VERIFY
-  verified_on: VERIFY
-  evidence: 'Preger 2020 LFP subset (VERIFY: confirm and sign)'
+  verified_by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in
+    chemistry.evidence
+  verified_on: '2026-09-03'
+  evidence: 'JES 167(12) 120532: the LFP cells are A123 Systems APR18650M1A, 1.1 Ah
+    (the study''s NCA cells are Panasonic NCR18650B 3.2 Ah and its NMC cells LG Chem
+    18650HG2 3 Ah); all cells charged at 0.5C, discharged at 0.5C / 1C / 2C / 3C over
+    0-100, 20-80 or 40-60 % SOC at 15 / 25 / 35 degC. The BatteryArchive snl_study
+    page confirms ''All cells were charged at a rate of 0.5C'' and the three SOC windows.'
 cell:
-  format: 18650 (A123 APR18650M1A)
+  format: 18650 (A123 Systems APR18650M1A)
   rated_capacity_ah: 1.1
-  rated_source: publication (1.1 Ah)
+  rated_source: 'JES 167 120532 (LFP: A123 APR18650M1A, 1.1 Ah)'
 protocol:
   segments:
   - id: cc_charge
-    rate: 0.5C CC to 3.6 V
+    rate: 0.5C CC (JES)
   - id: discharge
-    rate: 0.5C-3C to 2.0 V
+    rate: 0.5C-3C (JES); cut-off voltage VERIFY
   temperature_c:
   - 15
   - 25
@@ -49,7 +58,7 @@ windows:
   calibrated_on: '2026-08-25'
 digests:
   raw: VERIFY
-  processed: VERIFY
+  processed: 0347fbd318435364030693be7535b8dac4e5ebdf303fa7d3287c8375ea39c773
   curves: c086d114e8c2e5b619a6138ed6f023e2a05ab527a2310809e34ba146bab6073d
 leak_scan:
   label_source_columns: []
@@ -58,5 +67,5 @@ leak_scan:
 held_out_ready: true
 known_issues: []
 signed:
-  by: VERIFY
-  'on': VERIFY
+  by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in chemistry.evidence
+  'on': '2026-09-03'

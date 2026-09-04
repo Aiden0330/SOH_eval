@@ -1,29 +1,35 @@
 name: hust
-status: draft (agent, 2026-09-03) — fields marked VERIFY await the owner
+status: signed 2026-09-03 (chemistry verified by owner-delegated web review); remaining
+  VERIFY fields are non-chemistry
 source:
-  citation: Ma, G. et al. (2022). Real-time personalized health status prediction
+  citation: 'Ma, G., Xu, S., Jiang, B., Cheng, C., Yang, X., Shen, Y., Yang, T., Huang,
+    Y., Ding, H., Yuan, Y. (2022). Real-time personalized health status prediction
     of lithium-ion batteries using deep transfer learning. Energy & Environmental
-    Science; dataset on Mendeley Data.
-  url: VERIFY
-  license: CC-BY-4.0
-  retrieved: VERIFY
+    Science 15(10), 4083-4094. Dataset: Mendeley Data v2 (2022-05-24), DOI 10.17632/nsc7hnsg4s.2.'
+  url: https://data.mendeley.com/datasets/nsc7hnsg4s/2
+  license: CC BY 4.0 (Mendeley record)
+  retrieved: 2026-09-03 (record fetched)
 chemistry:
   cathode: LFP
   anode: graphite
   metadata_label: LFP
-  verified_by: VERIFY
-  verified_on: VERIFY
-  evidence: 'publication states A123 LFP 18650 cells (VERIFY: confirm and sign)'
+  verified_by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in
+    chemistry.evidence
+  verified_on: '2026-09-03'
+  evidence: 'Mendeley Data record nsc7hnsg4s v2: ''77 LFP/graphite cells (1.1 Ah nominal
+    capacity and 3.3 V nominal voltage)'' with an ''identical charge protocol but
+    different multi-stage discharge protocols at a constant temperature of 30°C''.'
 cell:
-  format: 18650 (A123 APR18650M1A)
+  format: 18650, 1.1 Ah / 3.3 V nominal (record); cell model reported as A123 APR18650M1A
+    in the paper (model VERIFY)
   rated_capacity_ah: 1.1
-  rated_source: publication (1.1 Ah)
+  rated_source: Mendeley record (1.1 Ah nominal capacity)
 protocol:
   segments:
   - id: cc_charge
-    rate: 5C CC (multi-stage) to 3.6 V
+    rate: identical fast-charge protocol for all cells (record); stages VERIFY
   - id: discharge
-    rate: 1C to 2.0 V
+    rate: 77 distinct multi-stage discharge protocols (record); rates VERIFY
   temperature_c:
   - 30
 label_anchor:
@@ -47,7 +53,7 @@ windows:
   calibrated_on: '2026-08-25'
 digests:
   raw: VERIFY
-  processed: VERIFY
+  processed: 40a4e3c46861a3d065a9a531b479718467a497c764b68a9e92329156d4d777d1
   curves: 3109db334b2955ab9dd49a3d2c6939409c0e84d7a226b33da4e31d10988a2b81
 leak_scan:
   label_source_columns:
@@ -57,5 +63,5 @@ leak_scan:
 held_out_ready: true
 known_issues: []
 signed:
-  by: VERIFY
-  'on': VERIFY
+  by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in chemistry.evidence
+  'on': '2026-09-03'

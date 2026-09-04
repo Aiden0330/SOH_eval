@@ -1,38 +1,46 @@
 name: nasa
-status: draft (agent, 2026-09-03) — fields marked VERIFY await the owner
+status: draft — chemistry unverified after the 2026-09-03 web review; unsigned
 source:
   citation: Saha, B. and Goebel, K. (2007). Battery Data Set. NASA Ames Prognostics
-    Data Repository.
+    Data Repository (PCoE), NASA Ames Research Center.
   url: https://www.nasa.gov/intelligent-systems-division/discovery-and-systems-health/pcoe/pcoe-data-set-repository/
-  license: public
-  retrieved: VERIFY
+  license: public (NASA PCoE repository)
+  retrieved: 2026-09-03 (NASA PCoE / DASHlink / data.nasa.gov descriptions via web
+    review)
 chemistry:
   cathode: VERIFY
-  anode: VERIFY
+  anode: graphite (assumed; VERIFY)
   metadata_label: LCO
   verified_by: VERIFY
   verified_on: VERIFY
-  evidence: 'VERIFY: the shipped PCoE READMEs (data/raw/nasa_full/README*.txt) name
-    neither chemistry nor manufacturer; metadata.py and data/manifest.json say LCO
-    (literature attribution) while data/curves/nasa.json says ''NCA (Gen2 18650)''.
-    Resolve against a primary source before any chemistry claim.'
+  evidence: 'Web review 2026-09-03: NASA''s own description (PCoE repository, DASHlink
+    resource 133, data.nasa.gov) says ''commercially available Li-ion 18650 sized
+    rechargeable batteries'', rated 2 Ah, three operational profiles (charge, discharge,
+    EIS) at room temperature; neither chemistry nor manufacturer is named, and the
+    shipped READMEs (data/raw/nasa_full/README*.txt) only describe the .mat structure.
+    Secondary literature is split: most SOH papers and the Kaggle mirror call the
+    cells LiCoO2; a minority calls them ''Gen 2'' NCA/graphite cells, but the DOE
+    Gen 2 18650 cells were ~1 Ah while these are rated 2 Ah. The working label LCO
+    is kept for fold grouping only; no chemistry claim may rest on nasa until a primary
+    source is found (VERIFY).'
 cell:
-  format: '18650'
+  format: 18650 (commercial, manufacturer not named)
   rated_capacity_ah: 2.0
-  rated_source: documentation (2 Ah nominal)
+  rated_source: NASA description (rated 2 Ah; EOL at 30 % fade, 2 -> 1.4 Ah)
 protocol:
   segments:
   - id: cc_cv_charge
-    rate: 1.5 A CC to 4.2 V, CV to 20 mA
+    rate: 1.5 A CC to 4.2 V, CV to 20 mA (NASA description)
   - id: discharge
-    rate: 2 A (B0005-7, B0018) to 2.7/2.5/2.2 V
+    rate: 2 A CC to 2.7 / 2.5 / 2.2 / 2.5 V for B0005 / B0006 / B0007 / B0018 (NASA
+      description)
   temperature_c:
   - 24
 label_anchor:
   formula: soh = calibration_capacity / rated_capacity_ah
   measured_quantities:
   - discharge capacity (Ah)
-  reference_test: capacity from each full discharge (documented per README)
+  reference_test: capacity of each full discharge (NASA description)
   label_source: calibration_capacity
 sampling:
   rate_hz: VERIFY
@@ -43,7 +51,7 @@ sampling:
 windows: VERIFY
 digests:
   raw: VERIFY
-  processed: VERIFY
+  processed: f7523b4e6b1dcbcceb940834878967cfaff2392805c9992c3768f721ebb8586b
   curves: f0a515c8643be8f589b754d97e0419054bb768c9189a449007f2ca7e5c3296f8
 leak_scan:
   label_source_columns: []
@@ -51,6 +59,7 @@ leak_scan:
   reference: tests/test_label_leak_inventory.py
 held_out_ready: true
 known_issues:
+- chemistry unverified (D4, 2026-09-03) — lcho folds holding out nasa warn
 - cell B0018 is the phase 2.2 golden case; 18 non-positive SOH rows dropped by QC
 signed:
   by: VERIFY

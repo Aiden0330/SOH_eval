@@ -58,3 +58,19 @@ def test_lcho_preflight_flags_unverified_chemistry(tmp_path):
     assert profile["details"]["unverified_chemistry"] == ["nasa"]
     assert any("cannot support a chemistry claim" in w for w in profile["warnings"])
     assert result.ready and result.combinations[0]["status"] == "warning"
+
+
+def test_signed_datasheets_agree_with_the_metadata_chemistry_table():
+    """D4 (2026-09-03): six datasheets are chemistry-verified and signed; each verified cathode equals the metadata label."""
+    from sohkernel.metadata import DATASET_CHEMISTRY, DATASET_C_RATED_AH
+
+    sheets = load_datasheets(Path(__file__).resolve().parents[2] / "data")
+    if not sheets:
+        pytest.skip("datasheets not present")
+    verified = {name for name, sheet in sheets.items() if chemistry_verified(sheet)}
+    assert verified == {"calce_cs2", "hust", "oxford", "snl_lfp", "uconn", "rwth_isea_public"}
+    for name in verified:
+        assert is_signed(sheets[name]), name
+        assert sheets[name]["chemistry"]["cathode"] == DATASET_CHEMISTRY[name] == sheets[name]["chemistry"]["metadata_label"], name
+    assert not is_signed(sheets["nasa"])
+    assert DATASET_CHEMISTRY["rwth_isea_public"] == "NMC" and DATASET_C_RATED_AH["rwth_isea_public"] == 1.85

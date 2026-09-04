@@ -1,37 +1,46 @@
 name: oxford
-status: draft (agent, 2026-09-03) — fields marked VERIFY await the owner
+status: signed 2026-09-03 (chemistry verified by owner-delegated web review); remaining
+  VERIFY fields are non-chemistry
 source:
-  citation: Birkl, C. R. (2017). Diagnosis and Prognosis of Degradation in Lithium-Ion
-    Batteries. PhD thesis, University of Oxford; Oxford Battery Degradation Dataset
-    1 (ORA).
+  citation: Howey, D. and Birkl, C. (2017). Oxford Battery Degradation Dataset 1.
+    University of Oxford, ORA; Birkl, C. R. (2017). Diagnosis and Prognosis of Degradation
+    in Lithium-Ion Batteries. DPhil thesis, University of Oxford.
   url: https://ora.ox.ac.uk/objects/uuid:03ba4b01-cfed-46d3-9b1a-7d4a7bdf6fac
-  license: ODC-ODbL
-  retrieved: VERIFY
+  license: ODC-ODbL (database), DbCL (contents) — readme
+  retrieved: 2026-09-03 (ORA record and Readme.txt fetched)
 chemistry:
   cathode: LCO/NCO
   anode: graphite
   metadata_label: LCO/NCO
-  verified_by: VERIFY
-  verified_on: VERIFY
-  evidence: 'dataset description / Birkl 2017: LCO/NCO cathode, graphite anode (VERIFY:
-    confirm and sign)'
+  verified_by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in
+    chemistry.evidence
+  verified_on: '2026-09-03'
+  evidence: 'ORA Readme.txt: 8 x Kokam SLPB533459H4 740 mAh pouch cells, 40 degC thermal
+    chamber, CC-CV charge, urban Artemis drive-cycle discharge, characterisation every
+    100 cycles at 1C (740 mA) and pseudo-OCV (40 mA). Chemistry: dos Reis, G. et al.
+    (2021), Lithium-ion battery data and where to find it, Energy and AI 5, 100081
+    (peer-reviewed data review): the Oxford cells have a ''lithium cobalt oxide (LCO)/lithium
+    nickel cobalt oxide (NCO) positive electrode and graphite negative electrode'',
+    consistent with Birkl 2017; the primary thesis/paper text was not fetchable in
+    this review (ORA downloads blocked by network policy).'
 cell:
-  format: pouch (Kokam SLPB533459H4, 740 mAh)
+  format: pouch, 8 x Kokam SLPB533459H4, 740 mAh (readme)
   rated_capacity_ah: 0.74
-  rated_source: 'shipped Readme.txt (Test subjects: 8 x Kokam SLPB533459H4, 740mAh)'
+  rated_source: 'ORA Readme.txt (''Test subjects: 8 x Kokam CO LTD, SLPB533459H4,
+    740mAh'')'
 protocol:
   segments:
   - id: cc_charge
-    rate: 1C (740 mA) characterisation every 100 drive cycles
+    rate: 1C (740 mA) characterisation every 100 drive cycles (readme)
   - id: pseudo_ocv
-    rate: C/18.5 (40 mA)
+    rate: C/18.5 (40 mA) (readme)
   temperature_c:
   - 40
 label_anchor:
   formula: soh = calibration_capacity / rated_capacity_ah
   measured_quantities:
   - charge_capacity_max
-  reference_test: 1C characterisation discharge every 100 Artemis drive cycles
+  reference_test: 1C characterisation discharge every 100 Artemis drive cycles (readme)
   label_source: calibration_capacity
 sampling:
   rate_hz: VERIFY
@@ -42,7 +51,7 @@ sampling:
 windows: VERIFY
 digests:
   raw: VERIFY
-  processed: VERIFY
+  processed: 9db249a5ae4a6d677045a79fedcbee83dc0c2846e145f7256f8a5eb78b9809a8
   curves: 41b24309d6bb6584748768e8844db324e02cc7c1adda60ae945f56c04b57debd
 leak_scan:
   label_source_columns:
@@ -53,5 +62,5 @@ held_out_ready: true
 known_issues:
 - 519 characterisation points only; coverage median 0.594 of rated (wide window warning)
 signed:
-  by: VERIFY
-  'on': VERIFY
+  by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in chemistry.evidence
+  'on': '2026-09-03'

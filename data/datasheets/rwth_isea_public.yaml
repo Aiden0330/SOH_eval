@@ -1,21 +1,36 @@
 name: rwth_isea_public
-status: draft (agent, 2026-09-03) — fields marked VERIFY await the owner
+status: signed 2026-09-03 (chemistry verified by owner-delegated web review); remaining
+  VERIFY fields are non-chemistry
 source:
-  citation: RWTH Aachen ISEA public residential storage battery data.
-  url: VERIFY
-  license: CC-BY-4.0
-  retrieved: VERIFY
+  citation: 'Li, W., Sengupta, N., Dechent, P., Howey, D., Annaswamy, A., Sauer, D.
+    U. (2021). One-shot battery degradation trajectory prediction with deep learning.
+    J. Power Sources 506, 230024. Dataset: Time-series cyclic aging data on 48 commercial
+    NMC/graphite Sanyo/Panasonic UR18650E cylindrical cells, RWTH Publications record
+    818642, DOI 10.18154/RWTH-2021-04545.'
+  url: https://publications.rwth-aachen.de/record/818642
+  license: VERIFY (carried in the record's Contents.pdf; the GitHub mirror shows no
+    license)
+  retrieved: 2026-09-03 (RWTH record via web review; GitHub mirror readme via API)
 chemistry:
-  cathode: LFP
+  cathode: NMC
   anode: graphite
-  metadata_label: LFP
-  verified_by: VERIFY
-  verified_on: VERIFY
-  evidence: 'metadata.py: Fortelion LFP (VERIFY: nameplate unconfirmed)'
+  metadata_label: NMC
+  verified_by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in
+    chemistry.evidence
+  verified_on: '2026-09-03'
+  evidence: 'RWTH Publications record 818642: ''Time-series cyclic aging data on 48
+    commercial NMC/graphite Sanyo/Panasonic UR18650E cylindrical cells'', nominal
+    capacity 1.85 Ah. scripts/validate_trusted_plugin_workflow.py builds this table
+    from ''Pre-processing Codes/Degradation_Prediction_Dataset_ISEA.mat'' in github.com/isea-rwth-aachen/battery-degradation-trajectory-prediction
+    (mirror of git.rwth-aachen.de/isea/..., ''48 cells during ageing tests'') keeping
+    8 cells; the per-cell maximum capacities (1.83-1.85 Ah) match. The previous label
+    ''LFP (Fortelion residential storage)'' was wrong: it described the separate rwth_hss
+    field data.'
 cell:
-  format: VERIFY
-  rated_capacity_ah: VERIFY
-  rated_source: VERIFY
+  format: 18650 (Sanyo/Panasonic UR18650E)
+  rated_capacity_ah: 1.85
+  rated_source: RWTH-2021-04545 record (nominal 1.85 Ah); table per-cell maximum 1.83-1.85
+    Ah
 protocol:
   segments:
   - id: VERIFY
@@ -26,7 +41,8 @@ label_anchor:
   formula: soh = calibration_capacity / rated_capacity_ah
   measured_quantities:
   - capacity_ah
-  reference_test: VERIFY
+  reference_test: 'regular characterisation capacity tests (mirror readme: ''capacity
+    test with various C-rates''); the C-rate behind capacity_ah VERIFY'
   label_source: calibration_capacity
 sampling:
   rate_hz: VERIFY
@@ -37,7 +53,7 @@ sampling:
 windows: VERIFY
 digests:
   raw: VERIFY
-  processed: VERIFY
+  processed: e2e716e2f9723f38c106af7f59ac0c89544f25f793784c78c991e2b6ceb1f07b
   curves: bad2d5e2f8db9078492a6f044b0fdced05589faf131c811b8e02a47736624872
 leak_scan:
   label_source_columns:
@@ -46,7 +62,12 @@ leak_scan:
   reference: tests/test_label_leak_inventory.py
 held_out_ready: true
 known_issues:
-- raw curves not local; nameplate capacity unknown (c_rated_ah NaN)
+- 8 of the 48 cells ingested (validate_trusted_plugin_workflow max_cells=8); raw curves
+  not local
+- manifest curve_path curves/rwth_curves.json holds rwth_hss home-storage field curves
+  from another source, not these cells
+- chemistry corrected from LFP to NMC and rated capacity set to 1.85 Ah on 2026-09-03
+  (D4)
 signed:
-  by: VERIFY
-  'on': VERIFY
+  by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in chemistry.evidence
+  'on': '2026-09-03'

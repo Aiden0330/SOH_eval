@@ -1,36 +1,43 @@
 name: calce_cs2
-status: draft (agent, 2026-09-03) — fields marked VERIFY await the owner
+status: signed 2026-09-03 (chemistry verified by owner-delegated web review); remaining
+  VERIFY fields are non-chemistry
 source:
-  citation: 'CALCE Battery Research Group, University of Maryland: CS2/CX2 prismatic
-    LiCoO2 cells; He, W. et al. (2011) Journal of Power Sources 196(23).'
+  citation: 'CALCE Battery Research Group, University of Maryland: CS2 prismatic cells
+    (Battery Data page); He, W., Williard, N., Osterman, M., Pecht, M. (2011). Prognostics
+    of lithium-ion batteries based on Dempster-Shafer theory and the Bayesian Monte
+    Carlo method. J. Power Sources 196(23), 10314-10321.'
   url: https://calce.umd.edu/battery-data
-  license: academic-use
-  retrieved: VERIFY
+  license: academic use; the page requests a citation
+  retrieved: 2026-09-03 (page fetched)
 chemistry:
   cathode: LCO
-  anode: graphite
+  anode: graphite (assumed; the CALCE page states only the cathode)
   metadata_label: LCO
-  verified_by: VERIFY
-  verified_on: VERIFY
-  evidence: 'CALCE data page states LiCoO2 cathode for CS2/CX2 (VERIFY: confirm the
-    page and sign)'
+  verified_by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in
+    chemistry.evidence
+  verified_on: '2026-09-03'
+  evidence: 'CALCE Battery Data page, CS2: ''Cell Chemistry: LiCoO2 cathode, EDS results
+    also showed trace elements of Manganese''; ''Capacity Rating: 1100 mAh''; charging
+    ''constant current rate of 0.5C until the voltage reached 4.2V and then 4.2V was
+    sustained until the charging current dropped to below 0.05A''; ''discharge cut
+    off voltage for these batteries was 2.7V''.'
 cell:
-  format: prismatic
+  format: prismatic, 5.4 x 33.6 x 50.6 mm (CALCE page)
   rated_capacity_ah: 1.1
-  rated_source: CALCE data page (CS2 1100 mAh; CX2 1350 mAh)
+  rated_source: 'CALCE page (CS2 ''Capacity Rating: 1100 mAh''; CX2 1350 mAh)'
 protocol:
   segments:
   - id: cc_charge
-    rate: 0.5C CC to 4.2 V, CV to 0.05 A
+    rate: 0.5C CC to 4.2 V, CV to 0.05 A (CALCE page)
   - id: discharge
-    rate: 1C to 2.7 V
+    rate: '0.5C-1C per cell to 2.7 V (CALCE page: cut-off 2.7 V)'
   temperature_c:
   - 25
 label_anchor:
   formula: soh = calibration_capacity / rated_capacity_ah
   measured_quantities:
   - discharge capacity (Ah)
-  reference_test: capacity of each 1C discharge (Arbin file)
+  reference_test: capacity of each discharge (Arbin file)
   label_source: calibration_capacity
 sampling:
   rate_hz: VERIFY
@@ -47,7 +54,7 @@ windows:
   calibrated_on: '2026-08-27'
 digests:
   raw: VERIFY
-  processed: VERIFY
+  processed: 4f144b1a1c37cf4e429ff21ae8be7daa6fc5a44e18d23e69a059555511cd7715
   curves: 5fd40a15bbfda861ed36de86d3ecc32708b8de86b69abec50254aa1190429915
 leak_scan:
   label_source_columns: []
@@ -58,5 +65,5 @@ known_issues:
 - charge_capacity_max in the processed table is the file-cumulative Arbin quantity,
   not per cycle (report finding G6)
 signed:
-  by: VERIFY
-  'on': VERIFY
+  by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in chemistry.evidence
+  'on': '2026-09-03'

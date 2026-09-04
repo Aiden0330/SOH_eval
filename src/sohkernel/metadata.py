@@ -2,13 +2,13 @@ from __future__ import annotations
 import pandas as pd
 
 DATASET_CHEMISTRY = {
-    "nasa": "LCO",       # NASA PCoE 18650 LiCoO2, 2 Ah
+    "nasa": "LCO",       # NASA PCoE 18650, 2 Ah — literature attribution only, chemistry UNVERIFIED (datasheet D4 2026-09-03)
     "calce_cs2": "LCO",  # CALCE CS2 prismatic LiCoO2
     "hust": "LFP",       # HUST A123 18650 LFP
     "oxford": "LCO/NCO", # Oxford ORA Kokam pouch, graphite/LCO-NCO (was "NMC")
     "snl_lfp": "LFP",    # SNL LFP subset from BatteryLife/BatteryArchive mirror
     "uconn": "LFP",      # UConn-ISU-ILCC LFP/graphite dataset
-    "rwth_isea_public": "LFP",  # RWTH ISEA residential storage cells (Fortelion LFP)
+    "rwth_isea_public": "NMC",  # RWTH ISEA one-shot dataset: Sanyo/Panasonic UR18650E NMC/graphite (DOI 10.18154/RWTH-2021-04545); was mislabelled LFP until 2026-09-03
 }
 DATASET_C_RATED_AH = {
     "nasa": 2.0,      # NASA PCoE 18650 LiCoO2, 2 Ah
@@ -17,7 +17,7 @@ DATASET_C_RATED_AH = {
     "oxford": 0.74,   # Oxford ORA Kokam pouch, graphite/LCO-NCO
     "snl_lfp": 1.1,   # SNL/BatteryLife A123 18650 LFP (data/curves/snl_lfp.json)
     "uconn": 1.1,     # UConn-ISU-ILCC LithiumWerks APR18650M1B LFP (data/curves/uconn.json)
-    "rwth_isea_public": float("nan"),  # field storage cells; nameplate unconfirmed
+    "rwth_isea_public": 1.85,  # UR18650E nominal 1.85 Ah (RWTH-2021-04545 record; table max 1.845 Ah)
 }
 DATASET_LABEL_SOURCE = {  # all reference-discharge calibrated capacity
     "nasa": "calibration_capacity", "calce_cs2": "calibration_capacity",

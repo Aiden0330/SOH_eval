@@ -1,22 +1,29 @@
 name: uconn
-status: draft (agent, 2026-09-03) — fields marked VERIFY await the owner
+status: signed 2026-09-03 (chemistry verified by owner-delegated web review); remaining
+  VERIFY fields are non-chemistry
 source:
-  citation: Nowacki, B. et al. (2025). UConn-ISU-ILCC LFP/graphite ageing dataset.
-  url: VERIFY
-  license: CC-BY-4.0
-  retrieved: VERIFY
+  citation: 'Nowacki, B., Ramamurthy, J., Thelen, A., Tischer, C., Pint, C. L., Hu,
+    C. (2025). UConn-ISU-ILCC LFP/Gr Battery Aging Dataset. UConn Digital Commons,
+    REIL datasets 1; paper: Rapid estimation of lithium-ion battery capacity and resistances
+    from short duration current pulses. J. Power Sources 628, 235813 (Feb. 2025).'
+  url: https://digitalcommons.lib.uconn.edu/reil_datasets/1/
+  license: CC BY 4.0 (record)
+  retrieved: 2026-09-03 (record fetched)
 chemistry:
   cathode: LFP
   anode: graphite
   metadata_label: LFP
-  verified_by: VERIFY
-  verified_on: VERIFY
-  evidence: 'dataset description: LithiumWerks APR18650M1B LFP (VERIFY: confirm and
-    sign)'
+  verified_by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in
+    chemistry.evidence
+  verified_on: '2026-09-03'
+  evidence: 'UConn Digital Commons record: ''64 LithiumWerks APR18650M1B cells'' cycled
+    under 11 unique conditions to 80 % remaining capacity, with 100-second CC pulses
+    at three states of charge; the dataset is titled LFP/Gr. LithiumWerks APR18650M1B
+    is a LiFePO4/graphite 18650 cell, 1.1 Ah, 3.3 V nominal (vendor specification).'
 cell:
   format: 18650 (LithiumWerks APR18650M1B)
   rated_capacity_ah: 1.1
-  rated_source: data/curves/uconn.json (1.1 Ah)
+  rated_source: LithiumWerks APR18650M1B specification (1.1 Ah nominal, 3.3 V); data/curves/uconn.json
 protocol:
   segments:
   - id: rpt_charge
@@ -44,7 +51,7 @@ windows:
   calibrated_on: '2026-08-25'
 digests:
   raw: VERIFY
-  processed: VERIFY
+  processed: 9756c28a946404496996c5fd917690075cea71c95865c4f80401549eed653828
   curves: 6f2d3a3a5af5993b85719dd855d064586cda56ff79c4caa002946fe495318d15
 leak_scan:
   label_source_columns:
@@ -55,5 +62,5 @@ held_out_ready: true
 known_issues:
 - 64 rows in 32 duplicated (cell, cycle) identities are dropped by QC since 2026-09-03
 signed:
-  by: VERIFY
-  'on': VERIFY
+  by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in chemistry.evidence
+  'on': '2026-09-03'
