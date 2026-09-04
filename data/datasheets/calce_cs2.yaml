@@ -1,0 +1,62 @@
+name: calce_cs2
+status: draft (agent, 2026-09-03) — fields marked VERIFY await the owner
+source:
+  citation: 'CALCE Battery Research Group, University of Maryland: CS2/CX2 prismatic
+    LiCoO2 cells; He, W. et al. (2011) Journal of Power Sources 196(23).'
+  url: https://calce.umd.edu/battery-data
+  license: academic-use
+  retrieved: VERIFY
+chemistry:
+  cathode: LCO
+  anode: graphite
+  metadata_label: LCO
+  verified_by: VERIFY
+  verified_on: VERIFY
+  evidence: 'CALCE data page states LiCoO2 cathode for CS2/CX2 (VERIFY: confirm the
+    page and sign)'
+cell:
+  format: prismatic
+  rated_capacity_ah: 1.1
+  rated_source: CALCE data page (CS2 1100 mAh; CX2 1350 mAh)
+protocol:
+  segments:
+  - id: cc_charge
+    rate: 0.5C CC to 4.2 V, CV to 0.05 A
+  - id: discharge
+    rate: 1C to 2.7 V
+  temperature_c:
+  - 25
+label_anchor:
+  formula: soh = calibration_capacity / rated_capacity_ah
+  measured_quantities:
+  - discharge capacity (Ah)
+  reference_test: capacity of each 1C discharge (Arbin file)
+  label_source: calibration_capacity
+sampling:
+  rate_hz: VERIFY
+  channels:
+  - V
+  - I
+  - T
+windows:
+- feature: q_win_ah
+  segment: cc_charge
+  v_lo: 3.85
+  v_hi: 4.05
+  coverage_median: 0.371
+  calibrated_on: '2026-08-27'
+digests:
+  raw: VERIFY
+  processed: VERIFY
+  curves: 5fd40a15bbfda861ed36de86d3ecc32708b8de86b69abec50254aa1190429915
+leak_scan:
+  label_source_columns: []
+  scanned_on: '2026-09-03'
+  reference: tests/test_label_leak_inventory.py
+held_out_ready: true
+known_issues:
+- charge_capacity_max in the processed table is the file-cumulative Arbin quantity,
+  not per cycle (report finding G6)
+signed:
+  by: VERIFY
+  'on': VERIFY

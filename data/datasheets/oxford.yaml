@@ -1,0 +1,57 @@
+name: oxford
+status: draft (agent, 2026-09-03) — fields marked VERIFY await the owner
+source:
+  citation: Birkl, C. R. (2017). Diagnosis and Prognosis of Degradation in Lithium-Ion
+    Batteries. PhD thesis, University of Oxford; Oxford Battery Degradation Dataset
+    1 (ORA).
+  url: https://ora.ox.ac.uk/objects/uuid:03ba4b01-cfed-46d3-9b1a-7d4a7bdf6fac
+  license: ODC-ODbL
+  retrieved: VERIFY
+chemistry:
+  cathode: LCO/NCO
+  anode: graphite
+  metadata_label: LCO/NCO
+  verified_by: VERIFY
+  verified_on: VERIFY
+  evidence: 'dataset description / Birkl 2017: LCO/NCO cathode, graphite anode (VERIFY:
+    confirm and sign)'
+cell:
+  format: pouch (Kokam SLPB533459H4, 740 mAh)
+  rated_capacity_ah: 0.74
+  rated_source: 'shipped Readme.txt (Test subjects: 8 x Kokam SLPB533459H4, 740mAh)'
+protocol:
+  segments:
+  - id: cc_charge
+    rate: 1C (740 mA) characterisation every 100 drive cycles
+  - id: pseudo_ocv
+    rate: C/18.5 (40 mA)
+  temperature_c:
+  - 40
+label_anchor:
+  formula: soh = calibration_capacity / rated_capacity_ah
+  measured_quantities:
+  - charge_capacity_max
+  reference_test: 1C characterisation discharge every 100 Artemis drive cycles
+  label_source: calibration_capacity
+sampling:
+  rate_hz: VERIFY
+  channels:
+  - V
+  - I
+  - T
+windows: VERIFY
+digests:
+  raw: VERIFY
+  processed: VERIFY
+  curves: 41b24309d6bb6584748768e8844db324e02cc7c1adda60ae945f56c04b57debd
+leak_scan:
+  label_source_columns:
+  - charge_capacity_max
+  scanned_on: '2026-09-03'
+  reference: tests/test_label_leak_inventory.py
+held_out_ready: true
+known_issues:
+- 519 characterisation points only; coverage median 0.594 of rated (wide window warning)
+signed:
+  by: VERIFY
+  'on': VERIFY

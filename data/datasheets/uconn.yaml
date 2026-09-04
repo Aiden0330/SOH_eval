@@ -1,0 +1,59 @@
+name: uconn
+status: draft (agent, 2026-09-03) — fields marked VERIFY await the owner
+source:
+  citation: Nowacki, B. et al. (2025). UConn-ISU-ILCC LFP/graphite ageing dataset.
+  url: VERIFY
+  license: CC-BY-4.0
+  retrieved: VERIFY
+chemistry:
+  cathode: LFP
+  anode: graphite
+  metadata_label: LFP
+  verified_by: VERIFY
+  verified_on: VERIFY
+  evidence: 'dataset description: LithiumWerks APR18650M1B LFP (VERIFY: confirm and
+    sign)'
+cell:
+  format: 18650 (LithiumWerks APR18650M1B)
+  rated_capacity_ah: 1.1
+  rated_source: data/curves/uconn.json (1.1 Ah)
+protocol:
+  segments:
+  - id: rpt_charge
+    rate: 1C reference charge
+  temperature_c:
+  - VERIFY
+label_anchor:
+  formula: soh = calibration_capacity / rated_capacity_ah
+  measured_quantities:
+  - charge_capacity_max
+  reference_test: RPT reference discharge
+  label_source: calibration_capacity
+sampling:
+  rate_hz: VERIFY
+  channels:
+  - V
+  - I
+  - T
+windows:
+- feature: q_win_ah
+  segment: rpt_charge
+  v_lo: 3.3
+  v_hi: 3.37
+  coverage_median: 0.536
+  calibrated_on: '2026-08-25'
+digests:
+  raw: VERIFY
+  processed: VERIFY
+  curves: 6f2d3a3a5af5993b85719dd855d064586cda56ff79c4caa002946fe495318d15
+leak_scan:
+  label_source_columns:
+  - charge_capacity_max
+  scanned_on: '2026-09-03'
+  reference: tests/test_label_leak_inventory.py
+held_out_ready: true
+known_issues:
+- 64 rows in 32 duplicated (cell, cycle) identities are dropped by QC since 2026-09-03
+signed:
+  by: VERIFY
+  'on': VERIFY

@@ -10,6 +10,7 @@ dependencies = [
     "scipy",
     "pyarrow",
     "jsonschema",
+    "pyyaml",
     "fastapi>=0.115",
     "uvicorn>=0.30",
 ]

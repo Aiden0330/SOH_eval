@@ -1,0 +1,52 @@
+name: rwth_isea_public
+status: draft (agent, 2026-09-03) — fields marked VERIFY await the owner
+source:
+  citation: RWTH Aachen ISEA public residential storage battery data.
+  url: VERIFY
+  license: CC-BY-4.0
+  retrieved: VERIFY
+chemistry:
+  cathode: LFP
+  anode: graphite
+  metadata_label: LFP
+  verified_by: VERIFY
+  verified_on: VERIFY
+  evidence: 'metadata.py: Fortelion LFP (VERIFY: nameplate unconfirmed)'
+cell:
+  format: VERIFY
+  rated_capacity_ah: VERIFY
+  rated_source: VERIFY
+protocol:
+  segments:
+  - id: VERIFY
+    rate: VERIFY
+  temperature_c:
+  - VERIFY
+label_anchor:
+  formula: soh = calibration_capacity / rated_capacity_ah
+  measured_quantities:
+  - capacity_ah
+  reference_test: VERIFY
+  label_source: calibration_capacity
+sampling:
+  rate_hz: VERIFY
+  channels:
+  - V
+  - I
+  - T
+windows: VERIFY
+digests:
+  raw: VERIFY
+  processed: VERIFY
+  curves: bad2d5e2f8db9078492a6f044b0fdced05589faf131c811b8e02a47736624872
+leak_scan:
+  label_source_columns:
+  - capacity_ah
+  scanned_on: '2026-09-03'
+  reference: tests/test_label_leak_inventory.py
+held_out_ready: true
+known_issues:
+- raw curves not local; nameplate capacity unknown (c_rated_ah NaN)
+signed:
+  by: VERIFY
+  'on': VERIFY

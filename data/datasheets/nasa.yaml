@@ -1,0 +1,57 @@
+name: nasa
+status: draft (agent, 2026-09-03) — fields marked VERIFY await the owner
+source:
+  citation: Saha, B. and Goebel, K. (2007). Battery Data Set. NASA Ames Prognostics
+    Data Repository.
+  url: https://www.nasa.gov/intelligent-systems-division/discovery-and-systems-health/pcoe/pcoe-data-set-repository/
+  license: public
+  retrieved: VERIFY
+chemistry:
+  cathode: VERIFY
+  anode: VERIFY
+  metadata_label: LCO
+  verified_by: VERIFY
+  verified_on: VERIFY
+  evidence: 'VERIFY: the shipped PCoE READMEs (data/raw/nasa_full/README*.txt) name
+    neither chemistry nor manufacturer; metadata.py and data/manifest.json say LCO
+    (literature attribution) while data/curves/nasa.json says ''NCA (Gen2 18650)''.
+    Resolve against a primary source before any chemistry claim.'
+cell:
+  format: '18650'
+  rated_capacity_ah: 2.0
+  rated_source: documentation (2 Ah nominal)
+protocol:
+  segments:
+  - id: cc_cv_charge
+    rate: 1.5 A CC to 4.2 V, CV to 20 mA
+  - id: discharge
+    rate: 2 A (B0005-7, B0018) to 2.7/2.5/2.2 V
+  temperature_c:
+  - 24
+label_anchor:
+  formula: soh = calibration_capacity / rated_capacity_ah
+  measured_quantities:
+  - discharge capacity (Ah)
+  reference_test: capacity from each full discharge (documented per README)
+  label_source: calibration_capacity
+sampling:
+  rate_hz: VERIFY
+  channels:
+  - V
+  - I
+  - T
+windows: VERIFY
+digests:
+  raw: VERIFY
+  processed: VERIFY
+  curves: f0a515c8643be8f589b754d97e0419054bb768c9189a449007f2ca7e5c3296f8
+leak_scan:
+  label_source_columns: []
+  scanned_on: '2026-09-03'
+  reference: tests/test_label_leak_inventory.py
+held_out_ready: true
+known_issues:
+- cell B0018 is the phase 2.2 golden case; 18 non-positive SOH rows dropped by QC
+signed:
+  by: VERIFY
+  'on': VERIFY

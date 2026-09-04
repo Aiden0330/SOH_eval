@@ -1,0 +1,61 @@
+name: hust
+status: draft (agent, 2026-09-03) — fields marked VERIFY await the owner
+source:
+  citation: Ma, G. et al. (2022). Real-time personalized health status prediction
+    of lithium-ion batteries using deep transfer learning. Energy & Environmental
+    Science; dataset on Mendeley Data.
+  url: VERIFY
+  license: CC-BY-4.0
+  retrieved: VERIFY
+chemistry:
+  cathode: LFP
+  anode: graphite
+  metadata_label: LFP
+  verified_by: VERIFY
+  verified_on: VERIFY
+  evidence: 'publication states A123 LFP 18650 cells (VERIFY: confirm and sign)'
+cell:
+  format: 18650 (A123 APR18650M1A)
+  rated_capacity_ah: 1.1
+  rated_source: publication (1.1 Ah)
+protocol:
+  segments:
+  - id: cc_charge
+    rate: 5C CC (multi-stage) to 3.6 V
+  - id: discharge
+    rate: 1C to 2.0 V
+  temperature_c:
+  - 30
+label_anchor:
+  formula: soh = calibration_capacity / rated_capacity_ah
+  measured_quantities:
+  - charge_capacity_max
+  reference_test: capacity of each discharge
+  label_source: calibration_capacity
+sampling:
+  rate_hz: VERIFY
+  channels:
+  - V
+  - I
+  - T
+windows:
+- feature: q_win_ah
+  segment: cc_charge
+  v_lo: 3.3
+  v_hi: 3.52
+  coverage_median: 0.486
+  calibrated_on: '2026-08-25'
+digests:
+  raw: VERIFY
+  processed: VERIFY
+  curves: 3109db334b2955ab9dd49a3d2c6939409c0e84d7a226b33da4e31d10988a2b81
+leak_scan:
+  label_source_columns:
+  - charge_capacity_max
+  scanned_on: '2026-09-03'
+  reference: tests/test_label_leak_inventory.py
+held_out_ready: true
+known_issues: []
+signed:
+  by: VERIFY
+  'on': VERIFY

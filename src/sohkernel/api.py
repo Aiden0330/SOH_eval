@@ -21,6 +21,7 @@ from . import registry as R
 from .acceptance import evaluate_verdicts
 from .contracts import QCReport, Verdict, feature_columns
 from .data import ALL_DATASETS, REQUIRED_COLUMNS, DatasetLoader
+from .datasheets import chemistry_verified, load_datasheets
 from .feature_safety import FeatureSafetyError, apply_transform_without_label, audit_feature_frame
 from .method_contracts import incompatible_pairing_reason, method_contract
 from .protocols import PROTOCOLS
@@ -263,7 +264,8 @@ def training_feature_profile(
     }
 
 
-def training_protocol_profile(table: pd.DataFrame, meta: pd.DataFrame | None, name: str) -> dict:
+def training_protocol_profile(table: pd.DataFrame, meta: pd.DataFrame | None, name: str,
+                              *, datasheets: Mapping[str, Mapping] | None = None) -> dict:
     errors: list[str] = []
     warnings: list[str] = []
     details: dict = {}
@@ -289,6 +291,18 @@ def training_protocol_profile(table: pd.DataFrame, meta: pd.DataFrame | None, na
             errors.append("LCHO requires known chemistry metadata for every selected cell")
         if len(known) < 2:
             errors.append("LCHO requires at least two known chemistries")
+        # Spec 01 §1 / Spec 06: a dataset whose datasheet still carries VERIFY on its chemistry
+        # cannot support a chemistry-level claim — the fold runs, the claim is flagged.
+        if datasheets:
+            unverified = sorted(
+                name_ for name_ in map(str, table["dataset"].unique())
+                if name_ in datasheets and not chemistry_verified(datasheets[name_])
+            )
+            details["unverified_chemistry"] = unverified
+            if unverified:
+                warnings.append(
+                    f"chemistry not yet verified for {unverified} (datasheet VERIFY); this LCHO fold cannot support a chemistry claim"
+                )
     elif name == "forward":
         protocol = PROTOCOLS["forward"]()
         plan = protocol.plan(table)
@@ -408,8 +422,12 @@ def preflight(
         )
         for name in effective
     }
+    try:
+        datasheets = load_datasheets(data_dir)
+    except Exception:  # a malformed datasheet must not break admission; the claim flow re-checks
+        datasheets = {}
     protocol_profiles = {
-        name: training_protocol_profile(table, meta, name) for name in request["protocols"]
+        name: training_protocol_profile(table, meta, name, datasheets=datasheets) for name in request["protocols"]
     }
 
     seed_count = len(request["seeds"])
