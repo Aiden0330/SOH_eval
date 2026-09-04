@@ -24,6 +24,8 @@ RAW_BINDINGS = {
     "hust": ["raw/hust"],
     "oxford": ["raw/oxford"],
     "snl_lfp": ["raw/snl_batterylife"],
+    "snl_nmc": ["raw/snl_batterylife"],
+    "snl_nca": ["raw/snl_batterylife"],
     "uconn": ["raw/uconn_lfp"],
 }
 
@@ -33,6 +35,8 @@ LICENSES = {
     "hust": {"license": "CC-BY-4.0", "source": "Ma et al. 2022 / Mendeley Data"},
     "oxford": {"license": "ODC-ODbL", "source": "Oxford Battery Degradation Dataset 1"},
     "snl_lfp": {"license": "CC-BY-4.0", "source": "BatteryLife / BatteryArchive / Preger 2020"},
+    "snl_nmc": {"license": "VERIFY (BatteryArchive study page states no license)", "source": "BatteryLife / BatteryArchive / Preger 2020 (NMC subset)"},
+    "snl_nca": {"license": "VERIFY (BatteryArchive study page states no license)", "source": "BatteryLife / BatteryArchive / Preger 2020 (NCA subset)"},
     "uconn": {"license": "CC-BY-4.0", "source": "UConn-ISU-ILCC / Nowacki et al. 2025"},
     "rwth_isea_public": {"license": "CC-BY-4.0", "source": "RWTH ISEA public battery data"},
 }
@@ -157,12 +161,56 @@ def dataset_entry(path: Path, data_root: Path) -> dict:
     }
 
 
+def update_entries(data_root: Path, names: list[str], partial_windows: dict[str, list[float]]) -> dict:
+    """Recompute the named dataset entries inside the existing manifest (no source-root verification).
+
+    Used when a processed table is (re)built on a machine without the migration source root
+    (D1, 2026-09-04): the entry fields are the same ``dataset_entry`` fields the full build writes;
+    ``partial_window_v`` is carried over from the previous entry unless given explicitly, and the
+    summary counters are re-summed.
+    """
+    manifest_path = data_root / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    entries = {item["name"]: item for item in manifest.get("datasets", [])}
+    for name in names:
+        path = data_root / "processed" / f"{name}_features.pkl"
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        entry = dataset_entry(path, data_root)
+        previous = entries.get(name, {})
+        window = partial_windows.get(name) or (previous.get("processed") or {}).get("partial_window_v")
+        if window:
+            entry["processed"]["partial_window_v"] = [float(window[0]), float(window[1])]
+        entries[name] = entry
+    manifest["datasets"] = [entries[name] for name in sorted(entries)]
+    manifest["summary"].update({
+        "processed_datasets": len(manifest["datasets"]),
+        "records": sum(item["record_count"] for item in manifest["datasets"]),
+        "cycles": sum(item["cycle_count"] for item in manifest["datasets"]),
+        "batteries": sum(item["battery_count"] for item in manifest["datasets"]),
+    })
+    manifest["updated_at"] = datetime.now(timezone.utc).isoformat()
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    return manifest
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", type=Path, default=ROOT / "data")
     parser.add_argument("--source-root", type=Path, default=battery_soh_root() / "data")
+    parser.add_argument("--update-only", nargs="+", metavar="DATASET", default=None,
+                        help="recompute only these dataset entries in the existing manifest (no source-root verification)")
+    parser.add_argument("--partial-window", nargs=3, action="append", metavar=("DATASET", "LO", "HI"), default=[],
+                        help="partial_window_v to record for a dataset (with --update-only)")
     args = parser.parse_args(argv)
     data_root = args.data_root.resolve()
+    if args.update_only:
+        windows = {name: [float(lo), float(hi)] for name, lo, hi in args.partial_window}
+        manifest = update_entries(data_root, args.update_only, windows)
+        updated = {item["name"]: {k: item[k] for k in ("record_count", "cycle_count", "battery_count")} | {"sha256": item["processed"]["sha256"]}
+                   for item in manifest["datasets"] if item["name"] in args.update_only}
+        print(json.dumps({"manifest": str(data_root / "manifest.json"), "updated": updated, "summary": manifest["summary"]}, ensure_ascii=False))
+        return 0
     source_root = args.source_root.resolve()
     datasets = [dataset_entry(path, data_root) for path in sorted((data_root / "processed").glob("*_features.pkl"))]
     verification = verify_copy(source_root, data_root)

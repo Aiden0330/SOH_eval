@@ -7,10 +7,10 @@
  "summary": {
   "local_files": 306,
   "local_bytes": 24288608875,
-  "processed_datasets": 9,
-  "records": 235320,
-  "cycles": 235288,
-  "batteries": 226
+  "processed_datasets": 11,
+  "records": 261683,
+  "cycles": 261651,
+  "batteries": 265
  },
  "verification": {
   "inventory_checks": [
@@ -486,6 +486,124 @@
    "source": "BatteryLife / BatteryArchive / Preger 2020"
   },
   {
+   "name": "snl_nca",
+   "status": "ready",
+   "supervision": "soh_supervised",
+   "roles": [
+    "training",
+    "same_dataset_holdout",
+    "inference",
+    "audit"
+   ],
+   "processed": {
+    "path": "processed/snl_nca_features.pkl",
+    "bytes": 2408439,
+    "sha256": "1ce4683e6ec92fe9af9ead582aa01df9dedf42514703114699dea35f4acff886",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "time_s_max",
+     "voltage_mean",
+     "voltage_std",
+     "voltage_min",
+     "voltage_max",
+     "current_mean",
+     "current_std",
+     "abs_current_mean",
+     "temperature_mean",
+     "charge_capacity_max",
+     "q_win_ah",
+     "t_win_s",
+     "ic_peak_ah_per_v",
+     "ic_peak_voltage_v",
+     "cycle_index_feature",
+     "cycle_fraction"
+    ],
+    "partial_window_v": [
+     3.7,
+     4.1
+    ]
+   },
+   "record_count": 12080,
+   "cycle_count": 12080,
+   "battery_count": 18,
+   "chemistry": "NCA",
+   "max_capacity_ah": 3.2,
+   "capacity_source": "rated_metadata",
+   "label_source": "calibration_capacity",
+   "held_out_ready": true,
+   "raw_paths": [
+    "raw/snl_batterylife"
+   ],
+   "raw_local": true,
+   "curve_path": "",
+   "curve_sha256": "",
+   "license": "VERIFY (BatteryArchive study page states no license)",
+   "source": "BatteryLife / BatteryArchive / Preger 2020 (NCA subset)"
+  },
+  {
+   "name": "snl_nmc",
+   "status": "ready",
+   "supervision": "soh_supervised",
+   "roles": [
+    "training",
+    "same_dataset_holdout",
+    "inference",
+    "audit"
+   ],
+   "processed": {
+    "path": "processed/snl_nmc_features.pkl",
+    "bytes": 2845338,
+    "sha256": "1b7c12a97d8c962cd29a6ca2f82dd28ee8f136f493fd6ea3941275ba01138890",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "time_s_max",
+     "voltage_mean",
+     "voltage_std",
+     "voltage_min",
+     "voltage_max",
+     "current_mean",
+     "current_std",
+     "abs_current_mean",
+     "temperature_mean",
+     "charge_capacity_max",
+     "q_win_ah",
+     "t_win_s",
+     "ic_peak_ah_per_v",
+     "ic_peak_voltage_v",
+     "cycle_index_feature",
+     "cycle_fraction"
+    ],
+    "partial_window_v": [
+     3.65,
+     4.1
+    ]
+   },
+   "record_count": 14283,
+   "cycle_count": 14283,
+   "battery_count": 21,
+   "chemistry": "NMC",
+   "max_capacity_ah": 3.0,
+   "capacity_source": "rated_metadata",
+   "label_source": "calibration_capacity",
+   "held_out_ready": true,
+   "raw_paths": [
+    "raw/snl_batterylife"
+   ],
+   "raw_local": true,
+   "curve_path": "",
+   "curve_sha256": "",
+   "license": "VERIFY (BatteryArchive study page states no license)",
+   "source": "BatteryLife / BatteryArchive / Preger 2020 (NMC subset)"
+  },
+  {
    "name": "soh_quickstart_demo",
    "status": "ready",
    "supervision": "soh_supervised",
@@ -647,5 +765,6 @@
   "SOHbenchmark code archive",
   "gbrain-evals historical engineering dependencies",
   "RWTH HSS and other field data without supervised SOH labels"
- ]
+ ],
+ "updated_at": "2026-09-04T04:18:15.726062+00:00"
 }

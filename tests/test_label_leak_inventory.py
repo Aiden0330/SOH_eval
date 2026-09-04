@@ -53,6 +53,17 @@ DATA_DIR = data_root() / "processed"
 # metadata, so a distorted charge_capacity_max can no longer make it "falsely clean".
 # Median q_win / rated capacity on this date (raw source labels such as CALCE/SNL
 # resolve through metadata.canonical_dataset_name): calce_cs2 0.371; hust 0.486; nasa 0.276; oxford 0.594; snl_lfp 0.449; uconn 0.536. Findings unchanged.
+#
+# Reviewed 2026-09-04 (D1, chemistry breadth): snl_nmc (21 LG Chem 18650HG2 cells) and snl_nca
+# (18 of 22 Panasonic NCR18650B cells; the four 20-80 % SOC cells carry no calibration capacity
+# and are not ingested) were built from the BatteryLife mirror by
+# scripts/ingest_batterylife_snl.py with the same charge-segment extractor that reproduces
+# snl_lfp (gated columns >= 99.99 % row match).  Windows calibrated on the 0.5C charge segment:
+# snl_nmc [3.65, 4.10] V, median q_win / 3.0 Ah = 0.433 (max 0.516, affine R² 0.88);
+# snl_nca [3.70, 4.10] V, median q_win / 3.2 Ah = 0.440 (max 0.561, affine R² 0.87).
+# Findings: snl_nmc charge_capacity_max reconstructs soh affinely (R² 0.998 — the charge
+# throughput of a 0-100 % cycle equals the discharge capacity that anchors the label);
+# on snl_nca the same column stays below the 0.995 threshold, so no finding is pinned there.
 EXPECTED_LABEL_SOURCE_COLUMNS = {
     "hust": ["charge_capacity_max"],
     "oxford": ["charge_capacity_max"],
@@ -61,6 +72,8 @@ EXPECTED_LABEL_SOURCE_COLUMNS = {
     "nasa": [],
     "calce_cs2": [],
     "snl_lfp": [],
+    "snl_nmc": ["charge_capacity_max"],
+    "snl_nca": [],
 }
 
 ID_COLUMNS = ("dataset", "cell_id", "cycle_index", "soh")

@@ -1,0 +1,75 @@
+name: snl_nmc
+status: signed 2026-09-04 (chemistry verified from the pickle metadata and JES 2020,
+  owner-delegated); remaining VERIFY fields are non-chemistry
+source:
+  citation: Preger, Y. et al. (2020). Degradation of commercial lithium-ion cells
+    as a function of chemistry and cycling conditions. J. Electrochem. Soc. 167(12),
+    120532, DOI 10.1149/1945-7111/abae37 — NMC subset; data via BatteryArchive / BatteryLife
+    mirror (data/raw/snl_batterylife), ingested by scripts/ingest_batterylife_snl.py
+    (D1, 2026-09-04).
+  url: https://doi.org/10.1149/1945-7111/abae37
+  license: VERIFY (the BatteryArchive study page states no license)
+  retrieved: 2026-09-04 (built from the local BatteryLife mirror)
+chemistry:
+  cathode: NMC
+  anode: graphite
+  metadata_label: NMC
+  verified_by: owner-delegated review 2026-09-04 (Claude Fable 5.1); sources in chemistry.evidence
+  verified_on: '2026-09-04'
+  evidence: 'BatteryLife pickle metadata: cathode_material ''NMC'', anode_material
+    ''graphite'', form_factor cylindrical_18650, nominal 3 Ah; JES 167(12) 120532
+    names the NMC cells LG Chem 18650HG2, 3 Ah. The extractor was verified against
+    the existing snl_lfp table before use (soh 100 % row match; charge-segment statistics
+    >= 99.998 %).'
+cell:
+  format: 18650 (LG Chem 18650HG2)
+  rated_capacity_ah: 3.0
+  rated_source: 'JES 167 120532 (NMC: LG Chem 18650HG2, 3 Ah); pickle nominal_capacity_in_Ah
+    3 (the mirror derates 15 degC cells to 2.7 Ah; not used)'
+protocol:
+  segments:
+  - id: cc_charge
+    rate: 0.5C CC to 4.2 V (JES); charge segment = current > 0.01 A
+  - id: discharge
+    rate: 0.5C-3C to 2.0 V (JES; the rate is in the cell name)
+  temperature_c:
+  - 15
+  - 25
+  - 35
+label_anchor:
+  formula: soh = calibration_capacity / rated_capacity_ah
+  measured_quantities:
+  - discharge capacity (Ah)
+  reference_test: maximum discharge capacity of each cycle (BatteryLife discharge_capacity_in_Ah)
+    over the 3.0 Ah nameplate
+  label_source: calibration_capacity
+sampling:
+  rate_hz: VERIFY
+  channels:
+  - V
+  - I
+  - T
+windows:
+- feature: q_win_ah
+  segment: cc_charge
+  v_lo: 3.65
+  v_hi: 4.1
+  coverage_median: 0.433
+  calibrated_on: '2026-09-04'
+digests:
+  raw: VERIFY
+  processed: 1b7c12a97d8c962cd29a6ca2f82dd28ee8f136f493fd6ea3941275ba01138890
+  curves: VERIFY
+leak_scan:
+  label_source_columns:
+  - charge_capacity_max
+  scanned_on: '2026-09-03'
+  reference: tests/test_label_leak_inventory.py
+held_out_ready: true
+known_issues:
+- 'charge_capacity_max reconstructs soh affinely (R² 0.998) on 0-100 % cycles: pinned
+  in the leak inventory and banned as an input by name'
+- 21 cells, 14,283 rows; raw curves stay in the mirror (not copied into data/curves)
+signed:
+  by: owner-delegated review 2026-09-04 (Claude Fable 5.1); sources in chemistry.evidence
+  'on': '2026-09-04'

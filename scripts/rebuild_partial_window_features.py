@@ -71,6 +71,12 @@ WINDOWS = {
     },
 }
 
+# D1 (2026-09-04): the SNL NMC/NCA subsets are built by scripts/ingest_batterylife_snl.py with these
+# windows (calibrated by its --scan-windows on the 0.5C charge segment; median coverage 0.43 / 0.44
+# of the 3.0 / 3.2 Ah nameplate, affine R² 0.88 / 0.87); listed here so a rebuild uses the same bounds.
+WINDOWS["snl_nmc"] = {"window": (3.65, 4.10), "note": "NMC mid-charge window, 0.5C charge segment (LG Chem 18650HG2)"}
+WINDOWS["snl_nca"] = {"window": (3.70, 4.10), "note": "NCA mid-charge window, 0.5C charge segment (Panasonic NCR18650B)"}
+
 CURVE_CONFIG_NAMES = {"hust": "hust", "snl_lfp": "snl_lfp", "uconn": "uconn", "calce_cs2": "calce"}
 
 
@@ -327,6 +333,13 @@ def rebuild_dataset(name: str, data_dir: Path, *, dry_run: bool) -> dict:
         iterator = _iter_uconn(data_dir, lo, hi, table)
     elif name == "calce_cs2":
         iterator = _iter_calce(data_dir, lo, hi, table)
+    elif name in ("snl_nmc", "snl_nca"):
+        from sohkernel.raw_windows import iter_charge_curves
+
+        iterator = (
+            (cell, cycle, *_window_integral(v, q, t, lo, hi))
+            for cell, cycle, v, q, t in iter_charge_curves(data_dir, name, table)
+        )
     else:
         raise SystemExit(f"no raw iterator for dataset {name}")
 
@@ -374,7 +387,7 @@ def rebuild_dataset(name: str, data_dir: Path, *, dry_run: bool) -> dict:
         shutil.copy2(processed_path, backup_path)
     table.to_pickle(processed_path)
 
-    curve_path = data_dir / "curves" / f"{CURVE_CONFIG_NAMES[name]}.json"
+    curve_path = data_dir / "curves" / f"{CURVE_CONFIG_NAMES.get(name, name)}.json"
     if curve_path.exists():
         config = json.loads(curve_path.read_text(encoding="utf-8"))
         config["feature_window"] = [lo, hi]

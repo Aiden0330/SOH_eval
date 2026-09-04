@@ -9,6 +9,8 @@ DATASET_CHEMISTRY = {
     "snl_lfp": "LFP",    # SNL LFP subset from BatteryLife/BatteryArchive mirror
     "uconn": "LFP",      # UConn-ISU-ILCC LFP/graphite dataset
     "rwth_isea_public": "NMC",  # RWTH ISEA one-shot dataset: Sanyo/Panasonic UR18650E NMC/graphite (DOI 10.18154/RWTH-2021-04545); was mislabelled LFP until 2026-09-03
+    "snl_nmc": "NMC",    # SNL NMC subset (LG Chem 18650HG2) from the BatteryLife/BatteryArchive mirror; pickle cathode_material NMC + JES 167 120532 (D1, 2026-09-04)
+    "snl_nca": "NCA",    # SNL NCA subset (Panasonic NCR18650B) from the BatteryLife/BatteryArchive mirror; pickle cathode_material NCA + JES 167 120532 (D1, 2026-09-04)
 }
 DATASET_C_RATED_AH = {
     "nasa": 2.0,      # NASA PCoE 18650 LiCoO2, 2 Ah
@@ -18,12 +20,15 @@ DATASET_C_RATED_AH = {
     "snl_lfp": 1.1,   # SNL/BatteryLife A123 18650 LFP (data/curves/snl_lfp.json)
     "uconn": 1.1,     # UConn-ISU-ILCC LithiumWerks APR18650M1B LFP (data/curves/uconn.json)
     "rwth_isea_public": 1.85,  # UR18650E nominal 1.85 Ah (RWTH-2021-04545 record; table max 1.845 Ah)
+    "snl_nmc": 3.0,   # LG Chem 18650HG2 nominal 3.0 Ah (JES 167 120532; BatteryLife pickle nominal_capacity_in_Ah, 15 degC cells derated to 2.7 there — not used)
+    "snl_nca": 3.2,   # Panasonic NCR18650B nominal 3.2 Ah (JES 167 120532; BatteryLife pickle nominal_capacity_in_Ah, 15 degC cells derated to 2.88 there — not used)
 }
 DATASET_LABEL_SOURCE = {  # all reference-discharge calibrated capacity
     "nasa": "calibration_capacity", "calce_cs2": "calibration_capacity",
     "hust": "calibration_capacity", "oxford": "calibration_capacity",
     "snl_lfp": "calibration_capacity", "uconn": "calibration_capacity",
     "rwth_isea_public": "calibration_capacity",
+    "snl_nmc": "calibration_capacity", "snl_nca": "calibration_capacity",
 }
 # Raw ingestion frames label datasets the way their source did (``CALCE``, ``SNL``,
 # ``HUST`` ...); the loader rewrites the column to the canonical file-derived name, and

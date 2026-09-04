@@ -31,6 +31,8 @@ from .raw_windows import iter_charge_curves
 DATASET_LATTICE = {
     "hust": (3.00, 3.60),
     "snl_lfp": (3.00, 3.60),
+    "snl_nmc": (3.40, 4.20),  # D1 (2026-09-04): LG Chem 18650HG2, 0.5C CC charge to 4.2 V
+    "snl_nca": (3.30, 4.20),  # D1 (2026-09-04): Panasonic NCR18650B, 0.5C CC charge to 4.2 V
     "uconn": (3.00, 3.60),
     "calce_cs2": (3.60, 4.20),
 }

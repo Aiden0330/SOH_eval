@@ -29,7 +29,7 @@ def test_repo_datasheet_drafts_exist_and_nasa_chemistry_is_unverified():
     sheets = load_datasheets(Path(__file__).resolve().parents[2] / "data")
     if not sheets:
         pytest.skip("datasheets not present")
-    assert {"nasa", "calce_cs2", "hust", "oxford", "snl_lfp", "uconn", "rwth_isea_public"} <= set(sheets)
+    assert {"nasa", "calce_cs2", "hust", "oxford", "snl_lfp", "uconn", "rwth_isea_public", "snl_nmc", "snl_nca"} <= set(sheets)
     assert not chemistry_verified(sheets["nasa"]) and "chemistry.cathode" in unverified_fields(sheets["nasa"])
     assert sheets["hust"]["windows"][0]["v_lo"] == 3.30 and sheets["hust"]["leak_scan"]["label_source_columns"] == ["charge_capacity_max"]
 
@@ -68,7 +68,7 @@ def test_signed_datasheets_agree_with_the_metadata_chemistry_table():
     if not sheets:
         pytest.skip("datasheets not present")
     verified = {name for name, sheet in sheets.items() if chemistry_verified(sheet)}
-    assert verified == {"calce_cs2", "hust", "oxford", "snl_lfp", "uconn", "rwth_isea_public"}
+    assert verified == {"calce_cs2", "hust", "oxford", "snl_lfp", "uconn", "rwth_isea_public", "snl_nmc", "snl_nca"}
     for name in verified:
         assert is_signed(sheets[name]), name
         assert sheets[name]["chemistry"]["cathode"] == DATASET_CHEMISTRY[name] == sheets[name]["chemistry"]["metadata_label"], name

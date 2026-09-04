@@ -157,8 +157,50 @@ FACTS = {
         "signed": SIGNED, "status": "signed 2026-09-03 (chemistry verified by owner-delegated web review); remaining VERIFY fields are non-chemistry",
     },
 }
+SIGNED_D1 = {"by": "owner-delegated review 2026-09-04 (Claude Fable 5.1); sources in chemistry.evidence", "on": "2026-09-04"}
+FACTS["snl_nmc"] = {
+    "citation": ("Preger, Y. et al. (2020). Degradation of commercial lithium-ion cells as a function of chemistry and cycling conditions. "
+                 "J. Electrochem. Soc. 167(12), 120532, DOI 10.1149/1945-7111/abae37 — NMC subset; data via BatteryArchive / BatteryLife mirror "
+                 "(data/raw/snl_batterylife), ingested by scripts/ingest_batterylife_snl.py (D1, 2026-09-04)."),
+    "url": "https://doi.org/10.1149/1945-7111/abae37", "license": "VERIFY (the BatteryArchive study page states no license)",
+    "retrieved": "2026-09-04 (built from the local BatteryLife mirror)",
+    "cathode": "NMC", "anode": "graphite", "verified_by": SIGNED_D1["by"], "verified_on": "2026-09-04",
+    "format": "18650 (LG Chem 18650HG2)", "rated_source": "JES 167 120532 (NMC: LG Chem 18650HG2, 3 Ah); pickle nominal_capacity_in_Ah 3 (the mirror derates 15 degC cells to 2.7 Ah; not used)",
+    "chemistry_evidence": ("BatteryLife pickle metadata: cathode_material 'NMC', anode_material 'graphite', form_factor cylindrical_18650, nominal 3 Ah; "
+                           "JES 167(12) 120532 names the NMC cells LG Chem 18650HG2, 3 Ah. The extractor was verified against the existing snl_lfp "
+                           "table before use (soh 100 % row match; charge-segment statistics >= 99.998 %)."),
+    "segments": [{"id": "cc_charge", "rate": "0.5C CC to 4.2 V (JES); charge segment = current > 0.01 A"},
+                 {"id": "discharge", "rate": "0.5C-3C to 2.0 V (JES; the rate is in the cell name)"}],
+    "temperature_c": [15, 25, 35], "reference_test": "maximum discharge capacity of each cycle (BatteryLife discharge_capacity_in_Ah) over the 3.0 Ah nameplate",
+    "measured": ["discharge capacity (Ah)"],
+    "window": {"segment": "cc_charge", "v_lo": 3.65, "v_hi": 4.10, "coverage_median": 0.433, "calibrated_on": "2026-09-04"},
+    "known_issues": ["charge_capacity_max reconstructs soh affinely (R² 0.998) on 0-100 % cycles: pinned in the leak inventory and banned as an input by name",
+                     "21 cells, 14,283 rows; raw curves stay in the mirror (not copied into data/curves)"],
+    "signed": SIGNED_D1, "status": "signed 2026-09-04 (chemistry verified from the pickle metadata and JES 2020, owner-delegated); remaining VERIFY fields are non-chemistry",
+}
+FACTS["snl_nca"] = {
+    "citation": ("Preger, Y. et al. (2020). Degradation of commercial lithium-ion cells as a function of chemistry and cycling conditions. "
+                 "J. Electrochem. Soc. 167(12), 120532, DOI 10.1149/1945-7111/abae37 — NCA subset; data via BatteryArchive / BatteryLife mirror "
+                 "(data/raw/snl_batterylife), ingested by scripts/ingest_batterylife_snl.py (D1, 2026-09-04)."),
+    "url": "https://doi.org/10.1149/1945-7111/abae37", "license": "VERIFY (the BatteryArchive study page states no license)",
+    "retrieved": "2026-09-04 (built from the local BatteryLife mirror)",
+    "cathode": "NCA", "anode": "graphite", "verified_by": SIGNED_D1["by"], "verified_on": "2026-09-04",
+    "format": "18650 (Panasonic NCR18650B)", "rated_source": "JES 167 120532 (NCA: Panasonic NCR18650B, 3.2 Ah); pickle nominal_capacity_in_Ah 3.2 (the mirror derates 15 degC cells to 2.88 Ah; not used)",
+    "chemistry_evidence": ("BatteryLife pickle metadata: cathode_material 'NCA', anode_material 'graphite', form_factor cylindrical_18650, nominal 3.2 Ah; "
+                           "JES 167(12) 120532 names the NCA cells Panasonic NCR18650B, 3.2 Ah. Same verified extractor as snl_nmc."),
+    "segments": [{"id": "cc_charge", "rate": "0.5C CC to 4.2 V (JES); charge segment = current > 0.01 A"},
+                 {"id": "discharge", "rate": "0.5C-2C to 2.5 V (JES; the rate is in the cell name)"}],
+    "temperature_c": [15, 25, 35], "reference_test": "maximum discharge capacity of each cycle (BatteryLife discharge_capacity_in_Ah) over the 3.2 Ah nameplate",
+    "measured": ["discharge capacity (Ah)"],
+    "window": {"segment": "cc_charge", "v_lo": 3.70, "v_hi": 4.10, "coverage_median": 0.440, "calibrated_on": "2026-09-04"},
+    "known_issues": ["the four 20-80 % SOC cells carry no calibration capacity and are not ingested (18 of 22 cells)",
+                     "two cells (25C_0-100_0.5-0.5C_b and 15C_0-100_0.5-2C_a) fall to soh ~0.02 at end of test; the rows stay inside the QC bounds [0, 1.3) — review before any EOL-band claim",
+                     "18 cells, 12,080 rows; raw curves stay in the mirror"],
+    "signed": SIGNED_D1, "status": "signed 2026-09-04 (chemistry verified from the pickle metadata and JES 2020, owner-delegated); remaining VERIFY fields are non-chemistry",
+}
 LEAK_INVENTORY = {"hust": ["charge_capacity_max"], "oxford": ["charge_capacity_max"], "uconn": ["charge_capacity_max"],
-                  "rwth_isea_public": ["capacity_ah"], "nasa": [], "calce_cs2": [], "snl_lfp": []}
+                  "rwth_isea_public": ["capacity_ah"], "nasa": [], "calce_cs2": [], "snl_lfp": [],
+                  "snl_nmc": ["charge_capacity_max"], "snl_nca": []}
 
 
 def main() -> int:

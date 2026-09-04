@@ -65,12 +65,19 @@ def _iter_hust(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve
             )
 
 
-def _iter_snl(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
+def _iter_snl(data_dir: Path, processed: pd.DataFrame | None, chemistry: str = "LFP") -> Iterator[Curve]:
+    """BatteryLife SNL pickles of one chemistry; ``processed`` (when given) restricts the cells to
+    those in the table, so cells the ingestion skipped (partial-SOC NCA cells) are not yielded."""
+    cells = None
+    if processed is not None and "cell_id" in processed:
+        cells = set(processed["cell_id"].astype(str))
     for path in sorted(
-        glob.glob(str(data_dir / "raw" / "snl_batterylife" / "SNL" / "SNL_18650_LFP_*.pkl"))
+        glob.glob(str(data_dir / "raw" / "snl_batterylife" / "SNL" / f"SNL_18650_{chemistry}_*.pkl"))
     ):
         payload = pd.read_pickle(path)
         cell_id = str(payload["cell_id"])
+        if cells is not None and cell_id not in cells:
+            continue
         for cycle in payload["cycle_data"]:
             v = np.asarray(cycle["voltage_in_V"], dtype=float)
             i = np.asarray(cycle["current_in_A"], dtype=float)
@@ -235,9 +242,19 @@ def _iter_calce(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curv
         )
 
 
+def _iter_snl_nmc(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
+    return _iter_snl(data_dir, processed, "NMC")
+
+
+def _iter_snl_nca(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
+    return _iter_snl(data_dir, processed, "NCA")
+
+
 CHARGE_CURVE_SOURCES = {
     "hust": _iter_hust,
     "snl_lfp": _iter_snl,
+    "snl_nmc": _iter_snl_nmc,   # D1 (2026-09-04): scripts/ingest_batterylife_snl.py
+    "snl_nca": _iter_snl_nca,
     "uconn": _iter_uconn,
     "calce_cs2": _iter_calce,
 }
