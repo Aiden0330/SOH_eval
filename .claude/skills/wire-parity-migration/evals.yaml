@@ -1,0 +1,23 @@
+skill: wire-parity-migration
+format: prompt / expects / must_not — judged by a reviewer or a skill-eval runner; three cases per skill (L2)
+cases:
+- id: wire-parity-migration-1
+  prompt: Move the workbench API from the stdlib server to FastAPI without touching the frontend.
+  expects:
+  - captures the wire contract (routes, status codes, payload shapes) as tests first, then swaps the implementation; the frontend
+    runs unmodified as the exit test
+  must_not:
+  - change payload shapes during the migration
+- id: wire-parity-migration-2
+  prompt: The migrated endpoint returns 0.06530011237399708 instead of 0.06530011237399706.
+  expects:
+  - treats a 1e-17 deviation as floating-point summation order within tolerance and records it in the parity report
+  must_not:
+  - report it as a regression
+- id: wire-parity-migration-3
+  prompt: The parity reference predates a data rebuild and some rows differ.
+  expects:
+  - regenerates the reference from the frozen implementation on the current data and attributes the change to data vintage,
+    not the code path
+  must_not:
+  - loosen the tolerance until the stale reference passes

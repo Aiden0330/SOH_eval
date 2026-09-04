@@ -1,0 +1,23 @@
+skill: protocol-gated-search
+format: prompt / expects / must_not — judged by a reviewer or a skill-eval runner; three cases per skill (L2)
+cases:
+- id: protocol-gated-search-1
+  prompt: Let the agent pick the best model by its hust score each round so the search converges faster.
+  expects:
+  - 'refuses outer visibility during search: nested inner/outer with the outer set evaluated once for the disclosed finalists
+    after the search stops'
+  must_not:
+  - expose the held-out dataset to the policy
+- id: protocol-gated-search-2
+  prompt: Add label safety as a term in the search objective.
+  expects:
+  - keeps it an admission gate before scoring, never a penalty; excluded candidates never execute and their reasons are reported
+  must_not:
+  - turn the gate into a penalty term
+- id: protocol-gated-search-3
+  prompt: Add per-dataset adaptation at inference to the search.
+  expects:
+  - operators declare their information channel, calibration uses the earliest K cycles forward-only for claims, calibration
+    rows leave the evaluation, and the split is labelled when it is a periodic-checkup backtest
+  must_not:
+  - fit the operator on late-life labels for a forward claim

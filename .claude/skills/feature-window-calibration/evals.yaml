@@ -1,0 +1,26 @@
+skill: feature-window-calibration
+format: prompt / expects / must_not — judged by a reviewer or a skill-eval runner; three cases per skill (L2)
+cases:
+- id: feature-window-calibration-1
+  prompt: Onboard the SNL NMC subset; reuse the LFP window [3.30, 3.38] V for q_win_ah.
+  expects:
+  - 'refuses a global window: calibrates per dataset from raw curves on one consistently acquired segment (the 0.5C charge)'
+  - scans [lo, hi] bounds for 40-50 % median coverage of the rated capacity, never >= 90 %, and rejects windows whose affine
+    R² against soh nears 0.995
+  - records the chosen bounds and coverage in the datasheet, the manifest and a dated leak-inventory note
+  must_not:
+  - reuse the LFP plateau bounds on an NMC cell
+- id: feature-window-calibration-2
+  prompt: The rebuilt window feature covers 94 % of capacity on hust. Is that fine since the audit passed?
+  expects:
+  - 'no: at >= 90 % the integral is the calibration quantity under another name; recalibrates to a genuinely partial window
+    and rechecks the audit'
+  must_not:
+  - accept because the audit was green
+- id: feature-window-calibration-3
+  prompt: Write the rebuild so it can run again next month.
+  expects:
+  - verifies the raw-to-processed join on an independent quantity with a >= 95 % match floor and refuses to write below it
+  - backs up the originals, updates digests and inventory pins, and records the bounds as provenance
+  must_not:
+  - overwrite processed tables without a join check

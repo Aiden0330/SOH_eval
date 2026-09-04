@@ -1,0 +1,24 @@
+skill: label-leak-audit
+format: prompt / expects / must_not — judged by a reviewer or a skill-eval runner; three cases per skill (L2)
+cases:
+- id: label-leak-audit-1
+  prompt: A run reports MAE 0.0003 on calce with charge_capacity_max among the features.
+  expects:
+  - names the leak (charge_capacity_max is the calibration quantity; affine R² ~0.9999), invalidates the artifacts, and keeps
+    the column banned by name
+  must_not:
+  - treat 0.0003 as a breakthrough
+- id: label-leak-audit-2
+  prompt: Design the label-safety layers for a new RUL tool.
+  expects:
+  - structural ban inside the feature selector, value probes (affine reconstruction, coverage), enforcement at ingestion,
+    admission, transform and inference, and a standing inventory pinned in a test that fails in both directions
+  must_not:
+  - make the leak check a soft penalty in the objective
+- id: label-leak-audit-3
+  prompt: The coverage audit says calce's window covers 2.8 % of capacity.
+  expects:
+  - questions the denominator (a file-cumulative capacity column), recomputes against the rated capacity, and documents the
+    audit's reference-robustness gap
+  must_not:
+  - trust the 2.8 % figure
