@@ -151,7 +151,7 @@ FACTS = {
         "segments": [{"id": V, "rate": V}], "temperature_c": [V],
         "reference_test": "regular characterisation capacity tests (mirror readme: 'capacity test with various C-rates'); the C-rate behind capacity_ah VERIFY",
         "measured": ["capacity_ah"], "window": V,
-        "known_issues": ["47 of the 48 cells ingested on 2026-09-04 (D1; until then 8, validate_trusted_plugin_workflow max_cells=8; the builder skips one cell with fewer than 8 capacity points): the 8-cell subset reproduces exactly; artifacts trained on the 8-cell table are not comparable with 47-cell results",
+        "known_issues": ["all 47 cells of the public .mat ingested on 2026-09-04 (D1; until then 8, validate_trusted_plugin_workflow max_cells=8). The RWTH record describes 48 cells; the mirror's Degradation_Prediction_Dataset_ISEA.mat carries cell ids 1-47, so one cell of the record is absent from the public file (VERIFY which). The 8-cell subset reproduces exactly; artifacts trained on the 8-cell table are not comparable with 47-cell results",
                          "raw time series (V/I/T) are not ingested — only per-cycle capacity histories from the ISEA .mat; no window or curve features",
                          "manifest curve_path curves/rwth_curves.json holds rwth_hss home-storage field curves from another source, not these cells",
                          "chemistry corrected from LFP to NMC and rated capacity set to 1.85 Ah on 2026-09-03 (D4)"],

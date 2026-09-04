@@ -62,10 +62,11 @@ leak_scan:
   reference: tests/test_label_leak_inventory.py
 held_out_ready: true
 known_issues:
-- '47 of the 48 cells ingested on 2026-09-04 (D1; until then 8, validate_trusted_plugin_workflow
-  max_cells=8; the builder skips one cell with fewer than 8 capacity points): the
-  8-cell subset reproduces exactly; artifacts trained on the 8-cell table are not
-  comparable with 47-cell results'
+- all 47 cells of the public .mat ingested on 2026-09-04 (D1; until then 8, validate_trusted_plugin_workflow
+  max_cells=8). The RWTH record describes 48 cells; the mirror's Degradation_Prediction_Dataset_ISEA.mat
+  carries cell ids 1-47, so one cell of the record is absent from the public file
+  (VERIFY which). The 8-cell subset reproduces exactly; artifacts trained on the 8-cell
+  table are not comparable with 47-cell results
 - raw time series (V/I/T) are not ingested — only per-cycle capacity histories from
   the ISEA .mat; no window or curve features
 - manifest curve_path curves/rwth_curves.json holds rwth_hss home-storage field curves
