@@ -37,3 +37,4 @@ sohbench = ["schemas/*.json"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
+pythonpath = ["src"]   # a worktree's tests import the worktree's package, not the editable install of the main checkout
