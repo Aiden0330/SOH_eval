@@ -7,10 +7,10 @@
  "summary": {
   "local_files": 306,
   "local_bytes": 24288608875,
-  "processed_datasets": 11,
-  "records": 274409,
-  "cycles": 274377,
-  "batteries": 304
+  "processed_datasets": 14,
+  "records": 334089,
+  "cycles": 334057,
+  "batteries": 434
  },
  "verification": {
   "inventory_checks": [
@@ -860,6 +860,315 @@
    "source": "generated or pending registration"
   },
   {
+   "name": "tongji_blend",
+   "status": "ready",
+   "supervision": "soh_supervised",
+   "roles": [
+    "training",
+    "same_dataset_holdout",
+    "inference",
+    "audit"
+   ],
+   "labeled_record_count": 8764,
+   "processed": {
+    "path": "processed/tongji_blend_features.pkl",
+    "bytes": 2877553,
+    "sha256": "362c45525b9403e8d975e964333380e2d7b3d9a090e261ce14616a1240f30feb",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "time_s_max",
+     "voltage_mean",
+     "voltage_std",
+     "voltage_min",
+     "voltage_max",
+     "current_mean",
+     "current_std",
+     "abs_current_mean",
+     "temperature_mean",
+     "charge_capacity_max",
+     "q_win_ah",
+     "t_win_s",
+     "ic_peak_ah_per_v",
+     "ic_peak_voltage_v",
+     "cycle_index_feature",
+     "cycle_fraction",
+     "hi_dq_w1_ah",
+     "hi_dq_w2_ah",
+     "hi_dq_w3_ah",
+     "hi_dq_w4_ah",
+     "hi_span_dq_ah",
+     "hi_dt_w1_s",
+     "hi_dt_w2_s",
+     "hi_dt_w3_s",
+     "hi_dt_w4_s",
+     "hi_span_dt_s",
+     "hi_ic_peak_ah_per_v",
+     "hi_ic_peak_v",
+     "hi_v_q25",
+     "hi_v_q50",
+     "hi_v_q75",
+     "hi_dvdq_v_per_ah",
+     "hi_i_mean_a",
+     "hi_i_cv"
+    ],
+    "partial_window_v": [
+     3.7,
+     4.1
+    ],
+    "health_indicators": {
+     "source": "raw_charge_curves",
+     "chemistry": "NMC/NCA",
+     "windows": [
+      [
+       3.7,
+       3.8
+      ],
+      [
+       3.8,
+       3.9
+      ],
+      [
+       3.9,
+       4.0
+      ],
+      [
+       4.0,
+       4.1
+      ]
+     ],
+     "span_matched_fraction": 1.0,
+     "span_coverage_median": 0.4036,
+     "rebuilt_at": "2026-09-05T16:04:47Z"
+    }
+   },
+   "record_count": 8764,
+   "cycle_count": 8764,
+   "battery_count": 9,
+   "chemistry": "NMC/NCA",
+   "max_capacity_ah": 2.5,
+   "capacity_source": "rated_metadata",
+   "label_source": "calibration_capacity",
+   "held_out_ready": true,
+   "raw_paths": [
+    "raw/tongji"
+   ],
+   "raw_local": true,
+   "curve_path": "",
+   "curve_sha256": "",
+   "license": "CC-BY-4.0",
+   "source": "Zhu et al. 2022 / Zenodo 6405084 (Dataset_3 NCM+NCA)"
+  },
+  {
+   "name": "tongji_nca",
+   "status": "ready",
+   "supervision": "soh_supervised",
+   "roles": [
+    "training",
+    "same_dataset_holdout",
+    "inference",
+    "audit"
+   ],
+   "labeled_record_count": 22913,
+   "processed": {
+    "path": "processed/tongji_nca_features.pkl",
+    "bytes": 7488756,
+    "sha256": "89fd68a3bb0809667854ed30444728eb037da52b5ad0f18244a0b98b97b893f7",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "time_s_max",
+     "voltage_mean",
+     "voltage_std",
+     "voltage_min",
+     "voltage_max",
+     "current_mean",
+     "current_std",
+     "abs_current_mean",
+     "temperature_mean",
+     "charge_capacity_max",
+     "q_win_ah",
+     "t_win_s",
+     "ic_peak_ah_per_v",
+     "ic_peak_voltage_v",
+     "cycle_index_feature",
+     "cycle_fraction",
+     "hi_dq_w1_ah",
+     "hi_dq_w2_ah",
+     "hi_dq_w3_ah",
+     "hi_dq_w4_ah",
+     "hi_span_dq_ah",
+     "hi_dt_w1_s",
+     "hi_dt_w2_s",
+     "hi_dt_w3_s",
+     "hi_dt_w4_s",
+     "hi_span_dt_s",
+     "hi_ic_peak_ah_per_v",
+     "hi_ic_peak_v",
+     "hi_v_q25",
+     "hi_v_q50",
+     "hi_v_q75",
+     "hi_dvdq_v_per_ah",
+     "hi_i_mean_a",
+     "hi_i_cv"
+    ],
+    "partial_window_v": [
+     3.65,
+     4.1
+    ],
+    "health_indicators": {
+     "source": "raw_charge_curves",
+     "chemistry": "NCA",
+     "windows": [
+      [
+       3.7,
+       3.8
+      ],
+      [
+       3.8,
+       3.9
+      ],
+      [
+       3.9,
+       4.0
+      ],
+      [
+       4.0,
+       4.1
+      ]
+     ],
+     "span_matched_fraction": 0.9999,
+     "span_coverage_median": 0.3901,
+     "rebuilt_at": "2026-09-05T16:04:19Z"
+    }
+   },
+   "record_count": 22913,
+   "cycle_count": 22913,
+   "battery_count": 66,
+   "chemistry": "NCA",
+   "max_capacity_ah": 3.5,
+   "capacity_source": "rated_metadata",
+   "label_source": "calibration_capacity",
+   "held_out_ready": true,
+   "raw_paths": [
+    "raw/tongji"
+   ],
+   "raw_local": true,
+   "curve_path": "",
+   "curve_sha256": "",
+   "license": "CC-BY-4.0",
+   "source": "Zhu et al. 2022 / Zenodo 6405084 (Dataset_1 NCA)"
+  },
+  {
+   "name": "tongji_ncm",
+   "status": "ready",
+   "supervision": "soh_supervised",
+   "roles": [
+    "training",
+    "same_dataset_holdout",
+    "inference",
+    "audit"
+   ],
+   "labeled_record_count": 28003,
+   "processed": {
+    "path": "processed/tongji_ncm_features.pkl",
+    "bytes": 9149843,
+    "sha256": "4c9fd0147a3111689d3b7b74ce3c5b6376eec1cbfe6b043d9e3ca6458744450f",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "time_s_max",
+     "voltage_mean",
+     "voltage_std",
+     "voltage_min",
+     "voltage_max",
+     "current_mean",
+     "current_std",
+     "abs_current_mean",
+     "temperature_mean",
+     "charge_capacity_max",
+     "q_win_ah",
+     "t_win_s",
+     "ic_peak_ah_per_v",
+     "ic_peak_voltage_v",
+     "cycle_index_feature",
+     "cycle_fraction",
+     "hi_dq_w1_ah",
+     "hi_dq_w2_ah",
+     "hi_dq_w3_ah",
+     "hi_dq_w4_ah",
+     "hi_span_dq_ah",
+     "hi_dt_w1_s",
+     "hi_dt_w2_s",
+     "hi_dt_w3_s",
+     "hi_dt_w4_s",
+     "hi_span_dt_s",
+     "hi_ic_peak_ah_per_v",
+     "hi_ic_peak_v",
+     "hi_v_q25",
+     "hi_v_q50",
+     "hi_v_q75",
+     "hi_dvdq_v_per_ah",
+     "hi_i_mean_a",
+     "hi_i_cv"
+    ],
+    "partial_window_v": [
+     3.65,
+     4.1
+    ],
+    "health_indicators": {
+     "source": "raw_charge_curves",
+     "chemistry": "NMC",
+     "windows": [
+      [
+       3.7,
+       3.8
+      ],
+      [
+       3.8,
+       3.9
+      ],
+      [
+       3.9,
+       4.0
+      ],
+      [
+       4.0,
+       4.1
+      ]
+     ],
+     "span_matched_fraction": 1.0,
+     "span_coverage_median": 0.3897,
+     "rebuilt_at": "2026-09-05T16:04:38Z"
+    }
+   },
+   "record_count": 28003,
+   "cycle_count": 28003,
+   "battery_count": 55,
+   "chemistry": "NMC",
+   "max_capacity_ah": 3.5,
+   "capacity_source": "rated_metadata",
+   "label_source": "calibration_capacity",
+   "held_out_ready": true,
+   "raw_paths": [
+    "raw/tongji"
+   ],
+   "raw_local": true,
+   "curve_path": "",
+   "curve_sha256": "",
+   "license": "CC-BY-4.0",
+   "source": "Zhu et al. 2022 / Zenodo 6405084 (Dataset_2 NCM)"
+  },
+  {
    "name": "uconn",
    "status": "ready",
    "supervision": "soh_supervised",
@@ -1024,5 +1333,5 @@
   "gbrain-evals historical engineering dependencies",
   "RWTH HSS and other field data without supervised SOH labels"
  ],
- "updated_at": "2026-09-05T15:15:13Z"
+ "updated_at": "2026-09-05T16:10:31.509262+00:00"
 }

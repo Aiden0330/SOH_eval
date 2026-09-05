@@ -71,6 +71,14 @@ DATA_DIR = data_root() / "processed"
 # coverage of rated capacity: hust 0.050 (5C: the 3.30-3.40 V span is the polarisation regime),
 # snl_lfp 0.558, uconn 0.616 (warning band, allowed), calce_cs2 0.437, snl_nmc 0.400, snl_nca 0.455.
 # Findings unchanged.
+# >>> inventory-note: tongji
+# Reviewed 2026-09-05 (D2, Tongji voltage-relaxation set, Zhu et al. 2022): tongji_nca (66 cells), tongji_ncm
+# (55) and tongji_blend (9) built by scripts/ingest_tongji.py with the D1 charge-segment definitions on the
+# CC-CV charge; soh = the cycle's CC discharge capacity / nominal (3.5 / 3.5 / 2.5 Ah).  Windows [3.65, 4.10] V
+# (NCA, NCM; median coverage 0.432 / 0.436 of nominal) and [3.70, 4.10] V (blend; 0.402).  No column reaches the
+# affine threshold: charge_capacity_max R² 0.30 / 0.42 / 0.90 (the blend's charge throughput tracks its linear
+# fade but stays below 0.995), q_win_ah 0.25 / 0.41 / 0.85 on the stride-10 scan.  No findings pinned.
+# <<< inventory-note: tongji
 EXPECTED_LABEL_SOURCE_COLUMNS = {
     "hust": ["charge_capacity_max"],
     "oxford": ["charge_capacity_max"],
@@ -81,6 +89,9 @@ EXPECTED_LABEL_SOURCE_COLUMNS = {
     "snl_lfp": [],
     "snl_nmc": ["charge_capacity_max"],
     "snl_nca": [],
+    "tongji_nca": [],
+    "tongji_ncm": [],
+    "tongji_blend": [],
 }
 
 ID_COLUMNS = ("dataset", "cell_id", "cycle_index", "soh")

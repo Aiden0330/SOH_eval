@@ -87,21 +87,6 @@ def window_integral(
     return q_win, t_win
 
 
-def window_integral(
-    v: np.ndarray, q: np.ndarray, t: np.ndarray | None, lo: float, hi: float
-) -> tuple[float, float]:
-    """Charge and time accumulated while voltage sits inside [lo, hi]."""
-    mask = np.isfinite(v) & np.isfinite(q) & (v >= lo) & (v <= hi)
-    if int(mask.sum()) < 2:
-        return np.nan, np.nan
-    q_win = float(np.nanmax(q[mask]) - np.nanmin(q[mask]))
-    if t is None:
-        return q_win, np.nan
-    tm = t[mask]
-    t_win = float(np.nanmax(tm) - np.nanmin(tm)) if np.isfinite(tm).any() else np.nan
-    return q_win, t_win
-
-
 def _iter_hust(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
     for path in sorted(glob.glob(str(data_dir / "raw" / "hust" / "our_data" / "*.pkl"))):
         name = Path(path).stem
@@ -298,6 +283,81 @@ def _iter_calce(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curv
         )
 
 
+# ---------------------------------------------------------------------------
+# Tongji voltage-relaxation set (D2, 2026-09-05): Zhu et al. 2022, Zenodo 6405084.  One BioLogic CSV per
+# cell inside the three dataset zips; columns time/s, control/V/mA, Ecell/V, <I>/mA, Q discharge/mA.h,
+# Q charge/mA.h, control/V, control/mA, cycle number.  Charge and discharge quantities accumulate within a
+# cycle.  The charge segment is every sample with <I>/mA above TONGJI_CHARGE_CURRENT_MIN_MA (CC and CV
+# steps; the relaxation samples carry ~0 mA and are excluded).
+# ---------------------------------------------------------------------------
+TONGJI_SUBSETS = {
+    "tongji_nca": ("Dataset_1_NCA_battery.zip", "Dataset_1_NCA_battery"),
+    "tongji_ncm": ("Dataset_2_NCM_battery.zip", "Dataset_2_NCM_battery"),
+    "tongji_blend": ("Dataset_3_NCM_NCA_battery.zip", "Dataset_3_NCM_NCA_battery"),
+}
+TONGJI_CHARGE_CURRENT_MIN_MA = 10.0
+TONGJI_COLUMNS = ("time/s", "Ecell/V", "<I>/mA", "Q discharge/mA.h", "Q charge/mA.h", "cycle number")
+
+
+def tongji_cell_members(data_dir: str | Path, dataset: str) -> tuple[zipfile.ZipFile, list[tuple[str, str]]]:
+    """The dataset's zip and its ``(cell_id, member name)`` pairs, sorted by cell id."""
+    archive_name, folder = TONGJI_SUBSETS[dataset]
+    archive = zipfile.ZipFile(Path(data_dir) / "raw" / "tongji" / archive_name)
+    members = []
+    for name in archive.namelist():
+        if name.startswith(folder + "/") and name.endswith(".csv"):
+            members.append((Path(name).stem, name))
+    return archive, sorted(members)
+
+
+def read_tongji_cell(archive: zipfile.ZipFile, member: str) -> pd.DataFrame:
+    with archive.open(member) as handle:
+        frame = pd.read_csv(handle, usecols=list(TONGJI_COLUMNS))
+    frame = frame.dropna(subset=["cycle number"])
+    frame["cycle number"] = frame["cycle number"].astype(int)
+    return frame
+
+
+def tongji_charge_segment(cycle: pd.DataFrame) -> dict[str, np.ndarray] | None:
+    """Arrays of one cycle's charge segment (``<I>/mA`` above the threshold) or None below 2 samples."""
+    current_ma = cycle["<I>/mA"].to_numpy(dtype=float)
+    mask = current_ma > TONGJI_CHARGE_CURRENT_MIN_MA
+    if int(mask.sum()) < 2:
+        return None
+    return {
+        "voltage": cycle["Ecell/V"].to_numpy(dtype=float)[mask],
+        "current": current_ma[mask] / 1000.0,
+        "charge": cycle["Q charge/mA.h"].to_numpy(dtype=float)[mask] / 1000.0,
+        "time": cycle["time/s"].to_numpy(dtype=float)[mask],
+    }
+
+
+def _iter_tongji(data_dir: Path, processed: pd.DataFrame | None, dataset: str) -> Iterator[Curve]:
+    cells = set(processed["cell_id"].astype(str)) if processed is not None and "cell_id" in processed else None
+    archive, members = tongji_cell_members(data_dir, dataset)
+    for cell_id, member in members:
+        if cells is not None and cell_id not in cells:
+            continue
+        frame = read_tongji_cell(archive, member)
+        for cycle_number, cycle in frame.groupby("cycle number", sort=True):
+            segment = tongji_charge_segment(cycle)
+            if segment is None:
+                continue
+            yield cell_id, int(cycle_number), segment["voltage"], segment["charge"], segment["time"]
+
+
+def _iter_tongji_nca(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
+    return _iter_tongji(data_dir, processed, "tongji_nca")
+
+
+def _iter_tongji_ncm(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
+    return _iter_tongji(data_dir, processed, "tongji_ncm")
+
+
+def _iter_tongji_blend(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
+    return _iter_tongji(data_dir, processed, "tongji_blend")
+
+
 def _iter_snl_nmc(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
     return _iter_snl(data_dir, processed, "NMC")
 
@@ -313,6 +373,9 @@ CHARGE_CURVE_SOURCES = {
     "snl_nca": _iter_snl_nca,
     "uconn": _iter_uconn,
     "calce_cs2": _iter_calce,
+    "tongji_nca": _iter_tongji_nca,     # D2 (2026-09-05): scripts/ingest_tongji.py
+    "tongji_ncm": _iter_tongji_ncm,
+    "tongji_blend": _iter_tongji_blend,
 }
 
 

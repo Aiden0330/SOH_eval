@@ -254,25 +254,132 @@ FACTS["snl_nca"] = {
                      "raw provenance (D12): data/raw/snl_batterylife/SNL/SNL_18650_NCA_*.pkl (BatteryLife mirror pickles, 120 s logging measured 2026-09-05)"],
     "signed": SIGNED_D1, "status": "signed 2026-09-04 (chemistry verified from the pickle metadata and JES 2020, owner-delegated); D12 survey 2026-09-05 filled sampling, provenance, licence terms and cut-offs",
 }
+
+# ---------------------------------------------------------------------------------------------------------
+# Wave 6 (2026-09-05): D2 tongji_*, D8 forklift_lfp180, D9 matr, D7 home_storage_lfp, D3 turku_rc_*, D10
+# field_lfp_28.  Drafted by the data-onboarding session from the primary records (papers, repository
+# metadata, the raw files); every field without a primary source is VERIFY and the signature stays the
+# owner's (unsigned until the owner reviews).  Field sets carry the Spec 12 sections (supervision, label
+# rule, segments QC, units, verification).
+# ---------------------------------------------------------------------------------------------------------
+DRAFT_DATE = "2026-09-05"
+UNSIGNED_W6 = {"by": "VERIFY (the owner's signature; drafted 2026-09-05 by the Wave 6 data-onboarding session)", "on": V}
+STANDARD_CLASSES = {
+    "identity": ["dataset", "cell_id", "cycle_index"],
+    "label": ["soh"],
+    "label_source": ["charge_capacity_max"],
+    "feature": ["time_s_max", "voltage_mean", "voltage_std", "voltage_min", "voltage_max", "current_mean", "current_std",
+                "abs_current_mean", "temperature_mean", "q_win_ah", "t_win_s", "ic_peak_ah_per_v", "ic_peak_voltage_v",
+                "cycle_index_feature", "cycle_fraction", "hi_* (K12 indicators)"],
+}
+SEGMENT_CLASSES = {
+    "identity": ["dataset", "cell_id (the unit)", "cycle_index (segment ordinal)", "segment_start_s", "segment_end_s", "segment_kind", "sample_period_s"],
+    "label": ["soh"],
+    "label_source": ["charge_capacity_max (ΔQ of the segment)", "label_source", "label_time_s", "label_age_s"],
+    "descriptor": ["window_coverage", "v_start", "v_end", "current_mean_c", "current_cv", "rest_before_s", "rest_after_s", "temp_min", "temp_max"],
+    "feature": ["time_s_max", "voltage_mean", "voltage_std", "voltage_min", "voltage_max", "current_mean", "current_std",
+                "abs_current_mean", "temperature_mean", "q_win_ah", "t_win_s", "ic_peak_ah_per_v", "ic_peak_voltage_v", "hi_* (K12 indicators)"],
+}
+# >>> dataset-block: tongji
+TONGJI_CITATION = ("Zhu, J., Wang, Y., Huang, Y., Bhushan Gopaluni, R., Cao, Y., Heere, M., Mühlbauer, M. J., Mereacre, L., Dai, H., Liu, X., "
+                   "Senyshyn, A., Wei, X., Knapp, M., Ehrenberg, H. (2022). Data-driven capacity estimation of commercial lithium-ion batteries "
+                   "from voltage relaxation. Nature Communications 13, 2261, DOI 10.1038/s41467-022-29837-w. Dataset: Zenodo 6405084 "
+                   "(DOI 10.5281/zenodo.6405084; the paper cites the concept record 10.5281/zenodo.6379165); ingested by scripts/ingest_tongji.py (D2, 2026-09-05).")
+TONGJI_PROTOCOL = ("Nature Communications 13, 2261, Methods: 'constant current (CC) charging to 4.2 V with current rates ranging from 0.25 C (0.875 A) "
+                   "to 1 C (3.5 A), followed by a constant voltage (CV) charging step at 4.2 V until a current of 0.05 C is reached. Constant current "
+                   "is then employed for the discharge to 2.65 V for the NCA cells and 2.5 V for the NCM and NCM + NCA cells'; 'The CC discharging "
+                   "capacity is treated as the battery residual capacity during cycling'; relaxation 30 min after charge (120 s sampling) for NCA and "
+                   "NCM, 60 min (30 s sampling) for NCM + NCA; BioLogic BCS-815 cycler, BINDER chambers (±0.2 °C).")
+
+def _tongji(name, *, zip_name, md5, cathode, cathode_text, model, rated, cutoff_low, cells, conditions, window, coverage, rows, soh_first,
+            low_rows, extra_issues):
+    return {
+        "citation": TONGJI_CITATION, "url": "https://doi.org/10.5281/zenodo.6405084",
+        "license": "CC BY 4.0 (Zenodo record 6405084 metadata: cc-by-4.0)",
+        "retrieved": f"{DRAFT_DATE} (Zenodo API record; {zip_name} md5 {md5} verified against the record)",
+        "cathode": cathode, "anode": "graphite with ~2 wt% Si (paper Methods, citing Sorensen et al.)" if name != "tongji_blend" else "graphite (paper Methods)",
+        "verified_by": V, "verified_on": V,
+        "format": f"18650 ({model})", "rated_capacity_ah": rated,
+        "rated_source": f"paper Table 1 (nominal capacity {rated} Ah; 1C = {rated} A)",
+        "chemistry_evidence": (f"Nature Communications 13, 2261, Methods ('Cell selection and cycling'): {cathode_text} " + TONGJI_PROTOCOL),
+        "segments": [{"id": "cc_cv_charge", "rate": "CC 0.25C / 0.5C / 1C to 4.2 V, CV at 4.2 V to 0.05C (paper); charge segment = samples with <I>/mA > 10 mA (CC and CV steps)"},
+                     {"id": "relaxation", "rate": "rest after charge: 30 min at 120 s sampling (NCA, NCM), 60 min at 30 s (NCM+NCA); not yet a feature source"},
+                     {"id": "discharge", "rate": f"CC 1C to {cutoff_low} V" + (" (2C and 4C groups in Dataset_3)" if name == "tongji_blend" else "")}],
+        "temperature_c": [25, 35, 45] if name != "tongji_blend" else [25],
+        "reference_test": "the CC discharge capacity of each cycle: max 'Q discharge/mA.h' of the cycle (the paper's residual capacity) over the nominal capacity",
+        "measured": ["Q discharge/mA.h (per-cycle CC discharge capacity)"],
+        "label_source": "calibration_capacity", "supervision": "soh_supervised",
+        "rate_hz": "0.1 during charge and discharge (10 s), 1/120 (NCA, NCM) or 1/30 (blend) in relaxation — CSV time/s",
+        "channels": ["V", "I", "Q charge", "Q discharge"],
+        "window": {"segment": "cc_cv_charge", "v_lo": window[0], "v_hi": window[1], "coverage_median": coverage, "calibrated_on": DRAFT_DATE,
+                   "note": "scan of [3.4, 4.2] V at 0.05 V steps on every 10th cycle; the mid-charge window shared with the SNL NMC/NCA sets"},
+        "units": {"unit": "cell", "cells": cells, "cells_per_condition (chamber_charge_discharge)": conditions},
+        "verification": {"cells_per_condition_vs_paper_table_1": "identical (paper Table 1 counts reproduced by the archive inventory)",
+                         "rows": rows, "first_cycle_soh": soh_first,
+                         "raw_hand_check": "one cycle of a CSV read by hand: rest, CC charge at the named rate to 4.2 V, CV, 28 min rest at 120 s, CC discharge to the cut-off, rest (Dataset_1 CY25-1_1-#3 cycle 5)"},
+        "column_classes": STANDARD_CLASSES, "scanned_on": DRAFT_DATE,
+        "known_issues": ["no temperature channel in the CSVs: temperature_mean is the chamber setpoint from the cell name (CY25/35/45)",
+                         f"{low_rows}",
+                         "relaxation features (the paper's own feature source) are not extracted; K12 §4.6 lists them for the segment work",
+                         "signature pending: the owner's review of chemistry (quoted from the paper) and rated capacity"] + extra_issues,
+        "signed": dict(UNSIGNED_W6), "status": f"draft {DRAFT_DATE} (D2) — chemistry and rated capacity quoted from the paper; unsigned until the owner reviews",
+    }
+
+FACTS["tongji_nca"] = _tongji("tongji_nca", zip_name="Dataset_1_NCA_battery.zip", md5="cbd6d7eab2a296b52385e025e8d0f42a", cathode="NCA",
+    cathode_text="'The positive electrode compositions of the INR18650-35E battery and INR18650-MJ1 battery are LiNi0.86Co0.11Al0.03O2 and Li(Ni0.83Co0.11Mn0.07)O2 respectively' … 'The INR18650-35E battery is named as NCA battery.'",
+    model="LG INR18650-35E, 3.5 Ah, 3.6 V", rated=3.5, cutoff_low=2.65, cells=66,
+    conditions={"25C_0.25C_1C": 7, "25C_0.5C_1C": 19, "25C_1C_1C": 9, "35C_0.5C_1C": 3, "45C_0.5C_1C": 28},
+    window=(3.65, 4.10), coverage=0.432, rows=22913, soh_first="0.879–0.961 (median 0.936: the 1C discharge capacity of a 3.5 Ah nominal cell)",
+    low_rows="268 rows with soh < 0.5: cells of the 35 °C and 45 °C groups collapse at end of test (soh down to 0.004); inside the QC bounds [0, 1.3) — review before any EOL-band claim",
+    extra_issues=["the 25 °C 1C-charge cells (CY25-1_1) fail within 29–60 cycles (the paper: 71 % after ~50 cycles)"])
+FACTS["tongji_ncm"] = _tongji("tongji_ncm", zip_name="Dataset_2_NCM_battery.zip", md5="a05c485df92f4af560d1d8d7f659ce1b", cathode="NCM (NMC)",
+    cathode_text="'… the INR18650-MJ1 battery … Li(Ni0.83Co0.11Mn0.07)O2' … 'The INR18650-MJ1 is named as NCM battery.'",
+    model="Samsung INR18650-MJ1, 3.5 Ah, 3.6 V", rated=3.5, cutoff_low=2.5, cells=55,
+    conditions={"25C_0.5C_1C": 23, "35C_0.5C_1C": 4, "45C_0.5C_1C": 28},
+    window=(3.65, 4.10), coverage=0.436, rows=28003, soh_first="0.899–0.957 (median 0.939)",
+    low_rows="195 rows with soh < 0.5: the four 35 °C cells and two 45 °C cells collapse at end of test (soh down to 0.006); inside the QC bounds",
+    extra_issues=["the kernel label is NMC (metadata) for the authors' NCM"])
+FACTS["tongji_blend"] = _tongji("tongji_blend", zip_name="Dataset_3_NCM_NCA_battery.zip", md5="d11e68e410a638058906af5e2f5f60f3", cathode="NCM+NCA blend (42 wt% Li(NiCoMn)O2 / 58 wt% Li(NiCoAl)O2)",
+    cathode_text="'The positive electrode of the INR18650-25R battery is the blend of 42 (3) wt.% Li(NiCoMn)O2 - 58 (3) wt.% Li(NiCoAl)O2, and the negative electrode is graphite' … 'The INR18650-25R is named as NCM + NCA battery according to the positive electrode.'",
+    model="Samsung INR18650-25R, 2.5 Ah, 3.6 V", rated=2.5, cutoff_low=2.5, cells=9,
+    conditions={"25C_0.5C_1C": 3, "25C_0.5C_2C": 3, "25C_0.5C_4C": 3},
+    window=(3.70, 4.10), coverage=0.402, rows=8764, soh_first="0.988–1.001 (median 0.995)",
+    low_rows="45 rows with soh > 1.1 (18 of them ≥ 1.3, dropped by QC): five cycles per cell where 'Q discharge' exceeds the nominal capacity by 10–44 % — VERIFY (capacity-check or logging cycles)",
+    extra_issues=["the kernel label is NMC/NCA (metadata); the K12 indicator windows resolve on NMC (3.70–4.10 V)",
+                  "affine R² of q_win_ah against soh is 0.89 on this window (the authors report a linear fade); windows above 3.55 V reach 0.99 and were rejected by the scan",
+                  "cycled in 2020 by a different experimenter than Datasets 1–2 (paper); 60 min relaxation at 30 s sampling"])
+# <<< dataset-block: tongji
+
+
 LEAK_INVENTORY = {"hust": ["charge_capacity_max"], "oxford": ["charge_capacity_max"], "uconn": ["charge_capacity_max"],
                   "rwth_isea_public": ["capacity_ah"], "nasa": [], "calce_cs2": [], "snl_lfp": [],
-                  "snl_nmc": ["charge_capacity_max"], "snl_nca": []}
+                  "snl_nmc": ["charge_capacity_max"], "snl_nca": [],
+                  "tongji_nca": [],
+                  "tongji_ncm": [],
+                  "tongji_blend": [],
+                  }
 
 
 def main(argv=None) -> int:
     import argparse
+    import os
 
     parser = argparse.ArgumentParser(description="draft the datasheets from the facts table, the manifest and the measured provenance")
-    parser.add_argument("--data-dir", default=str(ROOT / "data"), help="data root with manifest.json (default: the repository's data/)")
-    parser.add_argument("--out-dir", default=str(ROOT / "data" / "datasheets"), help="where the YAML sheets and _provenance.json live")
+    parser.add_argument("--data-dir", default=os.environ.get("SOHBENCH_DATA_DIR") or str(ROOT / "data"),
+                        help="data root with manifest.json (default: SOHBENCH_DATA_DIR or the repository's data/)")
+    parser.add_argument("--out-dir", default=None, help="where the YAML sheets and _provenance.json live (default: <data-dir>/datasheets)")
+    parser.add_argument("--only", nargs="+", default=None, help="write only these datasheets (default: every dataset in FACTS)")
     args = parser.parse_args(argv)
-    manifest = json.loads((Path(args.data_dir) / "manifest.json").read_text(encoding="utf-8"))
+    data_dir = Path(args.data_dir)
+    manifest = json.loads((data_dir / "manifest.json").read_text(encoding="utf-8"))
     entries = {item["name"]: item for item in manifest.get("datasets", [])}
-    out_dir = Path(args.out_dir)
+    out_dir = Path(args.out_dir) if args.out_dir else data_dir / "datasheets"
     out_dir.mkdir(parents=True, exist_ok=True)
     provenance_path = out_dir / "_provenance.json"
     provenance = json.loads(provenance_path.read_text(encoding="utf-8")).get("datasets", {}) if provenance_path.is_file() else {}
     for name, facts in FACTS.items():
+        if args.only and name not in args.only:
+            continue
         entry = entries.get(name, {})
         measured = provenance.get(name, {})
         interval = (measured.get("sampling_interval_s") or {})
@@ -285,29 +392,38 @@ def main(argv=None) -> int:
             sampling = {"rate_hz": "not applicable", "method": interval["method"], "channels": []}
         else:
             sampling = {"rate_hz": V, "channels": ["V", "I", "T"]}
+        if not measured and (facts.get("rate_hz") is not None or facts.get("channels")):   # Wave 6 sets: sampling from the paper / extractor
+            sampling = {"rate_hz": facts.get("rate_hz", V), "channels": facts.get("channels", ["V", "I", "T"])}
         rated = DATASET_C_RATED_AH.get(name)
         window = facts["window"]
         sheet = {
             "name": name,
             "status": facts["status"],
+            "supervision": entry.get("supervision") or facts.get("supervision") or "soh_supervised",
             "source": {"citation": facts["citation"], "url": facts["url"], "license": facts["license"], "retrieved": facts["retrieved"]},
             "chemistry": {"cathode": facts["cathode"], "anode": facts["anode"], "metadata_label": DATASET_CHEMISTRY.get(name, "unknown"),
                           "verified_by": facts["verified_by"], "verified_on": facts["verified_on"], "evidence": facts["chemistry_evidence"]},
-            "cell": {"format": facts["format"], "rated_capacity_ah": rated if rated == rated else V, "rated_source": facts["rated_source"]},
+            "cell": {"format": facts["format"], "rated_capacity_ah": facts.get("rated_capacity_ah", rated if rated == rated else V), "rated_source": facts["rated_source"]},
             "protocol": {"segments": facts["segments"], "temperature_c": facts["temperature_c"]},
-            "label_anchor": {"formula": "soh = calibration_capacity / rated_capacity_ah", "measured_quantities": facts["measured"],
-                             "reference_test": facts["reference_test"], "label_source": "calibration_capacity"},
+            "label_anchor": {"formula": facts.get("label_formula", "soh = calibration_capacity / rated_capacity_ah"),
+                             "measured_quantities": facts["measured"], "reference_test": facts["reference_test"],
+                             "label_source": facts.get("label_source", "calibration_capacity"),
+                             **({"label_rule": facts["label_rule"]} if facts.get("label_rule") else {})},
             "sampling": sampling,
             "windows": [{"feature": "q_win_ah", **window}] if isinstance(window, dict) else ([] if window is None else V),
-            "digests": {"raw": measured.get("raw_sha256") or entry.get("raw_sha256") or V,
+            **({"segments": facts["segments_qc"]} if facts.get("segments_qc") else {}),
+            **({"units": facts["units"]} if facts.get("units") else {}),
+            **({"verification": facts["verification"]} if facts.get("verification") else {}),
+            "digests": {"raw": measured.get("raw_sha256") or entry.get("raw_sha256") or facts.get("raw_digest") or V,
                         "processed": entry.get("processed_sha256") or (entry.get("processed") or {}).get("sha256") or V,
                         "curves": entry.get("curve_sha256") or ("none (no curves file; the raw curves stay in the archive)" if not entry.get("curve_path") else V)},
             "provenance": {"raw_files": [{"path": r["path"], "bytes": r["bytes"], "sha256": r["sha256"]} for r in measured.get("raw_files", [])],
                            "measured_at": measured.get("measured_at", V if not measured else SURVEY_DATE),
                            "reference": "scripts/measure_raw_provenance.py -> data/datasheets/_provenance.json"} if measured else V,
-            "leak_scan": {"label_source_columns": LEAK_INVENTORY.get(name, V), "scanned_on": "2026-09-03",
-                          "reference": "tests/test_label_leak_inventory.py"},
-            "held_out_ready": bool(entry.get("held_out_ready", True)),
+            "leak_scan": {"label_source_columns": LEAK_INVENTORY.get(name, V), "scanned_on": facts.get("scanned_on", "2026-09-03"),
+                          "reference": "tests/test_label_leak_inventory.py",
+                          **({"column_classes": facts["column_classes"]} if facts.get("column_classes") else {})},
+            "held_out_ready": bool(facts.get("held_out_ready", entry.get("held_out_ready", True))),
             "known_issues": facts["known_issues"],
             "signed": dict(facts["signed"]),
         }

@@ -1,0 +1,143 @@
+name: tongji_blend
+status: draft 2026-09-05 (D2) — chemistry and rated capacity quoted from the paper;
+  unsigned until the owner reviews
+supervision: soh_supervised
+source:
+  citation: 'Zhu, J., Wang, Y., Huang, Y., Bhushan Gopaluni, R., Cao, Y., Heere, M.,
+    Mühlbauer, M. J., Mereacre, L., Dai, H., Liu, X., Senyshyn, A., Wei, X., Knapp,
+    M., Ehrenberg, H. (2022). Data-driven capacity estimation of commercial lithium-ion
+    batteries from voltage relaxation. Nature Communications 13, 2261, DOI 10.1038/s41467-022-29837-w.
+    Dataset: Zenodo 6405084 (DOI 10.5281/zenodo.6405084; the paper cites the concept
+    record 10.5281/zenodo.6379165); ingested by scripts/ingest_tongji.py (D2, 2026-09-05).'
+  url: https://doi.org/10.5281/zenodo.6405084
+  license: 'CC BY 4.0 (Zenodo record 6405084 metadata: cc-by-4.0)'
+  retrieved: 2026-09-05 (Zenodo API record; Dataset_3_NCM_NCA_battery.zip md5 d11e68e410a638058906af5e2f5f60f3
+    verified against the record)
+chemistry:
+  cathode: NCM+NCA blend (42 wt% Li(NiCoMn)O2 / 58 wt% Li(NiCoAl)O2)
+  anode: graphite (paper Methods)
+  metadata_label: NMC/NCA
+  verified_by: VERIFY
+  verified_on: VERIFY
+  evidence: 'Nature Communications 13, 2261, Methods (''Cell selection and cycling''):
+    ''The positive electrode of the INR18650-25R battery is the blend of 42 (3) wt.%
+    Li(NiCoMn)O2 - 58 (3) wt.% Li(NiCoAl)O2, and the negative electrode is graphite''
+    … ''The INR18650-25R is named as NCM + NCA battery according to the positive electrode.''
+    Nature Communications 13, 2261, Methods: ''constant current (CC) charging to 4.2
+    V with current rates ranging from 0.25 C (0.875 A) to 1 C (3.5 A), followed by
+    a constant voltage (CV) charging step at 4.2 V until a current of 0.05 C is reached.
+    Constant current is then employed for the discharge to 2.65 V for the NCA cells
+    and 2.5 V for the NCM and NCM + NCA cells''; ''The CC discharging capacity is
+    treated as the battery residual capacity during cycling''; relaxation 30 min after
+    charge (120 s sampling) for NCA and NCM, 60 min (30 s sampling) for NCM + NCA;
+    BioLogic BCS-815 cycler, BINDER chambers (±0.2 °C).'
+cell:
+  format: 18650 (Samsung INR18650-25R, 2.5 Ah, 3.6 V)
+  rated_capacity_ah: 2.5
+  rated_source: paper Table 1 (nominal capacity 2.5 Ah; 1C = 2.5 A)
+protocol:
+  segments:
+  - id: cc_cv_charge
+    rate: CC 0.25C / 0.5C / 1C to 4.2 V, CV at 4.2 V to 0.05C (paper); charge segment
+      = samples with <I>/mA > 10 mA (CC and CV steps)
+  - id: relaxation
+    rate: 'rest after charge: 30 min at 120 s sampling (NCA, NCM), 60 min at 30 s
+      (NCM+NCA); not yet a feature source'
+  - id: discharge
+    rate: CC 1C to 2.5 V (2C and 4C groups in Dataset_3)
+  temperature_c:
+  - 25
+label_anchor:
+  formula: soh = calibration_capacity / rated_capacity_ah
+  measured_quantities:
+  - Q discharge/mA.h (per-cycle CC discharge capacity)
+  reference_test: 'the CC discharge capacity of each cycle: max ''Q discharge/mA.h''
+    of the cycle (the paper''s residual capacity) over the nominal capacity'
+  label_source: calibration_capacity
+sampling:
+  rate_hz: 0.1 during charge and discharge (10 s), 1/120 (NCA, NCM) or 1/30 (blend)
+    in relaxation — CSV time/s
+  channels:
+  - V
+  - I
+  - Q charge
+  - Q discharge
+windows:
+- feature: q_win_ah
+  segment: cc_cv_charge
+  v_lo: 3.7
+  v_hi: 4.1
+  coverage_median: 0.402
+  calibrated_on: '2026-09-05'
+  note: scan of [3.4, 4.2] V at 0.05 V steps on every 10th cycle; the mid-charge window
+    shared with the SNL NMC/NCA sets
+units:
+  unit: cell
+  cells: 9
+  cells_per_condition (chamber_charge_discharge):
+    25C_0.5C_1C: 3
+    25C_0.5C_2C: 3
+    25C_0.5C_4C: 3
+verification:
+  cells_per_condition_vs_paper_table_1: identical (paper Table 1 counts reproduced
+    by the archive inventory)
+  rows: 8764
+  first_cycle_soh: 0.988–1.001 (median 0.995)
+  raw_hand_check: 'one cycle of a CSV read by hand: rest, CC charge at the named rate
+    to 4.2 V, CV, 28 min rest at 120 s, CC discharge to the cut-off, rest (Dataset_1
+    CY25-1_1-#3 cycle 5)'
+digests:
+  raw: VERIFY
+  processed: 362c45525b9403e8d975e964333380e2d7b3d9a090e261ce14616a1240f30feb
+  curves: VERIFY
+leak_scan:
+  label_source_columns: []
+  scanned_on: '2026-09-05'
+  reference: tests/test_label_leak_inventory.py
+  column_classes:
+    identity:
+    - dataset
+    - cell_id
+    - cycle_index
+    label:
+    - soh
+    label_source:
+    - charge_capacity_max
+    feature:
+    - time_s_max
+    - voltage_mean
+    - voltage_std
+    - voltage_min
+    - voltage_max
+    - current_mean
+    - current_std
+    - abs_current_mean
+    - temperature_mean
+    - q_win_ah
+    - t_win_s
+    - ic_peak_ah_per_v
+    - ic_peak_voltage_v
+    - cycle_index_feature
+    - cycle_fraction
+    - hi_* (K12 indicators)
+held_out_ready: true
+known_issues:
+- 'no temperature channel in the CSVs: temperature_mean is the chamber setpoint from
+  the cell name (CY25/35/45)'
+- '45 rows with soh > 1.1 (18 of them ≥ 1.3, dropped by QC): five cycles per cell
+  where ''Q discharge'' exceeds the nominal capacity by 10–44 % — VERIFY (capacity-check
+  or logging cycles)'
+- relaxation features (the paper's own feature source) are not extracted; K12 §4.6
+  lists them for the segment work
+- 'signature pending: the owner''s review of chemistry (quoted from the paper) and
+  rated capacity'
+- the kernel label is NMC/NCA (metadata); the K12 indicator windows resolve on NMC
+  (3.70–4.10 V)
+- affine R² of q_win_ah against soh is 0.89 on this window (the authors report a linear
+  fade); windows above 3.55 V reach 0.99 and were rejected by the scan
+- cycled in 2020 by a different experimenter than Datasets 1–2 (paper); 60 min relaxation
+  at 30 s sampling
+signed:
+  by: VERIFY (the owner's signature; drafted 2026-09-05 by the Wave 6 data-onboarding
+    session)
+  'on': VERIFY

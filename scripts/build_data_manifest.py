@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from sohbench.metadata import DATASET_CHEMISTRY, DATASET_C_RATED_AH, DATASET_LABEL_SOURCE  # noqa: E402
+from sohkernel.metadata import SUPERVISION_ROLES, supervision_kind  # noqa: E402
 from sohbench.paths import battery_soh_root  # noqa: E402
 
 
@@ -27,6 +28,9 @@ RAW_BINDINGS = {
     "snl_nmc": ["raw/snl_batterylife"],
     "snl_nca": ["raw/snl_batterylife"],
     "uconn": ["raw/uconn_lfp"],
+    "tongji_nca": ["raw/tongji"],
+    "tongji_ncm": ["raw/tongji"],
+    "tongji_blend": ["raw/tongji"],
 }
 
 LICENSES = {
@@ -39,6 +43,9 @@ LICENSES = {
     "snl_nca": {"license": "VERIFY (BatteryArchive study page states no license)", "source": "BatteryLife / BatteryArchive / Preger 2020 (NCA subset)"},
     "uconn": {"license": "CC-BY-4.0", "source": "UConn-ISU-ILCC / Nowacki et al. 2025"},
     "rwth_isea_public": {"license": "CC-BY-4.0", "source": "RWTH ISEA public battery data"},
+    "tongji_nca": {"license": "CC-BY-4.0", "source": "Zhu et al. 2022 / Zenodo 6405084 (Dataset_1 NCA)"},
+    "tongji_ncm": {"license": "CC-BY-4.0", "source": "Zhu et al. 2022 / Zenodo 6405084 (Dataset_2 NCM)"},
+    "tongji_blend": {"license": "CC-BY-4.0", "source": "Zhu et al. 2022 / Zenodo 6405084 (Dataset_3 NCM+NCA)"},
 }
 
 CURVE_TOKENS = {"calce_cs2": "calce", "rwth_isea_public": "rwth"}
@@ -133,11 +140,14 @@ def dataset_entry(path: Path, data_root: Path) -> dict:
     curve_path = data_root / "curves" / f"{token}_curves.json"
     raw_paths = RAW_BINDINGS.get(name, [])
     license_info = LICENSES.get(name, {"license": "internal-demo" if "demo" in name else "unknown", "source": "generated or pending registration"})
+    kind = supervision_kind(name)
+    labeled = int(pd.to_numeric(frame["soh"], errors="coerce").notna().sum()) if "soh" in frame else 0
     return {
         "name": name,
         "status": "ready" if not missing else "blocked",
-        "supervision": "soh_supervised" if not missing else "unknown",
-        "roles": ["training", "same_dataset_holdout", "inference", "audit"] if not missing else [],
+        "supervision": kind if not missing else "unknown",   # Spec 12 §4 (K13, 2026-09-05)
+        "roles": list(SUPERVISION_ROLES[kind]) if not missing else [],
+        "labeled_record_count": labeled,
         "processed": {
             "path": str(path.relative_to(data_root)).replace("\\", "/"),
             "bytes": path.stat().st_size,
@@ -152,7 +162,7 @@ def dataset_entry(path: Path, data_root: Path) -> dict:
         "max_capacity_ah": capacity,
         "capacity_source": capacity_source,
         "label_source": str(DATASET_LABEL_SOURCE.get(name) or "unknown"),
-        "held_out_ready": battery_count > 1,
+        "held_out_ready": battery_count > 1 and kind != "unlabeled_field",
         "raw_paths": raw_paths,
         "raw_local": bool(raw_paths) and all((data_root / Path(item)).exists() for item in raw_paths),
         "curve_path": str(curve_path.relative_to(data_root)).replace("\\", "/") if curve_path.is_file() else "",

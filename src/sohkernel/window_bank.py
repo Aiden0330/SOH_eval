@@ -35,6 +35,9 @@ DATASET_LATTICE = {
     "snl_nca": (3.30, 4.20),  # D1 (2026-09-04): Panasonic NCR18650B, 0.5C CC charge to 4.2 V
     "uconn": (3.00, 3.60),
     "calce_cs2": (3.60, 4.20),
+    "tongji_nca": (3.40, 4.20),      # D2 (2026-09-05): CC-CV charge to 4.2 V
+    "tongji_ncm": (3.40, 4.20),
+    "tongji_blend": (3.40, 4.20),
 }
 LATTICE_STEP = 0.05
 
