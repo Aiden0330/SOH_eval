@@ -69,6 +69,10 @@ jobs:
       - name: Install test dependencies
         run: python -m pip install -e ".[dev]"
 
+      # ADR-001 direction rule holds on Windows too (P19: the kernel is imported by the platform's windows-latest job).
+      - name: Kernel direction rule
+        run: python -m pytest tests/kernel -q
+
       - name: Backend regression
         env:
           PYTHONUTF8: "1"
