@@ -32,3 +32,4 @@ One task per session, in a worktree: `git worktree add ../wt/SOH_eval-<task> -b 
 - The `forward` protocol is pooled early-life by default (owner-confirmed); `earliest` is the calibration split for adaptation claims.
 - Datasheets: chemistry needs a quoted primary source; `rwth_isea_public` is NMC (corrected 2026-09-03); `nasa` chemistry is unverified.
 - Do not push to a new remote, do not delete raw data, do not edit the frozen workbench for features.
+- `data/processed` is shared with the platform's frozen suite v1, which records its digests: before any rebuild that changes a processed table or the manifest, keep a snapshot (the K12 rebuild of 2026-09-05 left `processed/backup_pre_partial_charge_hi/`; the platform's v1 runs use `../soh-agent/runs/data-v1-frozen`). Suite v2 reads the current tables.
