@@ -38,6 +38,7 @@ DATASET_LATTICE = {
     "tongji_nca": (3.40, 4.20),      # D2 (2026-09-05): CC-CV charge to 4.2 V
     "tongji_ncm": (3.40, 4.20),
     "tongji_blend": (3.40, 4.20),
+    "forklift_lfp180": (3.00, 3.60), # D8 (2026-09-05): ageing charges end below 3.40 V; RPT charges to 3.65 V are not segments
 }
 LATTICE_STEP = 0.05
 

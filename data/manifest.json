@@ -7,10 +7,10 @@
  "summary": {
   "local_files": 306,
   "local_bytes": 24288608875,
-  "processed_datasets": 14,
-  "records": 334089,
-  "cycles": 334057,
-  "batteries": 434
+  "processed_datasets": 15,
+  "records": 351850,
+  "cycles": 351818,
+  "batteries": 437
  },
  "verification": {
   "inventory_checks": [
@@ -211,6 +211,123 @@
    "curve_sha256": "5fd40a15bbfda861ed36de86d3ecc32708b8de86b69abec50254aa1190429915",
    "license": "academic-use",
    "source": "CALCE Battery Data"
+  },
+  {
+   "name": "forklift_lfp180",
+   "status": "ready",
+   "supervision": "sparse_field",
+   "roles": [
+    "training",
+    "inference",
+    "audit",
+    "drift"
+   ],
+   "labeled_record_count": 17761,
+   "processed": {
+    "path": "processed/forklift_lfp180_features.pkl",
+    "bytes": 7907448,
+    "sha256": "2c534266006dd2fa0ad8ee213b2a69a2d7547a7055140ab1c6682be19659e5de",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "time_s_max",
+     "voltage_mean",
+     "voltage_std",
+     "voltage_min",
+     "voltage_max",
+     "current_mean",
+     "current_std",
+     "abs_current_mean",
+     "temperature_mean",
+     "charge_capacity_max",
+     "q_win_ah",
+     "t_win_s",
+     "ic_peak_ah_per_v",
+     "ic_peak_voltage_v",
+     "window_coverage",
+     "v_start",
+     "v_end",
+     "current_mean_c",
+     "current_cv",
+     "rest_before_s",
+     "rest_after_s",
+     "temp_min",
+     "temp_max",
+     "segment_start_s",
+     "segment_end_s",
+     "segment_kind",
+     "sample_period_s",
+     "label_source",
+     "label_time_s",
+     "label_age_s",
+     "hi_dq_w1_ah",
+     "hi_dq_w2_ah",
+     "hi_dq_w3_ah",
+     "hi_dq_w4_ah",
+     "hi_span_dq_ah",
+     "hi_dt_w1_s",
+     "hi_dt_w2_s",
+     "hi_dt_w3_s",
+     "hi_dt_w4_s",
+     "hi_span_dt_s",
+     "hi_ic_peak_ah_per_v",
+     "hi_ic_peak_v",
+     "hi_v_q25",
+     "hi_v_q50",
+     "hi_v_q75",
+     "hi_dvdq_v_per_ah",
+     "hi_i_mean_a",
+     "hi_i_cv"
+    ],
+    "partial_window_v": [
+     3.3,
+     3.4
+    ],
+    "health_indicators": {
+     "source": "raw_charge_curves",
+     "chemistry": "LFP",
+     "windows": [
+      [
+       3.3,
+       3.325
+      ],
+      [
+       3.325,
+       3.35
+      ],
+      [
+       3.35,
+       3.375
+      ],
+      [
+       3.375,
+       3.4
+      ]
+     ],
+     "span_matched_fraction": 0.0017,
+     "span_coverage_median": 0.1966,
+     "rebuilt_at": "2026-09-05T16:04:47Z"
+    }
+   },
+   "record_count": 17761,
+   "cycle_count": 17761,
+   "battery_count": 3,
+   "chemistry": "LFP",
+   "max_capacity_ah": 180.0,
+   "capacity_source": "rated_metadata",
+   "label_source": "rpt",
+   "held_out_ready": true,
+   "raw_paths": [
+    "raw/forklift_lfp180"
+   ],
+   "raw_local": true,
+   "curve_path": "",
+   "curve_sha256": "",
+   "license": "CC-BY-4.0",
+   "source": "Vilsen & Stroe 2024 / Mendeley Data yz4pttm73n v2"
   },
   {
    "name": "hust",

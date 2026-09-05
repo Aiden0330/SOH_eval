@@ -31,6 +31,7 @@ RAW_BINDINGS = {
     "tongji_nca": ["raw/tongji"],
     "tongji_ncm": ["raw/tongji"],
     "tongji_blend": ["raw/tongji"],
+    "forklift_lfp180": ["raw/forklift_lfp180"],
 }
 
 LICENSES = {
@@ -46,6 +47,7 @@ LICENSES = {
     "tongji_nca": {"license": "CC-BY-4.0", "source": "Zhu et al. 2022 / Zenodo 6405084 (Dataset_1 NCA)"},
     "tongji_ncm": {"license": "CC-BY-4.0", "source": "Zhu et al. 2022 / Zenodo 6405084 (Dataset_2 NCM)"},
     "tongji_blend": {"license": "CC-BY-4.0", "source": "Zhu et al. 2022 / Zenodo 6405084 (Dataset_3 NCM+NCA)"},
+    "forklift_lfp180": {"license": "CC-BY-4.0", "source": "Vilsen & Stroe 2024 / Mendeley Data yz4pttm73n v2"},
 }
 
 CURVE_TOKENS = {"calce_cs2": "calce", "rwth_isea_public": "rwth"}

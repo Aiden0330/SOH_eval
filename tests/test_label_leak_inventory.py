@@ -79,6 +79,13 @@ DATA_DIR = data_root() / "processed"
 # affine threshold: charge_capacity_max R² 0.30 / 0.42 / 0.90 (the blend's charge throughput tracks its linear
 # fade but stays below 0.995), q_win_ah 0.25 / 0.41 / 0.85 on the stride-10 scan.  No findings pinned.
 # <<< inventory-note: tongji
+# >>> inventory-note: forklift_lfp180
+# Reviewed 2026-09-05 (D8, K13 field segments): forklift_lfp180 holds 17,761 charging segments of the ageing
+# profile (3 cells) with the RPT C/4 capacity attached forward-only (Spec 12 §3).  charge_capacity_max is the
+# segment's ΔQ (median 18 % of 180 Ah), q_win_ah on [3.30, 3.40] V equals it (the charges end below 3.40 V):
+# coverage 0.18 of rated, far from the DOD rule; label_time_s / segment_start_s reach R² 0.91 against soh
+# (a monotone fade over test time) — label-source / identity columns, never features.  No findings pinned.
+# <<< inventory-note: forklift_lfp180
 EXPECTED_LABEL_SOURCE_COLUMNS = {
     "hust": ["charge_capacity_max"],
     "oxford": ["charge_capacity_max"],
@@ -92,6 +99,7 @@ EXPECTED_LABEL_SOURCE_COLUMNS = {
     "tongji_nca": [],
     "tongji_ncm": [],
     "tongji_blend": [],
+    "forklift_lfp180": [],
 }
 
 ID_COLUMNS = ("dataset", "cell_id", "cycle_index", "soh")

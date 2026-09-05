@@ -350,6 +350,50 @@ FACTS["tongji_blend"] = _tongji("tongji_blend", zip_name="Dataset_3_NCM_NCA_batt
                   "cycled in 2020 by a different experimenter than Datasets 1–2 (paper); 60 min relaxation at 30 s sampling"])
 # <<< dataset-block: tongji
 
+# >>> dataset-block: forklift_lfp180
+FACTS["forklift_lfp180"] = {
+    "citation": ("Vilsen, S. B., Stroe, D.-I. (2024). Dataset of lithium-ion battery degradation based on a forklift mission profile for "
+                 "state-of-health estimation and lifetime prediction. Data in Brief 52, 109861 (PMC10749244). Dataset: 'Lithium-ion battery degradation "
+                 "dataset based on a realistic forklift operation profile', Mendeley Data v2 (2023-10-13), DOI 10.17632/yz4pttm73n.2 (yz4pttm73n-2.zip, "
+                 "321 files, 4.89 GB uncompressed); ingested by scripts/ingest_forklift_lfp180.py (D8, 2026-09-05) through sohkernel.segments (K13)."),
+    "url": "https://doi.org/10.17632/yz4pttm73n.2", "license": "CC BY 4.0 (Mendeley record)",
+    "retrieved": f"{DRAFT_DATE} (zip integrity tested: no errors; the record publishes no checksum — VERIFY)",
+    "cathode": "LFP", "anode": "graphite", "verified_by": V, "verified_on": V,
+    "format": "prismatic, 180 Ah, 3.2 V nominal, 2.5–3.65 V (paper Table 3); manufacturer and model not named (VERIFY)",
+    "rated_capacity_ah": 180.0, "rated_source": "paper Table 3 ('Nominal capacity 180 Ah', 'Nominal voltage 3.2 V', 'Maximum voltage 3.65 V', 'Minimum voltage 2.5 V')",
+    "chemistry_evidence": ("Data in Brief 52, 109861, §3: 'The Li-ion batteries used in this study are prismatic cells using lithium iron phosphate (LFP) and "
+                           "graphite as cathode and anode active materials, respectively'; Table 3 'Chemistry LFP/C', 180 Ah, 3.2 V. Ageing: 'realistic forklift "
+                           "load profile, with a length of approximately two weeks … distilled from a four-month forklift field operation', idle periods removed, "
+                           "currents limited to 50 A; 45 °C (Cell 1), 40 °C (Cell 2), 35 °C (Cell 3); Digatron MCT 50-06-24, Memmert ICP-600 chambers. "
+                           "RPT (25 °C): 45 A discharge to 2.5 V, 1 h, 90 A CC to 3.65 V / CV to 9 A, 1 h, 90 A discharge to 2.5 V, the same at 45 A, "
+                           "recharge, resistance pulses at 90/70/50/30 % SOC, 45 A discharge, charge to 90 % SOC; 'capacity measurements performed at C/4 (i.e., 45 A)'."),
+    "segments": [{"id": "ageing_charge", "rate": "charging segments of the forklift profile (Spec 12 §2 defaults: current > 3.6 A, rests < 600 s bridged, ≥ 300 s, ≥ 9 Ah); mean charge current ≈ 23.5 A (0.13 C), coefficient of variation ≈ 0.04, charges end below 3.40 V"},
+                 {"id": "rpt", "rate": "reference performance test after every round (label source); its CC-CV charges are not segments"}],
+    "temperature_c": [45, 40, 35],
+    "reference_test": "the RPT's C/4 capacity: Ah of the 45 A constant-current discharge from the fully charged state (preceding CC-CV charge reached ≥ 3.60 V) to the 2.5 V cut-off (paper §3, Fig. 5); the C/2 capacity is recorded alongside in the extractor report",
+    "measured": ["RPT C/4 (45 A) discharge capacity, Coulomb-counted from RPT.csv (Ah)"],
+    "label_formula": "soh = RPT_C4_capacity_ah / 180 Ah", "label_source": "rpt", "supervision": "sparse_field",
+    "label_rule": "forward-only (Spec 12 §3): every segment carries the last RPT of its cell that ended before the segment started; the segments of round N carry the RPT of round N-1 (Round00 is the beginning-of-life RPT); a lost RPT makes the following round's label one round older; no age bound (the age is one round, median 7.4 days)",
+    "rate_hz": 1, "channels": ["V", "I", "T", "E (Wh)"],
+    "window": {"segment": "ageing_charge", "v_lo": 3.30, "v_hi": 3.40, "coverage_median": 0.181, "calibrated_on": DRAFT_DATE,
+               "note": "the K12 LFP indicator span; the ageing charges end below 3.40 V so the window holds the whole segment charge — coverage is the charged fraction of 180 Ah, never the calibration capacity"},
+    "segments_qc": {"rounds_with_ageing_files": {"cell1": 56, "cell2": 56, "cell3": 48}, "rpts_with_c4_capacity": {"cell1": 55, "cell2": 56, "cell3": 50},
+                    "segments": 17761, "segments_per_round": {"cell1": 110.4, "cell2": 109.8, "cell3": 113.2},
+                    "candidates_found": 637399, "dropped_too_short": 617420, "dropped_low_coverage": 2218,
+                    "note": "the profile's regenerative pulses are the short candidates; the paper's rounds 58/58/53 minus the lost parts (Table 2: round 29 lost for every cell, RPTs lost in rounds 28/37/51 (cell 1), 37/51 (cell 2), 25/33 (cell 3), cell 3 round 28 entirely)"},
+    "units": {"unit": "cell", "cells": 3, "c_rated_ah": 180.0, "time_axis": "test time in seconds since the cell's first sample (files restart Time; parts and RPTs concatenated in round order with a 1 s step) — wall-clock dates are not in the data (VERIFY)"},
+    "verification": {"rpt_capacity_range_ah": {"cell1": "190.66 → 147.94", "cell2": "189.47 → 154.86", "cell3": "189.29 → 159.84"},
+                     "raw_hand_check": "Cell1/Round01/RPT.csv read by hand: the C/4 step is 45.0 A for 14,804 s from 3.44 V to 2.50 V after the CC-CV charge to 3.65 V = 185.05 Ah; the 90 A step gives 183.57 Ah; the first 45 A step (135.9 Ah from the ageing end state) is not a capacity",
+                     "archive_vs_paper_table_2": "the missing parts and RPTs in the archive reproduce the paper's Table 2",
+                     "spec_12_acceptance_1": "rounds per cell with an RPT 55/56/50 (paper 58/58/53 minus the lost RPTs); segments per round recorded above"},
+    "column_classes": SEGMENT_CLASSES, "scanned_on": DRAFT_DATE,
+    "known_issues": ["soh > 1 at beginning of life (C/4 capacity 190.7 Ah vs the 180 Ah nominal; QC keeps rows below 1.3)",
+                     "segments never span a file part; rests at part boundaries are unknown (NaN)",
+                     "the RPT temperature is 25 °C while the segments are at 45/40/35 °C",
+                     "signature pending: the owner's review of chemistry (paper Table 3) and the C/4 label rule"],
+    "signed": dict(UNSIGNED_W6), "status": f"draft {DRAFT_DATE} (D8) — chemistry and rated capacity quoted from the paper; unsigned until the owner reviews",
+}
+# <<< dataset-block: forklift_lfp180
 
 LEAK_INVENTORY = {"hust": ["charge_capacity_max"], "oxford": ["charge_capacity_max"], "uconn": ["charge_capacity_max"],
                   "rwth_isea_public": ["capacity_ah"], "nasa": [], "calce_cs2": [], "snl_lfp": [],
@@ -357,6 +401,7 @@ LEAK_INVENTORY = {"hust": ["charge_capacity_max"], "oxford": ["charge_capacity_m
                   "tongji_nca": [],
                   "tongji_ncm": [],
                   "tongji_blend": [],
+                  "forklift_lfp180": [],
                   }
 
 

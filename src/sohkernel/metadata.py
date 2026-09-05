@@ -14,6 +14,7 @@ DATASET_CHEMISTRY = {
     "tongji_nca": "NCA",   # Zhu et al. 2022 Dataset_1: LG INR18650-35E, LiNi0.86Co0.11Al0.03O2 (paper Methods; D2, 2026-09-05)
     "tongji_ncm": "NMC",   # Zhu et al. 2022 Dataset_2: Samsung INR18650-MJ1, Li(Ni0.83Co0.11Mn0.07)O2 — the authors write NCM (D2)
     "tongji_blend": "NMC/NCA",   # Zhu et al. 2022 Dataset_3: Samsung INR18650-25R, 42 % NCM + 58 % NCA blend cathode (D2); HI windows resolve on NMC
+    "forklift_lfp180": "LFP",    # Vilsen & Stroe 2024: prismatic LFP/graphite 180 Ah (paper Table 3; D8, 2026-09-05)
 }
 DATASET_C_RATED_AH = {
     "nasa": 2.0,      # NASA PCoE 18650 LiCoO2, 2 Ah
@@ -28,6 +29,7 @@ DATASET_C_RATED_AH = {
     "tongji_nca": 3.5,       # Zhu et al. 2022 Table 1 (1C = 3.5 A)
     "tongji_ncm": 3.5,       # Zhu et al. 2022 Table 1 (1C = 3.5 A)
     "tongji_blend": 2.5,     # Zhu et al. 2022 Table 1 (1C = 2.5 A)
+    "forklift_lfp180": 180.0,   # Vilsen & Stroe 2024 Table 3 (nominal 180 Ah)
 }
 DATASET_LABEL_SOURCE = {  # all reference-discharge calibrated capacity
     "nasa": "calibration_capacity", "calce_cs2": "calibration_capacity",
@@ -36,6 +38,7 @@ DATASET_LABEL_SOURCE = {  # all reference-discharge calibrated capacity
     "rwth_isea_public": "calibration_capacity",
     "snl_nmc": "calibration_capacity", "snl_nca": "calibration_capacity",
     "tongji_nca": "calibration_capacity", "tongji_ncm": "calibration_capacity", "tongji_blend": "calibration_capacity",
+    "forklift_lfp180": "rpt",                 # forklift_lfp180: RPT capacities attached forward-only to segments (Spec 12 §3)
 }
 # Supervision kinds (Spec 12 §4, K13).  ``soh_supervised``: every row labeled (the laboratory
 # sets); ``sparse_field``: labels from capacity tests / RPTs attached forward-only to a subset of
@@ -48,6 +51,7 @@ SUPERVISION_ROLES = {
     "unlabeled_field": ["inference", "audit", "drift"],
 }
 DATASET_SUPERVISION: dict[str, str] = {   # every dataset not listed is soh_supervised
+    "forklift_lfp180": "sparse_field",    # D8: RPT after every ageing round; every segment labeled by the preceding RPT
 }
 
 

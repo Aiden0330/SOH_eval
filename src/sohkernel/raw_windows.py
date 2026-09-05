@@ -21,6 +21,7 @@ from __future__ import annotations
 import glob
 import io
 import pickle
+import re
 import zipfile
 from pathlib import Path
 from typing import Iterator
@@ -358,6 +359,88 @@ def _iter_tongji_blend(data_dir: Path, processed: pd.DataFrame | None) -> Iterat
     return _iter_tongji(data_dir, processed, "tongji_blend")
 
 
+# ---------------------------------------------------------------------------
+# Aalborg forklift-profile 180 Ah prismatic LFP set (D8, 2026-09-05): Vilsen & Stroe, Data in Brief 52 (2024)
+# 109861, Mendeley yz4pttm73n v2.  One zip; Cell{1,2,3}/Round{00..58}/{Ageing,RPT}.csv with columns
+# Cell, Round, [Part], Time (s, restarting in every file and every Part), Current (A, charge positive),
+# Voltage (V), Energy (Wh), Temperature (°C).  A round is the two-week ageing profile (two parts) followed
+# by an RPT; Round00 is the beginning-of-life RPT.  The kernel builds one monotone test-time axis per cell
+# (seconds since the start of the cell's record) by concatenating the files in round / part / RPT order,
+# so segments and labels order forward in time; wall-clock dates are not in the data (datasheet VERIFY).
+# ---------------------------------------------------------------------------
+FORKLIFT_ARCHIVE = Path("raw") / "forklift_lfp180" / "yz4pttm73n-2.zip"
+FORKLIFT_C_RATED_AH = 180.0
+FORKLIFT_CHAMBER_C = {"cell1": 45.0, "cell2": 40.0, "cell3": 35.0}
+_FORKLIFT_MEMBER = re.compile(r"/Cell(?P<cell>\d+)/Round(?P<round>\d+)/(?P<kind>Ageing|RPT)\.csv$")
+
+
+def forklift_members(data_dir: str | Path) -> tuple[zipfile.ZipFile, list[dict]]:
+    """The archive and its members in record order: per cell, per round, Ageing before RPT."""
+    archive = zipfile.ZipFile(Path(data_dir) / FORKLIFT_ARCHIVE)
+    members = []
+    for name in archive.namelist():
+        match = _FORKLIFT_MEMBER.search(name)
+        if match:
+            members.append({"cell_id": f"cell{int(match['cell'])}", "round": int(match["round"]),
+                            "kind": match["kind"].lower(), "member": name})
+    order = {"ageing": 0, "rpt": 1}
+    members.sort(key=lambda m: (m["cell_id"], m["round"], order[m["kind"]]))
+    return archive, members
+
+
+def read_forklift_csv(archive: zipfile.ZipFile, member: str) -> pd.DataFrame:
+    with archive.open(member) as handle:
+        frame = pd.read_csv(handle)
+    if "Part" not in frame.columns:
+        frame["Part"] = 0
+    return frame
+
+
+def iter_forklift_records(data_dir: str | Path, cells: set[str] | None = None) -> Iterator[dict]:
+    """Yield ``{cell_id, round, kind, part, offset_s, frame}`` per file part in record order.
+
+    ``offset_s`` is the running test time at the part's first sample: every part is placed after the
+    previous one (its local ``Time`` re-based to zero), with a one-second step between parts.  The gap
+    between parts is unknown, so segments never span parts and rests at part boundaries are NaN.
+    """
+    archive, members = forklift_members(data_dir)
+    offsets: dict[str, float] = {}
+    for item in members:
+        if cells is not None and item["cell_id"] not in cells:
+            continue
+        frame = read_forklift_csv(archive, item["member"])
+        for part, group in frame.groupby("Part", sort=True):
+            group = group.sort_values("Time", kind="stable").reset_index(drop=True)
+            group["Time"] = group["Time"] - float(group["Time"].iloc[0])
+            offset = offsets.get(item["cell_id"], 0.0)
+            yield {"cell_id": item["cell_id"], "round": item["round"], "kind": item["kind"], "part": int(part),
+                   "offset_s": offset, "frame": group}
+            offsets[item["cell_id"]] = offset + float(group["Time"].iloc[-1]) + 1.0
+
+
+def _iter_forklift(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
+    """Charge curves of the processed segments (matched by cell and segment start on the test-time axis)."""
+    from .segments import DEFAULT_CONFIG, charging_spans, segment_curve
+
+    if processed is None:
+        raise ValueError("forklift_lfp180 curves require the processed table (segment bounds)")
+    wanted = {(str(c), float(s)): int(k) for c, s, k in zip(processed["cell_id"], processed["segment_start_s"], processed["cycle_index"])}
+    cells = {c for c, _ in wanted}
+    for record in iter_forklift_records(data_dir, cells):
+        if record["kind"] != "ageing":
+            continue
+        frame = record["frame"]
+        t = frame["Time"].to_numpy(dtype=float)
+        i = frame["Current"].to_numpy(dtype=float)
+        v = frame["Voltage"].to_numpy(dtype=float)
+        for first, last in charging_spans(t, i, FORKLIFT_C_RATED_AH, DEFAULT_CONFIG):
+            key = (record["cell_id"], record["offset_s"] + t[first])
+            if key not in wanted:
+                continue
+            v_seg, q_seg, t_rel = segment_curve(t, v, i, (first, last))
+            yield record["cell_id"], wanted[key], v_seg, q_seg, t_rel
+
+
 def _iter_snl_nmc(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
     return _iter_snl(data_dir, processed, "NMC")
 
@@ -376,6 +459,7 @@ CHARGE_CURVE_SOURCES = {
     "tongji_nca": _iter_tongji_nca,     # D2 (2026-09-05): scripts/ingest_tongji.py
     "tongji_ncm": _iter_tongji_ncm,
     "tongji_blend": _iter_tongji_blend,
+    "forklift_lfp180": _iter_forklift,   # D8 (2026-09-05): scripts/ingest_forklift_lfp180.py (K13 segments)
 }
 
 
