@@ -23,6 +23,7 @@ from .contracts import QCReport, Verdict, feature_columns
 from .data import ALL_DATASETS, REQUIRED_COLUMNS, DatasetLoader
 from .datasheets import chemistry_verified, load_datasheets
 from .feature_safety import FeatureSafetyError, apply_transform_without_label, audit_feature_frame
+from .metadata import supervision_kind
 from .method_contracts import incompatible_pairing_reason, method_contract
 from .protocols import PROTOCOLS
 from .report import write_artifacts as _write_artifacts
@@ -39,6 +40,7 @@ __all__ = [
     "preflight",
     "resolve_data_dir",
     "score",
+    "supervision_errors",
     "training_dataset_profiles",
     "training_feature_profile",
     "training_protocol_profile",
@@ -191,6 +193,8 @@ def effective_training_featuresets(estimator_names: list[str], requested: list[s
 
 
 def training_dataset_profiles(table: pd.DataFrame, datasets: list[str]) -> list[dict]:
+    """Per dataset: rows, units, usable feature columns and the supervision kind (Spec 12 §4);
+    for field sets also the labeled rows and the reference measurements per unit."""
     profiles = []
     for name in datasets:
         frame = table[table["dataset"].astype(str) == str(name)]
@@ -198,15 +202,32 @@ def training_dataset_profiles(table: pd.DataFrame, datasets: list[str]) -> list[
             column for column in feature_columns(frame)
             if column in frame.columns and bool(frame[column].notna().any())
         ]
-        profiles.append(
-            {
-                "dataset": name,
-                "rows": int(len(frame)),
-                "cells": int(frame["cell_id"].astype(str).nunique()),
-                "usable_feature_columns": usable,
-            }
-        )
+        kind = supervision_kind(name)
+        labeled = pd.to_numeric(frame["soh"], errors="coerce").notna() if "soh" in frame.columns else pd.Series(False, index=frame.index)
+        profile = {
+            "dataset": name,
+            "rows": int(len(frame)),
+            "cells": int(frame["cell_id"].astype(str).nunique()),
+            "usable_feature_columns": usable,
+            "supervision": kind,
+            "labeled_rows": int(labeled.sum()),
+        }
+        if kind != "soh_supervised" and "label_time_s" in frame.columns:
+            times = pd.to_numeric(frame["label_time_s"], errors="coerce")
+            per_unit = frame.loc[times.notna()].groupby(frame.loc[times.notna(), "cell_id"].astype(str))["label_time_s"].nunique()
+            profile["tests_per_unit"] = {str(k): int(v) for k, v in per_unit.items()}
+        profiles.append(profile)
     return profiles
+
+
+def supervision_errors(datasets: list[str]) -> list[str]:
+    """Why a training request over these datasets is refused (Spec 12 §4): an ``unlabeled_field``
+    dataset has no labels, so it can neither train nor be claimed — inference, audit and drift only."""
+    return [
+        f"dataset {name!r} is unlabeled_field: no labels, so it cannot train or be claimed "
+        "(Spec 12 §4; roles inference, audit, drift)"
+        for name in datasets if supervision_kind(name) == "unlabeled_field"
+    ]
 
 
 def training_feature_profile(
@@ -429,6 +450,7 @@ def preflight(
     protocol_profiles = {
         name: training_protocol_profile(table, meta, name, datasheets=datasheets) for name in request["protocols"]
     }
+    refused = supervision_errors(datasets)
 
     seed_count = len(request["seeds"])
     combinations: list[dict] = []
@@ -462,7 +484,7 @@ def preflight(
                         }
                     )
                     continue
-                reasons = list(protocol["errors"])
+                reasons = list(refused) + list(protocol["errors"])
                 warnings = list(protocol["warnings"])
                 selected_columns: list[str] = []
                 if feature is not None:

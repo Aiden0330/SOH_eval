@@ -30,6 +30,62 @@ import pandas as pd
 
 Curve = tuple[str, int, np.ndarray, np.ndarray, np.ndarray]
 
+IC_GRID_STEP_V = 0.001   # incremental-capacity curve on a uniform 1 mV voltage grid
+IC_SMOOTH_POINTS = 61    # centred moving average, 61 mV wide (best agreement with the snl_lfp values)
+IC_MIN_SAMPLES = 8
+
+
+def ic_peak(voltage: np.ndarray, charge: np.ndarray) -> tuple[float, float]:
+    """Peak of the smoothed dQ/dV curve of a charge segment (the per-cycle ``ic_peak_*`` columns).
+
+    The charge curve is reduced to its monotone part (voltage running maximum; last charge value
+    at each distinct voltage), resampled onto a uniform ``IC_GRID_STEP_V`` grid, differentiated
+    (``np.gradient``) and smoothed with a centred ``IC_SMOOTH_POINTS``-wide moving average.  The
+    peak is searched on the interior of the grid so the CC->CV corner cannot win.  Returns
+    ``(ic_peak_ah_per_v, ic_peak_voltage_v)`` or NaNs when the segment is too short.  Defined here
+    (D1, 2026-09-04, ``scripts/ingest_batterylife_snl.py``) so every extractor — per-cycle or per
+    field segment (K13) — computes the same quantity.
+    """
+    voltage = np.asarray(voltage, dtype=float)
+    charge = np.asarray(charge, dtype=float)
+    finite = np.isfinite(voltage) & np.isfinite(charge)
+    v = voltage[finite]
+    q = charge[finite]
+    if len(v) < IC_MIN_SAMPLES:
+        return np.nan, np.nan
+    v_mono = np.maximum.accumulate(v)
+    frame = pd.DataFrame({"v": np.round(v_mono, 6), "q": q}).groupby("v", sort=True)["q"].last()
+    v_u = frame.index.to_numpy(dtype=float)
+    q_u = np.maximum.accumulate(frame.to_numpy(dtype=float))
+    if len(v_u) < IC_MIN_SAMPLES or v_u[-1] - v_u[0] < IC_SMOOTH_POINTS * IC_GRID_STEP_V:
+        return np.nan, np.nan
+    grid = np.arange(v_u[0], v_u[-1] + IC_GRID_STEP_V / 2, IC_GRID_STEP_V)
+    q_grid = np.interp(grid, v_u, q_u)
+    ic = np.gradient(q_grid, IC_GRID_STEP_V)
+    kernel = np.ones(IC_SMOOTH_POINTS) / IC_SMOOTH_POINTS
+    smooth = np.convolve(ic, kernel, mode="same")
+    half = IC_SMOOTH_POINTS // 2
+    interior = slice(half, len(smooth) - half)
+    if len(smooth[interior]) < 1:
+        return np.nan, np.nan
+    k = int(np.argmax(smooth[interior])) + half
+    return float(smooth[k]), float(grid[k])
+
+
+def window_integral(
+    v: np.ndarray, q: np.ndarray, t: np.ndarray | None, lo: float, hi: float
+) -> tuple[float, float]:
+    """Charge and time accumulated while voltage sits inside [lo, hi]."""
+    mask = np.isfinite(v) & np.isfinite(q) & (v >= lo) & (v <= hi)
+    if int(mask.sum()) < 2:
+        return np.nan, np.nan
+    q_win = float(np.nanmax(q[mask]) - np.nanmin(q[mask]))
+    if t is None:
+        return q_win, np.nan
+    tm = t[mask]
+    t_win = float(np.nanmax(tm) - np.nanmin(tm)) if np.isfinite(tm).any() else np.nan
+    return q_win, t_win
+
 
 def window_integral(
     v: np.ndarray, q: np.ndarray, t: np.ndarray | None, lo: float, hi: float

@@ -66,12 +66,14 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from sohkernel.raw_windows import window_integral as _window_integral  # noqa: E402
+from sohkernel.raw_windows import (  # noqa: E402
+    IC_GRID_STEP_V, IC_MIN_SAMPLES, IC_SMOOTH_POINTS, ic_peak, window_integral as _window_integral,
+)
 
 CHARGE_CURRENT_MIN_A = 0.01
-IC_GRID_STEP_V = 0.001   # incremental-capacity curve on a uniform 1 mV voltage grid
-IC_SMOOTH_POINTS = 61    # centred moving average, 61 mV wide (best agreement with the snl_lfp values)
-IC_MIN_SAMPLES = 8
+# IC_GRID_STEP_V / IC_SMOOTH_POINTS / IC_MIN_SAMPLES and ic_peak live in sohkernel.raw_windows since K13
+# (2026-09-05) so field-segment extractors compute the same peak; re-exported here for the D1 test.
+__all_ic__ = (IC_GRID_STEP_V, IC_SMOOTH_POINTS, IC_MIN_SAMPLES, ic_peak)
 FULL_SOC_INTERVAL = (0.0, 1.0)
 
 COLUMNS = [
@@ -114,39 +116,6 @@ def charge_segment(cycle: dict) -> dict[str, np.ndarray] | None:
         else:
             out[name] = np.asarray(values, dtype=float)[mask]
     return out
-
-
-def ic_peak(voltage: np.ndarray, charge: np.ndarray) -> tuple[float, float]:
-    """Peak of the smoothed dQ/dV curve of a charge segment.
-
-    The charge curve is reduced to its monotone part (voltage running maximum; last charge value
-    at each distinct voltage), resampled onto a uniform ``IC_GRID_STEP_V`` grid, differentiated
-    (``np.gradient``) and smoothed with a centred ``IC_SMOOTH_POINTS``-wide moving average.  The
-    peak is searched on the interior of the grid so the CC->CV corner cannot win.  Returns
-    ``(ic_peak_ah_per_v, ic_peak_voltage_v)`` or NaNs when the segment is too short.
-    """
-    finite = np.isfinite(voltage) & np.isfinite(charge)
-    v = voltage[finite]
-    q = charge[finite]
-    if len(v) < IC_MIN_SAMPLES:
-        return np.nan, np.nan
-    v_mono = np.maximum.accumulate(v)
-    frame = pd.DataFrame({"v": np.round(v_mono, 6), "q": q}).groupby("v", sort=True)["q"].last()
-    v_u = frame.index.to_numpy(dtype=float)
-    q_u = np.maximum.accumulate(frame.to_numpy(dtype=float))
-    if len(v_u) < IC_MIN_SAMPLES or v_u[-1] - v_u[0] < IC_SMOOTH_POINTS * IC_GRID_STEP_V:
-        return np.nan, np.nan
-    grid = np.arange(v_u[0], v_u[-1] + IC_GRID_STEP_V / 2, IC_GRID_STEP_V)
-    q_grid = np.interp(grid, v_u, q_u)
-    ic = np.gradient(q_grid, IC_GRID_STEP_V)
-    kernel = np.ones(IC_SMOOTH_POINTS) / IC_SMOOTH_POINTS
-    smooth = np.convolve(ic, kernel, mode="same")
-    half = IC_SMOOTH_POINTS // 2
-    interior = slice(half, len(smooth) - half)
-    if len(smooth[interior]) < 1:
-        return np.nan, np.nan
-    k = int(np.argmax(smooth[interior])) + half
-    return float(smooth[k]), float(grid[k])
 
 
 def full_soc_cell(payload: dict) -> bool:

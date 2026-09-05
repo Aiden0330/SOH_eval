@@ -30,6 +30,23 @@ DATASET_LABEL_SOURCE = {  # all reference-discharge calibrated capacity
     "rwth_isea_public": "calibration_capacity",
     "snl_nmc": "calibration_capacity", "snl_nca": "calibration_capacity",
 }
+# Supervision kinds (Spec 12 §4, K13).  ``soh_supervised``: every row labeled (the laboratory
+# sets); ``sparse_field``: labels from capacity tests / RPTs attached forward-only to a subset of
+# the segments; ``unlabeled_field``: no labels at all — inference, audit and drift only, refused
+# by the training preflight and never claimed.
+SUPERVISION_KINDS = ("soh_supervised", "sparse_field", "unlabeled_field")
+SUPERVISION_ROLES = {
+    "soh_supervised": ["training", "same_dataset_holdout", "inference", "audit"],
+    "sparse_field": ["training", "inference", "audit", "drift"],
+    "unlabeled_field": ["inference", "audit", "drift"],
+}
+DATASET_SUPERVISION: dict[str, str] = {}   # every dataset not listed is soh_supervised
+
+
+def supervision_kind(name: object) -> str:
+    return DATASET_SUPERVISION.get(canonical_dataset_name(name), "soh_supervised")
+
+
 # Raw ingestion frames label datasets the way their source did (``CALCE``, ``SNL``,
 # ``HUST`` ...); the loader rewrites the column to the canonical file-derived name, and
 # metadata lookups on raw frames go through :func:`canonical_dataset_name`.
@@ -55,4 +72,5 @@ def build_meta(table: pd.DataFrame) -> pd.DataFrame:
         mask = (cells["dataset"] == dataset) & cells["cell_id"].astype(str).str.startswith(prefix)
         cells.loc[mask, "c_rated_ah"] = rated
     cells["label_source"] = cells["dataset"].map(DATASET_LABEL_SOURCE).fillna("unknown")
+    cells["supervision"] = cells["dataset"].map(supervision_kind)
     return cells

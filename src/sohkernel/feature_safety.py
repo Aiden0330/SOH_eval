@@ -47,6 +47,13 @@ LABEL_SOURCE_FEATURE_COLUMNS = frozenset(
         # derived from charge_capacity_max in the mechanism-proxy transform
         "charge_energy_proxy_wh",
         "cumulative_capacity_proxy_ah",
+        # K13 (2026-09-05, Spec 12 §3): the reference measurement behind a field segment's label —
+        # which test, when it was taken and how old it is — and the measured capacities themselves
+        "label_source",
+        "label_time_s",
+        "label_age_s",
+        "capacity_test_ah",
+        "rpt_capacity_ah",
     }
 )
 

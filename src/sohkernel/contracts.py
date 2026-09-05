@@ -5,9 +5,14 @@ import numpy as np
 import pandas as pd
 
 ID_COLUMNS = ["dataset", "cell_id", "cycle_index", "soh"]
+# Identity-adjacent columns of field segment tables (Spec 12 §1, K13): where a segment sits in
+# wall-clock time, what kind it is and how it was sampled.  Neither features nor labels — they
+# never enter a featureset (``feature_columns`` skips them) and the leak inventory lists them
+# as identity.
+IDENTITY_ADJACENT_COLUMNS = ["segment_start_s", "segment_end_s", "segment_kind", "sample_period_s"]
 
 def feature_columns(X: pd.DataFrame) -> list[str]:
-    return [c for c in X.columns if c not in ID_COLUMNS]
+    return [c for c in X.columns if c not in ID_COLUMNS and c not in IDENTITY_ADJACENT_COLUMNS]
 
 @dataclass(frozen=True)
 class CellMeta:

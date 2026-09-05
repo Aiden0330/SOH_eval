@@ -4,7 +4,14 @@ from .contracts import QCReport, ID_COLUMNS
 
 def qc_gate(table: pd.DataFrame, meta: pd.DataFrame, *, lower: float = 0.0,
             upper: float = 1.3, availability_min: float = 0.2,
-            reject_bms: bool = True) -> tuple[pd.DataFrame, QCReport]:
+            reject_bms: bool = True, keep_unlabeled: bool = False) -> tuple[pd.DataFrame, QCReport]:
+    """Row and column QC.
+
+    Rows without a label (``soh`` NaN — field segments before a unit's first capacity test, or an
+    ``unlabeled_field`` dataset, Spec 12 §3–§4) are dropped and counted as ``soh_unlabeled`` unless
+    ``keep_unlabeled`` is set (inference, audit and drift paths); the value checks apply to the
+    labeled rows only.
+    """
     n_in = len(table)
     drop_reasons: dict[str, int] = {}
 
@@ -13,17 +20,19 @@ def qc_gate(table: pd.DataFrame, meta: pd.DataFrame, *, lower: float = 0.0,
         if bad:
             raise ValueError(f"datasets with bms_reported labels rejected: {bad}")
 
+    soh = pd.to_numeric(table["soh"], errors="coerce")
+    unlabeled = soh.isna().to_numpy()
+    drop_reasons["soh_unlabeled"] = 0 if keep_unlabeled else int(unlabeled.sum())
+
     # non-positive: explicit garbage drop (before range check)
-    soh = table["soh"]
-    nonpositive = soh <= 0
+    nonpositive = (soh <= 0).to_numpy()
     drop_reasons["soh_nonpositive"] = int(nonpositive.sum())
-    after_np = table.loc[~nonpositive].reset_index(drop=True)
 
     # value-range: lower-inclusive, upper-exclusive [lower, upper)
-    soh2 = after_np["soh"]
-    in_range = (soh2 >= lower) & (soh2 < upper)
-    drop_reasons["soh_out_of_range"] = int((~in_range).sum())
-    clean = after_np.loc[in_range].reset_index(drop=True)
+    in_range = ((soh >= lower) & (soh < upper)).to_numpy()
+    drop_reasons["soh_out_of_range"] = int((~in_range & ~unlabeled & ~nonpositive).sum())
+    keep = (in_range & ~nonpositive) | (unlabeled if keep_unlabeled else np.zeros(n_in, dtype=bool))
+    clean = table.loc[keep].reset_index(drop=True)
 
     # Ambiguous cycle identities: a (dataset, cell_id, cycle_index) seen more than once
     # cannot be ordered in a trajectory nor matched to one curve, so every row of such
