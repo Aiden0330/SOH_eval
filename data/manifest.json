@@ -122,8 +122,8 @@
    ],
    "processed": {
     "path": "processed/calce_cs2_features.pkl",
-    "bytes": 2282515,
-    "sha256": "4f144b1a1c37cf4e429ff21ae8be7daa6fc5a44e18d23e69a059555511cd7715",
+    "bytes": 4502846,
+    "sha256": "8684a72c971e469f208bea91037fbcac7eddb8bf10e7ce156d0ace2c48aff5ac",
     "required_columns_missing": [],
     "columns": [
      "dataset",
@@ -145,12 +145,55 @@
      "ic_peak_ah_per_v",
      "ic_peak_voltage_v",
      "cycle_index_feature",
-     "cycle_fraction"
+     "cycle_fraction",
+     "hi_dq_w1_ah",
+     "hi_dq_w2_ah",
+     "hi_dq_w3_ah",
+     "hi_dq_w4_ah",
+     "hi_span_dq_ah",
+     "hi_dt_w1_s",
+     "hi_dt_w2_s",
+     "hi_dt_w3_s",
+     "hi_dt_w4_s",
+     "hi_span_dt_s",
+     "hi_ic_peak_ah_per_v",
+     "hi_ic_peak_v",
+     "hi_v_q25",
+     "hi_v_q50",
+     "hi_v_q75",
+     "hi_dvdq_v_per_ah",
+     "hi_i_mean_a",
+     "hi_i_cv"
     ],
     "partial_window_v": [
      3.85,
      4.05
-    ]
+    ],
+    "health_indicators": {
+     "source": "raw_charge_curves",
+     "chemistry": "LCO",
+     "windows": [
+      [
+       3.85,
+       3.9
+      ],
+      [
+       3.9,
+       3.95
+      ],
+      [
+       3.95,
+       4.0
+      ],
+      [
+       4.0,
+       4.05
+      ]
+     ],
+     "span_matched_fraction": 0.7683,
+     "span_coverage_median": 0.4367,
+     "rebuilt_at": "2026-09-05T15:14:17Z"
+    }
    },
    "record_count": 15411,
    "cycle_count": 15411,
@@ -181,8 +224,8 @@
    ],
    "processed": {
     "path": "processed/hust_features.pkl",
-    "bytes": 21628580,
-    "sha256": "40a4e3c46861a3d065a9a531b479718467a497c764b68a9e92329156d4d777d1",
+    "bytes": 42671325,
+    "sha256": "f9057bd08701c120df6ba11d6b9590667d696a9c17ccc6b40a2d00b112a8295b",
     "required_columns_missing": [],
     "columns": [
      "dataset",
@@ -204,12 +247,55 @@
      "ic_peak_ah_per_v",
      "ic_peak_voltage_v",
      "cycle_index_feature",
-     "cycle_fraction"
+     "cycle_fraction",
+     "hi_dq_w1_ah",
+     "hi_dq_w2_ah",
+     "hi_dq_w3_ah",
+     "hi_dq_w4_ah",
+     "hi_span_dq_ah",
+     "hi_dt_w1_s",
+     "hi_dt_w2_s",
+     "hi_dt_w3_s",
+     "hi_dt_w4_s",
+     "hi_span_dt_s",
+     "hi_ic_peak_ah_per_v",
+     "hi_ic_peak_v",
+     "hi_v_q25",
+     "hi_v_q50",
+     "hi_v_q75",
+     "hi_dvdq_v_per_ah",
+     "hi_i_mean_a",
+     "hi_i_cv"
     ],
     "partial_window_v": [
      3.3,
      3.52
-    ]
+    ],
+    "health_indicators": {
+     "source": "raw_charge_curves",
+     "chemistry": "LFP",
+     "windows": [
+      [
+       3.3,
+       3.325
+      ],
+      [
+       3.325,
+       3.35
+      ],
+      [
+       3.35,
+       3.375
+      ],
+      [
+       3.375,
+       3.4
+      ]
+     ],
+     "span_matched_fraction": 1.0,
+     "span_coverage_median": 0.0495,
+     "rebuilt_at": "2026-09-05T15:15:13Z"
+    }
    },
    "record_count": 146122,
    "cycle_count": 146122,
@@ -438,8 +524,8 @@
    ],
    "processed": {
     "path": "processed/snl_lfp_features.pkl",
-    "bytes": 9608354,
-    "sha256": "0347fbd318435364030693be7535b8dac4e5ebdf303fa7d3287c8375ea39c773",
+    "bytes": 18955821,
+    "sha256": "e8536cbce82e96f70a614d104695cb64e96ef6899369d633571b9b63e578891e",
     "required_columns_missing": [],
     "columns": [
      "dataset",
@@ -461,12 +547,55 @@
      "ic_peak_ah_per_v",
      "ic_peak_voltage_v",
      "cycle_index_feature",
-     "cycle_fraction"
+     "cycle_fraction",
+     "hi_dq_w1_ah",
+     "hi_dq_w2_ah",
+     "hi_dq_w3_ah",
+     "hi_dq_w4_ah",
+     "hi_span_dq_ah",
+     "hi_dt_w1_s",
+     "hi_dt_w2_s",
+     "hi_dt_w3_s",
+     "hi_dt_w4_s",
+     "hi_span_dt_s",
+     "hi_ic_peak_ah_per_v",
+     "hi_ic_peak_v",
+     "hi_v_q25",
+     "hi_v_q50",
+     "hi_v_q75",
+     "hi_dvdq_v_per_ah",
+     "hi_i_mean_a",
+     "hi_i_cv"
     ],
     "partial_window_v": [
      3.3,
      3.38
-    ]
+    ],
+    "health_indicators": {
+     "source": "raw_charge_curves",
+     "chemistry": "LFP",
+     "windows": [
+      [
+       3.3,
+       3.325
+      ],
+      [
+       3.325,
+       3.35
+      ],
+      [
+       3.35,
+       3.375
+      ],
+      [
+       3.375,
+       3.4
+      ]
+     ],
+     "span_matched_fraction": 0.9999,
+     "span_coverage_median": 0.5577,
+     "rebuilt_at": "2026-09-05T15:14:23Z"
+    }
    },
    "record_count": 64905,
    "cycle_count": 64905,
@@ -497,8 +626,8 @@
    ],
    "processed": {
     "path": "processed/snl_nca_features.pkl",
-    "bytes": 2408439,
-    "sha256": "1ce4683e6ec92fe9af9ead582aa01df9dedf42514703114699dea35f4acff886",
+    "bytes": 4149257,
+    "sha256": "086d6b560b6a7318faf4b22081a6c700786850e98cace4e90cf53609fbd22276",
     "required_columns_missing": [],
     "columns": [
      "dataset",
@@ -520,12 +649,55 @@
      "ic_peak_ah_per_v",
      "ic_peak_voltage_v",
      "cycle_index_feature",
-     "cycle_fraction"
+     "cycle_fraction",
+     "hi_dq_w1_ah",
+     "hi_dq_w2_ah",
+     "hi_dq_w3_ah",
+     "hi_dq_w4_ah",
+     "hi_span_dq_ah",
+     "hi_dt_w1_s",
+     "hi_dt_w2_s",
+     "hi_dt_w3_s",
+     "hi_dt_w4_s",
+     "hi_span_dt_s",
+     "hi_ic_peak_ah_per_v",
+     "hi_ic_peak_v",
+     "hi_v_q25",
+     "hi_v_q50",
+     "hi_v_q75",
+     "hi_dvdq_v_per_ah",
+     "hi_i_mean_a",
+     "hi_i_cv"
     ],
     "partial_window_v": [
      3.7,
      4.1
-    ]
+    ],
+    "health_indicators": {
+     "source": "raw_charge_curves",
+     "chemistry": "NCA",
+     "windows": [
+      [
+       3.7,
+       3.8
+      ],
+      [
+       3.8,
+       3.9
+      ],
+      [
+       3.9,
+       4.0
+      ],
+      [
+       4.0,
+       4.1
+      ]
+     ],
+     "span_matched_fraction": 0.9068,
+     "span_coverage_median": 0.4553,
+     "rebuilt_at": "2026-09-05T15:14:26Z"
+    }
    },
    "record_count": 12080,
    "cycle_count": 12080,
@@ -556,8 +728,8 @@
    ],
    "processed": {
     "path": "processed/snl_nmc_features.pkl",
-    "bytes": 2845338,
-    "sha256": "1b7c12a97d8c962cd29a6ca2f82dd28ee8f136f493fd6ea3941275ba01138890",
+    "bytes": 4903388,
+    "sha256": "4a2845dd473dc5695d636ab522924f3a45e05be435ca8284f1f5315be4688684",
     "required_columns_missing": [],
     "columns": [
      "dataset",
@@ -579,12 +751,55 @@
      "ic_peak_ah_per_v",
      "ic_peak_voltage_v",
      "cycle_index_feature",
-     "cycle_fraction"
+     "cycle_fraction",
+     "hi_dq_w1_ah",
+     "hi_dq_w2_ah",
+     "hi_dq_w3_ah",
+     "hi_dq_w4_ah",
+     "hi_span_dq_ah",
+     "hi_dt_w1_s",
+     "hi_dt_w2_s",
+     "hi_dt_w3_s",
+     "hi_dt_w4_s",
+     "hi_span_dt_s",
+     "hi_ic_peak_ah_per_v",
+     "hi_ic_peak_v",
+     "hi_v_q25",
+     "hi_v_q50",
+     "hi_v_q75",
+     "hi_dvdq_v_per_ah",
+     "hi_i_mean_a",
+     "hi_i_cv"
     ],
     "partial_window_v": [
      3.65,
      4.1
-    ]
+    ],
+    "health_indicators": {
+     "source": "raw_charge_curves",
+     "chemistry": "NMC",
+     "windows": [
+      [
+       3.7,
+       3.8
+      ],
+      [
+       3.8,
+       3.9
+      ],
+      [
+       3.9,
+       4.0
+      ],
+      [
+       4.0,
+       4.1
+      ]
+     ],
+     "span_matched_fraction": 1.0,
+     "span_coverage_median": 0.4001,
+     "rebuilt_at": "2026-09-05T15:14:24Z"
+    }
    },
    "record_count": 14283,
    "cycle_count": 14283,
@@ -656,8 +871,8 @@
    ],
    "processed": {
     "path": "processed/uconn_features.pkl",
-    "bytes": 424570,
-    "sha256": "9756c28a946404496996c5fd917690075cea71c95865c4f80401549eed653828",
+    "bytes": 836747,
+    "sha256": "961cf183c063d470e8499fa38279f843bd814ab8428e1292ebf5295d4c3d97f3",
     "required_columns_missing": [],
     "columns": [
      "dataset",
@@ -679,12 +894,55 @@
      "ic_peak_ah_per_v",
      "ic_peak_voltage_v",
      "cycle_index_feature",
-     "cycle_fraction"
+     "cycle_fraction",
+     "hi_dq_w1_ah",
+     "hi_dq_w2_ah",
+     "hi_dq_w3_ah",
+     "hi_dq_w4_ah",
+     "hi_span_dq_ah",
+     "hi_dt_w1_s",
+     "hi_dt_w2_s",
+     "hi_dt_w3_s",
+     "hi_dt_w4_s",
+     "hi_span_dt_s",
+     "hi_ic_peak_ah_per_v",
+     "hi_ic_peak_v",
+     "hi_v_q25",
+     "hi_v_q50",
+     "hi_v_q75",
+     "hi_dvdq_v_per_ah",
+     "hi_i_mean_a",
+     "hi_i_cv"
     ],
     "partial_window_v": [
      3.3,
      3.37
-    ]
+    ],
+    "health_indicators": {
+     "source": "raw_charge_curves",
+     "chemistry": "LFP",
+     "windows": [
+      [
+       3.3,
+       3.325
+      ],
+      [
+       3.325,
+       3.35
+      ],
+      [
+       3.35,
+       3.375
+      ],
+      [
+       3.375,
+       3.4
+      ]
+     ],
+     "span_matched_fraction": 1.0,
+     "span_coverage_median": 0.6161,
+     "rebuilt_at": "2026-09-05T15:13:14Z"
+    }
    },
    "record_count": 2855,
    "cycle_count": 2823,
@@ -766,5 +1024,5 @@
   "gbrain-evals historical engineering dependencies",
   "RWTH HSS and other field data without supervised SOH labels"
  ],
- "updated_at": "2026-09-04T12:39:10.010019+00:00"
+ "updated_at": "2026-09-05T15:15:13Z"
 }

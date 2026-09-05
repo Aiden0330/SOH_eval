@@ -64,6 +64,13 @@ DATA_DIR = data_root() / "processed"
 # Findings: snl_nmc charge_capacity_max reconstructs soh affinely (R² 0.998 — the charge
 # throughput of a 0-100 % cycle equals the discharge capacity that anchors the label);
 # on snl_nca the same column stays below the 0.995 threshold, so no finding is pinned there.
+# Reviewed 2026-09-05 (K12, partial-charge health indicators): scripts/rebuild_partial_charge_hi.py
+# added 18 hi_* columns to calce_cs2, hust, snl_lfp, snl_nmc, snl_nca and uconn from the raw charge
+# curves (sohkernel.health_indicators).  The charge columns hi_dq_w1..4_ah and hi_span_dq_ah are
+# window capacities under the DOD rule (feature_safety.PARTIAL_WINDOW_CAPACITY_COLUMNS); span
+# coverage of rated capacity: hust 0.050 (5C: the 3.30-3.40 V span is the polarisation regime),
+# snl_lfp 0.558, uconn 0.616 (warning band, allowed), calce_cs2 0.437, snl_nmc 0.400, snl_nca 0.455.
+# Findings unchanged.
 EXPECTED_LABEL_SOURCE_COLUMNS = {
     "hust": ["charge_capacity_max"],
     "oxford": ["charge_capacity_max"],

@@ -140,6 +140,7 @@ class _FullFeatureSet(FeatureSet):
             column for column in feature_columns(table)
             if column not in _MECHANISM_DERIVED_COLUMNS
             and column not in _PARTIAL_WINDOW_DERIVED_COLUMNS
+            and column not in _HI_DERIVED_COLUMNS   # K12 request-scoped derived indicators
             and not is_label_source_feature(column)
         ]
 
@@ -221,6 +222,70 @@ def _partial_window_norm_transform(
     t_max = np.where(np.isfinite(t_max) & (t_max > 0.0), t_max, np.nan)
     out["t_win_frac"] = t_win / t_max
     return out
+
+
+_HI_DERIVED_COLUMNS = (
+    [f"hi_dq_w{k}_frac" for k in range(1, 5)] + ["hi_span_dq_frac"]
+    + [f"hi_dt_w{k}_frac" for k in range(1, 5)] + ["hi_span_dt_frac"]
+    + ["hi_ic_peak_frac_per_v", "hi_ic_peak_v", "hi_v_q25", "hi_v_q50", "hi_v_q75", "hi_dvdq_v_per_frac",
+       "hi_i_mean_c", "hi_i_cv"]
+)
+
+
+def _rated_per_row(table: pd.DataFrame, meta: pd.DataFrame | None) -> np.ndarray:
+    """Rated (nameplate) capacity per row from ``meta`` (``dataset, cell_id, c_rated_ah``); NaN when unknown."""
+    rated = np.full(len(table), np.nan, dtype=float)
+    if meta is not None and "c_rated_ah" in getattr(meta, "columns", ()):
+        separator = "\x1f"
+        lookup: dict[str, float] = {}
+        for dataset, cell, value in zip(meta.get("dataset", []), meta.get("cell_id", []), meta["c_rated_ah"]):
+            try:
+                lookup[f"{dataset}{separator}{cell}"] = float(value)
+            except (TypeError, ValueError):
+                continue
+        if lookup and "dataset" in table.columns and "cell_id" in table.columns:
+            keys = table["dataset"].astype(str) + separator + table["cell_id"].astype(str)
+            rated = pd.to_numeric(keys.map(lookup), errors="coerce").to_numpy(dtype=float)
+    return np.where(np.isfinite(rated) & (rated > 0.0), rated, np.nan)
+
+
+def _partial_charge_hi_transform(table: pd.DataFrame, meta: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Dimensionless partial-charge health indicators (K12, Wave 6 plan §4 — the honest bar for M2).
+
+    From the raw indicator columns of ``sohkernel.health_indicators`` (Ah, s, V, A) to what transfers across cell
+    formats and laboratories: charge fractions of the rated capacity, time fractions of the charge time, C-rates,
+    and the voltages and slopes that were dimensionless already.  Rated capacity comes from ``meta`` (nameplate,
+    never the calibration capacity the label uses); a row without it degrades to NaN, never to a wrong scale.
+    """
+    out = table.copy()
+    rated = _rated_per_row(out, meta)
+    t_max = _numeric(out, "time_s_max")
+    t_max = np.where(np.isfinite(t_max) & (t_max > 0.0), t_max, np.nan)
+    for k in range(1, 5):
+        out[f"hi_dq_w{k}_frac"] = _numeric(out, f"hi_dq_w{k}_ah") / rated
+        out[f"hi_dt_w{k}_frac"] = _numeric(out, f"hi_dt_w{k}_s") / t_max
+    out["hi_span_dq_frac"] = _numeric(out, "hi_span_dq_ah") / rated
+    out["hi_span_dt_frac"] = _numeric(out, "hi_span_dt_s") / t_max
+    out["hi_ic_peak_frac_per_v"] = _numeric(out, "hi_ic_peak_ah_per_v") / rated
+    out["hi_dvdq_v_per_frac"] = _numeric(out, "hi_dvdq_v_per_ah") * rated
+    out["hi_i_mean_c"] = _numeric(out, "hi_i_mean_a") / rated
+    for column in ("hi_ic_peak_v", "hi_v_q25", "hi_v_q50", "hi_v_q75", "hi_i_cv"):
+        out[column] = _numeric(out, column)
+    return out
+
+
+register_featureset(FeatureSet(
+    name="partial_charge_hi",
+    candidates=list(_HI_DERIVED_COLUMNS),
+    family="literature_hi",
+    description=(
+        "Literature partial-charging health indicators (K12): charge and time fractions in four fixed plateau "
+        "sub-windows and over their span, the in-span incremental-capacity peak, voltages at quarter, half and three "
+        "quarters of the span charge, the mean V(Q) slope, the mean C-rate and its variability — the honest bar an "
+        "agent-written indicator must beat."
+    ),
+    transform=_partial_charge_hi_transform,
+))
 
 
 register_featureset(FeatureSet(

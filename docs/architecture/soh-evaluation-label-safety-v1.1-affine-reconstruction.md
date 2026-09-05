@@ -134,3 +134,7 @@ metadata 增加逐电芯前缀覆盖）。行对齐采用 ccm 序列指纹匹配
 旧模型不得在新表上继续使用。
 
 > **2026-09-03 已修复（D5）**：覆盖率审计改以元数据中的额定容量为分母（含电芯前缀覆盖，见 `sohkernel.feature_safety._coverage_reference`），仅在无元数据的数据集上回退到表内容量列；calce 的失真 `charge_capacity_max` 不再影响审计。
+
+### 7. 修订（2026-09-05, K12）：部分充电健康因子的窗口容量列
+
+`sohkernel.health_indicators` 从原始充电曲线计算文献健康因子（四个固定电压子窗口与其跨度内的电量/时长、跨度内 IC 峰、V(Q) 形状、平均电流及其变异），写入 `data/processed/<dataset>_features.pkl`（`scripts/rebuild_partial_charge_hi.py`）。其中电量列 `hi_dq_w1_ah … hi_dq_w4_ah`、`hi_span_dq_ah` 属于 Ah 窗口积分，纳入 `feature_safety.PARTIAL_WINDOW_CAPACITY_COLUMNS`，受 §6.2 的 DOD 覆盖率规则约束（每次重建都审计）；LFP 跨度取 3.30–3.40 V（四个 25 mV 窗口），因为 uconn 的参考充电在 3.40 V 附近结束、hust 5C 充电有五分之一循环达不到 3.55 V，而 3.30–3.40 V 在 hust、snl_lfp、uconn 的每个循环都存在（重建报告 2026-09-05）。特征集 `partial_charge_hi` 只投影无量纲派生列（额定容量分数、充电时长分数、C 倍率、电压、斜率），派生列不进入 `full`。

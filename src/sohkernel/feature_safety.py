@@ -67,7 +67,11 @@ def is_label_source_feature(name: object, *, target: str = PROTECTED_TARGET) -> 
 # it below the affine R² threshold.  Domain rule (reviewed 2026-08-21):
 # window depth-of-discharge must stay below 90 % of full capacity; typical
 # practice is a 40–50 % window (for LFP: the voltage-plateau region).
-PARTIAL_WINDOW_CAPACITY_COLUMNS = frozenset({"q_win_ah"})
+PARTIAL_WINDOW_CAPACITY_COLUMNS = frozenset({
+    "q_win_ah",
+    # K12 (2026-09-05): the partial-charge health indicators' sub-window and span charges (sohkernel.health_indicators)
+    "hi_dq_w1_ah", "hi_dq_w2_ah", "hi_dq_w3_ah", "hi_dq_w4_ah", "hi_span_dq_ah",
+})
 _WINDOW_REFERENCE_COLUMNS = ("charge_capacity_max", "capacity_ah")
 PARTIAL_WINDOW_MAX_DOD_FRACTION = 0.90
 PARTIAL_WINDOW_TYPICAL_DOD_FRACTION = 0.60
