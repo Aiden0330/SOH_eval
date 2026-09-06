@@ -441,6 +441,113 @@ def _iter_forklift(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[C
             yield record["cell_id"], wanted[key], v_seg, q_seg, t_rel
 
 
+# ---------------------------------------------------------------------------
+# Severson / Attia MATR set (D9, 2026-09-05): A123 APR18650M1A LFP, 1.1 Ah, data.matr.io — four MATLAB v7.3
+# batches (HDF5).  ``batch.summary[i]`` holds per-cycle QDischarge / QCharge / IR / T; ``batch.cycles[i]``
+# per-cycle arrays I (A, charge positive), V, Qc, Qd (Ah accumulated within the cycle), T (°C), t (minutes).
+# Cleaning follows the authors' notebook (rdbraatz/data-driven-prediction-of-battery-cycle-life-before-
+# capacity-degradation, "Load Data.ipynb"), checked against the files on 2026-09-05: batch-2 channels 7, 8,
+# 9, 15, 16 are the continuation of batch-1 cells 0-4 (cycle counts 662 / 981 / 1060 / 208 / 482 equal the
+# notebook's add_len), batch-1 cells 8, 10, 12, 13, 22 and batch-3 cells 2, 23, 32, 37, 38, 39 are excluded
+# (the notebook's "do not reach 80 %" and "noisy channel" lists).  Cells are named b<batch date>c<index>.
+# ---------------------------------------------------------------------------
+MATR_BATCHES = ("20170512", "20170630", "20180412", "20190124")
+MATR_C_RATED_AH = 1.1
+MATR_CHARGE_CURRENT_MIN_A = 0.01
+MATR_EXCLUDED = frozenset({("20170512", 8), ("20170512", 10), ("20170512", 12), ("20170512", 13), ("20170512", 22),
+                           ("20180412", 2), ("20180412", 23), ("20180412", 32), ("20180412", 37), ("20180412", 38), ("20180412", 39)})
+MATR_CONTINUATIONS = {("20170630", 7): ("20170512", 0), ("20170630", 8): ("20170512", 1), ("20170630", 9): ("20170512", 2),
+                      ("20170630", 15): ("20170512", 3), ("20170630", 16): ("20170512", 4)}
+
+
+def matr_cell_id(batch: str, index: int) -> str:
+    return f"b{batch}c{index:02d}"
+
+
+def _matr_text(handle, dataset) -> str:
+    values = np.asarray(dataset[()]).ravel()
+    try:
+        return "".join(chr(int(c)) for c in values)
+    except (ValueError, OverflowError):   # MATLAB string objects (opaque); the char arrays decode
+        return ""
+
+
+def matr_cells(data_dir: str | Path) -> list[dict]:
+    """One entry per physical cell in batch order: ``cell_id``, the (batch, index) parts it is made of
+    (a continued batch-1 cell has two) and its charging policy."""
+    import h5py
+
+    parts: dict[str, dict] = {}
+    for batch in MATR_BATCHES:
+        path = Path(data_dir) / "raw" / "matr" / f"MATR_batch_{batch}.mat"
+        if not path.is_file():
+            continue
+        with h5py.File(path, "r") as handle:
+            group = handle["batch"]
+            for index in range(group["summary"].shape[0]):
+                key = (batch, index)
+                if key in MATR_EXCLUDED:
+                    continue
+                policy = _matr_text(handle, handle[group["policy_readable"][index, 0]])
+                if key in MATR_CONTINUATIONS:
+                    parent = MATR_CONTINUATIONS[key]
+                    parts[matr_cell_id(*parent)]["parts"].append(key)
+                    continue
+                parts[matr_cell_id(batch, index)] = {"cell_id": matr_cell_id(batch, index), "parts": [key], "policy": policy}
+    return list(parts.values())
+
+
+def iter_matr_cycles(data_dir: str | Path, cells: set[str] | None = None) -> Iterator[dict]:
+    """Yield ``{cell_id, cycle_index, q_discharge_ah, q_charge_ah, arrays}`` per cycle of every cell; a
+    continuation's cycles follow the parent's with a cycle-index offset.  ``arrays`` holds the cycle's
+    I / V / Qc / Qd / T (raw units) and ``t_s`` (seconds)."""
+    import h5py
+
+    handles = {}
+    try:
+        for cell in matr_cells(data_dir):
+            if cells is not None and cell["cell_id"] not in cells:
+                continue
+            offset = 0
+            for batch, index in cell["parts"]:
+                if batch not in handles:
+                    handles[batch] = h5py.File(Path(data_dir) / "raw" / "matr" / f"MATR_batch_{batch}.mat", "r")
+                handle = handles[batch]
+                group = handle["batch"]
+                summary = handle[group["summary"][index, 0]]
+                q_discharge = np.asarray(summary["QDischarge"][()]).ravel()
+                q_charge = np.asarray(summary["QCharge"][()]).ravel()
+                cycles = handle[group["cycles"][index, 0]]
+                count = cycles["I"].shape[0]
+                for k in range(count):
+                    arrays = {name: np.asarray(handle[cycles[name][k, 0]][()]).ravel().astype(float) for name in ("I", "V", "Qc", "Qd", "T", "t")}
+                    arrays["t_s"] = arrays.pop("t") * 60.0
+                    yield {"cell_id": cell["cell_id"], "cycle_index": offset + k + 1,
+                           "q_discharge_ah": float(q_discharge[k]) if k < len(q_discharge) else np.nan,
+                           "q_charge_ah": float(q_charge[k]) if k < len(q_charge) else np.nan, "arrays": arrays}
+                offset += count
+    finally:
+        for handle in handles.values():
+            handle.close()
+
+
+def matr_charge_segment(arrays: dict) -> dict[str, np.ndarray] | None:
+    mask = arrays["I"] > MATR_CHARGE_CURRENT_MIN_A
+    if int(mask.sum()) < 2:
+        return None
+    return {"voltage": arrays["V"][mask], "current": arrays["I"][mask], "charge": arrays["Qc"][mask],
+            "time": arrays["t_s"][mask], "temperature": arrays["T"][mask]}
+
+
+def _iter_matr(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
+    cells = set(processed["cell_id"].astype(str)) if processed is not None and "cell_id" in processed else None
+    for cycle in iter_matr_cycles(data_dir, cells):
+        segment = matr_charge_segment(cycle["arrays"])
+        if segment is None:
+            continue
+        yield cycle["cell_id"], int(cycle["cycle_index"]), segment["voltage"], segment["charge"], segment["time"]
+
+
 def _iter_snl_nmc(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
     return _iter_snl(data_dir, processed, "NMC")
 
@@ -460,6 +567,7 @@ CHARGE_CURVE_SOURCES = {
     "tongji_ncm": _iter_tongji_ncm,
     "tongji_blend": _iter_tongji_blend,
     "forklift_lfp180": _iter_forklift,   # D8 (2026-09-05): scripts/ingest_forklift_lfp180.py (K13 segments)
+    "matr": _iter_matr,                  # D9 (2026-09-05): scripts/ingest_matr.py
 }
 
 

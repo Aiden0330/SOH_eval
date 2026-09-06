@@ -7,10 +7,10 @@
  "summary": {
   "local_files": 306,
   "local_bytes": 24288608875,
-  "processed_datasets": 15,
-  "records": 351850,
-  "cycles": 351818,
-  "batteries": 437
+  "processed_datasets": 16,
+  "records": 491580,
+  "cycles": 491548,
+  "batteries": 606
  },
  "verification": {
   "inventory_checks": [
@@ -430,6 +430,109 @@
    "curve_sha256": "3109db334b2955ab9dd49a3d2c6939409c0e84d7a226b33da4e31d10988a2b81",
    "license": "CC-BY-4.0",
    "source": "Ma et al. 2022 / Mendeley Data"
+  },
+  {
+   "name": "matr",
+   "status": "ready",
+   "supervision": "soh_supervised",
+   "roles": [
+    "training",
+    "same_dataset_holdout",
+    "inference",
+    "audit"
+   ],
+   "labeled_record_count": 139730,
+   "processed": {
+    "path": "processed/matr_features.pkl",
+    "bytes": 44716607,
+    "sha256": "311bf3563547249f2e83bff1256a9ccf8ec5ad9571421da9e3f9d3e652756d6e",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "time_s_max",
+     "voltage_mean",
+     "voltage_std",
+     "voltage_min",
+     "voltage_max",
+     "current_mean",
+     "current_std",
+     "abs_current_mean",
+     "temperature_mean",
+     "charge_capacity_max",
+     "q_win_ah",
+     "t_win_s",
+     "ic_peak_ah_per_v",
+     "ic_peak_voltage_v",
+     "cycle_index_feature",
+     "cycle_fraction",
+     "hi_dq_w1_ah",
+     "hi_dq_w2_ah",
+     "hi_dq_w3_ah",
+     "hi_dq_w4_ah",
+     "hi_span_dq_ah",
+     "hi_dt_w1_s",
+     "hi_dt_w2_s",
+     "hi_dt_w3_s",
+     "hi_dt_w4_s",
+     "hi_span_dt_s",
+     "hi_ic_peak_ah_per_v",
+     "hi_ic_peak_v",
+     "hi_v_q25",
+     "hi_v_q50",
+     "hi_v_q75",
+     "hi_dvdq_v_per_ah",
+     "hi_i_mean_a",
+     "hi_i_cv"
+    ],
+    "partial_window_v": [
+     3.4,
+     3.5
+    ],
+    "health_indicators": {
+     "source": "raw_charge_curves",
+     "chemistry": "LFP",
+     "windows": [
+      [
+       3.3,
+       3.325
+      ],
+      [
+       3.325,
+       3.35
+      ],
+      [
+       3.35,
+       3.375
+      ],
+      [
+       3.375,
+       3.4
+      ]
+     ],
+     "span_matched_fraction": 1.0,
+     "span_coverage_median": 0.1412,
+     "rebuilt_at": "2026-09-05T16:13:28Z"
+    }
+   },
+   "record_count": 139730,
+   "cycle_count": 139730,
+   "battery_count": 169,
+   "chemistry": "LFP",
+   "max_capacity_ah": 1.1,
+   "capacity_source": "rated_metadata",
+   "label_source": "calibration_capacity",
+   "held_out_ready": true,
+   "raw_paths": [
+    "raw/matr"
+   ],
+   "raw_local": true,
+   "curve_path": "",
+   "curve_sha256": "",
+   "license": "cite-the-paper (data.matr.io terms; VERIFY)",
+   "source": "Severson et al. 2019 + Attia et al. 2020 / data.matr.io (4 batches)"
   },
   {
    "name": "nasa",
@@ -1450,5 +1553,5 @@
   "gbrain-evals historical engineering dependencies",
   "RWTH HSS and other field data without supervised SOH labels"
  ],
- "updated_at": "2026-09-05T16:10:31.509262+00:00"
+ "updated_at": "2026-09-05T16:16:29Z"
 }

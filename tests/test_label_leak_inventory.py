@@ -86,6 +86,15 @@ DATA_DIR = data_root() / "processed"
 # coverage 0.18 of rated, far from the DOD rule; label_time_s / segment_start_s reach R² 0.91 against soh
 # (a monotone fade over test time) — label-source / identity columns, never features.  No findings pinned.
 # <<< inventory-note: forklift_lfp180
+# >>> inventory-note: matr
+# Reviewed 2026-09-05 (D9, MATR): 169 A123 APR18650M1A cells (Severson 2019 batches 41/43/40 after the authors'
+# cleaning, Attia 2020 batch 2019-01-24: 45) built by scripts/ingest_matr.py; soh = the batch summary's
+# QDischarge / 1.1 Ah, which equals the raw discharge array's maximum on every cycle (139,730 rows, match 100 %).
+# charge_capacity_max (the summary's QCharge) reaches R² 0.989 against soh — below the 0.995 threshold, so no
+# finding is pinned; it stays banned by name.  The fast-charge protocols leave no plateau window in the 40–50 %
+# band: q_win_ah on [3.40, 3.50] V covers a median 0.80 of rated (max 0.895 on the scan; the wide-window warning
+# of the audit, allowed below 90 %).  No findings pinned.
+# <<< inventory-note: matr
 EXPECTED_LABEL_SOURCE_COLUMNS = {
     "hust": ["charge_capacity_max"],
     "oxford": ["charge_capacity_max"],
@@ -100,6 +109,7 @@ EXPECTED_LABEL_SOURCE_COLUMNS = {
     "tongji_ncm": [],
     "tongji_blend": [],
     "forklift_lfp180": [],
+    "matr": [],
 }
 
 ID_COLUMNS = ("dataset", "cell_id", "cycle_index", "soh")

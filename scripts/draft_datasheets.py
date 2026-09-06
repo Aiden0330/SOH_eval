@@ -395,6 +395,46 @@ FACTS["forklift_lfp180"] = {
 }
 # <<< dataset-block: forklift_lfp180
 
+# >>> dataset-block: matr
+FACTS["matr"] = {
+    "citation": ("Severson, K. A., Attia, P. M., Jin, N., Perkins, N., Jiang, B., Yang, Z., Chen, M. H., Aykol, M., Herring, P. K., Fraggedakis, D., "
+                 "Bazant, M. Z., Harris, S. J., Chueh, W. C., Braatz, R. D. (2019). Data-driven prediction of battery cycle life before capacity "
+                 "degradation. Nature Energy 4, 383–391, DOI 10.1038/s41560-019-0356-8 (batches 2017-05-12, 2017-06-30, 2018-04-12); Attia, P. M. et al. "
+                 "(2020). Closed-loop optimization of fast-charging protocols for batteries with machine learning. Nature 578, 397–402, "
+                 "DOI 10.1038/s41586-020-1994-5 (batch 2019-01-24). Data: data.matr.io (MATLAB v7.3 batches MATR_batch_<date>.mat); ingested by "
+                 "scripts/ingest_matr.py (D9, 2026-09-05)."),
+    "url": "https://data.matr.io/1/", "license": "VERIFY (data.matr.io terms: cite the papers; no licence text found on the record pages)",
+    "retrieved": f"{DRAFT_DATE} (four batches, 10.9 GB; the site publishes no checksums — VERIFY)",
+    "cathode": "LFP", "anode": "graphite", "verified_by": V, "verified_on": V,
+    "format": "18650 (A123 Systems APR18650M1A, 1.1 Ah nominal; Severson 2019 Methods)", "rated_capacity_ah": 1.1,
+    "rated_source": "Severson et al. 2019 (A123 APR18650M1A, nominal capacity 1.1 Ah; cycle life defined at 0.88 Ah = 80 %)",
+    "chemistry_evidence": ("Severson et al. 2019, Methods: commercial A123 Systems APR18650M1A LFP/graphite cells (1.1 Ah nominal, 3.3 V), cycled in a "
+                           "30 °C chamber with one- and two-step fast-charging policies to 80 % SOC followed by 1C CC-CV to 3.6 V, 4C discharge to 2.0 V; "
+                           "Attia et al. 2020 use the same cell and cycler for the closed-loop batches. The batch files carry the policy strings "
+                           "(e.g. '3.6C(80%)-3.6C') per cell. Cell identity and chemistry are stated in the papers, not in the files (VERIFY)."),
+    "segments": [{"id": "fast_charge", "rate": "one- or two-step CC fast charge (3.6C–8C) to 80 % SOC, then 1C CC to 3.6 V and CV (papers); charge segment = samples with I > 0.01 A"},
+                 {"id": "discharge", "rate": "4C CC to 2.0 V (papers)"}],
+    "temperature_c": [30],
+    "reference_test": "the batch summary's QDischarge of each cycle (the 4C discharge capacity) over the 1.1 Ah nominal; equals the raw discharge array's maximum on every cycle (extractor --verify: 139,730 of 139,730 rows within 0.001 Ah)",
+    "measured": ["summary QDischarge (Ah)"], "label_source": "calibration_capacity", "supervision": "soh_supervised",
+    "rate_hz": "irregular (cycler logging; ~1,100 samples per ~55 min cycle) — the per-cycle arrays carry t in minutes",
+    "channels": ["V", "I", "Qc", "Qd", "T"],
+    "window": {"segment": "fast_charge", "v_lo": 3.40, "v_hi": 3.50, "coverage_median": 0.803, "calibrated_on": DRAFT_DATE,
+               "note": "no lattice window of the scan ([3.0, 3.6] V, 0.05 V steps, every 25th cycle) has a median coverage in the 40–50 % band: at 3.6C and above the terminal voltage sits above 3.4 V for most of the charge (3.30–3.40 V holds a median 14 %). [3.40, 3.50] V is the narrowest window with max coverage below 0.90 (0.895); the audit warns 'wide window' and allows it"},
+    "units": {"unit": "cell", "cells": 169, "cells_per_batch": {"2017-05-12": 41, "2017-06-30": 43, "2018-04-12": 40, "2019-01-24": 45},
+              "naming": "b<batch date>c<index> (the literature's b1c0 … b3c45 are b20170512c00 … b20180412c45)"},
+    "verification": {"raw_discharge_vs_summary": "max(Qd) of every raw cycle equals the summary QDischarge (match 100 %, 139,730 rows)",
+                     "cycle_life": "recomputed cycle life (first cycle below 80 %, else last cycle + 1) equals the batch cycle_life field for 167 of 169 cells (within one cycle); b20190124c38 and c40 differ (recorded 1166 / 1089, computed 1056 / 872: an early transient dip below 80 % — VERIFY the authors' definition for the 2019 batch)",
+                     "cleaning_vs_authors_notebook": "batch-2 channels 7, 8, 9, 15, 16 continue batch-1 cells 0–4 (cycle counts 662/981/1060/208/482 equal the notebook's add_len); batch-1 cells 8, 10, 12, 13, 22 and batch-3 cells 2, 23, 32, 37, 38, 39 excluded per the authors' 'Load Data' notebook (VERIFY the noisy-channel list against the repository)"},
+    "column_classes": STANDARD_CLASSES, "scanned_on": DRAFT_DATE,
+    "known_issues": ["4 rows with soh ≥ 1.3 (up to 2.62: logging glitches, dropped by QC); the 2019 batch runs far past 80 % (soh down to 0.23)",
+                     "the first summary entry of every batch-1 cell is zero (dropped: no label)",
+                     "q_win_ah covers ≈ 80 % of rated (wide-window warning) because no plateau window fits the fast-charge protocols; the K12 LFP span 3.30–3.40 V covers a median 14 %",
+                     "only one of the Attia et al. 2020 batches (2019-01-24, 45 cells) is on disk; the plan's 233-cell count needs the other batches",
+                     "signature pending: the owner's review of chemistry (papers) and the licence (data.matr.io terms)"],
+    "signed": dict(UNSIGNED_W6), "status": f"draft {DRAFT_DATE} (D9) — chemistry and rated capacity from the papers; licence VERIFY; unsigned until the owner reviews",
+}
+# <<< dataset-block: matr
 LEAK_INVENTORY = {"hust": ["charge_capacity_max"], "oxford": ["charge_capacity_max"], "uconn": ["charge_capacity_max"],
                   "rwth_isea_public": ["capacity_ah"], "nasa": [], "calce_cs2": [], "snl_lfp": [],
                   "snl_nmc": ["charge_capacity_max"], "snl_nca": [],
@@ -402,6 +442,7 @@ LEAK_INVENTORY = {"hust": ["charge_capacity_max"], "oxford": ["charge_capacity_m
                   "tongji_ncm": [],
                   "tongji_blend": [],
                   "forklift_lfp180": [],
+                  "matr": [],
                   }
 
 
