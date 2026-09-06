@@ -110,7 +110,8 @@ verification:
 digests:
   raw: VERIFY
   processed: a395c56749cd061fcb8d49f8c0fb775ac98ec02bc60d2fcdc69fe0600c54f718
-  curves: VERIFY
+  curves: none (no curves file; the raw curves stay in the archive)
+provenance: VERIFY
 leak_scan:
   label_source_columns: []
   scanned_on: '2026-09-05'
