@@ -112,6 +112,14 @@ DATA_DIR = data_root() / "processed"
 # records that the table is in the inventory on purpose.  charge_capacity_max is the segment's ΔQ (median 9.8 %
 # of the ≈ 160 Ah nominal).
 # <<< inventory-note: field_lfp_28
+# >>> inventory-note: home_storage_lfp
+# Reviewed 2026-09-05 (D7, the deployment proxy): home_storage_lfp holds 19,920 charging segments of the eight LFP
+# home-storage systems of Figgener et al. 2024 (the unit is the system; mean cell voltage), 5,719 of them labeled by
+# the paper's measured capacity of the last field capacity test within 180 days (Spec 12 §3; six systems carry
+# tests, sys16 and sys18 none).  charge_capacity_max is the segment's ΔQ (median 17 % of the system's rated
+# capacity; the CELL_PREFIX_C_RATED_AH overrides feed the coverage audit), q_win_ah on [3.30, 3.40] V a fraction of
+# it.  No column reaches R² 0.07 against soh — the field labels vary little within a system.  No findings pinned.
+# <<< inventory-note: home_storage_lfp
 EXPECTED_LABEL_SOURCE_COLUMNS = {
     "hust": ["charge_capacity_max"],
     "oxford": ["charge_capacity_max"],
@@ -131,6 +139,7 @@ EXPECTED_LABEL_SOURCE_COLUMNS = {
     "turku_rc_nmc": [],
     "turku_rc_lfp": [],
     "field_lfp_28": [],
+    "home_storage_lfp": [],
 }
 
 ID_COLUMNS = ("dataset", "cell_id", "cycle_index", "soh")

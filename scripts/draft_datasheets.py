@@ -543,6 +543,57 @@ FACTS["field_lfp_28"] = {
     "signed": dict(UNSIGNED_W6), "status": f"draft {DRAFT_DATE} (D10) — unlabeled field set, CC BY-NC 4.0; unsigned until the owner reviews",
 }
 # <<< dataset-block: field_lfp_28
+# >>> dataset-block: home_storage_lfp
+FACTS["home_storage_lfp"] = {
+    "citation": ("Figgener, J., Hecht, C., Haberschusz, D., Bors, J., Spreuer, K. G., Kairies, K.-P., Stenzel, P., Sauer, D. U. (2024). Multi-year "
+                 "field measurements of home storage systems and their use in capacity estimation. Nature Energy 9, 1438–1447, DOI "
+                 "10.1038/s41560-024-01620-9. Dataset: Zenodo 12091223 (Figgener, Haberschusz, Wessels, Kairies, Bors, van Ouwerkerk, Sauer, "
+                 "2024-08-26): Data_ID_14.zip … Data_ID_21.zip (the LFP systems) and Metadata_and_Code.zip, md5s verified against the record; "
+                 "the paper's Source Data for Fig. 2 (41560_2024_1620_MOESM4_ESM.xlsx, stored as raw/home_storage_lfp/nature_energy_2024_source_data_fig2.xlsx, "
+                 "sha256 0b4bb9022478bd154a23e1c05a09755f6192c606b9e1f5efc4c210dfaf3bdb09) supplies the measured capacity of every test; "
+                 "ingested by scripts/ingest_home_storage_lfp.py (D7, 2026-09-05) through sohkernel.segments (K13)."),
+    "url": "https://doi.org/10.5281/zenodo.12091223", "license": "CC BY 4.0 (Zenodo record 12091223: cc-by-4.0)",
+    "retrieved": f"{DRAFT_DATE} (Zenodo API; six of the eight LFP zips were truncated by the first download and resumed until their md5 matched)",
+    "cathode": "LFP", "anode": "VERIFY (graphite assumed; Metadata_Systems.xlsx states the chemistry as LFP only)", "verified_by": V, "verified_on": V,
+    "format": "stationary home storage systems of manufacturer E (anonymous), 14 or 16 prismatic-format cells in series (cell format VERIFY), 158–300 Ah, 46–51.2 V nominal (Metadata_Systems.xlsx)",
+    "rated_capacity_ah": "per system: sys14 158, sys15 195, sys16 158, sys17 158, sys18 158, sys19 200, sys20 200, sys21 300 (Metadata_Systems.xlsx Capacity_nominal_in_Ah; sohkernel.metadata.CELL_PREFIX_C_RATED_AH)",
+    "rated_source": "Metadata_Systems.xlsx (Capacity_nominal_in_Ah, Voltage_nominal_in_V, Cell_number_in_series 16 for IDs 14–18 and 14 for IDs 19–21, Manufacturer E, Chemistry LFP)",
+    "chemistry_evidence": ("Metadata_Systems.xlsx of Zenodo 12091223: IDs 14–21 'Manufacturer E', 'Chemistry LFP', 'Chemistry_detail LFP'; Nature Energy 9, "
+                           "1438–1447: 'The ISEA/CARL of RWTH Aachen University measured 21 private HSSs in Germany over up to 8 years from 2015 to 2022' at "
+                           "one second, 'system-level battery current, voltage, power, battery pack housing temperature, and room temperature' (Zenodo "
+                           "description); 'Regular field capacity tests were conducted during the whole measurement period. For this, the HSSs were first "
+                           "fully charged and then fully discharged. The discharge was conducted at full power'; 'SOH_C normalized to the nominal capacity "
+                           "stated on the modules'; 'M LFP systems' lose 2.2 pp per year (paper). The cell chemistry is the manufacturer's statement relayed "
+                           "by the authors' metadata (VERIFY)."),
+    "segments": [{"id": "field_charge", "rate": "charging segments of the system current (PV charging, Spec 12 §2 defaults with the system's rated capacity): median 0.19 C, coefficient of variation 0.39, 66 min median, ending at a mean cell voltage of 3.34 V (median)"},
+                 {"id": "capacity_test", "rate": "the field capacity test: a full charge, then a full-power discharge (≈ 0.3–0.4 C, 2–3 h) to the end-of-discharge voltage (label source; the discharge starting at the recorded start time)"}],
+    "temperature_c": ["VERIFY (field; battery housing temperature median 24 °C, 1–42 °C over the segments)"],
+    "reference_test": "the field capacity test's measured usable capacity (the authors' Capacity_Ah in the Source Data of Fig. 2) — the Coulomb count of the full-power discharge that starts at the test's start time (Capacity_Tests.xlsx) and runs to the end-of-discharge voltage",
+    "measured": ["Capacity_Ah of the paper's Source Data Fig. 2 (Ah, per test)"],
+    "label_formula": "soh = Capacity_Ah / Capacity_nominal_in_Ah of the system", "label_source": "capacity_test", "supervision": "sparse_field",
+    "label_rule": "forward-only (Spec 12 §3): every segment carries the last capacity test of its system whose located discharge ended before the segment started, within 180 days (the Spec 12 default age bound; median label age 77–96 days per system); segments before a system's first test or beyond 180 days, and every segment of sys16 and sys18 (no tests), carry NaN",
+    "rate_hz": 1, "channels": ["V (pack)", "I", "P", "T_bat (housing)", "T_room", "Interpolated flag"],
+    "window": {"segment": "field_charge", "v_lo": 3.30, "v_hi": 3.40, "coverage_median": 0.164, "calibrated_on": DRAFT_DATE,
+               "note": "the K12 LFP indicator span on the mean cell voltage (pack voltage / cells in series); the segments charge a median 17 % of rated"},
+    "units": {"unit": "system (sys14 … sys21; pack voltage only, mean cell voltage = pack / 16 or 14)", "systems": 8, "labeled_systems": 6,
+              "time_axis": "epoch seconds of the CSV timestamps (naive local time taken as UTC — VERIFY the time zone)",
+              "measurement_period": "2015–2022 (34–72 monthly files per system)"},
+    "segments_qc": {"rows": 19920, "labeled_rows": 5719, "rows_per_system": {"sys14": 2869, "sys15": 3028, "sys16": 2534, "sys17": 2110, "sys18": 880, "sys19": 2920, "sys20": 3131, "sys21": 2448},
+                    "tests_per_system": {"sys14": 3, "sys15": 4, "sys16": 0, "sys17": 4, "sys18": 0, "sys19": 2, "sys20": 3, "sys21": 3},
+                    "candidates_found": 178400, "dropped_too_short": 121608, "dropped_low_coverage": 36872,
+                    "note": "segments are extracted per monthly file; a session across a month boundary is cut there; 19 of 19 listed tests located in the raw data"},
+    "verification": {"coulomb_count_vs_paper": "14 of 19 tests: the Coulomb count of the located full-power discharge equals the paper's Capacity_Ah within 0.1 % (the label rule reproduces the authors' measurement); 5 tests are lower by 1.5–20 % (sys15 2022-11, sys19 both, sys20 2019-09, sys21 2019-07: the test discharge continued after a pause longer than 15 min or at lower power) — the paper's value is the label, the located session's end is label_time_s (VERIFY for those five)",
+                     "raw_hand_check": "sys17 2019-05-03: the test discharge starts at the recorded 14:57:06 from 54.45 V (57.05 V reached that morning) at −64 A and ends at 46.58 V after 8,174 s = 146.0 Ah; the paper reports 146.010 Ah",
+                     "sign_convention": "P_in_W equals I_in_A × V_in_V (correlation 1.0); positive = charging (PV)"},
+    "column_classes": SEGMENT_CLASSES, "scanned_on": DRAFT_DATE,
+    "known_issues": ["sys16 and sys18 have no capacity test: every segment is unlabeled (inference and drift only for these two)",
+                     "two to four tests per labeled system over 3–8 years; a 180-day age bound labels 29 % of the segments",
+                     "raw artefacts survive in a few segments: pack-voltage spikes (mean cell voltage up to 6.7 V in voltage_max), v_start 0.0, one 32 h segment charging 347 Ah",
+                     "the first download of six zips was truncated; resumed and md5-verified on 2026-09-05",
+                     "signature pending: the owner's review of chemistry (metadata), the label rule and the five tests whose located discharge is shorter than the paper's capacity"],
+    "signed": dict(UNSIGNED_W6), "status": f"draft {DRAFT_DATE} (D7) — the deployment proxy; chemistry from the authors' metadata; unsigned until the owner reviews",
+}
+# <<< dataset-block: home_storage_lfp
 LEAK_INVENTORY = {"hust": ["charge_capacity_max"], "oxford": ["charge_capacity_max"], "uconn": ["charge_capacity_max"],
                   "rwth_isea_public": ["capacity_ah"], "nasa": [], "calce_cs2": [], "snl_lfp": [],
                   "snl_nmc": ["charge_capacity_max"], "snl_nca": [],
@@ -555,6 +606,7 @@ LEAK_INVENTORY = {"hust": ["charge_capacity_max"], "oxford": ["charge_capacity_m
                   "turku_rc_nmc": [],
                   "turku_rc_lfp": [],
                   "field_lfp_28": [],
+                  "home_storage_lfp": [],
                   }
 
 

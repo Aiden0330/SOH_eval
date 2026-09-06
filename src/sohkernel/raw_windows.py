@@ -549,6 +549,88 @@ def _iter_matr(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve
 
 
 # ---------------------------------------------------------------------------
+# RWTH ISEA home-storage field measurements (D7, 2026-09-05): Figgener et al. 2024, Nature Energy 9, Zenodo
+# 12091223 (CC BY 4.0).  The LFP systems (manufacturer E, IDs 14–21) are the deployment proxy: one system is
+# one unit (only pack voltage exists), rated capacity and cells in series from Metadata_Systems.xlsx.  Raw:
+# Data_ID_<id>.zip / <id>/<YYYY>_<MM>_System_ID_<id>.csv with Time (dd-MMM-yyyy HH:MM:SS, 1 s), P_in_W,
+# V_in_V, I_in_A (charge positive), T_Bat_in_C, T_Room_in_C, Interpolated.  Segments are extracted per
+# monthly file; a charging session running across midnight of a month boundary is cut there.
+# ---------------------------------------------------------------------------
+HOME_STORAGE_LFP_SYSTEMS = (14, 15, 16, 17, 18, 19, 20, 21)
+HOME_STORAGE_RAW = Path("raw") / "home_storage_lfp"
+_HOME_STORAGE_MEMBER = re.compile(r"^(?P<id>\d+)/(?P<year>\d{4})_(?P<month>\d{2})_System_ID_(?P<id2>\d+)\.csv$")
+
+
+def home_storage_unit(system_id: int) -> str:
+    return f"sys{int(system_id):02d}"
+
+
+def home_storage_metadata(data_dir: str | Path) -> pd.DataFrame:
+    """Metadata_Systems.xlsx (from Metadata_and_Code.zip) for the LFP systems, indexed by unit."""
+    archive = zipfile.ZipFile(Path(data_dir) / HOME_STORAGE_RAW / "Metadata_and_Code.zip")
+    with archive.open("00_Data/00_Metadata/Metadata_Systems.xlsx") as handle:
+        meta = pd.read_excel(io.BytesIO(handle.read()), sheet_name="Metadata")
+    meta = meta[meta["ID"].isin(HOME_STORAGE_LFP_SYSTEMS)].copy()
+    meta["cell_id"] = meta["ID"].map(home_storage_unit)
+    return meta.set_index("cell_id")
+
+
+def home_storage_members(data_dir: str | Path, systems=HOME_STORAGE_LFP_SYSTEMS) -> list[dict]:
+    """Monthly CSV members of the system zips in time order (systems whose zip is absent are skipped)."""
+    out = []
+    for system_id in systems:
+        path = Path(data_dir) / HOME_STORAGE_RAW / f"Data_ID_{int(system_id):02d}.zip"
+        if not path.is_file():
+            continue
+        try:
+            archive = zipfile.ZipFile(path)
+        except zipfile.BadZipFile:
+            continue
+        for name in archive.namelist():
+            match = _HOME_STORAGE_MEMBER.match(name)
+            if match:
+                out.append({"cell_id": home_storage_unit(system_id), "system_id": int(system_id), "year": int(match["year"]),
+                            "month": int(match["month"]), "member": name, "path": path})
+    out.sort(key=lambda m: (m["system_id"], m["year"], m["month"]))
+    return out
+
+
+def read_home_storage_month(item: dict) -> pd.DataFrame:
+    """One monthly file with ``time_s`` (epoch seconds of the naive local timestamps) added."""
+    archive = zipfile.ZipFile(item["path"])
+    with archive.open(item["member"]) as handle:
+        frame = pd.read_csv(handle)
+    stamps = pd.to_datetime(frame["Time"], format="%d-%b-%Y %H:%M:%S")
+    frame["time_s"] = (stamps - pd.Timestamp("1970-01-01")).dt.total_seconds().to_numpy(dtype=float)
+    return frame.sort_values("time_s", kind="stable").reset_index(drop=True)
+
+
+def _iter_home_storage(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
+    """Charge curves of the processed segments (matched by unit and segment start), mean cell voltage."""
+    from .segments import DEFAULT_CONFIG, charging_spans, segment_curve
+
+    if processed is None:
+        raise ValueError("home_storage_lfp curves require the processed table (segment bounds)")
+    meta = home_storage_metadata(data_dir)
+    wanted = {(str(c), float(s)): int(k) for c, s, k in zip(processed["cell_id"], processed["segment_start_s"], processed["cycle_index"])}
+    units = {c for c, _ in wanted}
+    for item in home_storage_members(data_dir):
+        if item["cell_id"] not in units:
+            continue
+        frame = read_home_storage_month(item)
+        t = frame["time_s"].to_numpy(dtype=float)
+        i = frame["I_in_A"].to_numpy(dtype=float)
+        v = frame["V_in_V"].to_numpy(dtype=float) / float(meta.loc[item["cell_id"], "Cell_number_in_series"])
+        rated = float(meta.loc[item["cell_id"], "Capacity_nominal_in_Ah"])
+        for first, last in charging_spans(t, i, rated, DEFAULT_CONFIG):
+            key = (item["cell_id"], t[first])
+            if key not in wanted:
+                continue
+            v_seg, q_seg, t_rel = segment_curve(t, v, i, (first, last))
+            yield item["cell_id"], wanted[key], v_seg, q_seg, t_rel
+
+
+# ---------------------------------------------------------------------------
 # Turku UAS randomized-current set (D3 re-scoped, 2026-09-05): Heydarzadeh et al. 2025, Data in Brief 60,
 # 111531; FairData 10.23729/b07462e8-9e31-428c-bdd5-deb1890c608b (repository licence CC BY-NC 3.0).  One
 # MATLAB v7 file per cell (DATASET/<CHEM>/<CHEM>_CELL_<n>.mat, struct array ``table``): one entry per test
@@ -749,6 +831,7 @@ CHARGE_CURVE_SOURCES = {
     "tongji_blend": _iter_tongji_blend,
     "forklift_lfp180": _iter_forklift,   # D8 (2026-09-05): scripts/ingest_forklift_lfp180.py (K13 segments)
     "matr": _iter_matr,                  # D9 (2026-09-05): scripts/ingest_matr.py
+    "home_storage_lfp": _iter_home_storage,   # D7 (2026-09-05): scripts/ingest_home_storage_lfp.py (K13 segments)
     "turku_rc_nca": _iter_turku_nca,     # D3 (2026-09-05): scripts/ingest_turku_rc.py
     "turku_rc_nmc": _iter_turku_nmc,
     "turku_rc_lfp": _iter_turku_lfp,
