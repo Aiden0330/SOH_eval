@@ -19,6 +19,7 @@ DATASET_CHEMISTRY = {
     "turku_rc_nca": "NCA",       # Heydarzadeh 2025 Table 1: Samsung ICR18650-26J (NCA) (D3, 2026-09-05)
     "turku_rc_nmc": "NMC",       # Heydarzadeh 2025 Table 1: Samsung INR21700-40T (NMC) (D3)
     "turku_rc_lfp": "LFP",       # Heydarzadeh 2025 Table 1: JGNE JGPFR26650 (LFP) (D3)
+    "field_lfp_28": "LFP",       # Schaeffer 2024 README: 'Cathode chemistry: LFP' (D10, 2026-09-05)
 }
 DATASET_C_RATED_AH = {
     "nasa": 2.0,      # NASA PCoE 18650 LiCoO2, 2 Ah
@@ -38,6 +39,7 @@ DATASET_C_RATED_AH = {
     "turku_rc_nca": 2.55,    # Heydarzadeh 2025 Table 1 (Q_nom 2.55 Ah)
     "turku_rc_nmc": 4.0,     # Heydarzadeh 2025 Table 1 (Q_nom 4.0 Ah)
     "turku_rc_lfp": 3.0,     # Heydarzadeh 2025 Table 1 (Q_nom 3.0 Ah)
+    "field_lfp_28": 160.0,   # Schaeffer 2024 README: 'Nominal capacity approx. 160 Ah' (approximate; VERIFY)
 }
 DATASET_LABEL_SOURCE = {  # all reference-discharge calibrated capacity
     "nasa": "calibration_capacity", "calce_cs2": "calibration_capacity",
@@ -49,6 +51,7 @@ DATASET_LABEL_SOURCE = {  # all reference-discharge calibrated capacity
     "matr": "calibration_capacity",
     "forklift_lfp180": "rpt",                 # forklift_lfp180: RPT capacities attached forward-only to segments (Spec 12 §3)
     "turku_rc_nca": "rpt", "turku_rc_nmc": "rpt", "turku_rc_lfp": "rpt",   # turku_rc: 1C reference discharges attached forward-only
+    "field_lfp_28": "unknown",                # field_lfp_28: no reference measurements exist (unlabeled_field)
 }
 # Supervision kinds (Spec 12 §4, K13).  ``soh_supervised``: every row labeled (the laboratory
 # sets); ``sparse_field``: labels from capacity tests / RPTs attached forward-only to a subset of
@@ -63,6 +66,7 @@ SUPERVISION_ROLES = {
 DATASET_SUPERVISION: dict[str, str] = {   # every dataset not listed is soh_supervised
     "forklift_lfp180": "sparse_field",    # D8: RPT after every ageing round; every segment labeled by the preceding RPT
     "turku_rc_nca": "sparse_field", "turku_rc_nmc": "sparse_field", "turku_rc_lfp": "sparse_field",   # turku_rc: a 1C reference every ~20 cycles
+    "field_lfp_28": "unlabeled_field",    # D10: no capacity tests — inference, audit and drift only
 }
 
 

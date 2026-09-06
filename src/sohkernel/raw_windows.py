@@ -656,6 +656,79 @@ def _iter_turku_lfp(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[
     return _iter_turku(data_dir, processed, "turku_rc_lfp")
 
 
+# ---------------------------------------------------------------------------
+# 28 portable 24 V LFP systems (D10, 2026-09-05): Schaeffer et al. 2024, Cell Reports Physical Science 5,
+# 102258; Zenodo 13715694 (CC BY-NC 4.0).  field_data.zip holds one CSV per system (data_sys_<ID>.csv,
+# the BattGP library's layout: a timestamp index, U_Battery, I_Battery, SOC_Battery, Temperature_1..4
+# between cell pairs, U_Cell_1..8, balancing currents I_CNV_Cell_k).  Eight prismatic cells in series,
+# nominal capacity ≈ 160 Ah (README, approximate).  The unit is the cell (``sys<ID>/cell<k>``): cell
+# voltage from U_Cell_k, current from the pack sensor, temperature from the sensor shared by the cell pair.
+# No capacity tests exist: supervision kind unlabeled_field (inference, audit, drift only).
+# ---------------------------------------------------------------------------
+FIELD28_ARCHIVE = Path("raw") / "field_lfp_28" / "field_data.zip"
+FIELD28_C_RATED_AH = 160.0
+FIELD28_CELLS = 8
+_FIELD28_MEMBER = re.compile(r"(?:^|/)data_sys_(?P<id>\d+)\.csv$")
+
+
+def field28_unit(system_id: int, cell: int) -> str:
+    return f"sys{int(system_id):02d}/cell{int(cell)}"
+
+
+def field28_members(data_dir: str | Path) -> tuple[zipfile.ZipFile, list[dict]]:
+    archive = zipfile.ZipFile(Path(data_dir) / FIELD28_ARCHIVE)
+    members = []
+    for name in archive.namelist():
+        match = _FIELD28_MEMBER.search(name)
+        if match:
+            members.append({"system_id": int(match["id"]), "member": name})
+    members.sort(key=lambda m: m["system_id"])
+    return archive, members
+
+
+def read_field28_system(archive: zipfile.ZipFile, member: str) -> pd.DataFrame:
+    """One system's record with ``time_s`` (epoch seconds of the timestamp index), sorted by time."""
+    with archive.open(member) as handle:
+        frame = pd.read_csv(handle, index_col=0, parse_dates=True)
+    frame.index.name = "timestamp"
+    frame = frame.reset_index()
+    stamps = pd.to_datetime(frame["timestamp"], utc=True, errors="coerce")
+    frame["time_s"] = (stamps - pd.Timestamp("1970-01-01", tz="UTC")).dt.total_seconds().to_numpy(dtype=float)
+    frame = frame[np.isfinite(frame["time_s"])]
+    return frame.sort_values("time_s", kind="stable").reset_index(drop=True)
+
+
+def field28_cell_temperature(frame: pd.DataFrame, cell: int) -> np.ndarray:
+    column = f"Temperature_{(int(cell) - 1) // 2 + 1}"
+    return frame[column].to_numpy(dtype=float) if column in frame.columns else np.full(len(frame), np.nan)
+
+
+def _iter_field28(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
+    from .segments import DEFAULT_CONFIG, charging_spans, segment_curve
+
+    if processed is None:
+        raise ValueError("field_lfp_28 curves require the processed table (segment bounds)")
+    wanted = {(str(c), float(s)): int(k) for c, s, k in zip(processed["cell_id"], processed["segment_start_s"], processed["cycle_index"])}
+    systems = {int(c.split("/")[0][3:]) for c, _ in wanted}
+    archive, members = field28_members(data_dir)
+    for item in members:
+        if item["system_id"] not in systems:
+            continue
+        frame = read_field28_system(archive, item["member"])
+        t = frame["time_s"].to_numpy(dtype=float)
+        i = frame["I_Battery"].to_numpy(dtype=float)
+        spans = charging_spans(t, i, FIELD28_C_RATED_AH, DEFAULT_CONFIG)
+        for cell in range(1, FIELD28_CELLS + 1):
+            unit = field28_unit(item["system_id"], cell)
+            v = frame[f"U_Cell_{cell}"].to_numpy(dtype=float)
+            for first, last in spans:
+                key = (unit, t[first])
+                if key not in wanted:
+                    continue
+                v_seg, q_seg, t_rel = segment_curve(t, v, i, (first, last))
+                yield unit, wanted[key], v_seg, q_seg, t_rel
+
+
 def _iter_snl_nmc(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
     return _iter_snl(data_dir, processed, "NMC")
 
@@ -679,6 +752,7 @@ CHARGE_CURVE_SOURCES = {
     "turku_rc_nca": _iter_turku_nca,     # D3 (2026-09-05): scripts/ingest_turku_rc.py
     "turku_rc_nmc": _iter_turku_nmc,
     "turku_rc_lfp": _iter_turku_lfp,
+    "field_lfp_28": _iter_field28,       # D10 (2026-09-05): scripts/ingest_field_lfp_28.py (K13 segments, unlabeled)
 }
 
 

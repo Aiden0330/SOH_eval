@@ -74,6 +74,22 @@ def test_segment_table_keeps_the_accepted_segments_with_descriptors_and_qc_count
     assert first["q_win_ah"] == pytest.approx(20.0, rel=1e-3) and np.isnan(second["q_win_ah"])
 
 
+def test_non_finite_currents_are_rest_and_tables_are_typed():
+    t, v, i, _ = _record()
+    broken = i.copy()
+    broken[700:720] = np.inf                        # a sensor dropout inside the first charge: bridged as rest
+    broken[6300:6310] = np.nan                      # inside the discharge
+    table, qc = S.segment_table("u", t, v, broken, c_rated_ah=C_RATED)
+    assert qc["accepted"] == 2 and table["charge_capacity_max"].iloc[0] == pytest.approx(20.0 - 20 * 20 / 3600, rel=1e-2)
+    assert S.charging_spans(t, np.full_like(i, np.inf), C_RATED) == []
+    # dtypes survive an empty concatenation (a file without segments)
+    empty, _ = S.segment_table("u", t[:10], v[:10], np.zeros(10), c_rated_ah=C_RATED, dataset="d")
+    assert len(empty) == 0 and empty["time_s_max"].dtype == float and empty["cycle_index"].dtype == int
+    both = S.finalize_table(pd.concat([empty, S.segment_table("u", t, v, i, c_rated_ah=C_RATED, dataset="d")[0]], ignore_index=True))
+    assert both["window_coverage"].dtype == float and both["cycle_index"].dtype == int and both["segment_kind"].tolist() == ["charge", "charge"]
+    assert both["label_source"].isna().all()
+
+
 def test_mean_cell_voltage_for_a_string():
     t, v, i, _ = _record()
     pack, _ = S.segment_table("string", t, v * 16.0, i, c_rated_ah=C_RATED, cells_in_series=16)

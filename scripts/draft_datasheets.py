@@ -498,6 +498,51 @@ FACTS["turku_rc_lfp"] = _turku("turku_rc_lfp", chem="LFP", cathode="LFP", model=
     extra={"window_note": "the K12 LFP indicator span (max coverage 0.73, affine R² 0.63)",
            "issues": ["two cells only", "ic_peak_ah_per_v reaches affine R² 0.96 against soh on these two cells (a feature; below the threshold, watched in the leak inventory)"]})
 # <<< dataset-block: turku
+# >>> dataset-block: field_lfp_28
+FACTS["field_lfp_28"] = {
+    "citation": ("Schaeffer, J., Lenz, E., Gulla, D., Bazant, M. Z., Braatz, R. D., Findeisen, R. (2024). Gaussian process-based online health "
+                 "monitoring and fault analysis of lithium-ion battery systems from field data. Cell Reports Physical Science 5, 102258, "
+                 "DOI 10.1016/j.xcrp.2024.102258. Dataset: Lithium-Ion Battery Field Data: 28 LFP battery systems with 8 cells in series, up to 5 "
+                 "years of operation, Zenodo 13715694 v1.0.0 (field_data.zip, md5 827f508740c4154b7ff7b15de3b2c75d, 28 data_sys_<ID>.csv); "
+                 "ingested by scripts/ingest_field_lfp_28.py (D10, 2026-09-05) through sohkernel.segments (K13)."),
+    "url": "https://doi.org/10.5281/zenodo.13715694", "license": "CC BY-NC 4.0 (Zenodo record and README) — non-commercial; never training or claims (Wave 6 plan §2)",
+    "retrieved": f"{DRAFT_DATE} (Zenodo API record; the zip md5 verified against the record)",
+    "cathode": "LFP", "anode": "VERIFY (graphite assumed; the README states the cathode only)", "verified_by": V, "verified_on": V,
+    "format": "prismatic, 8 cells in series per 24 V system, ≈ 160 Ah nominal (README: 'Nominal capacity approx. 160 Ah'); manufacturer and cell model anonymous (VERIFY)",
+    "rated_capacity_ah": 160.0, "rated_source": "Zenodo README ('Nominal voltage: 24 V', 'Nominal capacity approx. 160 Ah') — approximate; the label-free coverage descriptors use it",
+    "chemistry_evidence": ("Zenodo 13715694 README: 'Cathode chemistry: LFP'; '28 portable 24V lithium iron phosphate (LFP) battery systems with "
+                           "approximately 160Ah nominal capacity'; 'Each battery system consists of 8 prismatic cells in series. Each system has one "
+                           "load current sensor, and each cell has one voltage sensor. The four temperature sensors are placed between adjacent cells'; "
+                           "'All battery systems in this data set showed some form of unsatisfactory behavior and were returned to the manufacturer … "
+                           "this data set is biased'; columns per the BattGP library (U_Battery, I_Battery, SOC_Battery, Temperature_1..4, U_Cell_1..8, "
+                           "balancing currents I_CNV_Cell_k)."),
+    "segments": [{"id": "field_charge", "rate": "charging segments of the pack current (Spec 12 §2 defaults with 160 Ah: current > 3.2 A, rests < 600 s bridged, ≥ 300 s, ≥ 8 Ah); one row per cell per segment; median charge rate 0.41 C, coefficient of variation 0.20"}],
+    "temperature_c": ["VERIFY (field; temperature_mean median 29 °C, range 2–68 °C over the segments)"],
+    "reference_test": "none — no capacity test or reference cycle exists in the data",
+    "measured": [], "label_formula": "none (soh is NaN in every row)", "label_source": "unknown", "supervision": "unlabeled_field",
+    "label_rule": "no labels: inference, audit and drift only (Spec 12 §4); the training preflight refuses the dataset and no claim can cite it",
+    "rate_hz": "irregular: 5 s median sample period (60 s for systems 24, 25, 28), event-driven gaps",
+    "channels": ["U_Cell_1..8", "I_Battery (charge positive: SOC and cell voltage rise with positive current)", "Temperature_1..4", "U_Battery", "SOC_Battery"],
+    "window": {"segment": "field_charge", "v_lo": 3.30, "v_hi": 3.40, "coverage_median": 0.053, "calibrated_on": DRAFT_DATE,
+               "note": "the K12 LFP indicator span on the cell voltage; the segments charge a median 9.8 % of nominal, so the window holds a fraction of that"},
+    "units": {"unit": "cell (sys<ID>/cell<k>)", "systems": 28, "systems_with_segments": 27, "cells": 216, "c_rated_ah": 160.0,
+              "time_axis": "epoch seconds of the CSV timestamps (naive, taken as UTC — VERIFY the time zone)"},
+    "segments_qc": {"rows": 288920, "candidates_found": 961048, "dropped_too_short": 453408, "dropped_low_coverage": 218720,
+                    "segments_per_cell_median": 115, "cells_with_fewer_than_10_segments": 32,
+                    "systems_without_segments": ["25 (257 days at 60 s sampling; no charging span passes the floor)"],
+                    "record_days_per_system": "160–2166", "segments_per_system": "0–10,816 (systems 6, 8, 21 carry most)"},
+    "verification": {"sign_convention": "checked on data_sys_3: SOC rises (+0.006 %/sample) and the cell voltage rises with I > 5 A, both fall with I < −5 A; 99.8 % of the extracted segments end at a higher cell voltage than they start",
+                     "raw_artifacts": "I_Battery holds infinite readings and cell voltages drop to 0.1–0.3 V in some records (sensor dropouts): non-finite currents count as rest in the kernel; the voltage artefacts remain in voltage_min / v_start of a few segments"},
+    "column_classes": SEGMENT_CLASSES, "scanned_on": DRAFT_DATE, "held_out_ready": False,
+    "known_issues": ["non-commercial licence (CC BY-NC 4.0): inference, audit and drift only; never training or claims",
+                     "no labels: soh, label_source, label_time_s and label_age_s are NaN in every row (unlabeled_field)",
+                     "biased sample: returned systems only (README)",
+                     "cell voltage sensor dropouts (values near 0 V) survive in a few segments' voltage_min and v_start",
+                     "the pack current is shared by the eight cells of a system: the eight rows of one segment differ only in voltage and temperature",
+                     "signature pending: the owner's review of chemistry (README) and the approximate rated capacity"],
+    "signed": dict(UNSIGNED_W6), "status": f"draft {DRAFT_DATE} (D10) — unlabeled field set, CC BY-NC 4.0; unsigned until the owner reviews",
+}
+# <<< dataset-block: field_lfp_28
 LEAK_INVENTORY = {"hust": ["charge_capacity_max"], "oxford": ["charge_capacity_max"], "uconn": ["charge_capacity_max"],
                   "rwth_isea_public": ["capacity_ah"], "nasa": [], "calce_cs2": [], "snl_lfp": [],
                   "snl_nmc": ["charge_capacity_max"], "snl_nca": [],
@@ -509,6 +554,7 @@ LEAK_INVENTORY = {"hust": ["charge_capacity_max"], "oxford": ["charge_capacity_m
                   "turku_rc_nca": [],
                   "turku_rc_nmc": [],
                   "turku_rc_lfp": [],
+                  "field_lfp_28": [],
                   }
 
 

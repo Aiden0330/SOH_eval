@@ -37,7 +37,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from sohkernel.raw_windows import FORKLIFT_C_RATED_AH, FORKLIFT_CHAMBER_C, iter_forklift_records  # noqa: E402
-from sohkernel.segments import DEFAULT_CONFIG, SegmentConfig, attach_forward_labels, segment_table  # noqa: E402
+from sohkernel.segments import DEFAULT_CONFIG, SegmentConfig, attach_forward_labels, finalize_table, segment_table  # noqa: E402
 
 DATASET = "forklift_lfp180"
 V_MIN, V_MAX = 2.5, 3.65
@@ -116,7 +116,7 @@ def build(data_dir: Path, *, window: tuple[float, float] | None, config: Segment
         if verbose:
             print(f"  {cell} round {record['round']:02d} part {record['part']}: {qc['accepted']} segments "
                   f"({qc['too_short']} short, {qc['low_coverage']} low coverage) {qc['accepted_charge_ah']:.0f} Ah", flush=True)
-    segments = pd.concat(tables, ignore_index=True) if tables else pd.DataFrame()
+    segments = finalize_table(pd.concat([t for t in tables if len(t)], ignore_index=True)) if any(len(t) for t in tables) else pd.DataFrame()
     tests_table = pd.DataFrame(tests)
     if len(segments):
         usable = tests_table[np.isfinite(tests_table["label_time_s"]) & np.isfinite(tests_table["capacity_ah"])]

@@ -96,9 +96,10 @@ def charging_spans(
     if not (float(c_rated_ah) > 0.0):
         raise ValueError("c_rated_ah must be positive")
     threshold = config.charge_threshold_c * float(c_rated_ah)
+    finite = np.isfinite(i)   # a NaN or infinite reading (sensor dropout) is rest, never charging or discharging
     with np.errstate(invalid="ignore"):
-        charging = i > threshold
-        discharging = i < -threshold
+        charging = finite & (i > threshold)
+        discharging = finite & (i < -threshold)
     idx = np.flatnonzero(charging)
     if len(idx) == 0:
         return []
@@ -181,7 +182,7 @@ def segment_table(
     c_rated = float(c_rated_ah)
     threshold = config.charge_threshold_c * c_rated
     with np.errstate(invalid="ignore"):
-        active = np.abs(i) > threshold
+        active = np.isfinite(i) & (np.abs(i) > threshold)
     spans = charging_spans(t, i, c_rated, config)
     qc = {"segments_found": len(spans), "too_short": 0, "low_coverage": 0, "accepted": 0,
           "accepted_charge_ah": 0.0, "record_start_s": float(t[0]) if len(t) else None,
@@ -202,7 +203,7 @@ def segment_table(
     for ordinal, (first, last, delta_q) in enumerate(accepted):
         sl = slice(first, last + 1)
         with np.errstate(invalid="ignore"):
-            charging = i[sl] > threshold
+            charging = np.isfinite(i[sl]) & (i[sl] > threshold)
         v_seg, q_seg, t_rel = segment_curve(t, v, i, (first, last))
         v_chg, i_chg, temp_chg = v[sl][charging], i[sl][charging], temp[sl][charging]
         q_win, t_win = window_integral(v_seg, q_seg, t_rel, window[0], window[1]) if window is not None else (np.nan, np.nan)
@@ -249,10 +250,28 @@ def segment_table(
         })
         qc["accepted_charge_ah"] += delta_q
     qc["accepted"] = len(rows)
-    table = pd.DataFrame(rows, columns=list(SEGMENT_TABLE_COLUMNS))
+    table = finalize_table(pd.DataFrame(rows, columns=list(SEGMENT_TABLE_COLUMNS)))
     if dataset is None:
         table = table.drop(columns=["dataset"])
     return table, qc
+
+
+SEGMENT_STRING_COLUMNS: tuple[str, ...] = ("dataset", "cell_id", "segment_kind", "label_source")
+
+
+def finalize_table(table: pd.DataFrame) -> pd.DataFrame:
+    """The segment table with one dtype per column: float for every measurement, descriptor, identity time
+    and label column, int for ``cycle_index``, string for the names.  Concatenating per-file tables, some of
+    them empty, otherwise leaves object columns behind (pandas upcasts an empty frame's object columns)."""
+    out = table.copy()
+    for column in out.columns:
+        if column in SEGMENT_STRING_COLUMNS:
+            out[column] = out[column].astype("string").astype(object).where(out[column].notna(), None)
+        elif column == "cycle_index":
+            out[column] = pd.to_numeric(out[column], errors="coerce").fillna(-1).astype(int)
+        else:
+            out[column] = pd.to_numeric(out[column], errors="coerce").astype(float)
+    return out
 
 
 def attach_forward_labels(

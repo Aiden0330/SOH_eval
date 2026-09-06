@@ -36,6 +36,7 @@ RAW_BINDINGS = {
     "turku_rc_nca": ["raw/turku_rc"],
     "turku_rc_nmc": ["raw/turku_rc"],
     "turku_rc_lfp": ["raw/turku_rc"],
+    "field_lfp_28": ["raw/field_lfp_28"],
 }
 
 LICENSES = {
@@ -56,6 +57,7 @@ LICENSES = {
     "turku_rc_nca": {"license": "CC-BY-NC-3.0 (FairData record; the article is CC BY 4.0)", "source": "Heydarzadeh et al. 2025 / FairData 10.23729/b07462e8-9e31-428c-bdd5-deb1890c608b (NCA cells)"},
     "turku_rc_nmc": {"license": "CC-BY-NC-3.0 (FairData record; the article is CC BY 4.0)", "source": "Heydarzadeh et al. 2025 / FairData 10.23729/b07462e8-9e31-428c-bdd5-deb1890c608b (NMC cells)"},
     "turku_rc_lfp": {"license": "CC-BY-NC-3.0 (FairData record; the article is CC BY 4.0)", "source": "Heydarzadeh et al. 2025 / FairData 10.23729/b07462e8-9e31-428c-bdd5-deb1890c608b (LFP cells)"},
+    "field_lfp_28": {"license": "CC-BY-NC-4.0", "source": "Schaeffer et al. 2024 / Zenodo 13715694 (28 LFP systems, unlabeled)"},
 }
 
 CURVE_TOKENS = {"calce_cs2": "calce", "rwth_isea_public": "rwth"}

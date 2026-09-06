@@ -43,6 +43,7 @@ DATASET_LATTICE = {
     "turku_rc_nca": (3.40, 4.20),    # D3 (2026-09-05): 1C CC-CV charge to 4.2 V
     "turku_rc_nmc": (3.40, 4.20),
     "turku_rc_lfp": (3.00, 3.60),    # D3 (2026-09-05): 1C CC-CV charge to 3.6 V
+    "field_lfp_28": (3.00, 3.60),    # D10 (2026-09-05): cell voltages of the 8s packs
 }
 LATTICE_STEP = 0.05
 

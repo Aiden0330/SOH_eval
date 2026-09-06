@@ -7,10 +7,10 @@
  "summary": {
   "local_files": 306,
   "local_bytes": 24288608875,
-  "processed_datasets": 19,
-  "records": 495733,
-  "cycles": 495701,
-  "batteries": 614
+  "processed_datasets": 20,
+  "records": 784653,
+  "cycles": 784621,
+  "batteries": 830
  },
  "verification": {
   "inventory_checks": [
@@ -211,6 +211,122 @@
    "curve_sha256": "5fd40a15bbfda861ed36de86d3ecc32708b8de86b69abec50254aa1190429915",
    "license": "academic-use",
    "source": "CALCE Battery Data"
+  },
+  {
+   "name": "field_lfp_28",
+   "status": "ready",
+   "supervision": "unlabeled_field",
+   "roles": [
+    "inference",
+    "audit",
+    "drift"
+   ],
+   "labeled_record_count": 0,
+   "processed": {
+    "path": "processed/field_lfp_28_features.pkl",
+    "bytes": 122220447,
+    "sha256": "5523c030e49ba2cb1373ee6823c39dfbbfb485dc834d1cea91d98751d88d0748",
+    "required_columns_missing": [],
+    "columns": [
+     "dataset",
+     "cell_id",
+     "cycle_index",
+     "soh",
+     "time_s_max",
+     "voltage_mean",
+     "voltage_std",
+     "voltage_min",
+     "voltage_max",
+     "current_mean",
+     "current_std",
+     "abs_current_mean",
+     "temperature_mean",
+     "charge_capacity_max",
+     "q_win_ah",
+     "t_win_s",
+     "ic_peak_ah_per_v",
+     "ic_peak_voltage_v",
+     "window_coverage",
+     "v_start",
+     "v_end",
+     "current_mean_c",
+     "current_cv",
+     "rest_before_s",
+     "rest_after_s",
+     "temp_min",
+     "temp_max",
+     "segment_start_s",
+     "segment_end_s",
+     "segment_kind",
+     "sample_period_s",
+     "label_source",
+     "label_time_s",
+     "label_age_s",
+     "hi_dq_w1_ah",
+     "hi_dq_w2_ah",
+     "hi_dq_w3_ah",
+     "hi_dq_w4_ah",
+     "hi_span_dq_ah",
+     "hi_dt_w1_s",
+     "hi_dt_w2_s",
+     "hi_dt_w3_s",
+     "hi_dt_w4_s",
+     "hi_span_dt_s",
+     "hi_ic_peak_ah_per_v",
+     "hi_ic_peak_v",
+     "hi_v_q25",
+     "hi_v_q50",
+     "hi_v_q75",
+     "hi_dvdq_v_per_ah",
+     "hi_i_mean_a",
+     "hi_i_cv"
+    ],
+    "partial_window_v": [
+     3.3,
+     3.4
+    ],
+    "health_indicators": {
+     "source": "raw_charge_curves",
+     "chemistry": "LFP",
+     "windows": [
+      [
+       3.3,
+       3.325
+      ],
+      [
+       3.325,
+       3.35
+      ],
+      [
+       3.35,
+       3.375
+      ],
+      [
+       3.375,
+       3.4
+      ]
+     ],
+     "span_matched_fraction": 0.3663,
+     "span_coverage_median": 0.0451,
+     "rebuilt_at": "2026-09-06T01:12:26Z"
+    }
+   },
+   "record_count": 288920,
+   "cycle_count": 288920,
+   "battery_count": 216,
+   "chemistry": "LFP",
+   "max_capacity_ah": 160.0,
+   "capacity_source": "rated_metadata",
+   "label_source": "unknown",
+   "held_out_ready": false,
+   "raw_paths": [
+    "raw/field_lfp_28"
+   ],
+   "raw_local": true,
+   "curve_path": "",
+   "curve_sha256": "",
+   "license": "CC-BY-NC-4.0",
+   "source": "Schaeffer et al. 2024 / Zenodo 13715694 (28 LFP systems, unlabeled)"
   },
   {
    "name": "forklift_lfp180",
@@ -1883,5 +1999,5 @@
   "gbrain-evals historical engineering dependencies",
   "RWTH HSS and other field data without supervised SOH labels"
  ],
- "updated_at": "2026-09-06T01:09:08.141917+00:00"
+ "updated_at": "2026-09-06T01:12:26Z"
 }

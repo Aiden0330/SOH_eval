@@ -104,6 +104,14 @@ DATA_DIR = data_root() / "processed"
 # threshold: charge_capacity_max R² 0.90 (NCA), the identity / label-time columns 0.97 (NMC) and ic_peak_ah_per_v
 # 0.96 on the two LFP cells (a feature, below 0.995, watched).  No findings pinned.
 # <<< inventory-note: turku
+# >>> inventory-note: field_lfp_28
+# Reviewed 2026-09-05 (D10, unlabeled_field): field_lfp_28 holds 288,920 charging segments of 216 cells in 27 of the
+# 28 portable LFP systems (Schaeffer et al. 2024, CC BY-NC 4.0) with no label at all — soh and the label columns
+# are NaN in every row, the manifest's supervision kind is unlabeled_field (inference, audit, drift; refused by
+# the training preflight, never claimed).  The audit has no label to reconstruct and reports nothing; the pin
+# records that the table is in the inventory on purpose.  charge_capacity_max is the segment's ΔQ (median 9.8 %
+# of the ≈ 160 Ah nominal).
+# <<< inventory-note: field_lfp_28
 EXPECTED_LABEL_SOURCE_COLUMNS = {
     "hust": ["charge_capacity_max"],
     "oxford": ["charge_capacity_max"],
@@ -122,6 +130,7 @@ EXPECTED_LABEL_SOURCE_COLUMNS = {
     "turku_rc_nca": [],
     "turku_rc_nmc": [],
     "turku_rc_lfp": [],
+    "field_lfp_28": [],
 }
 
 ID_COLUMNS = ("dataset", "cell_id", "cycle_index", "soh")
