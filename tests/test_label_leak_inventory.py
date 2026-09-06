@@ -95,6 +95,15 @@ DATA_DIR = data_root() / "processed"
 # band: q_win_ah on [3.40, 3.50] V covers a median 0.80 of rated (max 0.895 on the scan; the wide-window warning
 # of the audit, allowed below 90 %).  No findings pinned.
 # <<< inventory-note: matr
+# >>> inventory-note: turku
+# Reviewed 2026-09-05 (D3 re-scoped, Turku UAS randomized-current set): turku_rc_nca (4 cells), turku_rc_nmc (2)
+# and turku_rc_lfp (2) hold one row per randomized-current cycle (the cycle's 1C CC-CV charge is the feature
+# source) with the last 1C reference discharge attached forward-only (Spec 12 §3).  Windows [3.70, 4.10] /
+# [3.80, 4.15] / [3.30, 3.40] V (median coverage 0.430 / 0.408 / 0.446 of nominal; the NMC window was chosen
+# for margin: [3.65, 4.10] reaches R² 0.97 on two cells with a near-linear fade).  Nothing reaches the affine
+# threshold: charge_capacity_max R² 0.90 (NCA), the identity / label-time columns 0.97 (NMC) and ic_peak_ah_per_v
+# 0.96 on the two LFP cells (a feature, below 0.995, watched).  No findings pinned.
+# <<< inventory-note: turku
 EXPECTED_LABEL_SOURCE_COLUMNS = {
     "hust": ["charge_capacity_max"],
     "oxford": ["charge_capacity_max"],
@@ -110,6 +119,9 @@ EXPECTED_LABEL_SOURCE_COLUMNS = {
     "tongji_blend": [],
     "forklift_lfp180": [],
     "matr": [],
+    "turku_rc_nca": [],
+    "turku_rc_nmc": [],
+    "turku_rc_lfp": [],
 }
 
 ID_COLUMNS = ("dataset", "cell_id", "cycle_index", "soh")

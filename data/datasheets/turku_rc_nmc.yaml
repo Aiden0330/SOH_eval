@@ -1,0 +1,169 @@
+name: turku_rc_nmc
+status: draft 2026-09-05 (D3 re-scoped) — chemistry from the paper's Table 1; licence
+  CC BY-NC 3.0 (VERIFY); unsigned until the owner reviews
+supervision: sparse_field
+source:
+  citation: 'Heydarzadeh, M., Toivola, T., Vega-Garita, V., Immonen, E. (2025). Dataset
+    of lithium-ion cell degradation under randomized current profiles for NMC, NCA,
+    and LFP chemistries. Data in Brief 60, 111531, DOI 10.1016/j.dib.2025.111531 (PMC12175228).
+    Dataset: ''NMC, NCA, and LFP Cells Degradation Under Randomized Current Profiles'',
+    FairData / Etsin (Metax id f60a7388-99b6-4637-96d5-8610a7f71612), DOI 10.23729/b07462e8-9e31-428c-bdd5-deb1890c608b,
+    issued 2024-12-11 — DATASET/<CHEM>/<CHEM>_CELL_<n>.mat (the 4.7 GB ''Raw Data.7z''
+    cycler export is not fetched); ingested by scripts/ingest_turku_rc.py (D3 re-scoped,
+    2026-09-05).'
+  url: https://etsin.fairdata.fi/dataset/f60a7388-99b6-4637-96d5-8610a7f71612
+  license: 'CC BY-NC 3.0 (the FairData record''s access-rights licence; the Data in
+    Brief article is CC BY 4.0). The Wave 6 plan assumed CC BY 4.0: non-commercial
+    terms — VERIFY redistribution of derived tables'
+  retrieved: 2026-09-05 (Etsin download authorization per file; the sha256 of every
+    DATASET file matches the Metax file list)
+chemistry:
+  cathode: NMC
+  anode: VERIFY (not stated in the article; graphite assumed)
+  metadata_label: NMC
+  verified_by: VERIFY
+  verified_on: VERIFY
+  evidence: 'Data in Brief 60, 111531: ''four ICR18650-26J (NCA), two INR21700-40T
+    (NMC), and two JGPFR26650 (LFP) which are tested at room temperature''; Table
+    1 (manufacturer Samsung / Samsung / JGNE; nominal capacity 4.0 / 2.55 / 3.0 Ah
+    for NMC / NCA / LFP; charge cut-off 4.2 / 4.2 / 3.6 V; discharge cut-off 2.50
+    / 2.75 / 2.50 V; cut-off current 200 / 130 / 150 mA); ''A cycle is defined by
+    the following Steps 1 to 4: 1) CC-CV charge at a constant 1C. 2) CC discharge
+    at 1C. 3) HPPC discharge at 0.5C, 1C, and 2C. 4) User-defined (RC) discharge profile
+    to reach the cut-off voltage''; ''After every set of 20 cycles, HPPC tests are
+    performed … Following the HPPC tests, reference constant current discharges at
+    1C is served as benchmarks''; ''every 200 cycles, the RC data is updated''; 1
+    Hz sampling, Chroma battery test system. The anode material is not stated in the
+    article (VERIFY).'
+cell:
+  format: 21700 (Samsung INR21700-40T, 4.0 Ah, 3.6 V)
+  rated_capacity_ah: 4.0
+  rated_source: paper Table 1 (Q_nom 4.0 Ah)
+protocol:
+  segments:
+  - id: cc_cv_charge
+    rate: 1C CC to 4.2 V, CV to the cut-off current (paper Table 1–2); the row's feature
+      source = the cycle entry's largest charging span (Spec 12 §2 spans, samples
+      above 0.01 A)
+  - id: rc_discharge
+    rate: randomized setpoints of one minute each (0.5–5C; NCA up to 2C) from the
+      full state to 2.5 V (paper)
+  - id: reference
+    rate: 1C constant-current discharge to the cut-off after the HPPC tests, every
+      ~20 cycles (label source)
+  temperature_c:
+  - VERIFY (room temperature, paper; the cell temperature is measured and stored in
+    temperature_mean)
+label_anchor:
+  formula: soh = reference_1C_capacity_ah / 4.0 Ah
+  measured_quantities:
+  - 1C reference discharge capacity (Ah)
+  reference_test: the '1C Reference' entry's first constant-current discharge at ~1C
+    (mean current within ±25 % of 1C) from the full state left by the previous entry's
+    charge to the cut-off, Coulomb-counted at 1 Hz
+  label_source: rpt
+  label_rule: 'forward-only (Spec 12 §3): every randomized-current cycle carries the
+    last 1C reference of its cell that ended before the cycle''s charge started; the
+    cycles before the first reference (≈ 20 per cell) carry no label; no age bound'
+sampling:
+  rate_hz: 1
+  channels:
+  - V
+  - I
+  - T
+windows:
+- feature: q_win_ah
+  segment: cc_cv_charge
+  v_lo: 3.8
+  v_hi: 4.15
+  coverage_median: 0.408
+  calibrated_on: '2026-09-05'
+  note: scan on every 5th labeled cycle; [3.65, 4.10] V (the SNL NMC window) reaches
+    affine R² 0.97 on these two cells with a near-linear fade; [3.80, 4.15] V (R²
+    0.35, max coverage 0.44) keeps margin below the 0.995 threshold
+segments:
+  rows: 1031
+  labeled_rows: 980
+  references_per_cell:
+    NMC_CELL_1: 25
+    NMC_CELL_2: 24
+  reference_capacity_ah_first_to_last:
+    NMC_CELL_1: 3.902 → 3.339
+    NMC_CELL_2: 3.914 → 3.342
+units:
+  unit: cell
+  cells: 2
+  c_rated_ah: 4.0
+  time_axis: test time in seconds counted from the cell's first 1 Hz sample (the entries'
+    start times are MATLAB string objects scipy cannot decode) — wall-clock dates
+    VERIFY
+verification:
+  entry_structure_read_by_hand: 'LFP_CELL_1 entry 59 (''Random Walking''): randomized
+    discharge 1242 s at −7.8 A mean to 2.50 V, 1200 s rest, 1C CC charge 3131 s to
+    3.60 V, 61 s, CV 364 s, 1800 s rest; entry 58 (''1C Reference''): 1C discharge
+    3345 s from 3.40 V to 2.50 V = 2.782 Ah, then the 1C CC-CV charge'
+  cells_vs_paper_table_1: 4 NCA / 2 NMC / 2 LFP as in the paper
+  soh_range: 0.83–0.98
+digests:
+  raw: VERIFY
+  processed: 69f7ac258100892b365a3c670288fda7682c2b50f0197caee9bfff3d8a2ee5fa
+  curves: VERIFY
+leak_scan:
+  label_source_columns: []
+  scanned_on: '2026-09-05'
+  reference: tests/test_label_leak_inventory.py
+  column_classes:
+    identity:
+    - dataset
+    - cell_id (the unit)
+    - cycle_index (segment ordinal)
+    - segment_start_s
+    - segment_end_s
+    - segment_kind
+    - sample_period_s
+    label:
+    - soh
+    label_source:
+    - charge_capacity_max (ΔQ of the segment)
+    - label_source
+    - label_time_s
+    - label_age_s
+    descriptor:
+    - window_coverage
+    - v_start
+    - v_end
+    - current_mean_c
+    - current_cv
+    - rest_before_s
+    - rest_after_s
+    - temp_min
+    - temp_max
+    feature:
+    - time_s_max
+    - voltage_mean
+    - voltage_std
+    - voltage_min
+    - voltage_max
+    - current_mean
+    - current_std
+    - abs_current_mean
+    - temperature_mean
+    - q_win_ah
+    - t_win_s
+    - ic_peak_ah_per_v
+    - ic_peak_voltage_v
+    - hi_* (K12 indicators)
+held_out_ready: true
+known_issues:
+- non-commercial repository licence (CC BY-NC 3.0) — redistribution of derived tables
+  needs the owner's decision
+- the first ~20 cycles of every cell are unlabeled (before the first 1C reference)
+- identity / label-time columns correlate with the monotone fade (R² up to 0.97 on
+  the two NMC cells) — never features
+- 'two cells only: every fold that holds one out trains on one'
+- 'signature pending: the owner''s review of chemistry (paper Table 1), the anode
+  and the licence'
+signed:
+  by: VERIFY (the owner's signature; drafted 2026-09-05 by the Wave 6 data-onboarding
+    session)
+  'on': VERIFY

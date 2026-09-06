@@ -16,6 +16,9 @@ DATASET_CHEMISTRY = {
     "tongji_blend": "NMC/NCA",   # Zhu et al. 2022 Dataset_3: Samsung INR18650-25R, 42 % NCM + 58 % NCA blend cathode (D2); HI windows resolve on NMC
     "forklift_lfp180": "LFP",    # Vilsen & Stroe 2024: prismatic LFP/graphite 180 Ah (paper Table 3; D8, 2026-09-05)
     "matr": "LFP",               # Severson 2019 / Attia 2020: A123 APR18650M1A LFP/graphite 1.1 Ah (D9, 2026-09-05)
+    "turku_rc_nca": "NCA",       # Heydarzadeh 2025 Table 1: Samsung ICR18650-26J (NCA) (D3, 2026-09-05)
+    "turku_rc_nmc": "NMC",       # Heydarzadeh 2025 Table 1: Samsung INR21700-40T (NMC) (D3)
+    "turku_rc_lfp": "LFP",       # Heydarzadeh 2025 Table 1: JGNE JGPFR26650 (LFP) (D3)
 }
 DATASET_C_RATED_AH = {
     "nasa": 2.0,      # NASA PCoE 18650 LiCoO2, 2 Ah
@@ -32,6 +35,9 @@ DATASET_C_RATED_AH = {
     "tongji_blend": 2.5,     # Zhu et al. 2022 Table 1 (1C = 2.5 A)
     "forklift_lfp180": 180.0,   # Vilsen & Stroe 2024 Table 3 (nominal 180 Ah)
     "matr": 1.1,             # A123 APR18650M1A nominal 1.1 Ah (Severson 2019)
+    "turku_rc_nca": 2.55,    # Heydarzadeh 2025 Table 1 (Q_nom 2.55 Ah)
+    "turku_rc_nmc": 4.0,     # Heydarzadeh 2025 Table 1 (Q_nom 4.0 Ah)
+    "turku_rc_lfp": 3.0,     # Heydarzadeh 2025 Table 1 (Q_nom 3.0 Ah)
 }
 DATASET_LABEL_SOURCE = {  # all reference-discharge calibrated capacity
     "nasa": "calibration_capacity", "calce_cs2": "calibration_capacity",
@@ -42,6 +48,7 @@ DATASET_LABEL_SOURCE = {  # all reference-discharge calibrated capacity
     "tongji_nca": "calibration_capacity", "tongji_ncm": "calibration_capacity", "tongji_blend": "calibration_capacity",
     "matr": "calibration_capacity",
     "forklift_lfp180": "rpt",                 # forklift_lfp180: RPT capacities attached forward-only to segments (Spec 12 §3)
+    "turku_rc_nca": "rpt", "turku_rc_nmc": "rpt", "turku_rc_lfp": "rpt",   # turku_rc: 1C reference discharges attached forward-only
 }
 # Supervision kinds (Spec 12 §4, K13).  ``soh_supervised``: every row labeled (the laboratory
 # sets); ``sparse_field``: labels from capacity tests / RPTs attached forward-only to a subset of
@@ -55,6 +62,7 @@ SUPERVISION_ROLES = {
 }
 DATASET_SUPERVISION: dict[str, str] = {   # every dataset not listed is soh_supervised
     "forklift_lfp180": "sparse_field",    # D8: RPT after every ageing round; every segment labeled by the preceding RPT
+    "turku_rc_nca": "sparse_field", "turku_rc_nmc": "sparse_field", "turku_rc_lfp": "sparse_field",   # turku_rc: a 1C reference every ~20 cycles
 }
 
 

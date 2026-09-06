@@ -435,6 +435,69 @@ FACTS["matr"] = {
     "signed": dict(UNSIGNED_W6), "status": f"draft {DRAFT_DATE} (D9) — chemistry and rated capacity from the papers; licence VERIFY; unsigned until the owner reviews",
 }
 # <<< dataset-block: matr
+# >>> dataset-block: turku
+TURKU_CITATION = ("Heydarzadeh, M., Toivola, T., Vega-Garita, V., Immonen, E. (2025). Dataset of lithium-ion cell degradation under randomized "
+                  "current profiles for NMC, NCA, and LFP chemistries. Data in Brief 60, 111531, DOI 10.1016/j.dib.2025.111531 (PMC12175228). "
+                  "Dataset: 'NMC, NCA, and LFP Cells Degradation Under Randomized Current Profiles', FairData / Etsin (Metax id "
+                  "f60a7388-99b6-4637-96d5-8610a7f71612), DOI 10.23729/b07462e8-9e31-428c-bdd5-deb1890c608b, issued 2024-12-11 — DATASET/<CHEM>/"
+                  "<CHEM>_CELL_<n>.mat (the 4.7 GB 'Raw Data.7z' cycler export is not fetched); ingested by scripts/ingest_turku_rc.py (D3 re-scoped, 2026-09-05).")
+TURKU_EVIDENCE = ("Data in Brief 60, 111531: 'four ICR18650-26J (NCA), two INR21700-40T (NMC), and two JGPFR26650 (LFP) which are tested at room "
+                  "temperature'; Table 1 (manufacturer Samsung / Samsung / JGNE; nominal capacity 4.0 / 2.55 / 3.0 Ah for NMC / NCA / LFP; charge "
+                  "cut-off 4.2 / 4.2 / 3.6 V; discharge cut-off 2.50 / 2.75 / 2.50 V; cut-off current 200 / 130 / 150 mA); 'A cycle is defined by "
+                  "the following Steps 1 to 4: 1) CC-CV charge at a constant 1C. 2) CC discharge at 1C. 3) HPPC discharge at 0.5C, 1C, and 2C. "
+                  "4) User-defined (RC) discharge profile to reach the cut-off voltage'; 'After every set of 20 cycles, HPPC tests are performed … "
+                  "Following the HPPC tests, reference constant current discharges at 1C is served as benchmarks'; 'every 200 cycles, the RC data is "
+                  "updated'; 1 Hz sampling, Chroma battery test system. The anode material is not stated in the article (VERIFY).")
+
+def _turku(name, *, chem, cathode, model, fmt, rated, cutoff, cells, window, coverage, rows, labeled, refs_per_cell, ref_range, soh_range, extra):
+    return {
+        "citation": TURKU_CITATION, "url": "https://etsin.fairdata.fi/dataset/f60a7388-99b6-4637-96d5-8610a7f71612",
+        "license": "CC BY-NC 3.0 (the FairData record's access-rights licence; the Data in Brief article is CC BY 4.0). The Wave 6 plan assumed CC BY 4.0: non-commercial terms — VERIFY redistribution of derived tables",
+        "retrieved": f"{DRAFT_DATE} (Etsin download authorization per file; the sha256 of every DATASET file matches the Metax file list)",
+        "cathode": cathode, "anode": "VERIFY (not stated in the article; graphite assumed)", "verified_by": V, "verified_on": V,
+        "format": f"{fmt} ({model})", "rated_capacity_ah": rated, "rated_source": f"paper Table 1 (Q_nom {rated} Ah)",
+        "chemistry_evidence": TURKU_EVIDENCE,
+        "segments": [{"id": "cc_cv_charge", "rate": f"1C CC to {cutoff[1]} V, CV to the cut-off current (paper Table 1–2); the row's feature source = the cycle entry's largest charging span (Spec 12 §2 spans, samples above 0.01 A)"},
+                     {"id": "rc_discharge", "rate": f"randomized setpoints of one minute each (0.5–5C; NCA up to 2C) from the full state to {cutoff[0]} V (paper)"},
+                     {"id": "reference", "rate": "1C constant-current discharge to the cut-off after the HPPC tests, every ~20 cycles (label source)"}],
+        "temperature_c": ["VERIFY (room temperature, paper; the cell temperature is measured and stored in temperature_mean)"],
+        "reference_test": "the '1C Reference' entry's first constant-current discharge at ~1C (mean current within ±25 % of 1C) from the full state left by the previous entry's charge to the cut-off, Coulomb-counted at 1 Hz",
+        "measured": ["1C reference discharge capacity (Ah)"],
+        "label_formula": f"soh = reference_1C_capacity_ah / {rated} Ah", "label_source": "rpt", "supervision": "sparse_field",
+        "label_rule": "forward-only (Spec 12 §3): every randomized-current cycle carries the last 1C reference of its cell that ended before the cycle's charge started; the cycles before the first reference (≈ 20 per cell) carry no label; no age bound",
+        "rate_hz": 1, "channels": ["V", "I", "T"],
+        "window": {"segment": "cc_cv_charge", "v_lo": window[0], "v_hi": window[1], "coverage_median": coverage, "calibrated_on": DRAFT_DATE,
+                   "note": "scan on every 5th labeled cycle; " + extra.get("window_note", "")},
+        "units": {"unit": "cell", "cells": cells, "c_rated_ah": rated, "time_axis": "test time in seconds counted from the cell's first 1 Hz sample (the entries' start times are MATLAB string objects scipy cannot decode) — wall-clock dates VERIFY"},
+        "segments_qc": {"rows": rows, "labeled_rows": labeled, "references_per_cell": refs_per_cell, "reference_capacity_ah_first_to_last": ref_range},
+        "verification": {"entry_structure_read_by_hand": "LFP_CELL_1 entry 59 ('Random Walking'): randomized discharge 1242 s at −7.8 A mean to 2.50 V, 1200 s rest, 1C CC charge 3131 s to 3.60 V, 61 s, CV 364 s, 1800 s rest; entry 58 ('1C Reference'): 1C discharge 3345 s from 3.40 V to 2.50 V = 2.782 Ah, then the 1C CC-CV charge",
+                         "cells_vs_paper_table_1": "4 NCA / 2 NMC / 2 LFP as in the paper",
+                         "soh_range": soh_range},
+        "column_classes": SEGMENT_CLASSES, "scanned_on": DRAFT_DATE,
+        "known_issues": ["non-commercial repository licence (CC BY-NC 3.0) — redistribution of derived tables needs the owner's decision",
+                         "the first ~20 cycles of every cell are unlabeled (before the first 1C reference)",
+                         "identity / label-time columns correlate with the monotone fade (R² up to 0.97 on the two NMC cells) — never features"] + extra.get("issues", []) +
+                        ["signature pending: the owner's review of chemistry (paper Table 1), the anode and the licence"],
+        "signed": dict(UNSIGNED_W6), "status": f"draft {DRAFT_DATE} (D3 re-scoped) — chemistry from the paper's Table 1; licence CC BY-NC 3.0 (VERIFY); unsigned until the owner reviews",
+    }
+
+FACTS["turku_rc_nca"] = _turku("turku_rc_nca", chem="NCA", cathode="NCA", model="Samsung ICR18650-26J, 2.55 Ah, 3.63 V", fmt="18650", rated=2.55, cutoff=(2.75, 4.2), cells=4,
+    window=(3.70, 4.10), coverage=0.430, rows=2008, labeled=1850, refs_per_cell={"NCA_CELL_1": 23, "NCA_CELL_2": 19, "NCA_CELL_3": 22, "NCA_CELL_4": 27},
+    ref_range={"NCA_CELL_1": "2.524 → 1.692", "NCA_CELL_2": "2.508 → 2.174", "NCA_CELL_3": "2.484 → 2.100", "NCA_CELL_4": "2.522 → 0.466"},
+    soh_range="0.20–0.99 (NCA_CELL_4 collapses to 0.466 Ah at the end)",
+    extra={"window_note": "the mid-charge window of the SNL NCA set (max coverage 0.63, affine R² 0.49)",
+           "issues": ["three cells carry one extra 'Reference Cycles' entry (skipped)", "NCA_CELL_4 ends at soh 0.20 (inside the QC bounds)"]})
+FACTS["turku_rc_nmc"] = _turku("turku_rc_nmc", chem="NMC", cathode="NMC", model="Samsung INR21700-40T, 4.0 Ah, 3.6 V", fmt="21700", rated=4.0, cutoff=(2.5, 4.2), cells=2,
+    window=(3.80, 4.15), coverage=0.408, rows=1031, labeled=980, refs_per_cell={"NMC_CELL_1": 25, "NMC_CELL_2": 24},
+    ref_range={"NMC_CELL_1": "3.902 → 3.339", "NMC_CELL_2": "3.914 → 3.342"}, soh_range="0.83–0.98",
+    extra={"window_note": "[3.65, 4.10] V (the SNL NMC window) reaches affine R² 0.97 on these two cells with a near-linear fade; [3.80, 4.15] V (R² 0.35, max coverage 0.44) keeps margin below the 0.995 threshold",
+           "issues": ["two cells only: every fold that holds one out trains on one"]})
+FACTS["turku_rc_lfp"] = _turku("turku_rc_lfp", chem="LFP", cathode="LFP", model="JGNE JGPFR26650, 3.0 Ah, 3.2 V", fmt="26650", rated=3.0, cutoff=(2.5, 3.6), cells=2,
+    window=(3.30, 3.40), coverage=0.446, rows=1114, labeled=1054, refs_per_cell={"LFP_CELL_1": 26, "LFP_CELL_2": 27},
+    ref_range={"LFP_CELL_1": "2.783 → 2.525", "LFP_CELL_2": "2.771 → 2.454"}, soh_range="0.82–0.93 (the 3.0 Ah nominal is above the cells' 1C capacity)",
+    extra={"window_note": "the K12 LFP indicator span (max coverage 0.73, affine R² 0.63)",
+           "issues": ["two cells only", "ic_peak_ah_per_v reaches affine R² 0.96 against soh on these two cells (a feature; below the threshold, watched in the leak inventory)"]})
+# <<< dataset-block: turku
 LEAK_INVENTORY = {"hust": ["charge_capacity_max"], "oxford": ["charge_capacity_max"], "uconn": ["charge_capacity_max"],
                   "rwth_isea_public": ["capacity_ah"], "nasa": [], "calce_cs2": [], "snl_lfp": [],
                   "snl_nmc": ["charge_capacity_max"], "snl_nca": [],
@@ -443,6 +506,9 @@ LEAK_INVENTORY = {"hust": ["charge_capacity_max"], "oxford": ["charge_capacity_m
                   "tongji_blend": [],
                   "forklift_lfp180": [],
                   "matr": [],
+                  "turku_rc_nca": [],
+                  "turku_rc_nmc": [],
+                  "turku_rc_lfp": [],
                   }
 
 

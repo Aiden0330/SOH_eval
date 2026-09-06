@@ -548,6 +548,114 @@ def _iter_matr(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve
         yield cycle["cell_id"], int(cycle["cycle_index"]), segment["voltage"], segment["charge"], segment["time"]
 
 
+# ---------------------------------------------------------------------------
+# Turku UAS randomized-current set (D3 re-scoped, 2026-09-05): Heydarzadeh et al. 2025, Data in Brief 60,
+# 111531; FairData 10.23729/b07462e8-9e31-428c-bdd5-deb1890c608b (repository licence CC BY-NC 3.0).  One
+# MATLAB v7 file per cell (DATASET/<CHEM>/<CHEM>_CELL_<n>.mat, struct array ``table``): one entry per test
+# step with Voltage / Current (A, charge positive) / Temperature at 1 Hz and a Comment — "Random Walking"
+# (the aged cycle: randomized discharge to the cut-off, rest, 1C CC-CV charge, rest), "HPPC at 0.5C/1C/2C"
+# and "1C Reference" (the reference capacity discharge at 1C, every 20 cycles).  The entry start times are
+# MATLAB string objects scipy cannot decode, so the kernel builds a test-time axis from the 1 Hz sample
+# counts (seconds since the cell's first sample); wall-clock dates are VERIFY in the datasheet.  One dataset
+# per chemistry (the kernel keys chemistry by dataset).
+# ---------------------------------------------------------------------------
+TURKU_SUBSETS = {   # dataset -> (folder / file prefix, nominal Ah, cells)
+    "turku_rc_nca": ("NCA", 2.55, 4),   # Samsung ICR18650-26J
+    "turku_rc_nmc": ("NMC", 4.0, 2),    # Samsung INR21700-40T
+    "turku_rc_lfp": ("LFP", 3.0, 2),    # JGNE JGPFR26650
+}
+TURKU_RAW = Path("raw") / "turku_rc" / "DATASET"
+TURKU_CHARGE_CURRENT_MIN_A = 0.01
+TURKU_CYCLE_COMMENT = "Random Walking"
+TURKU_REFERENCE_COMMENT = "1C Reference"
+
+
+def turku_cell_files(data_dir: str | Path, dataset: str) -> list[tuple[str, Path]]:
+    folder, _, _ = TURKU_SUBSETS[dataset]
+    directory = Path(data_dir) / TURKU_RAW / folder
+    return sorted((path.stem, path) for path in directory.glob(f"{folder}_CELL_*.mat"))
+
+
+def read_turku_cell(path: str | Path) -> list[dict]:
+    """The cell's entries in file order: ``comment``, ``voltage``, ``current``, ``temperature`` arrays."""
+    import scipy.io as sio
+
+    payload = sio.loadmat(path, squeeze_me=True, struct_as_record=False)
+    table = payload["table"]
+    entries = []
+    for item in np.atleast_1d(table):
+        entries.append({"comment": str(item.Comment), "voltage": np.asarray(item.Voltage, dtype=float).ravel(),
+                        "current": np.asarray(item.Current, dtype=float).ravel(),
+                        "temperature": np.asarray(item.Temperature, dtype=float).ravel()})
+    return entries
+
+
+def iter_turku_records(data_dir: str | Path, dataset: str, cells: set[str] | None = None) -> Iterator[dict]:
+    """Yield ``{cell_id, index, comment, offset_s, voltage, current, temperature}`` per entry with the
+    running test time (1 Hz samples; one second between entries)."""
+    for cell_id, path in turku_cell_files(data_dir, dataset):
+        if cells is not None and cell_id not in cells:
+            continue
+        offset = 0.0
+        for index, entry in enumerate(read_turku_cell(path)):
+            yield {"cell_id": cell_id, "index": index, "offset_s": offset, **entry}
+            offset += float(len(entry["current"])) + 1.0
+
+
+def turku_charge_segment(entry: dict, nominal_ah: float) -> tuple[dict[str, np.ndarray], tuple[int, int]] | None:
+    """The entry's CC-CV charge: the charging span with the largest Ah (``segments.charging_spans`` with the
+    Spec 12 defaults, so the short rest between the CC and CV steps is bridged); arrays of its samples with
+    the current above the threshold, time re-based to the span start, charge accumulated from zero."""
+    from .segments import DEFAULT_CONFIG, accumulated_charge_ah, charging_spans
+
+    i = entry["current"]
+    t = np.arange(len(i), dtype=float)
+    spans = charging_spans(t, i, nominal_ah, DEFAULT_CONFIG)
+    if not spans:
+        return None
+    best = max(spans, key=lambda span: float(accumulated_charge_ah(t[span[0]:span[1] + 1], i[span[0]:span[1] + 1])[-1]))
+    first, last = best
+    sl = slice(first, last + 1)
+    q = accumulated_charge_ah(t[sl], i[sl])
+    mask = i[sl] > TURKU_CHARGE_CURRENT_MIN_A
+    if int(mask.sum()) < 2:
+        return None
+    return ({"voltage": entry["voltage"][sl][mask], "current": i[sl][mask], "charge": q[mask], "time": (t[sl] - t[first])[mask],
+             "temperature": entry["temperature"][sl][mask]}, best)
+
+
+def _iter_turku(data_dir: Path, processed: pd.DataFrame | None, dataset: str) -> Iterator[Curve]:
+    cells = set(processed["cell_id"].astype(str)) if processed is not None and "cell_id" in processed else None
+    wanted = None
+    if processed is not None and "segment_start_s" in processed.columns:
+        wanted = {(str(c), float(s)): int(k) for c, s, k in zip(processed["cell_id"], processed["segment_start_s"], processed["cycle_index"])}
+    nominal = TURKU_SUBSETS[dataset][1]
+    for record in iter_turku_records(data_dir, dataset, cells):
+        if record["comment"] != TURKU_CYCLE_COMMENT:
+            continue
+        found = turku_charge_segment(record, nominal)
+        if found is None:
+            continue
+        segment, (first, _last) = found
+        key = (record["cell_id"], record["offset_s"] + first)
+        if wanted is not None and key not in wanted:
+            continue
+        cycle_index = wanted[key] if wanted is not None else record["index"]
+        yield record["cell_id"], int(cycle_index), segment["voltage"], segment["charge"], segment["time"]
+
+
+def _iter_turku_nca(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
+    return _iter_turku(data_dir, processed, "turku_rc_nca")
+
+
+def _iter_turku_nmc(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
+    return _iter_turku(data_dir, processed, "turku_rc_nmc")
+
+
+def _iter_turku_lfp(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
+    return _iter_turku(data_dir, processed, "turku_rc_lfp")
+
+
 def _iter_snl_nmc(data_dir: Path, processed: pd.DataFrame | None) -> Iterator[Curve]:
     return _iter_snl(data_dir, processed, "NMC")
 
@@ -568,6 +676,9 @@ CHARGE_CURVE_SOURCES = {
     "tongji_blend": _iter_tongji_blend,
     "forklift_lfp180": _iter_forklift,   # D8 (2026-09-05): scripts/ingest_forklift_lfp180.py (K13 segments)
     "matr": _iter_matr,                  # D9 (2026-09-05): scripts/ingest_matr.py
+    "turku_rc_nca": _iter_turku_nca,     # D3 (2026-09-05): scripts/ingest_turku_rc.py
+    "turku_rc_nmc": _iter_turku_nmc,
+    "turku_rc_lfp": _iter_turku_lfp,
 }
 
 

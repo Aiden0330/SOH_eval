@@ -33,6 +33,9 @@ RAW_BINDINGS = {
     "tongji_blend": ["raw/tongji"],
     "forklift_lfp180": ["raw/forklift_lfp180"],
     "matr": ["raw/matr"],
+    "turku_rc_nca": ["raw/turku_rc"],
+    "turku_rc_nmc": ["raw/turku_rc"],
+    "turku_rc_lfp": ["raw/turku_rc"],
 }
 
 LICENSES = {
@@ -50,6 +53,9 @@ LICENSES = {
     "tongji_blend": {"license": "CC-BY-4.0", "source": "Zhu et al. 2022 / Zenodo 6405084 (Dataset_3 NCM+NCA)"},
     "forklift_lfp180": {"license": "CC-BY-4.0", "source": "Vilsen & Stroe 2024 / Mendeley Data yz4pttm73n v2"},
     "matr": {"license": "cite-the-paper (data.matr.io terms; VERIFY)", "source": "Severson et al. 2019 + Attia et al. 2020 / data.matr.io (4 batches)"},
+    "turku_rc_nca": {"license": "CC-BY-NC-3.0 (FairData record; the article is CC BY 4.0)", "source": "Heydarzadeh et al. 2025 / FairData 10.23729/b07462e8-9e31-428c-bdd5-deb1890c608b (NCA cells)"},
+    "turku_rc_nmc": {"license": "CC-BY-NC-3.0 (FairData record; the article is CC BY 4.0)", "source": "Heydarzadeh et al. 2025 / FairData 10.23729/b07462e8-9e31-428c-bdd5-deb1890c608b (NMC cells)"},
+    "turku_rc_lfp": {"license": "CC-BY-NC-3.0 (FairData record; the article is CC BY 4.0)", "source": "Heydarzadeh et al. 2025 / FairData 10.23729/b07462e8-9e31-428c-bdd5-deb1890c608b (LFP cells)"},
 }
 
 CURVE_TOKENS = {"calce_cs2": "calce", "rwth_isea_public": "rwth"}
