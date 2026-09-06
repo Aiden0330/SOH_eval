@@ -177,23 +177,32 @@ FACTS = {
                      "prediction with deep learning. J. Power Sources 506, 230024. Dataset: Time-series cyclic aging data on 48 commercial NMC/graphite "
                      "Sanyo/Panasonic UR18650E cylindrical cells, RWTH Publications record 818642, DOI 10.18154/RWTH-2021-04545."),
         "url": "https://publications.rwth-aachen.de/record/818642",
-        "license": ("VERIFY — the record states 'The file Content.pdf contains information about the test setup, data, and license', but the PDF is "
-                    "served as a download only and the GitHub mirror carries no LICENSE (GitHub API license null; survey 2026-09-05): the owner opens "
-                    "Content_RWTH-2021-04545.pdf to close this field"),
-        "retrieved": f"{REVIEW_DATE} (RWTH record via web review; GitHub mirror readme via API); {SURVEY_DATE} (record page read in a browser; mirror README via the GitHub API)",
+        "license": ("CC BY 4.0 — Content_RWTH-2021-04545.pdf §5 'License' (the record's metadata file, downloaded and opened by the owner 2026-09-06; "
+                    "kept at docs/Content_RWTH-2021-04545.pdf, sha256 6166a43ede381774c00d931d226fb1b78ebd6e5f1325209e2294d36fccf6d922): the dataset under "
+                    "DOI 10.18154/RWTH-2021-04545 by RWTH Aachen ISEA 'is licensed under a Creative Commons Attribution 4.0 International License' "
+                    "(creativecommons.org/licenses/by/4.0/); the GitHub mirror itself carries no LICENSE file (GitHub API license null, survey 2026-09-05)"),
+        "retrieved": f"{REVIEW_DATE} (RWTH record via web review; GitHub mirror readme via API); {SURVEY_DATE} (record page read in a browser; mirror README via the GitHub API); 2026-09-06 (Content_RWTH-2021-04545.pdf downloaded from the record by the owner and read)",
         "cathode": "NMC", "anode": "graphite", "verified_by": REVIEWER, "verified_on": REVIEW_DATE,
-        "format": "18650 (Sanyo/Panasonic UR18650E)", "rated_source": "RWTH-2021-04545 record (nominal 1.85 Ah); table per-cell maximum 1.83-1.85 Ah",
+        "format": "18650 (Sanyo/Panasonic UR18650E)", "rated_source": "RWTH-2021-04545 record (nominal 1.85 Ah); Content.pdf §2: grade-C cells of one production lot with a mean capacity of about 1.85 Ah against the A-grade nominal 2.05 Ah; table per-cell maximum 1.83-1.85 Ah",
         "chemistry_evidence": ("RWTH Publications record 818642: 'Time-series cyclic aging data on 48 commercial NMC/graphite Sanyo/Panasonic UR18650E "
-                               "cylindrical cells', nominal capacity 1.85 Ah. scripts/validate_trusted_plugin_workflow.py builds this table from "
+                               "cylindrical cells', nominal capacity 1.85 Ah; Content.pdf §2 (2026-09-06): carbon anode, NMC cathode. scripts/validate_trusted_plugin_workflow.py builds this table from "
                                "'Pre-processing Codes/Degradation_Prediction_Dataset_ISEA.mat' in github.com/isea-rwth-aachen/battery-degradation-"
                                "trajectory-prediction (mirror of git.rwth-aachen.de/isea/..., '48 cells during ageing tests') keeping 8 cells; the "
                                "per-cell maximum capacities (1.83-1.85 Ah) match. The previous label 'LFP (Fortelion residential storage)' was wrong: "
                                "it described the separate rwth_hss field data."),
-        "segments": [{"id": "cycling", "rate": ("VERIFY — 'aged with the same profile under equal conditions' (record); the profile's C-rates are in Content.pdf, "
-                                                  "which was not readable in the survey")}],
-        "temperature_c": [V],
-        "reference_test": ("regular reference parameter tests (record: 'aging reference parameter tests (RPT) were conducted in regular intervals'; mirror "
-                           "README: initial characterisation with 'capacity test with various C-rates', qOCV and EIS); the C-rate behind capacity_ah VERIFY"),
+        "segments": [{"id": "cycling", "rate": ("Content.pdf §3: one cycle = 30 min discharge to 3.5 V then 30 min charge to 3.9 V, both current-limited to 4 A "
+                                                  "(about 2.2 C of the 1.85 Ah mean capacity); charge turnover about 1 Ah between roughly 20 % and 80 % SoC; the "
+                                                  "voltage limits keep the depth of discharge relative to the aged capacity nearly constant, so the turnover falls "
+                                                  "with SOH")},
+                     {"id": "bol_and_rpt", "rate": ("Content.pdf §3: capacity at several current rates between 3.0 V and 4.1 V; charge CC 2 A (about 1.1 C) to "
+                                                     "4.1 V, CV until 40 mA; pulse resistances at three voltage levels (about 70 / 50 / 30 % SoC, set by CC 2 A "
+                                                     "then CV to 40 mA at 25 °C); impedance spectra at three temperatures at BOL only; the RPT repeats the capacity "
+                                                     "and pulse tests at 25 °C without impedance")}],
+        "temperature_c": [25],
+        "reference_test": ("Content.pdf §3: RPT in regular intervals with capacity tests and pulse-resistance tests at 25 °C, no impedance; the performance "
+                           "measure is the 2 A discharge capacity (about 1.1 C, 3.0 V cut-off after a CC 2 A / CV 4.1 V charge to 40 mA), which the mirror "
+                           ".mat capacity histories are taken to be (record: RPT 'in regular intervals'; mirror README: BOL 'capacity test with various "
+                           "C-rates', qOCV and EIS)"),
         "measured": ["capacity_ah"], "window": None,
         "known_issues": ["all 47 cells of the public .mat ingested on 2026-09-04 (D1; until then 8, validate_trusted_plugin_workflow max_cells=8). The RWTH record describes 48 cells; the mirror's Degradation_Prediction_Dataset_ISEA.mat carries cell ids 1-47, so one cell of the record is absent from the public file (VERIFY which). The 8-cell subset reproduces exactly; artifacts trained on the 8-cell table are not comparable with 47-cell results",
                          "raw time series (V/I/T) are not ingested — only per-cycle capacity histories from the ISEA .mat; no window or curve features",
@@ -201,8 +210,13 @@ FACTS = {
                          "chemistry corrected from LFP to NMC and rated capacity set to 1.85 Ah on 2026-09-03 (D4)",
                          "raw provenance (D12): work/public_sources/rwth-battery-degradation/Pre-processing Codes/Degradation_Prediction_Dataset_ISEA.mat "
                          "(the isea-rwth-aachen GitHub mirror of git.rwth-aachen.de; TDS = 10,686 (cell, sample) capacity-history records over 48 cells); "
-                         "no time series ingested, so no sampling rate applies; no partial window (no curves)"],
-        "signed": SIGNED, "status": "signed 2026-09-03 (chemistry verified by owner-delegated web review); D12 survey 2026-09-05 filled provenance and the reference-test text; licence, cycling profile and temperature stay unverified (Content.pdf)",
+                         "no time series ingested, so no sampling rate applies; no partial window (no curves)",
+                         "Content.pdf §1 (2026-09-06): the 48 cells started in batches of four every two to three days, so the tests are shifted in time; "
+                         "the PDF does not say which cell the mirror .mat (ids 1-47) lacks — that question stays open (known_issues[0])",
+                         "label-safety note from the profile (Content.pdf §3): cycling between fixed voltage limits makes the per-cycle charge turnover fall "
+                         "with SOH by design — if the record's Rawdata.zip time series are ever ingested, per-cycle throughput and cycle time are "
+                         "label-source columns, not features"],
+        "signed": SIGNED, "status": "signed 2026-09-03 (chemistry verified by owner-delegated web review); D12 survey 2026-09-05 filled provenance and the reference-test text; 2026-09-06 licence (CC BY 4.0), cycling profile, temperature and RPT closed from Content_RWTH-2021-04545.pdf; one field still unverified (known_issues[0]): which of the 48 cells the mirror .mat lacks",
     },
 }
 SIGNED_D1 = {"by": "owner-delegated review 2026-09-04 (Claude Fable 5.1); sources in chemistry.evidence", "on": "2026-09-04"}

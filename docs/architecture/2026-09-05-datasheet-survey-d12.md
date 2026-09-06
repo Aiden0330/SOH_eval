@@ -42,10 +42,31 @@ stays `VERIFY`. Chemistry signatures are untouched (D4/D1); the sheets record th
 | nasa | cathode, anode, chemistry signature | no primary source names the chemistry (PCoE description and the archive README both say only "Li-ion 18650, 2 Ah"); secondary literature is split |
 | hust | cell model | the record page names none; the EES paper's text was not fetchable; BatteryLife/BatteryML call the cells A123 18650 LFP (secondary) |
 | uconn | test temperatures | the record names "11 unique conditions" without listing them |
-| rwth_isea_public | licence, cycling profile (C-rates), temperature | all three sit in `Content_RWTH-2021-04545.pdf`, which the publication server serves as a download only; the GitHub mirror has no LICENSE. **The owner opens the PDF to close them** |
+| rwth_isea_public | licence, cycling profile (C-rates), temperature | all three sit in `Content_RWTH-2021-04545.pdf`, which the publication server serves as a download only; the GitHub mirror has no LICENSE. **closed 2026-09-06 from the PDF (see the closure section below)** |
 
 ## For the owner
 
-The three open items above are one PDF (RWTH) and two facts that only the papers' full texts hold (hust cell model, uconn
-temperatures). Everything else on the nine sheets now traces to a record page, a readme or a measurement that a script
-can repeat.
+Of the three open items above, the RWTH PDF was closed on 2026-09-06 (closure section below). Two facts that only the
+papers' full texts hold stay open (hust cell model, uconn temperatures), plus the RWTH missing-cell question and the nasa
+chemistry. Everything else on the nine sheets now traces to a record page, a readme, the metadata PDF or a measurement
+that a script can repeat.
+
+## Closure 2026-09-06: the RWTH `Content.pdf`
+
+The owner downloaded `Content_RWTH-2021-04545.pdf` from record 818642 and placed it at `docs/Content_RWTH-2021-04545.pdf`
+(sha256 `6166a43ede381774c00d931d226fb1b78ebd6e5f1325209e2294d36fccf6d922`, committed with this closure). Its five sections are the
+dataset's metadata sheet, and they close every RWTH field the survey left open:
+
+| Field | Value | Where |
+|---|---|---|
+| `source.license` | CC BY 4.0: the dataset under DOI 10.18154/RWTH-2021-04545 by RWTH Aachen ISEA is licensed under the Creative Commons Attribution 4.0 International License | §5 |
+| `protocol.segments[cycling]` | 30 min discharge to 3.5 V, 30 min charge to 3.9 V, both current-limited to 4 A; turnover about 1 Ah, roughly 20–80 % SoC; DoD relative to the aged capacity nearly constant | §3 |
+| `protocol.segments[bol_and_rpt]` | capacity at several rates between 3.0 and 4.1 V; charge CC 2 A to 4.1 V, CV to 40 mA; pulse resistances at three voltage levels (about 70 / 50 / 30 % SoC); impedance at BOL only | §3 |
+| `protocol.temperature_c` | 25 °C ambient for cycling; conditioning and RPT at 25 °C | §3 |
+| `label_anchor.reference_test` | RPT in regular intervals: capacity and pulse resistance at 25 °C, no impedance; the 2 A discharge capacity is the performance measure | §3 |
+| `cell.rated_source` | grade-C cells of one production lot, mean capacity about 1.85 Ah against the A-grade nominal 2.05 Ah | §2 |
+
+Left open on the sheet: which of the 48 cells (started in batches of four every two to three days, §1) is absent from the
+mirror's 47-cell `.mat`; the PDF does not say. A label-safety note follows from the profile: cycling between fixed voltage
+limits makes the per-cycle charge turnover fall with SOH by design, so if the record's `Rawdata.zip` time series are ever
+ingested, per-cycle throughput and cycle time are label-source columns, not features.

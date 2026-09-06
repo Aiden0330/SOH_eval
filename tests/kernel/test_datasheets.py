@@ -78,7 +78,8 @@ def test_signed_datasheets_agree_with_the_metadata_chemistry_table():
 
 def test_d12_survey_filled_sampling_provenance_and_licences_from_primary_sources():
     """D12 (2026-09-05): the nine sheets carry measured sampling and raw provenance; only the fields no primary source
-    covers stay VERIFY (nasa chemistry, the hust cell model, uconn temperatures, the RWTH licence and profile)."""
+    covers stay VERIFY (nasa chemistry, the hust cell model, uconn temperatures); the RWTH licence, profile and temperature
+    were closed on 2026-09-06 from Content_RWTH-2021-04545.pdf (CC BY 4.0), leaving only the missing-cell question open."""
     from pathlib import Path
 
     from sohkernel.datasheets import load_datasheets, unverified_fields
@@ -99,5 +100,9 @@ def test_d12_survey_filled_sampling_provenance_and_licences_from_primary_sources
     assert sheets["hust"]["sampling"]["interval_s"] == 5.0 and sheets["uconn"]["sampling"]["interval_s"] == 1.0
     assert sheets["snl_lfp"]["sampling"]["interval_s"] == 120.024 and sheets["calce_cs2"]["sampling"]["interval_s"] == 30.015
     assert "chemistry.cathode" in unverified_fields(sheets["nasa"])
-    assert "source.license" in unverified_fields(sheets["rwth_isea_public"])
+    rwth = sheets["rwth_isea_public"]
+    rwth_open = unverified_fields(rwth)
+    assert rwth_open == ["known_issues[0]"], rwth_open  # only the missing-cell question is left
+    assert rwth["source"]["license"].startswith("CC BY 4.0") and rwth["protocol"]["temperature_c"] == [25]
+    assert rwth["protocol"]["segments"][0]["rate"].startswith("Content.pdf §3: one cycle = 30 min discharge to 3.5 V")
     assert sheets["rwth_isea_public"]["sampling"]["rate_hz"] == "not applicable"
