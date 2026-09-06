@@ -1,6 +1,7 @@
 name: uconn
-status: signed 2026-09-03 (chemistry verified by owner-delegated web review); remaining
-  VERIFY fields are non-chemistry
+status: signed 2026-09-03 (chemistry verified by owner-delegated web review); D12
+  survey 2026-09-05 filled sampling, provenance and the RPT charge; temperatures stay
+  unverified
 source:
   citation: 'Nowacki, B., Ramamurthy, J., Thelen, A., Tischer, C., Pint, C. L., Hu,
     C. (2025). UConn-ISU-ILCC LFP/Gr Battery Aging Dataset. UConn Digital Commons,
@@ -27,17 +28,24 @@ cell:
 protocol:
   segments:
   - id: rpt_charge
-    rate: 1C reference charge
+    rate: 1C reference charge to 3.6 V (measured 1.20 A = 1.09C and 3.601 V max in
+      rpt_cell_02_part0.csv, 2026-09-05)
   temperature_c:
   - VERIFY
 label_anchor:
   formula: soh = calibration_capacity / rated_capacity_ah
   measured_quantities:
   - charge_capacity_max
-  reference_test: RPT reference discharge
+  reference_test: RPT reference discharge every ~100 cycles (about 3.5 days; record)
   label_source: calibration_capacity
 sampling:
-  rate_hz: VERIFY
+  rate_hz: 1.0
+  interval_s: 1.0
+  interval_p10_s: 1.0
+  interval_p90_s: 1.0
+  segments_measured: 400
+  method: median per-cycle time step of the raw charge segments (sohkernel.raw_windows.iter_charge_curves,
+    first 400 segments) (scripts/measure_raw_provenance.py, 2026-09-06T01:22:23Z)
   channels:
   - V
   - I
@@ -50,9 +58,22 @@ windows:
   coverage_median: 0.536
   calibrated_on: '2026-08-25'
 digests:
-  raw: VERIFY
-  processed: 9756c28a946404496996c5fd917690075cea71c95865c4f80401549eed653828
+  raw: 36af45e142fa5c9097384bfa6510a8bb2279fd5e5b5477c6865782bdc55730ae
+  processed: 961cf183c063d470e8499fa38279f843bd814ab8428e1292ebf5295d4c3d97f3
   curves: 6f2d3a3a5af5993b85719dd855d064586cda56ff79c4caa002946fe495318d15
+provenance:
+  raw_files:
+  - path: data/raw/uconn_lfp/cycling_part1.zip
+    bytes: 6709400021
+    sha256: 63546377f5f5b4bd9c3b4cd9b1dc112fbb2dceb7d80a04185ded51976e6d55c0
+  - path: data/raw/uconn_lfp/cycling_part2.zip
+    bytes: 7214783517
+    sha256: 8d26d9fe47558b56a92fa982c0730c96572be438e19312f7961bdd452367601e
+  - path: data/raw/uconn_lfp/rpt_data.zip
+    bytes: 2406386911
+    sha256: 11d9003536d61019573f2e2ccefc656c7bfc9acbe418758ca32b90913c219952
+  measured_at: '2026-09-06T01:22:23Z'
+  reference: scripts/measure_raw_provenance.py -> data/datasheets/_provenance.json
 leak_scan:
   label_source_columns:
   - charge_capacity_max
@@ -61,6 +82,11 @@ leak_scan:
 held_out_ready: true
 known_issues:
 - 64 rows in 32 duplicated (cell, cycle) identities are dropped by QC since 2026-09-03
+- 'raw provenance (D12): data/raw/uconn_lfp/{cycling_part1.zip, cycling_part2.zip,
+  rpt_data.zip} from the UConn Digital Commons record (CC BY 4.0); the record states
+  1 Hz sampling for cycling and RPT (measured 1.00 s, 2026-09-05)'
+- 'test temperatures stay unverified: the record names ''11 unique conditions'' without
+  listing them (survey 2026-09-05)'
 signed:
   by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in chemistry.evidence
   'on': '2026-09-03'

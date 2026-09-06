@@ -1,13 +1,14 @@
 name: oxford
-status: signed 2026-09-03 (chemistry verified by owner-delegated web review); remaining
-  VERIFY fields are non-chemistry
+status: signed 2026-09-03 (chemistry verified by owner-delegated web review); D12
+  survey 2026-09-05 filled sampling and provenance
 source:
   citation: Howey, D. and Birkl, C. (2017). Oxford Battery Degradation Dataset 1.
     University of Oxford, ORA; Birkl, C. R. (2017). Diagnosis and Prognosis of Degradation
     in Lithium-Ion Batteries. DPhil thesis, University of Oxford.
   url: https://ora.ox.ac.uk/objects/uuid:03ba4b01-cfed-46d3-9b1a-7d4a7bdf6fac
   license: ODC-ODbL (database), DbCL (contents) — readme
-  retrieved: 2026-09-03 (ORA record and Readme.txt fetched)
+  retrieved: 2026-09-03 (ORA record and Readme.txt fetched); 2026-09-05 (Readme.txt
+    on disk re-read; .mat measured)
 chemistry:
   cathode: LCO/NCO
   anode: graphite
@@ -43,16 +44,33 @@ label_anchor:
   reference_test: 1C characterisation discharge every 100 Artemis drive cycles (readme)
   label_source: calibration_capacity
 sampling:
-  rate_hz: VERIFY
+  rate_hz: 1.0
+  interval_s: 1.0
+  interval_p10_s: 1.0
+  interval_p90_s: 1.0
+  segments_measured: 40
+  method: median time step of the 1C characterisation charges (C1ch.t, stored as a
+    fraction of a day) over 8 cells x 5 check-ups (scripts/measure_raw_provenance.py,
+    2026-09-06T01:22:24Z)
   channels:
   - V
   - I
   - T
-windows: VERIFY
+windows: []
 digests:
-  raw: VERIFY
+  raw: b7ab686007b61c300242c0f86c81dab77608ba757f07e7bc125184cdea745382
   processed: 9db249a5ae4a6d677045a79fedcbee83dc0c2846e145f7256f8a5eb78b9809a8
   curves: 41b24309d6bb6584748768e8844db324e02cc7c1adda60ae945f56c04b57debd
+provenance:
+  raw_files:
+  - path: data/raw/oxford/Oxford_Battery_Degradation_Dataset_1.mat
+    bytes: 266164290
+    sha256: a8f0b928f4ea77d7ba98b97194b78cc77336f2338fee8b57573d043f0cf26781
+  - path: data/raw/oxford/Readme.txt
+    bytes: 5643
+    sha256: f04c8bdae97e98632b9daeaa7c71631990dbf5ecbf38711347fc470baefc0def
+  measured_at: '2026-09-06T01:22:24Z'
+  reference: scripts/measure_raw_provenance.py -> data/datasheets/_provenance.json
 leak_scan:
   label_source_columns:
   - charge_capacity_max
@@ -61,6 +79,13 @@ leak_scan:
 held_out_ready: true
 known_issues:
 - 519 characterisation points only; coverage median 0.594 of rated (wide window warning)
+- 'no partial window calibrated: the processed table holds the characterisation cycles
+  (1C charges every 100 Artemis drive cycles), and the window scan has no raw-curve
+  source registered for oxford (D12)'
+- 'raw provenance (D12): data/raw/oxford/Oxford_Battery_Degradation_Dataset_1.mat
+  + Readme.txt (Howey & Birkl, June 2017; tests started 2015-01-08, Bio-Logic MPG-205,
+  Binder chamber at 40 degC); time is stored as a fraction of a day — 1.0 s steps
+  (measured 2026-09-05)'
 signed:
   by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in chemistry.evidence
   'on': '2026-09-03'

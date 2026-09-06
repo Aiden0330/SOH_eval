@@ -1,6 +1,7 @@
 name: rwth_isea_public
-status: signed 2026-09-03 (chemistry verified by owner-delegated web review); remaining
-  VERIFY fields are non-chemistry
+status: signed 2026-09-03 (chemistry verified by owner-delegated web review); D12
+  survey 2026-09-05 filled provenance and the reference-test text; licence, cycling
+  profile and temperature stay unverified (Content.pdf)
 source:
   citation: 'Li, W., Sengupta, N., Dechent, P., Howey, D., Annaswamy, A., Sauer, D.
     U. (2021). One-shot battery degradation trajectory prediction with deep learning.
@@ -8,9 +9,12 @@ source:
     NMC/graphite Sanyo/Panasonic UR18650E cylindrical cells, RWTH Publications record
     818642, DOI 10.18154/RWTH-2021-04545.'
   url: https://publications.rwth-aachen.de/record/818642
-  license: VERIFY (carried in the record's Contents.pdf; the GitHub mirror shows no
-    license)
-  retrieved: 2026-09-03 (RWTH record via web review; GitHub mirror readme via API)
+  license: 'VERIFY — the record states ''The file Content.pdf contains information
+    about the test setup, data, and license'', but the PDF is served as a download
+    only and the GitHub mirror carries no LICENSE (GitHub API license null; survey
+    2026-09-05): the owner opens Content_RWTH-2021-04545.pdf to close this field'
+  retrieved: 2026-09-03 (RWTH record via web review; GitHub mirror readme via API);
+    2026-09-05 (record page read in a browser; mirror README via the GitHub API)
 chemistry:
   cathode: NMC
   anode: graphite
@@ -33,28 +37,38 @@ cell:
     Ah
 protocol:
   segments:
-  - id: VERIFY
-    rate: VERIFY
+  - id: cycling
+    rate: VERIFY — 'aged with the same profile under equal conditions' (record); the
+      profile's C-rates are in Content.pdf, which was not readable in the survey
   temperature_c:
   - VERIFY
 label_anchor:
   formula: soh = calibration_capacity / rated_capacity_ah
   measured_quantities:
   - capacity_ah
-  reference_test: 'regular characterisation capacity tests (mirror readme: ''capacity
-    test with various C-rates''); the C-rate behind capacity_ah VERIFY'
+  reference_test: 'regular reference parameter tests (record: ''aging reference parameter
+    tests (RPT) were conducted in regular intervals''; mirror README: initial characterisation
+    with ''capacity test with various C-rates'', qOCV and EIS); the C-rate behind
+    capacity_ah VERIFY'
   label_source: calibration_capacity
 sampling:
-  rate_hz: VERIFY
-  channels:
-  - V
-  - I
-  - T
-windows: VERIFY
+  rate_hz: not applicable
+  method: 'not applicable: the ingested mirror .mat (Degradation_Prediction_Dataset_ISEA.mat)
+    holds per-cycle capacity histories, not time series; the record''s Rawdata.zip
+    time series are not ingested'
+  channels: []
+windows: []
 digests:
-  raw: VERIFY
+  raw: 8311be3ed1652d36cd3101f59515021f9b6dc577dbbd8431943c089b904910d0
   processed: 7b277c289acc2d7c697c49f9f70ce6e76427841e5d208ff8aec5facb201510da
   curves: bad2d5e2f8db9078492a6f044b0fdced05589faf131c811b8e02a47736624872
+provenance:
+  raw_files:
+  - path: work/public_sources/rwth-battery-degradation/Pre-processing Codes/Degradation_Prediction_Dataset_ISEA.mat
+    bytes: 18638565
+    sha256: 1b85bbef5098024ae508c6f097da2892a7027298505f4b3d7f7189e74825c272
+  measured_at: '2026-09-06T01:25:00Z'
+  reference: scripts/measure_raw_provenance.py -> data/datasheets/_provenance.json
 leak_scan:
   label_source_columns:
   - capacity_ah
@@ -73,6 +87,11 @@ known_issues:
   from another source, not these cells
 - chemistry corrected from LFP to NMC and rated capacity set to 1.85 Ah on 2026-09-03
   (D4)
+- 'raw provenance (D12): work/public_sources/rwth-battery-degradation/Pre-processing
+  Codes/Degradation_Prediction_Dataset_ISEA.mat (the isea-rwth-aachen GitHub mirror
+  of git.rwth-aachen.de; TDS = 10,686 (cell, sample) capacity-history records over
+  48 cells); no time series ingested, so no sampling rate applies; no partial window
+  (no curves)'
 signed:
   by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in chemistry.evidence
   'on': '2026-09-03'

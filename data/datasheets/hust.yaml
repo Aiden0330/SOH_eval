@@ -1,14 +1,16 @@
 name: hust
-status: signed 2026-09-03 (chemistry verified by owner-delegated web review); remaining
-  VERIFY fields are non-chemistry
+status: signed 2026-09-03 (chemistry verified by owner-delegated web review); D12
+  survey 2026-09-05 filled sampling, provenance and the charge stages; the cell model
+  stays unverified
 source:
   citation: 'Ma, G., Xu, S., Jiang, B., Cheng, C., Yang, X., Shen, Y., Yang, T., Huang,
     Y., Ding, H., Yuan, Y. (2022). Real-time personalized health status prediction
     of lithium-ion batteries using deep transfer learning. Energy & Environmental
     Science 15(10), 4083-4094. Dataset: Mendeley Data v2 (2022-05-24), DOI 10.17632/nsc7hnsg4s.2.'
   url: https://data.mendeley.com/datasets/nsc7hnsg4s/2
-  license: CC BY 4.0 (Mendeley record)
-  retrieved: 2026-09-03 (record fetched)
+  license: CC BY 4.0 (Mendeley record page, 'Licence CC BY 4.0', re-read 2026-09-05)
+  retrieved: 2026-09-03 (record fetched); 2026-09-05 (record page re-read; raw pickles
+    measured)
 chemistry:
   cathode: LFP
   anode: graphite
@@ -20,16 +22,22 @@ chemistry:
     capacity and 3.3 V nominal voltage)'' with an ''identical charge protocol but
     different multi-stage discharge protocols at a constant temperature of 30°C''.'
 cell:
-  format: 18650, 1.1 Ah / 3.3 V nominal (record); cell model reported as A123 APR18650M1A
-    in the paper (model VERIFY)
+  format: 18650, 1.1 Ah / 3.3 V nominal (record); cell model VERIFY — the record page
+    names none and the EES paper's text was not fetchable in the 2026-09-05 survey
+    (BatteryLife/BatteryML describe the cells as A123 18650 LFP; secondary)
   rated_capacity_ah: 1.1
   rated_source: Mendeley record (1.1 Ah nominal capacity)
 protocol:
   segments:
   - id: cc_charge
-    rate: identical fast-charge protocol for all cells (record); stages VERIFY
+    rate: 'identical fast-charge protocol for all cells (record): CC at 5C — 5.50
+      A median measured in cycle 2 of cell 1-1 (2026-09-05) — to about 3.54 V, then
+      a stage the raw frames label ''Constant current-constant voltage charge'' (about
+      21 min at 5 s logging)'
   - id: discharge
-    rate: 77 distinct multi-stage discharge protocols (record); rates VERIFY
+    rate: '77 distinct multi-stage CC discharge protocols (record): four CC discharge
+      stages per cycle in the raw frames (statuses Constant current discharge_0..3);
+      cell 1-1 cycle 2 reaches 1.94 V (measured)'
   temperature_c:
   - 30
 label_anchor:
@@ -39,7 +47,13 @@ label_anchor:
   reference_test: capacity of each discharge
   label_source: calibration_capacity
 sampling:
-  rate_hz: VERIFY
+  rate_hz: 0.2
+  interval_s: 5.0
+  interval_p10_s: 5.0
+  interval_p90_s: 5.0
+  segments_measured: 400
+  method: median per-cycle time step of the raw charge segments (sohkernel.raw_windows.iter_charge_curves,
+    first 400 segments) (scripts/measure_raw_provenance.py, 2026-09-06T01:22:33Z)
   channels:
   - V
   - I
@@ -52,16 +66,257 @@ windows:
   coverage_median: 0.486
   calibrated_on: '2026-08-25'
 digests:
-  raw: VERIFY
-  processed: 40a4e3c46861a3d065a9a531b479718467a497c764b68a9e92329156d4d777d1
+  raw: ace2044257dae8bf61c8e27d12b377195b528fd4ba48bc4f4f5c18ad7b21e1dd
+  processed: f9057bd08701c120df6ba11d6b9590667d696a9c17ccc6b40a2d00b112a8295b
   curves: 3109db334b2955ab9dd49a3d2c6939409c0e84d7a226b33da4e31d10988a2b81
+provenance:
+  raw_files:
+  - path: data/raw/hust/hust_data.zip
+    bytes: 1188136932
+    sha256: 071d24617153693b0d29059568525e620f6af6512acc9d00c98c7adcf15125db
+  - path: data/raw/hust/our_data/1-1.pkl
+    bytes: 53553885
+    sha256: 8e43eac20a707f094b3e01e44cb36b1d8229a91529dc973677b37f3605766df2
+  - path: data/raw/hust/our_data/1-2.pkl
+    bytes: 88277079
+    sha256: 2c7bc486d4f924dae68281e0457899c6e251a7c7bc698de2617553cb0e8f64d3
+  - path: data/raw/hust/our_data/1-3.pkl
+    bytes: 57386031
+    sha256: bc6d7d73230c12ff39add072a30a1847dacc752de8648812988c0c07a8fedbf4
+  - path: data/raw/hust/our_data/1-4.pkl
+    bytes: 45359349
+    sha256: 026298432bbb80af22ee519104ba19f4f8c0c969034c38a027d46d66d9349975
+  - path: data/raw/hust/our_data/1-5.pkl
+    bytes: 58293447
+    sha256: 8510ee7e9790f1cc3771adcd001d2a5a04de05d187c4ffed161bc4091b5e0f52
+  - path: data/raw/hust/our_data/1-6.pkl
+    bytes: 37837770
+    sha256: 59be9413cf02d83a3c07c7f86cfc50ef658f0d8750fa12a2b5ee284663144681
+  - path: data/raw/hust/our_data/1-7.pkl
+    bytes: 48766119
+    sha256: bc7ad2462cd3b2b522ceef2548a85fb8f33c3cc3d3e173c5e242b25d2c182199
+  - path: data/raw/hust/our_data/1-8.pkl
+    bytes: 64277382
+    sha256: dda097addc0b0feb922233053763df943db1573be52efb8d7289baa40c685555
+  - path: data/raw/hust/our_data/10-1.pkl
+    bytes: 45067561
+    sha256: 87a2576487d8465c47a780f4dbf7ad7a373bd8c8393f7c39e3e7ff03151e1683
+  - path: data/raw/hust/our_data/10-2.pkl
+    bytes: 44034424
+    sha256: 9eccf6f4fc97488b40cf461e071f330e0c8527f73cf010e636725b4573e32e94
+  - path: data/raw/hust/our_data/10-3.pkl
+    bytes: 46403656
+    sha256: 9b27d2726e351cb70b3707495a0171c8afd384bab18fe4422dda89227fa9222d
+  - path: data/raw/hust/our_data/10-4.pkl
+    bytes: 62687977
+    sha256: 30d4be4a45db8ac8d419f39fc6bd21b727f4bd04568ba496e03c8ee5ea97fc69
+  - path: data/raw/hust/our_data/10-5.pkl
+    bytes: 62100715
+    sha256: 6f2f7a1404cb62b32666b2035bfb348c6eded2b6afab20d2c5972ae5d5934ab8
+  - path: data/raw/hust/our_data/10-6.pkl
+    bytes: 72938470
+    sha256: c899d3553f1881a83d818641d91287f5667d3ce995e6576858eaed5a55a3619d
+  - path: data/raw/hust/our_data/10-7.pkl
+    bytes: 55462822
+    sha256: 6e00893258c842a817c5b0dab0d7da1667ecfd18407b37a377eeaa31824053cd
+  - path: data/raw/hust/our_data/10-8.pkl
+    bytes: 47141296
+    sha256: b303b08d317012a1f976a8bebed99e08f914cf8623063eb7f190d63a2346782d
+  - path: data/raw/hust/our_data/2-2.pkl
+    bytes: 72468021
+    sha256: 37d0e00e4eef6039ea1b091e0059d58118f9306e408945285122127c542835c1
+  - path: data/raw/hust/our_data/2-3.pkl
+    bytes: 54662280
+    sha256: 0a8b444851a441006eaafd123ecb538cfbadf457fb6e3f9bfaa34ae740e56f45
+  - path: data/raw/hust/our_data/2-4.pkl
+    bytes: 41683974
+    sha256: f0b6a0a74e0a380b645cb6d442bad76bb182e4043cc121e3788efb2c8ed8b4ef
+  - path: data/raw/hust/our_data/2-5.pkl
+    bytes: 36734361
+    sha256: 1092a099e19424b0af54421761be8fcbbf7d8b7837710bee9bb38816a4ab4cd4
+  - path: data/raw/hust/our_data/2-6.pkl
+    bytes: 40868952
+    sha256: feafc6341d6f4d6f72f9d789244a64f8de884805ee9eb9b90c8530f941239203
+  - path: data/raw/hust/our_data/2-7.pkl
+    bytes: 55935489
+    sha256: 30cc5d67c68bd012b1913f43d97a23f27b81d0e9d912ea010cc93a435b031fdc
+  - path: data/raw/hust/our_data/2-8.pkl
+    bytes: 44391066
+    sha256: 6eff0ea22920876cce86f9d10b8e9093f2b3a466fe560b1e655b958785bfdd6f
+  - path: data/raw/hust/our_data/3-1.pkl
+    bytes: 52017495
+    sha256: ed79e97a7e086a8a2cad3fbcc1cad29dbfe3447f13df5aa8ed02142cdc204187
+  - path: data/raw/hust/our_data/3-2.pkl
+    bytes: 57696618
+    sha256: 68488c116ac3127a75169f1c47509f673421680cc555868be7c22c3ccfb73d6a
+  - path: data/raw/hust/our_data/3-3.pkl
+    bytes: 40708923
+    sha256: f5fb84a2d24b0795493cf05abc3fa02dc5b4d2b3a2129b6bf9265474bec84918
+  - path: data/raw/hust/our_data/3-4.pkl
+    bytes: 41969958
+    sha256: 9a81b15764a4bc0f86e934d15e827a3285a2b4689f7a655b7c2ddc518076962f
+  - path: data/raw/hust/our_data/3-5.pkl
+    bytes: 81214392
+    sha256: 7bfb34f71690517fd082c892ffe7371cf85ab90f4c56373c2e883db8ac1aa8a7
+  - path: data/raw/hust/our_data/3-6.pkl
+    bytes: 64989705
+    sha256: b99b657ccce0cee5337515fc5beabaddb7b8b1b5ff4d36814361b1f18e681a56
+  - path: data/raw/hust/our_data/3-7.pkl
+    bytes: 59580543
+    sha256: f4802f0dcb18ca04ac857c5b2be7eafde7fed0740a91ed45546a2db0303087f4
+  - path: data/raw/hust/our_data/3-8.pkl
+    bytes: 57806004
+    sha256: bc40eced0c468ee0675a9c68157dd40e60941eecbd7cba3ce256195341edc100
+  - path: data/raw/hust/our_data/4-1.pkl
+    bytes: 50474919
+    sha256: 9274a9fbe3d13eb623426649fd12f3fde73407347d6b402b55e65556259ffec2
+  - path: data/raw/hust/our_data/4-2.pkl
+    bytes: 65063571
+    sha256: a97a3cc10127e5c343ff1a82fc8375ac10b04730b7d25904f50d13ea62d0c164
+  - path: data/raw/hust/our_data/4-3.pkl
+    bytes: 37450896
+    sha256: 73c76630017c14e66ceda20912789016591b1f2c74076b9973b0603485158b15
+  - path: data/raw/hust/our_data/4-4.pkl
+    bytes: 46627386
+    sha256: 666e50a60d1bb515c7ff3eaafb4cae64f91f42331b24c747f5de1cc222d27821
+  - path: data/raw/hust/our_data/4-5.pkl
+    bytes: 48530985
+    sha256: f0ba57806a9daa7669e1bcdf21e77e1d9993b4f31394bb092ad8056f558989cb
+  - path: data/raw/hust/our_data/4-6.pkl
+    bytes: 40867386
+    sha256: 2f8b38bd4478a99ca6d171a435ff7ae3a5d4d08e97c769421e592135f334dd3f
+  - path: data/raw/hust/our_data/4-7.pkl
+    bytes: 76911825
+    sha256: 0cd29061c172c6ed937f72ba354d895420d4085dfaac004c9cf7be4bfe7f52d0
+  - path: data/raw/hust/our_data/4-8.pkl
+    bytes: 51455175
+    sha256: 7cf339c0a671f5352f883a450d96ce0c0516bc0aa5c55afc6c2329c3fccff95b
+  - path: data/raw/hust/our_data/5-1.pkl
+    bytes: 73220160
+    sha256: cfa248ad2fdedc3d6ed6899ccadf234f1df852cf90ef175c3cf8298ce1ccbb44
+  - path: data/raw/hust/our_data/5-2.pkl
+    bytes: 53568717
+    sha256: 16d67c18118cb87a8231adc44eaa05c2169384d330ba8b99e452fa425f649b03
+  - path: data/raw/hust/our_data/5-3.pkl
+    bytes: 74911800
+    sha256: 7ec14ca8a2667cc826c8b568c3576abec93e137f4aa82ed6257c5afa27c776af
+  - path: data/raw/hust/our_data/5-4.pkl
+    bytes: 63971799
+    sha256: d6774635bd8e9d752382a63ed72b884d20cb16d6af2e8b134e2a6827dc8974c0
+  - path: data/raw/hust/our_data/5-5.pkl
+    bytes: 45844557
+    sha256: 33a1a7545ca4bcad7a47efaf78568c4939be65f3e36072f4f1fcda89e9d8ae2d
+  - path: data/raw/hust/our_data/5-6.pkl
+    bytes: 68835702
+    sha256: d39123aa768dcd227c02457d9d60c792a0fbd26e528d59fe4152142d008b6c60
+  - path: data/raw/hust/our_data/5-7.pkl
+    bytes: 38467284
+    sha256: a79aef3d7b683036fc02d7014bc3300b553d721d03e341bdb2903a5eaf67ac8e
+  - path: data/raw/hust/our_data/6-1.pkl
+    bytes: 50344629
+    sha256: 734df0a2e5362e18538869f3caa85ac4dc154b880c8d8a9a15ee1c955dafb2ee
+  - path: data/raw/hust/our_data/6-2.pkl
+    bytes: 54479589
+    sha256: 91fa80eefdc74aac412abce7da044299bfd4421957e274ca175988732b554a5a
+  - path: data/raw/hust/our_data/6-3.pkl
+    bytes: 48102036
+    sha256: 1912dfbb600e40d79986272b9239a41adad8f65cecd9bac02bb9ecba33e913a0
+  - path: data/raw/hust/our_data/6-4.pkl
+    bytes: 44066805
+    sha256: 7fb3818923fac9931dfe042bd763e4a4df9c114db5b65cda3894af65df15f42a
+  - path: data/raw/hust/our_data/6-5.pkl
+    bytes: 56906166
+    sha256: d99f79d56e09adb1e696c55603e11bb7fe431c2b0684823ceb729312123450b0
+  - path: data/raw/hust/our_data/6-6.pkl
+    bytes: 77280321
+    sha256: 12988b1b9ad28b144db1b68a408241a8ad56babd70eef3eb617d6626d8140e8b
+  - path: data/raw/hust/our_data/6-8.pkl
+    bytes: 63120513
+    sha256: 06bd6398425a4d56d5f4bf4ec99d16979be03760f27484a005adb591af955e7c
+  - path: data/raw/hust/our_data/7-1.pkl
+    bytes: 41364123
+    sha256: be5badc288203e4027deccfb8469fddf26ae83c881f602c09f6b74346186bdcd
+  - path: data/raw/hust/our_data/7-2.pkl
+    bytes: 48782073
+    sha256: a081da0facb681c5b00a5e5defef631de882ea89141d45a84cb0aed20687b559
+  - path: data/raw/hust/our_data/7-3.pkl
+    bytes: 48516531
+    sha256: 660e9219e9216cafb54c5ee3f1f25395c5334253f55c5eaae652014930669482
+  - path: data/raw/hust/our_data/7-4.pkl
+    bytes: 47513121
+    sha256: 4bd29f4e6403f264a4f859d79d004c648bf2df07c447c9586a69ddb804ca1562
+  - path: data/raw/hust/our_data/7-5.pkl
+    bytes: 61699796
+    sha256: 97845ba50256c1982b1dc5160d1ae12d5ab480227c4e4ff27669cb37fabe564f
+  - path: data/raw/hust/our_data/7-6.pkl
+    bytes: 45263040
+    sha256: 5f7c479a8c08204d313d435a01120cd11f21b6fb1f036e35c9f1caa7ca713bfa
+  - path: data/raw/hust/our_data/7-7.pkl
+    bytes: 52483866
+    sha256: 1e00d05b399412012d48df66e8ecd3cf1bdf137cf1182673c3b35cbf638c6b8b
+  - path: data/raw/hust/our_data/7-8.pkl
+    bytes: 67371639
+    sha256: 55bd75c30c2348ba6c756ba52ce5b7f2f27f29f8cfad1a371b62fe6567f03044
+  - path: data/raw/hust/our_data/8-1.pkl
+    bytes: 40259643
+    sha256: e2d8c3e74334f3e48dc1102d2ba626d856b6ee45d7fe28ece49d159f00becddb
+  - path: data/raw/hust/our_data/8-2.pkl
+    bytes: 61224753
+    sha256: 7b665ea1dbcb0ba12b9306f570dbc16467cfcb4c68e9dedc9bafebea41dee560
+  - path: data/raw/hust/our_data/8-3.pkl
+    bytes: 65918109
+    sha256: 3e8a617d9d5fac4232b3cbf168ce2042b33d861f0a81f3f6e5a22de8eae3d074
+  - path: data/raw/hust/our_data/8-4.pkl
+    bytes: 53140182
+    sha256: f9a8377f58dadc28ed725a7148cef41ea57bca82f37ccb45c97bde432253c7d2
+  - path: data/raw/hust/our_data/8-5.pkl
+    bytes: 44632635
+    sha256: 68e28d7a667d686998b47518498933fa87859924f40cb04ccae830a1f6540db2
+  - path: data/raw/hust/our_data/8-6.pkl
+    bytes: 73123986
+    sha256: 655ff4604a5553a89b68d8bcdf21758bdb8c2acd6ee709f547171a306923d18a
+  - path: data/raw/hust/our_data/8-7.pkl
+    bytes: 58962243
+    sha256: 51afbe2e2e3fcb10089b4b591a0a758caabfcc13bebe1a053d4009f494e85272
+  - path: data/raw/hust/our_data/8-8.pkl
+    bytes: 46962816
+    sha256: bb8240d254b8ab22f3822ba355af79685ad254f38e20504451e770da3ccfc99a
+  - path: data/raw/hust/our_data/9-1.pkl
+    bytes: 55345818
+    sha256: ced89b77810c9c230cfc772135d82d1772a149ee75e94dd130d597e63b856fc8
+  - path: data/raw/hust/our_data/9-2.pkl
+    bytes: 69547044
+    sha256: 1b9934fe884bb59d29ecb381935b8ad880485cf4dc803a2c829d95057e226773
+  - path: data/raw/hust/our_data/9-3.pkl
+    bytes: 55241304
+    sha256: 9c6a1208639b2b611a229092b2a0982696d4aced3ca04fe7a5d8900da1d2949c
+  - path: data/raw/hust/our_data/9-4.pkl
+    bytes: 54523230
+    sha256: 5a24b7d0d0bd8f272032a76e64a03a8c061fce84a4be7817970429bdfb430eaa
+  - path: data/raw/hust/our_data/9-5.pkl
+    bytes: 57581328
+    sha256: b9a837af04642494f3bdfeba104851bdf215069bef5b832aa581ba5c1433ee28
+  - path: data/raw/hust/our_data/9-6.pkl
+    bytes: 45219687
+    sha256: f36aefde81709e98b4b0afd1f3d23b8c35a363156a0bdb15bc1bc5aee38bb4eb
+  - path: data/raw/hust/our_data/9-7.pkl
+    bytes: 63506208
+    sha256: 0f1401383e89d4c8bc6a8b5e28632902dabcd1691843a096e4cc8ccbea85f26b
+  - path: data/raw/hust/our_data/9-8.pkl
+    bytes: 64729587
+    sha256: 39a032f8eee51a46fed5f261a95fecf84bd50fd540a1176872b74f1be9b4c23d
+  measured_at: '2026-09-06T01:22:33Z'
+  reference: scripts/measure_raw_provenance.py -> data/datasheets/_provenance.json
 leak_scan:
   label_source_columns:
   - charge_capacity_max
   scanned_on: '2026-09-03'
   reference: tests/test_label_leak_inventory.py
 held_out_ready: true
-known_issues: []
+known_issues:
+- 'raw provenance (D12): data/raw/hust/our_data/*.pkl from the record''s our_data.zip
+  (1.11 GB); one pickle per cell with per-cycle frames (Status, Voltage (V), Current
+  (mA), Capacity (mAh), Time (s)) at 5 s logging (measured 2026-09-05)'
 signed:
   by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in chemistry.evidence
   'on': '2026-09-03'

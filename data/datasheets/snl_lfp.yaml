@@ -1,6 +1,6 @@
 name: snl_lfp
-status: signed 2026-09-03 (chemistry verified by owner-delegated web review); remaining
-  VERIFY fields are non-chemistry
+status: signed 2026-09-03 (chemistry verified by owner-delegated web review); D12
+  survey 2026-09-05 filled sampling, provenance, licence terms and cut-offs
 source:
   citation: Preger, Y., Barkholtz, H. M., Fresquez, A., Campbell, D. L., Juba, B.
     W., Roman-Kustas, J., Ferreira, S. R., Chalamala, B. (2020). Degradation of commercial
@@ -8,9 +8,13 @@ source:
     Soc. 167(12), 120532, DOI 10.1149/1945-7111/abae37. Data via BatteryArchive (snl_study)
     / BatteryLife mirror (data/raw/snl_batterylife).
   url: https://doi.org/10.1149/1945-7111/abae37
-  license: VERIFY (the BatteryArchive study page states no license)
+  license: 'no licence text (survey 2026-09-05): neither the BatteryArchive study
+    page nor JES 167 120532 states one; BatteryArchive asks for attribution to the
+    study page and the JES paper (''double attribution''), and the BatteryLife mirror
+    README asks to cite BatteryLife, BatteryML and BatteryArchive — attribution terms,
+    no formal licence'
   retrieved: 2026-09-03 (JES record via web review; BatteryArchive snl_study page
-    fetched)
+    fetched); 2026-09-05 (study page and mirror README re-fetched; pickles measured)
 chemistry:
   cathode: LFP
   anode: graphite
@@ -30,9 +34,10 @@ cell:
 protocol:
   segments:
   - id: cc_charge
-    rate: 0.5C CC (JES)
+    rate: 0.5C CC to 3.60 V (JES; measured 0.549 A and 3.600 V max in SNL_18650_LFP_15C_0-100_0.5-2C_b,
+      2026-09-05)
   - id: discharge
-    rate: 0.5C-3C (JES); cut-off voltage VERIFY
+    rate: 0.5C-3C (JES) to 2.0 V (measured 1.995 V min; the rate is in the cell name)
   temperature_c:
   - 15
   - 25
@@ -44,7 +49,13 @@ label_anchor:
   reference_test: capacity of each discharge
   label_source: calibration_capacity
 sampling:
-  rate_hz: VERIFY
+  rate_hz: 0.0083
+  interval_s: 120.024
+  interval_p10_s: 120.024
+  interval_p90_s: 120.024
+  segments_measured: 400
+  method: median per-cycle time step of the raw charge segments (sohkernel.raw_windows.iter_charge_curves,
+    first 400 segments) (scripts/measure_raw_provenance.py, 2026-09-06T01:22:34Z)
   channels:
   - V
   - I
@@ -57,15 +68,265 @@ windows:
   coverage_median: 0.449
   calibrated_on: '2026-08-25'
 digests:
-  raw: VERIFY
-  processed: 0347fbd318435364030693be7535b8dac4e5ebdf303fa7d3287c8375ea39c773
+  raw: 6ad3c579d290caab809a1e1a20a6859d00cab11a970b6505676513b970877c4e
+  processed: e8536cbce82e96f70a614d104695cb64e96ef6899369d633571b9b63e578891e
   curves: c086d114e8c2e5b619a6138ed6f023e2a05ab527a2310809e34ba146bab6073d
+provenance:
+  raw_files:
+  - path: data/raw/snl_batterylife/READMEs.zip
+    bytes: 17166
+    sha256: eb2eef9aa5bea0af47874afb73ba64243488fe364fd8e4d70d464b16c8310840
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_15C_0-100_0.5-2C_b.pkl
+    bytes: 19333931
+    sha256: aa1def6be5f0d972b44181146a85824e709271d18e290db2a3663aa3fc6c6836
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-0.5C_a.pkl
+    bytes: 23475679
+    sha256: d9d9d0b573c65c62fd42682c177226ad8df2ee8e42bac2d0fa8c94f9005a7d23
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-1C_a.pkl
+    bytes: 20834438
+    sha256: 18ea75ef289f4bfaf8b7e57625c0161a2424d844375f310524af409395f54ca2
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-1C_b.pkl
+    bytes: 28210901
+    sha256: c8e62cf6f0237d70152e0382d449495dc219f6a0c1aaa178407c694160b6713b
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-1C_c.pkl
+    bytes: 18261017
+    sha256: cb6143eae3ccd2f76dd3cde28308694fea349e951ec15ed925480b3fb00a88e6
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-1C_d.pkl
+    bytes: 18267335
+    sha256: cc334061bb6db69095f63977ccfbf2b6993827cdd777b5729f3b085de3ad9026
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-2C_a.pkl
+    bytes: 18218594
+    sha256: 2497aa122e41992e584acb08af9fb8539f4a43e47b3ce149b4eba0555fc5beb7
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-2C_b.pkl
+    bytes: 20724253
+    sha256: 4bc9ecb950faebd30482253779ff90060cfb2afe99a694aa196c21e8459e9ee4
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-3C_a.pkl
+    bytes: 21657739
+    sha256: e57fa1d6eacf453eae8ce9b0134baac727527e05e7df109e3c45e43b2762f910
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-3C_b.pkl
+    bytes: 19494502
+    sha256: a3c571c916b5dc98289b8ba1dbcad55a5f9d0f40c957f776b90baae14d7472ed
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-3C_c.pkl
+    bytes: 16925129
+    sha256: fbd54c77f85c3804735bc6876ed118b37e36b839155e1a274e777401d1c4595e
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-3C_d.pkl
+    bytes: 19775932
+    sha256: a802cb5032be0b86ccdaed28ebbdfe7818c3624cec33a85f8c9cb50d28f6d622
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-1C_a.pkl
+    bytes: 22156769
+    sha256: 271103892f009cfddb2cddeed8cc9659423caab060e2ae1a3216f3a5751277a6
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-1C_b.pkl
+    bytes: 22626818
+    sha256: 3d23c2444c68f61f68c566fb80388e0a5e59dac1f1fc447a6a50d91c53efa394
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-1C_c.pkl
+    bytes: 22633772
+    sha256: 72bad7ff3991a7213bd753e1a4fce47f701def8653465869ee3e55c8049da429
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-1C_d.pkl
+    bytes: 25744271
+    sha256: 93add7117b90855079b330f414d048858bf5911b036832bc0992c4c2021f5d70
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-2C_a.pkl
+    bytes: 23644487
+    sha256: fc77b3802bb72d04b4ad7781b4244228e3d40240b24bffab39a70f41325b4501
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-2C_b.pkl
+    bytes: 21249599
+    sha256: fea252c48f622ccd39e3177f2e8064423ecc6bd38198d64351e2087b40bf8f14
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_15C_0-100_0.5-1C_a.pkl
+    bytes: 3381614
+    sha256: 1c0837ef95f4edf9c45e61b4f41a53dea63f65f471e96aca1b72dc2b86d93422
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_15C_0-100_0.5-1C_b.pkl
+    bytes: 5485112
+    sha256: 0e0ac80d59f0384051e116510ba07343a7dab66e77b48e1f6da0bd891ab72a31
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_15C_0-100_0.5-2C_a.pkl
+    bytes: 5247371
+    sha256: 4f7c678fee98a885208f3497f380e08bbac70e9e688c945dddefcdf9bc2f94ce
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_15C_0-100_0.5-2C_b.pkl
+    bytes: 4305254
+    sha256: a387e60442167471509b540f0d0544fbd3a38b5170dce0ec6c9b7504685673d0
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-0.5C_a.pkl
+    bytes: 9208069
+    sha256: 05681af7e9af96481082df6b1303a873913fc96b946d7cd5a93f6bf822d7cd0c
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-0.5C_b.pkl
+    bytes: 12421918
+    sha256: 98400ba66944259f92ddf5e319c7dfcbd689e069cbeb941441c3df31086b1cb5
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-1C_a.pkl
+    bytes: 4519637
+    sha256: bc990d99cf11a0c2a357e2a1ac7d04d1c51a3b92357d41b7875f243f30fc2ef2
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-1C_b.pkl
+    bytes: 3749108
+    sha256: b540433717bd8866457868da7be1d08c042fe29281ba7747acc75d419c9e210d
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-1C_c.pkl
+    bytes: 3867896
+    sha256: 291150ecc4a2ee02644d7703234797897b142dec0c72c34c1701c0760ff457ad
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-1C_d.pkl
+    bytes: 4873355
+    sha256: 4cf48e9aae541e296e7c959bc7b59ff9f569597135373b1df4d2137aff302a0f
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-2C_a.pkl
+    bytes: 5319452
+    sha256: 5124371c46f0a1ca9e00031264d200f49bd8a662abd6612366c3de096efbc8e1
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-2C_b.pkl
+    bytes: 4341629
+    sha256: 17b1ea2ebd941dfc4bb64a91377fb5a3b5666a1f01c20ce146c271c7c89942f5
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_20-80_0.5-0.5C_a.pkl
+    bytes: 12591335
+    sha256: d062e599ad12fa8b898d4b08a9e9bd548f94fee8c6c1c1be3f75d2c6f4459a90
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_20-80_0.5-0.5C_b.pkl
+    bytes: 13176338
+    sha256: 67dfa8ab34c6bcc257f85da4347a5eebbad7da532315ca4dd462265d06bbd52d
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_20-80_0.5-0.5C_c.pkl
+    bytes: 13046822
+    sha256: bc3402d1612b669b9b079585786350eaee0c12843566155ec5d5dd9a3bbb86e4
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_20-80_0.5-0.5C_d.pkl
+    bytes: 13762322
+    sha256: 61fcd35de2c1b395f341d8cfa2bc66449203639665a0b33fa349428d58e322da
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-1C_a.pkl
+    bytes: 3684137
+    sha256: 5349f4f39872eb03f8899935cda80b1f9f7a08956dc65ba76dbb5a72b0cb200a
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-1C_b.pkl
+    bytes: 3400964
+    sha256: c3e9eae6cd7c350ce16c03f32919a5d9cdb234f477923f2a03c9ec05f4b37f9b
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-1C_c.pkl
+    bytes: 3762254
+    sha256: d72077a42980a5cebf042d39b236ee2fcdbe9c1e2dd2f11ac87e0c026d227b17
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-1C_d.pkl
+    bytes: 5242154
+    sha256: 0ad3eb68f43387fd62202ce2da5a199867d66af8ae189f75d87751817262ffa8
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-2C_a.pkl
+    bytes: 4923380
+    sha256: 1bc45175d094e394b5a93137a08e3d8bec412722e9008322883e33a6dc7e82d9
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-2C_b.pkl
+    bytes: 5782565
+    sha256: 11b006644a7e454522669738092a5be50cd865f08486d9a347a144797baf96a7
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_15C_0-100_0.5-1C_a.pkl
+    bytes: 2890163
+    sha256: c7b621d196de30d0c85ae2d81972ff11b90e6cd57b9c54a3b895840a807a93b8
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_15C_0-100_0.5-1C_b.pkl
+    bytes: 2871848
+    sha256: 619e5b8d2c0a75c29fe3f1e98c6d019d9a526effaf0352a680616d97090ab51a
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_15C_0-100_0.5-2C_a.pkl
+    bytes: 2297414
+    sha256: 56fc03204faa863999ef647711d4cce3b362ec276927bf340180a862fadeec35
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_15C_0-100_0.5-2C_b.pkl
+    bytes: 2013785
+    sha256: 38e1f8bedca07791ffeeed24bd26f2cd2716100ade6c461c7f04a537e601bbc9
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-0.5C_b.pkl
+    bytes: 6286203
+    sha256: b761469f639cc646a39317c8b33f3d48ebd9cbd7826cfc8ed610adbf50707afd
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-1C_a.pkl
+    bytes: 3802768
+    sha256: 1367319b8a53bcc906509e1a4b763c90f4adf18e39e52cf44ee1d5f1145733b1
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-1C_b.pkl
+    bytes: 5973229
+    sha256: ee3018c472bd4624dee8c8fd34cc54a7f24c65b61c3de336ff131dcfab4ba3d2
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-1C_c.pkl
+    bytes: 3561496
+    sha256: b19dcb682f27e052cfdba5c9707502f4861dc213f415b2e66da29004d1681532
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-1C_d.pkl
+    bytes: 4354660
+    sha256: 57976b729b0b93104a157fdea584078cb3b44cfbfe12e8e96408f9ddd6799574
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-2C_a.pkl
+    bytes: 5159584
+    sha256: 42087c07f581290e39b06a000a9c519af47c028201dcf69f776571474b485463
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-2C_b.pkl
+    bytes: 9815817
+    sha256: 96b906975c7ec9b5ea3b95999379c7da6c924b1536f18d05bfee6b58335711bb
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-3C_a.pkl
+    bytes: 3762835
+    sha256: ee183cef12056235308612e22f86dbae85cf44a426655c2384df232957d11c32
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-3C_b.pkl
+    bytes: 3170200
+    sha256: 9f2a55e1e2785c540c941a6fe047ec9f4607636242f80fff4a417d0f4573321b
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-3C_c.pkl
+    bytes: 4551841
+    sha256: def2f14d468efaa87b18aea21d4f2e815941d98d252c6c6457c9de3b857b811a
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-3C_d.pkl
+    bytes: 5378842
+    sha256: 57ad9ce02cd0cd6778ad7089619b64a16896c69a4ec10d89e64a895ab35b7a69
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-1C_a.pkl
+    bytes: 6175126
+    sha256: 1c90cfdc74d805cb701a63672d51a56e4ef4eec9a48e92bcf04ef39590f381e3
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-1C_b.pkl
+    bytes: 6333604
+    sha256: dacd0a7b9ef2d8a92749a9300cbc7cb961156b88ec9c8231518f8fbffa39b7cc
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-1C_c.pkl
+    bytes: 5750653
+    sha256: adf71ae95843cdde14bd9987c41e992877306d31d45e8c4b1400b16b7bea66b6
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-1C_d.pkl
+    bytes: 6029059
+    sha256: d50f2c98ec363f63eb2830560773a07a0dfad4f28cf2a0196fa415d7df31c67f
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-2C_a.pkl
+    bytes: 5672344
+    sha256: d6edd5ca388e140e0bbde6de46bb13cc75db3d4a2ed00d2e7d728b905e885cc5
+  - path: data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-2C_b.pkl
+    bytes: 4514368
+    sha256: 0ac075ab68eb004527698e7e0e4107ca235a7043b82802b57ef7461215050a8a
+  - path: data/raw/snl_batterylife/SNL.zip
+    bytes: 115187861
+    sha256: 1ce27dc94d5d3a9a10ed875805a880c9c0701833915f1b78b09a759c72cfd57a
+  - path: data/raw/snl_batterylife/readmes/READMEs/CALB_README.md
+    bytes: 1619
+    sha256: 5c0dfc4eb09c741183f0abc0c3710c556c8a4954a07333763b2c5c65ebf402ce
+  - path: data/raw/snl_batterylife/readmes/READMEs/CALCE_README.md
+    bytes: 1176
+    sha256: be17a5555897a18e3a54b0202e8c70185e31992361ee364be572ad418207319d
+  - path: data/raw/snl_batterylife/readmes/READMEs/HNEI_README.md
+    bytes: 1133
+    sha256: cb34a65984c1cc9120b8b90eab855dfc76446b736d1e9f9fa3fc972fa5687f03
+  - path: data/raw/snl_batterylife/readmes/READMEs/HUST_README.md
+    bytes: 1154
+    sha256: 1836300144c1a2b3926b90ca8d0b14606769e97e1027764636914f3433d32899
+  - path: data/raw/snl_batterylife/readmes/READMEs/ISU-ILCC_README.md
+    bytes: 1122
+    sha256: e18ca91532a1707194f950fe938f9f2cb606959a4ba6f313d620ffcb26f9539b
+  - path: data/raw/snl_batterylife/readmes/READMEs/MATR_README.md
+    bytes: 1371
+    sha256: 20576a27ab4d8dc5a8dff37df0e4d777880496f11a16c502f8fdf9dc58f3e6e8
+  - path: data/raw/snl_batterylife/readmes/READMEs/MICH_EXP_README.md
+    bytes: 1110
+    sha256: 41f0b834424620b4e145cfe731101db38f1cc34ebf5a6c914f8c109a8621345f
+  - path: data/raw/snl_batterylife/readmes/READMEs/MICH_README.md
+    bytes: 1108
+    sha256: a00ebe44ddb57db4e9603b29a28828dae9cda478a2c74e0a83d0632141a95763
+  - path: data/raw/snl_batterylife/readmes/READMEs/NA-ion_README.md
+    bytes: 8888
+    sha256: 274632d04a744a69cbc85c595fcee5f65c66089dd300a776b0fd7183974b5df4
+  - path: data/raw/snl_batterylife/readmes/READMEs/RWTH_README.md
+    bytes: 1039
+    sha256: 929e1de38fbd55c956f8f7b89aa1e3677900ca249eb29685e1871472ee5badc7
+  - path: data/raw/snl_batterylife/readmes/READMEs/SDU_README.md
+    bytes: 1194
+    sha256: e97b2edfcef22697c445c3e1a443ea4a292dc791b827ba1b07ae224ca6bcbeea
+  - path: data/raw/snl_batterylife/readmes/READMEs/SNL_README.md
+    bytes: 1123
+    sha256: 8162b49991e267b2f0e549ab75b0636c766edf5f940765b5a2c0be130020be50
+  - path: data/raw/snl_batterylife/readmes/READMEs/Stanford_2_README.md
+    bytes: 1186
+    sha256: 31b2e27455ea92f808ff8e4d9b1da9edfa5cf3e5297558c24755b2f07feb9aac
+  - path: data/raw/snl_batterylife/readmes/READMEs/Stanford_README.md
+    bytes: 1185
+    sha256: c53a265a141c08f940b32ecce22fa42ec0a517b62dfe8ead97c633e2863fecda
+  - path: data/raw/snl_batterylife/readmes/READMEs/Tongji_README.md
+    bytes: 1308
+    sha256: 8a1bbaad39b676bb75af4f7b6504efccb503bd7fbc5daab3feab2799ea40e151
+  - path: data/raw/snl_batterylife/readmes/READMEs/UL_PUR_README.md
+    bytes: 1148
+    sha256: 52a0a4219e81038b4bc95fcd7a0de433653359d38fdefe4ce81f70574c15d0be
+  - path: data/raw/snl_batterylife/readmes/READMEs/XJTU_README.md
+    bytes: 1139
+    sha256: f7d218ab64dc15be3599464cd7c58a70dac5fd28be1e693f9d2d389fe78d747f
+  - path: data/raw/snl_batterylife/readmes/READMEs/ZN-coin_README.md
+    bytes: 18523
+    sha256: 1103a37b192305a651e5140e485f9ea9f4e16d8aee3341cb0ffe913f6befba1f
+  measured_at: '2026-09-06T01:22:34Z'
+  reference: scripts/measure_raw_provenance.py -> data/datasheets/_provenance.json
 leak_scan:
   label_source_columns: []
   scanned_on: '2026-09-03'
   reference: tests/test_label_leak_inventory.py
 held_out_ready: true
-known_issues: []
+known_issues:
+- 'raw provenance (D12): data/raw/snl_batterylife/SNL/SNL_18650_LFP_*.pkl — the BatteryLife
+  mirror''s pickles (cycle_data with time_in_s, voltage_in_V, current_in_A, charge/discharge_capacity_in_Ah)
+  at 120 s logging (measured 2026-09-05), not BatteryArchive''s original CSV'
 signed:
   by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in chemistry.evidence
   'on': '2026-09-03'

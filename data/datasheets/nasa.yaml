@@ -1,5 +1,6 @@
 name: nasa
-status: draft — chemistry unverified after the 2026-09-03 web review; unsigned
+status: draft — chemistry unverified after the 2026-09-03 web review and the 2026-09-05
+  archive survey; unsigned
 source:
   citation: Saha, B. and Goebel, K. (2007). Battery Data Set. NASA Ames Prognostics
     Data Repository (PCoE), NASA Ames Research Center.
@@ -22,7 +23,13 @@ chemistry:
     cells LiCoO2; a minority calls them ''Gen 2'' NCA/graphite cells, but the DOE
     Gen 2 18650 cells were ~1 Ah while these are rated 2 Ah. The working label LCO
     is kept for fold grouping only; no chemistry claim may rest on nasa until a primary
-    source is found (VERIFY).'
+    source is found (VERIFY). D12 survey 2026-09-05: the README.txt shipped inside
+    the archive (data/raw/nasa_battery_dataset.zip -> ''5. Battery Data Set/1. BatteryAgingARC-FY08Q4.zip'',
+    dated 2008-09-30) says ''A set of four Li-ion batteries (# 5, 6, 7 and 18) were
+    run through 3 different operational profiles (charge, discharge and impedance)
+    at room temperature. Charging was carried out in a constant current (CC) mode
+    at 1.5A until the battery voltage reached 4.2V'' and names no chemistry or manufacturer
+    either.'
 cell:
   format: 18650 (commercial, manufacturer not named)
   rated_capacity_ah: 2.0
@@ -43,16 +50,191 @@ label_anchor:
   reference_test: capacity of each full discharge (NASA description)
   label_source: calibration_capacity
 sampling:
-  rate_hz: VERIFY
+  rate_hz: 0.3441
+  interval_s: 2.906
+  interval_p10_s: 2.906
+  interval_p90_s: 10.5
+  segments_measured: 644
+  method: median time step of the charge cycles' Time vectors in B0005/B0006/B0007/B0018
+    (.mat), variable-rate logging (scripts/measure_raw_provenance.py, 2026-09-06T01:22:30Z)
   channels:
   - V
   - I
   - T
-windows: VERIFY
+windows: []
 digests:
-  raw: VERIFY
+  raw: 818bf4383b4021dcca7a233ddc260178c34f2df4c38d20a6beeb737af699502e
   processed: f7523b4e6b1dcbcceb940834878967cfaff2392805c9992c3768f721ebb8586b
   curves: f0a515c8643be8f589b754d97e0419054bb768c9189a449007f2ca7e5c3296f8
+provenance:
+  raw_files:
+  - path: data/raw/nasa/B0005.mat
+    bytes: 15956874
+    sha256: 0eae4585baf3f200c09fe24c5ab884f1889679fc75206ca1aa19da704104f0b0
+  - path: data/raw/nasa/B0006.mat
+    bytes: 16028159
+    sha256: fa818ab4db5db8ab21e910b6dd6c3e20d3761bb9672089e1a4de8f96074616c5
+  - path: data/raw/nasa/B0007.mat
+    bytes: 16049460
+    sha256: d022afa086efaf54ab5b63f05220f5be178c8027e2fa8d68589db0e85a441a3b
+  - path: data/raw/nasa/B0018.mat
+    bytes: 8502218
+    sha256: d1e6c923a43ea1c9666b3a90bbb521757a067fd60b4d17dbfaa49c50b179da69
+  - path: data/raw/nasa_full/B0005.mat
+    bytes: 15956874
+    sha256: 0eae4585baf3f200c09fe24c5ab884f1889679fc75206ca1aa19da704104f0b0
+  - path: data/raw/nasa_full/B0006.mat
+    bytes: 16028159
+    sha256: fa818ab4db5db8ab21e910b6dd6c3e20d3761bb9672089e1a4de8f96074616c5
+  - path: data/raw/nasa_full/B0007.mat
+    bytes: 16049460
+    sha256: d022afa086efaf54ab5b63f05220f5be178c8027e2fa8d68589db0e85a441a3b
+  - path: data/raw/nasa_full/B0018.mat
+    bytes: 8502218
+    sha256: d1e6c923a43ea1c9666b3a90bbb521757a067fd60b4d17dbfaa49c50b179da69
+  - path: data/raw/nasa_full/B0025.mat
+    bytes: 2753821
+    sha256: 38894747a9c79d719e95a2e6c42be18017e29c522b760056b680a65105d1a15f
+  - path: data/raw/nasa_full/B0026.mat
+    bytes: 2764789
+    sha256: ca5eee0b33d8070e3a6c254696444a0c65a12f40587fcfc8db858640b2e6e36c
+  - path: data/raw/nasa_full/B0027.mat
+    bytes: 2783781
+    sha256: de2b4045ef20a6900885e169f3540664bb637f5f94b41fb4333c31d759237209
+  - path: data/raw/nasa_full/B0028.mat
+    bytes: 2820196
+    sha256: 050c377e85a2c41165f2e2e0d22bf9575385dd8c835a713c27edb65af6bb25e8
+  - path: data/raw/nasa_full/B0029.mat
+    bytes: 2879840
+    sha256: da9c63ac7b8a10d2354ff53fec9be23f4194352e667de5c503b069f7d267ebb2
+  - path: data/raw/nasa_full/B0030.mat
+    bytes: 2880995
+    sha256: c29a910256812449aa6090031471a57440e2e7bc827bd2c822b0d3135485cc99
+  - path: data/raw/nasa_full/B0031.mat
+    bytes: 2882510
+    sha256: c47cb3a5ef47ef4de26fcc80c2173fec24a139f6c305852fccee603cd6c4bcec
+  - path: data/raw/nasa_full/B0032.mat
+    bytes: 2918592
+    sha256: bd146cad3a18f9e8d42d05014c90e7bcde7abc7ccc89bdd46e5655604c61bc0f
+  - path: data/raw/nasa_full/B0033.mat
+    bytes: 11057919
+    sha256: 3f6b44d7e123b9e9e4a26c3651acd0b9f38ca4d21aac3930bd9197ccf8b04426
+  - path: data/raw/nasa_full/B0034.mat
+    bytes: 11091182
+    sha256: d8cd5faff49f0d5672736327c5cd16913e0a0f08fb2817f672f52a67184cb885
+  - path: data/raw/nasa_full/B0036.mat
+    bytes: 11404549
+    sha256: 40511cccf0262d61b8345fdfe6c4e0a67ccc42e7f5e869ec32c7f33619e7dc15
+  - path: data/raw/nasa_full/B0038.mat
+    bytes: 3697900
+    sha256: 41d4a6977e3f3a46623f80ad8f6e5ba6ad83a2746403f71966c88a4722ffd409
+  - path: data/raw/nasa_full/B0039.mat
+    bytes: 3727683
+    sha256: 0ea0a44622b61f13306cfc9c7080c7a6a8eb187da38607bfdc776974fcb5f000
+  - path: data/raw/nasa_full/B0040.mat
+    bytes: 3749942
+    sha256: 1d7eb3dbf82bda46837831756999d911211b9ed0cc892c7e2e8d7f9059a5e013
+  - path: data/raw/nasa_full/B0041.mat
+    bytes: 3733558
+    sha256: a5440bfb8a141a123ed255ddccaec736b7e04028bce266f04da44c99d53c1eaf
+  - path: data/raw/nasa_full/B0042.mat
+    bytes: 7499364
+    sha256: 4c39701508278c7a4f14e8af299f2510403dca30f2627fcf30c0ad7dc9f33675
+  - path: data/raw/nasa_full/B0043.mat
+    bytes: 7483891
+    sha256: 3e937018342628667a0b1cf30ce804aebed9a1d79577de372d5232ad4bf96034
+  - path: data/raw/nasa_full/B0044.mat
+    bytes: 7511915
+    sha256: e66d3620de32f134619eaf9692a41d2ab70fa3f8c49211c2b303261504974f30
+  - path: data/raw/nasa_full/B0045.mat
+    bytes: 3599285
+    sha256: dc8e4cc149fe87f4ff855f30f0d31155ada6f467d06f5365550bab9370670fe3
+  - path: data/raw/nasa_full/B0046.mat
+    bytes: 3642687
+    sha256: fe62dffc7079f6131e591415c740f6863364b23e728fe2aa7286a9c749dcdebc
+  - path: data/raw/nasa_full/B0047.mat
+    bytes: 3715274
+    sha256: 8089a9180cf353704642c457c844d83dd2e83aa2fc43fe4f7c05322f86fd0648
+  - path: data/raw/nasa_full/B0048.mat
+    bytes: 3752042
+    sha256: 341219d38d8531e0a89ecaa18736b79e1547d22edea4a1d45357bb5bfeb7757d
+  - path: data/raw/nasa_full/B0049.mat
+    bytes: 2183593
+    sha256: bf56a4362287c8489dbeda27b823432f1e587473a7bf7096deec057c5a44d895
+  - path: data/raw/nasa_full/B0050.mat
+    bytes: 2164473
+    sha256: 4dcb2475a8e689d54ac231832b40be0bf081805f28f69524e1c46f4c1d153d4e
+  - path: data/raw/nasa_full/B0051.mat
+    bytes: 2213520
+    sha256: 37c247607dc7e5384fae4ef595d8b2f9072a2107ce1112fe0a460b4f48c8894b
+  - path: data/raw/nasa_full/B0052.mat
+    bytes: 2157035
+    sha256: 640d86ac187b223c2edf83715b0f95ba5faeaaf5402a51dc81fc5f6275d4edd8
+  - path: data/raw/nasa_full/B0053.mat
+    bytes: 3347771
+    sha256: 5ae945704d75f9865608c1bf585c80b62ba8e6a98c555840735c1f64fa5513f9
+  - path: data/raw/nasa_full/B0054.mat
+    bytes: 7089384
+    sha256: 02ececa6edf2ab1febdfa31daccaaff59b090e627b9403a59060157c9488712a
+  - path: data/raw/nasa_full/B0055.mat
+    bytes: 7199776
+    sha256: 8405c13378ced0894019a74f343057b0151f58c417fed45a5e068c4e372ea039
+  - path: data/raw/nasa_full/B0056.mat
+    bytes: 7279819
+    sha256: e894d92938c6fb09b6455bcc49330902c0e3ea8ee65129f664f1718a4843e709
+  - path: data/raw/nasa_full/README.txt
+    bytes: 2421
+    sha256: 57bbfaac92684314304e4b49b7055458c6a82c03f3634e7fee502427a576e079
+  - path: data/raw/nasa_full/README_25_26_27_28.txt
+    bytes: 2421
+    sha256: 57bbfaac92684314304e4b49b7055458c6a82c03f3634e7fee502427a576e079
+  - path: data/raw/nasa_full/README_29_30_31_32.txt
+    bytes: 2361
+    sha256: e058b7b94acf66e7fcf564620839c27da5283bbb3e489be7501912ea67458025
+  - path: data/raw/nasa_full/README_33_34_36.txt
+    bytes: 2447
+    sha256: 4a5e394c8ec0f4bd35bad27ee18183c22736439c979fc0997501c30290035f2c
+  - path: data/raw/nasa_full/README_38_39_40.txt
+    bytes: 2436
+    sha256: 00ff1db2683c5932689d22b9583fe75b2dce7351cd55423b29f0ce81359a37ee
+  - path: data/raw/nasa_full/README_41_42_43_44.txt
+    bytes: 2581
+    sha256: e1cb9611c0ce3dbfdf12ab291470e2c6bd4a2f9d365d3ac7c669c2e09e9f8986
+  - path: data/raw/nasa_full/README_45_46_47_48.txt
+    bytes: 2564
+    sha256: bd098517a0877f614a160eca688bcf1abda8ecac4d0dda4e00e98ebb43e4b61b
+  - path: data/raw/nasa_full/README_49_50_51_52.txt
+    bytes: 2586
+    sha256: 86e1f8102153708c5df4c568138b652866ee04d030314f3c41ad3b634a9440eb
+  - path: data/raw/nasa_full/README_53_54_55_56.txt
+    bytes: 2564
+    sha256: 12fc8f081de19299cbdf9f6eb83506d6b109eae42a22c82b1a8001ddb89bf522
+  - path: data/raw/nasa_full_zips/5. Battery Data Set/1. BatteryAgingARC-FY08Q4.zip
+    bytes: 56517371
+    sha256: f3a4fcd7c3434e06906f4222778445ce6ad42f49c5c78a785bdd676b7c223a2e
+  - path: data/raw/nasa_full_zips/5. Battery Data Set/2. BatteryAgingARC_25_26_27_28_P1.zip
+    bytes: 11123439
+    sha256: 7fa159be0c4e78d97233ef777587f46270d1389b5d8a21d33c6e7573a8c8e3b8
+  - path: data/raw/nasa_full_zips/5. Battery Data Set/3. BatteryAgingARC_25-44.zip
+    bytes: 93662572
+    sha256: da983014699f3cc8d6a431863ef83957c838ac62e3d391b9f383b04c2e6a53bb
+  - path: data/raw/nasa_full_zips/5. Battery Data Set/4. BatteryAgingARC_45_46_47_48.zip
+    bytes: 14715108
+    sha256: 21822c9889487f8e16e210f419cc5fe803d7ef43a06cdaf33489489967a881ec
+  - path: data/raw/nasa_full_zips/5. Battery Data Set/5. BatteryAgingARC_49_50_51_52.zip
+    bytes: 8717235
+    sha256: 20170ede4ef5ca0573d6503c8a9c33c087835e8ba270f9bc67cdf8219315b6d9
+  - path: data/raw/nasa_full_zips/5. Battery Data Set/6. BatteryAgingARC_53_54_55_56.zip
+    bytes: 24923477
+    sha256: 90ee087b867edb0d4b38d81e0fefb4ef99b548e6288c4f25649d79fb37942798
+  - path: data/raw/nasa_B0005_sample.mat
+    bytes: 15956874
+    sha256: 0eae4585baf3f200c09fe24c5ab884f1889679fc75206ca1aa19da704104f0b0
+  - path: data/raw/nasa_battery_dataset.zip
+    bytes: 209708670
+    sha256: 82302a7db4fc1b34e0b6676326610438d43b816bdf11a69d1d012a464ef2f92e
+  measured_at: '2026-09-06T01:22:30Z'
+  reference: scripts/measure_raw_provenance.py -> data/datasheets/_provenance.json
 leak_scan:
   label_source_columns: []
   scanned_on: '2026-09-03'
@@ -61,6 +243,10 @@ held_out_ready: true
 known_issues:
 - chemistry unverified (D4, 2026-09-03) — lcho folds holding out nasa warn
 - cell B0018 is the phase 2.2 golden case; 18 non-positive SOH rows dropped by QC
+- 'raw provenance (D12): data/raw/nasa_battery_dataset.zip is the PCoE ''5. Battery
+  Data Set'' (six nested BatteryAgingARC zips with README.txt files); the B00xx.mat
+  files are unpacked under data/raw/nasa and data/raw/nasa_full; logging is variable-rate
+  (the Time vectors step about 9 s in the first charges, measured 2026-09-05)'
 signed:
   by: VERIFY
   'on': VERIFY

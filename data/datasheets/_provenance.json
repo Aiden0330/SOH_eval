@@ -1,0 +1,2108 @@
+{
+ "schema_version": "1.0.0",
+ "datasets": {
+  "uconn": {
+   "raw_sha256": "36af45e142fa5c9097384bfa6510a8bb2279fd5e5b5477c6865782bdc55730ae",
+   "raw_files": [
+    {
+     "path": "data/raw/uconn_lfp/cycling_part1.zip",
+     "bytes": 6709400021,
+     "sha256": "63546377f5f5b4bd9c3b4cd9b1dc112fbb2dceb7d80a04185ded51976e6d55c0"
+    },
+    {
+     "path": "data/raw/uconn_lfp/cycling_part2.zip",
+     "bytes": 7214783517,
+     "sha256": "8d26d9fe47558b56a92fa982c0730c96572be438e19312f7961bdd452367601e"
+    },
+    {
+     "path": "data/raw/uconn_lfp/rpt_data.zip",
+     "bytes": 2406386911,
+     "sha256": "11d9003536d61019573f2e2ccefc656c7bfc9acbe418758ca32b90913c219952"
+    }
+   ],
+   "sampling_interval_s": {
+    "seconds": 1.0,
+    "p10": 1.0,
+    "p90": 1.0,
+    "segments": 400,
+    "method": "median per-cycle time step of the raw charge segments (sohkernel.raw_windows.iter_charge_curves, first 400 segments)"
+   },
+   "measured_at": "2026-09-06T01:22:23Z",
+   "data_dir": "/Users/liqingchuan/Documents/projects/SOH_eval/data"
+  },
+  "oxford": {
+   "raw_sha256": "b7ab686007b61c300242c0f86c81dab77608ba757f07e7bc125184cdea745382",
+   "raw_files": [
+    {
+     "path": "data/raw/oxford/Oxford_Battery_Degradation_Dataset_1.mat",
+     "bytes": 266164290,
+     "sha256": "a8f0b928f4ea77d7ba98b97194b78cc77336f2338fee8b57573d043f0cf26781"
+    },
+    {
+     "path": "data/raw/oxford/Readme.txt",
+     "bytes": 5643,
+     "sha256": "f04c8bdae97e98632b9daeaa7c71631990dbf5ecbf38711347fc470baefc0def"
+    }
+   ],
+   "sampling_interval_s": {
+    "seconds": 1.0,
+    "p10": 1.0,
+    "p90": 1.0,
+    "segments": 40,
+    "method": "median time step of the 1C characterisation charges (C1ch.t, stored as a fraction of a day) over 8 cells x 5 check-ups"
+   },
+   "measured_at": "2026-09-06T01:22:24Z",
+   "data_dir": "/Users/liqingchuan/Documents/projects/SOH_eval/data"
+  },
+  "calce_cs2": {
+   "raw_sha256": "1348e8bb716e16b47a1b90f608cb56d658967b0265fe35acca173b8ec194fb01",
+   "raw_files": [
+    {
+     "path": "data/raw/calce/CS2_21.zip",
+     "bytes": 2685544,
+     "sha256": "28f998ffaee0de92d5b7554dfe5dccf51ef33ae1c3ae526f8b32f1d891c4deb4"
+    },
+    {
+     "path": "data/raw/calce/CS2_33.zip",
+     "bytes": 45345047,
+     "sha256": "ce375e3826e840ff0986ceade0d324ba6515f0446697c947353aca097f232505"
+    },
+    {
+     "path": "data/raw/calce/CS2_34.zip",
+     "bytes": 43836986,
+     "sha256": "229dcdc836f140f746c26316569c357b346994fddd3be1223b1e457805c484b4"
+    },
+    {
+     "path": "data/raw/calce/CS2_35.zip",
+     "bytes": 37056519,
+     "sha256": "84d88cb98a43c02049f16c78806a78ec19084776ea5df8a4b7c2f8f7ba4589e5"
+    },
+    {
+     "path": "data/raw/calce/CS2_36.zip",
+     "bytes": 37881685,
+     "sha256": "2e674f58bb6dc005c73bef10e87edbbd97afd041dde77a1d461a3c4ecac1b027"
+    },
+    {
+     "path": "data/raw/calce/CS2_37.zip",
+     "bytes": 41513048,
+     "sha256": "8ed8aecbcbea2bcb17f455923a974be01ea21d7389210e1912d177de5b6af4a5"
+    },
+    {
+     "path": "data/raw/calce/CS2_38.zip",
+     "bytes": 42811100,
+     "sha256": "98787427c10478425efd4f54d823805724daff1d2fcbd822b3a2d7006a1051d8"
+    },
+    {
+     "path": "data/raw/calce/CS2_8.zip",
+     "bytes": 4350594,
+     "sha256": "3abf380169cd4afc46c944dc6496f2784465333e710161701515da3d3033e9ae"
+    },
+    {
+     "path": "data/raw/calce/CX2_33.zip",
+     "bytes": 86700450,
+     "sha256": "f4dbca063a3731045b8a631f69532f7f43f0b3ada9736c0cfe3e07302d10b5da"
+    },
+    {
+     "path": "data/raw/calce/CX2_34.zip",
+     "bytes": 65932032,
+     "sha256": "6e4be14140071843891b6a7395c9561754b45036b17e840bae33d253f615939d"
+    },
+    {
+     "path": "data/raw/calce/CX2_35.zip",
+     "bytes": 96794651,
+     "sha256": "043e84ccd518f5e00fcee94ae8d2765ffe25fd11a87e028ad6903a8c61a8f15e"
+    },
+    {
+     "path": "data/raw/calce/CX2_36.zip",
+     "bytes": 73909895,
+     "sha256": "45b9249cd0353ea0285484868e5a74c54d43c8ed153bf2d40e9376e9a1daf6ad"
+    },
+    {
+     "path": "data/raw/calce/CX2_37.zip",
+     "bytes": 53311138,
+     "sha256": "d7989beff30881e1d0d50bc2d7c028e8237ca402004ffcefe693bbce35b9776d"
+    },
+    {
+     "path": "data/raw/calce/CX2_38.zip",
+     "bytes": 69995480,
+     "sha256": "2bd64c8cc9ffe4f63664caf9ec51889ca32245c321151a361147755ad6f00e3f"
+    }
+   ],
+   "sampling_interval_s": {
+    "seconds": 30.015,
+    "p10": 30.015,
+    "p90": 30.015,
+    "segments": 400,
+    "method": "median per-cycle time step of the raw charge segments (sohkernel.raw_windows.iter_charge_curves, first 400 segments)"
+   },
+   "measured_at": "2026-09-06T01:22:29Z",
+   "data_dir": "/Users/liqingchuan/Documents/projects/SOH_eval/data"
+  },
+  "nasa": {
+   "raw_sha256": "818bf4383b4021dcca7a233ddc260178c34f2df4c38d20a6beeb737af699502e",
+   "raw_files": [
+    {
+     "path": "data/raw/nasa/B0005.mat",
+     "bytes": 15956874,
+     "sha256": "0eae4585baf3f200c09fe24c5ab884f1889679fc75206ca1aa19da704104f0b0"
+    },
+    {
+     "path": "data/raw/nasa/B0006.mat",
+     "bytes": 16028159,
+     "sha256": "fa818ab4db5db8ab21e910b6dd6c3e20d3761bb9672089e1a4de8f96074616c5"
+    },
+    {
+     "path": "data/raw/nasa/B0007.mat",
+     "bytes": 16049460,
+     "sha256": "d022afa086efaf54ab5b63f05220f5be178c8027e2fa8d68589db0e85a441a3b"
+    },
+    {
+     "path": "data/raw/nasa/B0018.mat",
+     "bytes": 8502218,
+     "sha256": "d1e6c923a43ea1c9666b3a90bbb521757a067fd60b4d17dbfaa49c50b179da69"
+    },
+    {
+     "path": "data/raw/nasa_full/B0005.mat",
+     "bytes": 15956874,
+     "sha256": "0eae4585baf3f200c09fe24c5ab884f1889679fc75206ca1aa19da704104f0b0"
+    },
+    {
+     "path": "data/raw/nasa_full/B0006.mat",
+     "bytes": 16028159,
+     "sha256": "fa818ab4db5db8ab21e910b6dd6c3e20d3761bb9672089e1a4de8f96074616c5"
+    },
+    {
+     "path": "data/raw/nasa_full/B0007.mat",
+     "bytes": 16049460,
+     "sha256": "d022afa086efaf54ab5b63f05220f5be178c8027e2fa8d68589db0e85a441a3b"
+    },
+    {
+     "path": "data/raw/nasa_full/B0018.mat",
+     "bytes": 8502218,
+     "sha256": "d1e6c923a43ea1c9666b3a90bbb521757a067fd60b4d17dbfaa49c50b179da69"
+    },
+    {
+     "path": "data/raw/nasa_full/B0025.mat",
+     "bytes": 2753821,
+     "sha256": "38894747a9c79d719e95a2e6c42be18017e29c522b760056b680a65105d1a15f"
+    },
+    {
+     "path": "data/raw/nasa_full/B0026.mat",
+     "bytes": 2764789,
+     "sha256": "ca5eee0b33d8070e3a6c254696444a0c65a12f40587fcfc8db858640b2e6e36c"
+    },
+    {
+     "path": "data/raw/nasa_full/B0027.mat",
+     "bytes": 2783781,
+     "sha256": "de2b4045ef20a6900885e169f3540664bb637f5f94b41fb4333c31d759237209"
+    },
+    {
+     "path": "data/raw/nasa_full/B0028.mat",
+     "bytes": 2820196,
+     "sha256": "050c377e85a2c41165f2e2e0d22bf9575385dd8c835a713c27edb65af6bb25e8"
+    },
+    {
+     "path": "data/raw/nasa_full/B0029.mat",
+     "bytes": 2879840,
+     "sha256": "da9c63ac7b8a10d2354ff53fec9be23f4194352e667de5c503b069f7d267ebb2"
+    },
+    {
+     "path": "data/raw/nasa_full/B0030.mat",
+     "bytes": 2880995,
+     "sha256": "c29a910256812449aa6090031471a57440e2e7bc827bd2c822b0d3135485cc99"
+    },
+    {
+     "path": "data/raw/nasa_full/B0031.mat",
+     "bytes": 2882510,
+     "sha256": "c47cb3a5ef47ef4de26fcc80c2173fec24a139f6c305852fccee603cd6c4bcec"
+    },
+    {
+     "path": "data/raw/nasa_full/B0032.mat",
+     "bytes": 2918592,
+     "sha256": "bd146cad3a18f9e8d42d05014c90e7bcde7abc7ccc89bdd46e5655604c61bc0f"
+    },
+    {
+     "path": "data/raw/nasa_full/B0033.mat",
+     "bytes": 11057919,
+     "sha256": "3f6b44d7e123b9e9e4a26c3651acd0b9f38ca4d21aac3930bd9197ccf8b04426"
+    },
+    {
+     "path": "data/raw/nasa_full/B0034.mat",
+     "bytes": 11091182,
+     "sha256": "d8cd5faff49f0d5672736327c5cd16913e0a0f08fb2817f672f52a67184cb885"
+    },
+    {
+     "path": "data/raw/nasa_full/B0036.mat",
+     "bytes": 11404549,
+     "sha256": "40511cccf0262d61b8345fdfe6c4e0a67ccc42e7f5e869ec32c7f33619e7dc15"
+    },
+    {
+     "path": "data/raw/nasa_full/B0038.mat",
+     "bytes": 3697900,
+     "sha256": "41d4a6977e3f3a46623f80ad8f6e5ba6ad83a2746403f71966c88a4722ffd409"
+    },
+    {
+     "path": "data/raw/nasa_full/B0039.mat",
+     "bytes": 3727683,
+     "sha256": "0ea0a44622b61f13306cfc9c7080c7a6a8eb187da38607bfdc776974fcb5f000"
+    },
+    {
+     "path": "data/raw/nasa_full/B0040.mat",
+     "bytes": 3749942,
+     "sha256": "1d7eb3dbf82bda46837831756999d911211b9ed0cc892c7e2e8d7f9059a5e013"
+    },
+    {
+     "path": "data/raw/nasa_full/B0041.mat",
+     "bytes": 3733558,
+     "sha256": "a5440bfb8a141a123ed255ddccaec736b7e04028bce266f04da44c99d53c1eaf"
+    },
+    {
+     "path": "data/raw/nasa_full/B0042.mat",
+     "bytes": 7499364,
+     "sha256": "4c39701508278c7a4f14e8af299f2510403dca30f2627fcf30c0ad7dc9f33675"
+    },
+    {
+     "path": "data/raw/nasa_full/B0043.mat",
+     "bytes": 7483891,
+     "sha256": "3e937018342628667a0b1cf30ce804aebed9a1d79577de372d5232ad4bf96034"
+    },
+    {
+     "path": "data/raw/nasa_full/B0044.mat",
+     "bytes": 7511915,
+     "sha256": "e66d3620de32f134619eaf9692a41d2ab70fa3f8c49211c2b303261504974f30"
+    },
+    {
+     "path": "data/raw/nasa_full/B0045.mat",
+     "bytes": 3599285,
+     "sha256": "dc8e4cc149fe87f4ff855f30f0d31155ada6f467d06f5365550bab9370670fe3"
+    },
+    {
+     "path": "data/raw/nasa_full/B0046.mat",
+     "bytes": 3642687,
+     "sha256": "fe62dffc7079f6131e591415c740f6863364b23e728fe2aa7286a9c749dcdebc"
+    },
+    {
+     "path": "data/raw/nasa_full/B0047.mat",
+     "bytes": 3715274,
+     "sha256": "8089a9180cf353704642c457c844d83dd2e83aa2fc43fe4f7c05322f86fd0648"
+    },
+    {
+     "path": "data/raw/nasa_full/B0048.mat",
+     "bytes": 3752042,
+     "sha256": "341219d38d8531e0a89ecaa18736b79e1547d22edea4a1d45357bb5bfeb7757d"
+    },
+    {
+     "path": "data/raw/nasa_full/B0049.mat",
+     "bytes": 2183593,
+     "sha256": "bf56a4362287c8489dbeda27b823432f1e587473a7bf7096deec057c5a44d895"
+    },
+    {
+     "path": "data/raw/nasa_full/B0050.mat",
+     "bytes": 2164473,
+     "sha256": "4dcb2475a8e689d54ac231832b40be0bf081805f28f69524e1c46f4c1d153d4e"
+    },
+    {
+     "path": "data/raw/nasa_full/B0051.mat",
+     "bytes": 2213520,
+     "sha256": "37c247607dc7e5384fae4ef595d8b2f9072a2107ce1112fe0a460b4f48c8894b"
+    },
+    {
+     "path": "data/raw/nasa_full/B0052.mat",
+     "bytes": 2157035,
+     "sha256": "640d86ac187b223c2edf83715b0f95ba5faeaaf5402a51dc81fc5f6275d4edd8"
+    },
+    {
+     "path": "data/raw/nasa_full/B0053.mat",
+     "bytes": 3347771,
+     "sha256": "5ae945704d75f9865608c1bf585c80b62ba8e6a98c555840735c1f64fa5513f9"
+    },
+    {
+     "path": "data/raw/nasa_full/B0054.mat",
+     "bytes": 7089384,
+     "sha256": "02ececa6edf2ab1febdfa31daccaaff59b090e627b9403a59060157c9488712a"
+    },
+    {
+     "path": "data/raw/nasa_full/B0055.mat",
+     "bytes": 7199776,
+     "sha256": "8405c13378ced0894019a74f343057b0151f58c417fed45a5e068c4e372ea039"
+    },
+    {
+     "path": "data/raw/nasa_full/B0056.mat",
+     "bytes": 7279819,
+     "sha256": "e894d92938c6fb09b6455bcc49330902c0e3ea8ee65129f664f1718a4843e709"
+    },
+    {
+     "path": "data/raw/nasa_full/README.txt",
+     "bytes": 2421,
+     "sha256": "57bbfaac92684314304e4b49b7055458c6a82c03f3634e7fee502427a576e079"
+    },
+    {
+     "path": "data/raw/nasa_full/README_25_26_27_28.txt",
+     "bytes": 2421,
+     "sha256": "57bbfaac92684314304e4b49b7055458c6a82c03f3634e7fee502427a576e079"
+    },
+    {
+     "path": "data/raw/nasa_full/README_29_30_31_32.txt",
+     "bytes": 2361,
+     "sha256": "e058b7b94acf66e7fcf564620839c27da5283bbb3e489be7501912ea67458025"
+    },
+    {
+     "path": "data/raw/nasa_full/README_33_34_36.txt",
+     "bytes": 2447,
+     "sha256": "4a5e394c8ec0f4bd35bad27ee18183c22736439c979fc0997501c30290035f2c"
+    },
+    {
+     "path": "data/raw/nasa_full/README_38_39_40.txt",
+     "bytes": 2436,
+     "sha256": "00ff1db2683c5932689d22b9583fe75b2dce7351cd55423b29f0ce81359a37ee"
+    },
+    {
+     "path": "data/raw/nasa_full/README_41_42_43_44.txt",
+     "bytes": 2581,
+     "sha256": "e1cb9611c0ce3dbfdf12ab291470e2c6bd4a2f9d365d3ac7c669c2e09e9f8986"
+    },
+    {
+     "path": "data/raw/nasa_full/README_45_46_47_48.txt",
+     "bytes": 2564,
+     "sha256": "bd098517a0877f614a160eca688bcf1abda8ecac4d0dda4e00e98ebb43e4b61b"
+    },
+    {
+     "path": "data/raw/nasa_full/README_49_50_51_52.txt",
+     "bytes": 2586,
+     "sha256": "86e1f8102153708c5df4c568138b652866ee04d030314f3c41ad3b634a9440eb"
+    },
+    {
+     "path": "data/raw/nasa_full/README_53_54_55_56.txt",
+     "bytes": 2564,
+     "sha256": "12fc8f081de19299cbdf9f6eb83506d6b109eae42a22c82b1a8001ddb89bf522"
+    },
+    {
+     "path": "data/raw/nasa_full_zips/5. Battery Data Set/1. BatteryAgingARC-FY08Q4.zip",
+     "bytes": 56517371,
+     "sha256": "f3a4fcd7c3434e06906f4222778445ce6ad42f49c5c78a785bdd676b7c223a2e"
+    },
+    {
+     "path": "data/raw/nasa_full_zips/5. Battery Data Set/2. BatteryAgingARC_25_26_27_28_P1.zip",
+     "bytes": 11123439,
+     "sha256": "7fa159be0c4e78d97233ef777587f46270d1389b5d8a21d33c6e7573a8c8e3b8"
+    },
+    {
+     "path": "data/raw/nasa_full_zips/5. Battery Data Set/3. BatteryAgingARC_25-44.zip",
+     "bytes": 93662572,
+     "sha256": "da983014699f3cc8d6a431863ef83957c838ac62e3d391b9f383b04c2e6a53bb"
+    },
+    {
+     "path": "data/raw/nasa_full_zips/5. Battery Data Set/4. BatteryAgingARC_45_46_47_48.zip",
+     "bytes": 14715108,
+     "sha256": "21822c9889487f8e16e210f419cc5fe803d7ef43a06cdaf33489489967a881ec"
+    },
+    {
+     "path": "data/raw/nasa_full_zips/5. Battery Data Set/5. BatteryAgingARC_49_50_51_52.zip",
+     "bytes": 8717235,
+     "sha256": "20170ede4ef5ca0573d6503c8a9c33c087835e8ba270f9bc67cdf8219315b6d9"
+    },
+    {
+     "path": "data/raw/nasa_full_zips/5. Battery Data Set/6. BatteryAgingARC_53_54_55_56.zip",
+     "bytes": 24923477,
+     "sha256": "90ee087b867edb0d4b38d81e0fefb4ef99b548e6288c4f25649d79fb37942798"
+    },
+    {
+     "path": "data/raw/nasa_B0005_sample.mat",
+     "bytes": 15956874,
+     "sha256": "0eae4585baf3f200c09fe24c5ab884f1889679fc75206ca1aa19da704104f0b0"
+    },
+    {
+     "path": "data/raw/nasa_battery_dataset.zip",
+     "bytes": 209708670,
+     "sha256": "82302a7db4fc1b34e0b6676326610438d43b816bdf11a69d1d012a464ef2f92e"
+    }
+   ],
+   "sampling_interval_s": {
+    "seconds": 2.906,
+    "p10": 2.906,
+    "p90": 10.5,
+    "segments": 644,
+    "method": "median time step of the charge cycles' Time vectors in B0005/B0006/B0007/B0018 (.mat), variable-rate logging"
+   },
+   "measured_at": "2026-09-06T01:22:30Z",
+   "data_dir": "/Users/liqingchuan/Documents/projects/SOH_eval/data"
+  },
+  "hust": {
+   "raw_sha256": "ace2044257dae8bf61c8e27d12b377195b528fd4ba48bc4f4f5c18ad7b21e1dd",
+   "raw_files": [
+    {
+     "path": "data/raw/hust/hust_data.zip",
+     "bytes": 1188136932,
+     "sha256": "071d24617153693b0d29059568525e620f6af6512acc9d00c98c7adcf15125db"
+    },
+    {
+     "path": "data/raw/hust/our_data/1-1.pkl",
+     "bytes": 53553885,
+     "sha256": "8e43eac20a707f094b3e01e44cb36b1d8229a91529dc973677b37f3605766df2"
+    },
+    {
+     "path": "data/raw/hust/our_data/1-2.pkl",
+     "bytes": 88277079,
+     "sha256": "2c7bc486d4f924dae68281e0457899c6e251a7c7bc698de2617553cb0e8f64d3"
+    },
+    {
+     "path": "data/raw/hust/our_data/1-3.pkl",
+     "bytes": 57386031,
+     "sha256": "bc6d7d73230c12ff39add072a30a1847dacc752de8648812988c0c07a8fedbf4"
+    },
+    {
+     "path": "data/raw/hust/our_data/1-4.pkl",
+     "bytes": 45359349,
+     "sha256": "026298432bbb80af22ee519104ba19f4f8c0c969034c38a027d46d66d9349975"
+    },
+    {
+     "path": "data/raw/hust/our_data/1-5.pkl",
+     "bytes": 58293447,
+     "sha256": "8510ee7e9790f1cc3771adcd001d2a5a04de05d187c4ffed161bc4091b5e0f52"
+    },
+    {
+     "path": "data/raw/hust/our_data/1-6.pkl",
+     "bytes": 37837770,
+     "sha256": "59be9413cf02d83a3c07c7f86cfc50ef658f0d8750fa12a2b5ee284663144681"
+    },
+    {
+     "path": "data/raw/hust/our_data/1-7.pkl",
+     "bytes": 48766119,
+     "sha256": "bc7ad2462cd3b2b522ceef2548a85fb8f33c3cc3d3e173c5e242b25d2c182199"
+    },
+    {
+     "path": "data/raw/hust/our_data/1-8.pkl",
+     "bytes": 64277382,
+     "sha256": "dda097addc0b0feb922233053763df943db1573be52efb8d7289baa40c685555"
+    },
+    {
+     "path": "data/raw/hust/our_data/10-1.pkl",
+     "bytes": 45067561,
+     "sha256": "87a2576487d8465c47a780f4dbf7ad7a373bd8c8393f7c39e3e7ff03151e1683"
+    },
+    {
+     "path": "data/raw/hust/our_data/10-2.pkl",
+     "bytes": 44034424,
+     "sha256": "9eccf6f4fc97488b40cf461e071f330e0c8527f73cf010e636725b4573e32e94"
+    },
+    {
+     "path": "data/raw/hust/our_data/10-3.pkl",
+     "bytes": 46403656,
+     "sha256": "9b27d2726e351cb70b3707495a0171c8afd384bab18fe4422dda89227fa9222d"
+    },
+    {
+     "path": "data/raw/hust/our_data/10-4.pkl",
+     "bytes": 62687977,
+     "sha256": "30d4be4a45db8ac8d419f39fc6bd21b727f4bd04568ba496e03c8ee5ea97fc69"
+    },
+    {
+     "path": "data/raw/hust/our_data/10-5.pkl",
+     "bytes": 62100715,
+     "sha256": "6f2f7a1404cb62b32666b2035bfb348c6eded2b6afab20d2c5972ae5d5934ab8"
+    },
+    {
+     "path": "data/raw/hust/our_data/10-6.pkl",
+     "bytes": 72938470,
+     "sha256": "c899d3553f1881a83d818641d91287f5667d3ce995e6576858eaed5a55a3619d"
+    },
+    {
+     "path": "data/raw/hust/our_data/10-7.pkl",
+     "bytes": 55462822,
+     "sha256": "6e00893258c842a817c5b0dab0d7da1667ecfd18407b37a377eeaa31824053cd"
+    },
+    {
+     "path": "data/raw/hust/our_data/10-8.pkl",
+     "bytes": 47141296,
+     "sha256": "b303b08d317012a1f976a8bebed99e08f914cf8623063eb7f190d63a2346782d"
+    },
+    {
+     "path": "data/raw/hust/our_data/2-2.pkl",
+     "bytes": 72468021,
+     "sha256": "37d0e00e4eef6039ea1b091e0059d58118f9306e408945285122127c542835c1"
+    },
+    {
+     "path": "data/raw/hust/our_data/2-3.pkl",
+     "bytes": 54662280,
+     "sha256": "0a8b444851a441006eaafd123ecb538cfbadf457fb6e3f9bfaa34ae740e56f45"
+    },
+    {
+     "path": "data/raw/hust/our_data/2-4.pkl",
+     "bytes": 41683974,
+     "sha256": "f0b6a0a74e0a380b645cb6d442bad76bb182e4043cc121e3788efb2c8ed8b4ef"
+    },
+    {
+     "path": "data/raw/hust/our_data/2-5.pkl",
+     "bytes": 36734361,
+     "sha256": "1092a099e19424b0af54421761be8fcbbf7d8b7837710bee9bb38816a4ab4cd4"
+    },
+    {
+     "path": "data/raw/hust/our_data/2-6.pkl",
+     "bytes": 40868952,
+     "sha256": "feafc6341d6f4d6f72f9d789244a64f8de884805ee9eb9b90c8530f941239203"
+    },
+    {
+     "path": "data/raw/hust/our_data/2-7.pkl",
+     "bytes": 55935489,
+     "sha256": "30cc5d67c68bd012b1913f43d97a23f27b81d0e9d912ea010cc93a435b031fdc"
+    },
+    {
+     "path": "data/raw/hust/our_data/2-8.pkl",
+     "bytes": 44391066,
+     "sha256": "6eff0ea22920876cce86f9d10b8e9093f2b3a466fe560b1e655b958785bfdd6f"
+    },
+    {
+     "path": "data/raw/hust/our_data/3-1.pkl",
+     "bytes": 52017495,
+     "sha256": "ed79e97a7e086a8a2cad3fbcc1cad29dbfe3447f13df5aa8ed02142cdc204187"
+    },
+    {
+     "path": "data/raw/hust/our_data/3-2.pkl",
+     "bytes": 57696618,
+     "sha256": "68488c116ac3127a75169f1c47509f673421680cc555868be7c22c3ccfb73d6a"
+    },
+    {
+     "path": "data/raw/hust/our_data/3-3.pkl",
+     "bytes": 40708923,
+     "sha256": "f5fb84a2d24b0795493cf05abc3fa02dc5b4d2b3a2129b6bf9265474bec84918"
+    },
+    {
+     "path": "data/raw/hust/our_data/3-4.pkl",
+     "bytes": 41969958,
+     "sha256": "9a81b15764a4bc0f86e934d15e827a3285a2b4689f7a655b7c2ddc518076962f"
+    },
+    {
+     "path": "data/raw/hust/our_data/3-5.pkl",
+     "bytes": 81214392,
+     "sha256": "7bfb34f71690517fd082c892ffe7371cf85ab90f4c56373c2e883db8ac1aa8a7"
+    },
+    {
+     "path": "data/raw/hust/our_data/3-6.pkl",
+     "bytes": 64989705,
+     "sha256": "b99b657ccce0cee5337515fc5beabaddb7b8b1b5ff4d36814361b1f18e681a56"
+    },
+    {
+     "path": "data/raw/hust/our_data/3-7.pkl",
+     "bytes": 59580543,
+     "sha256": "f4802f0dcb18ca04ac857c5b2be7eafde7fed0740a91ed45546a2db0303087f4"
+    },
+    {
+     "path": "data/raw/hust/our_data/3-8.pkl",
+     "bytes": 57806004,
+     "sha256": "bc40eced0c468ee0675a9c68157dd40e60941eecbd7cba3ce256195341edc100"
+    },
+    {
+     "path": "data/raw/hust/our_data/4-1.pkl",
+     "bytes": 50474919,
+     "sha256": "9274a9fbe3d13eb623426649fd12f3fde73407347d6b402b55e65556259ffec2"
+    },
+    {
+     "path": "data/raw/hust/our_data/4-2.pkl",
+     "bytes": 65063571,
+     "sha256": "a97a3cc10127e5c343ff1a82fc8375ac10b04730b7d25904f50d13ea62d0c164"
+    },
+    {
+     "path": "data/raw/hust/our_data/4-3.pkl",
+     "bytes": 37450896,
+     "sha256": "73c76630017c14e66ceda20912789016591b1f2c74076b9973b0603485158b15"
+    },
+    {
+     "path": "data/raw/hust/our_data/4-4.pkl",
+     "bytes": 46627386,
+     "sha256": "666e50a60d1bb515c7ff3eaafb4cae64f91f42331b24c747f5de1cc222d27821"
+    },
+    {
+     "path": "data/raw/hust/our_data/4-5.pkl",
+     "bytes": 48530985,
+     "sha256": "f0ba57806a9daa7669e1bcdf21e77e1d9993b4f31394bb092ad8056f558989cb"
+    },
+    {
+     "path": "data/raw/hust/our_data/4-6.pkl",
+     "bytes": 40867386,
+     "sha256": "2f8b38bd4478a99ca6d171a435ff7ae3a5d4d08e97c769421e592135f334dd3f"
+    },
+    {
+     "path": "data/raw/hust/our_data/4-7.pkl",
+     "bytes": 76911825,
+     "sha256": "0cd29061c172c6ed937f72ba354d895420d4085dfaac004c9cf7be4bfe7f52d0"
+    },
+    {
+     "path": "data/raw/hust/our_data/4-8.pkl",
+     "bytes": 51455175,
+     "sha256": "7cf339c0a671f5352f883a450d96ce0c0516bc0aa5c55afc6c2329c3fccff95b"
+    },
+    {
+     "path": "data/raw/hust/our_data/5-1.pkl",
+     "bytes": 73220160,
+     "sha256": "cfa248ad2fdedc3d6ed6899ccadf234f1df852cf90ef175c3cf8298ce1ccbb44"
+    },
+    {
+     "path": "data/raw/hust/our_data/5-2.pkl",
+     "bytes": 53568717,
+     "sha256": "16d67c18118cb87a8231adc44eaa05c2169384d330ba8b99e452fa425f649b03"
+    },
+    {
+     "path": "data/raw/hust/our_data/5-3.pkl",
+     "bytes": 74911800,
+     "sha256": "7ec14ca8a2667cc826c8b568c3576abec93e137f4aa82ed6257c5afa27c776af"
+    },
+    {
+     "path": "data/raw/hust/our_data/5-4.pkl",
+     "bytes": 63971799,
+     "sha256": "d6774635bd8e9d752382a63ed72b884d20cb16d6af2e8b134e2a6827dc8974c0"
+    },
+    {
+     "path": "data/raw/hust/our_data/5-5.pkl",
+     "bytes": 45844557,
+     "sha256": "33a1a7545ca4bcad7a47efaf78568c4939be65f3e36072f4f1fcda89e9d8ae2d"
+    },
+    {
+     "path": "data/raw/hust/our_data/5-6.pkl",
+     "bytes": 68835702,
+     "sha256": "d39123aa768dcd227c02457d9d60c792a0fbd26e528d59fe4152142d008b6c60"
+    },
+    {
+     "path": "data/raw/hust/our_data/5-7.pkl",
+     "bytes": 38467284,
+     "sha256": "a79aef3d7b683036fc02d7014bc3300b553d721d03e341bdb2903a5eaf67ac8e"
+    },
+    {
+     "path": "data/raw/hust/our_data/6-1.pkl",
+     "bytes": 50344629,
+     "sha256": "734df0a2e5362e18538869f3caa85ac4dc154b880c8d8a9a15ee1c955dafb2ee"
+    },
+    {
+     "path": "data/raw/hust/our_data/6-2.pkl",
+     "bytes": 54479589,
+     "sha256": "91fa80eefdc74aac412abce7da044299bfd4421957e274ca175988732b554a5a"
+    },
+    {
+     "path": "data/raw/hust/our_data/6-3.pkl",
+     "bytes": 48102036,
+     "sha256": "1912dfbb600e40d79986272b9239a41adad8f65cecd9bac02bb9ecba33e913a0"
+    },
+    {
+     "path": "data/raw/hust/our_data/6-4.pkl",
+     "bytes": 44066805,
+     "sha256": "7fb3818923fac9931dfe042bd763e4a4df9c114db5b65cda3894af65df15f42a"
+    },
+    {
+     "path": "data/raw/hust/our_data/6-5.pkl",
+     "bytes": 56906166,
+     "sha256": "d99f79d56e09adb1e696c55603e11bb7fe431c2b0684823ceb729312123450b0"
+    },
+    {
+     "path": "data/raw/hust/our_data/6-6.pkl",
+     "bytes": 77280321,
+     "sha256": "12988b1b9ad28b144db1b68a408241a8ad56babd70eef3eb617d6626d8140e8b"
+    },
+    {
+     "path": "data/raw/hust/our_data/6-8.pkl",
+     "bytes": 63120513,
+     "sha256": "06bd6398425a4d56d5f4bf4ec99d16979be03760f27484a005adb591af955e7c"
+    },
+    {
+     "path": "data/raw/hust/our_data/7-1.pkl",
+     "bytes": 41364123,
+     "sha256": "be5badc288203e4027deccfb8469fddf26ae83c881f602c09f6b74346186bdcd"
+    },
+    {
+     "path": "data/raw/hust/our_data/7-2.pkl",
+     "bytes": 48782073,
+     "sha256": "a081da0facb681c5b00a5e5defef631de882ea89141d45a84cb0aed20687b559"
+    },
+    {
+     "path": "data/raw/hust/our_data/7-3.pkl",
+     "bytes": 48516531,
+     "sha256": "660e9219e9216cafb54c5ee3f1f25395c5334253f55c5eaae652014930669482"
+    },
+    {
+     "path": "data/raw/hust/our_data/7-4.pkl",
+     "bytes": 47513121,
+     "sha256": "4bd29f4e6403f264a4f859d79d004c648bf2df07c447c9586a69ddb804ca1562"
+    },
+    {
+     "path": "data/raw/hust/our_data/7-5.pkl",
+     "bytes": 61699796,
+     "sha256": "97845ba50256c1982b1dc5160d1ae12d5ab480227c4e4ff27669cb37fabe564f"
+    },
+    {
+     "path": "data/raw/hust/our_data/7-6.pkl",
+     "bytes": 45263040,
+     "sha256": "5f7c479a8c08204d313d435a01120cd11f21b6fb1f036e35c9f1caa7ca713bfa"
+    },
+    {
+     "path": "data/raw/hust/our_data/7-7.pkl",
+     "bytes": 52483866,
+     "sha256": "1e00d05b399412012d48df66e8ecd3cf1bdf137cf1182673c3b35cbf638c6b8b"
+    },
+    {
+     "path": "data/raw/hust/our_data/7-8.pkl",
+     "bytes": 67371639,
+     "sha256": "55bd75c30c2348ba6c756ba52ce5b7f2f27f29f8cfad1a371b62fe6567f03044"
+    },
+    {
+     "path": "data/raw/hust/our_data/8-1.pkl",
+     "bytes": 40259643,
+     "sha256": "e2d8c3e74334f3e48dc1102d2ba626d856b6ee45d7fe28ece49d159f00becddb"
+    },
+    {
+     "path": "data/raw/hust/our_data/8-2.pkl",
+     "bytes": 61224753,
+     "sha256": "7b665ea1dbcb0ba12b9306f570dbc16467cfcb4c68e9dedc9bafebea41dee560"
+    },
+    {
+     "path": "data/raw/hust/our_data/8-3.pkl",
+     "bytes": 65918109,
+     "sha256": "3e8a617d9d5fac4232b3cbf168ce2042b33d861f0a81f3f6e5a22de8eae3d074"
+    },
+    {
+     "path": "data/raw/hust/our_data/8-4.pkl",
+     "bytes": 53140182,
+     "sha256": "f9a8377f58dadc28ed725a7148cef41ea57bca82f37ccb45c97bde432253c7d2"
+    },
+    {
+     "path": "data/raw/hust/our_data/8-5.pkl",
+     "bytes": 44632635,
+     "sha256": "68e28d7a667d686998b47518498933fa87859924f40cb04ccae830a1f6540db2"
+    },
+    {
+     "path": "data/raw/hust/our_data/8-6.pkl",
+     "bytes": 73123986,
+     "sha256": "655ff4604a5553a89b68d8bcdf21758bdb8c2acd6ee709f547171a306923d18a"
+    },
+    {
+     "path": "data/raw/hust/our_data/8-7.pkl",
+     "bytes": 58962243,
+     "sha256": "51afbe2e2e3fcb10089b4b591a0a758caabfcc13bebe1a053d4009f494e85272"
+    },
+    {
+     "path": "data/raw/hust/our_data/8-8.pkl",
+     "bytes": 46962816,
+     "sha256": "bb8240d254b8ab22f3822ba355af79685ad254f38e20504451e770da3ccfc99a"
+    },
+    {
+     "path": "data/raw/hust/our_data/9-1.pkl",
+     "bytes": 55345818,
+     "sha256": "ced89b77810c9c230cfc772135d82d1772a149ee75e94dd130d597e63b856fc8"
+    },
+    {
+     "path": "data/raw/hust/our_data/9-2.pkl",
+     "bytes": 69547044,
+     "sha256": "1b9934fe884bb59d29ecb381935b8ad880485cf4dc803a2c829d95057e226773"
+    },
+    {
+     "path": "data/raw/hust/our_data/9-3.pkl",
+     "bytes": 55241304,
+     "sha256": "9c6a1208639b2b611a229092b2a0982696d4aced3ca04fe7a5d8900da1d2949c"
+    },
+    {
+     "path": "data/raw/hust/our_data/9-4.pkl",
+     "bytes": 54523230,
+     "sha256": "5a24b7d0d0bd8f272032a76e64a03a8c061fce84a4be7817970429bdfb430eaa"
+    },
+    {
+     "path": "data/raw/hust/our_data/9-5.pkl",
+     "bytes": 57581328,
+     "sha256": "b9a837af04642494f3bdfeba104851bdf215069bef5b832aa581ba5c1433ee28"
+    },
+    {
+     "path": "data/raw/hust/our_data/9-6.pkl",
+     "bytes": 45219687,
+     "sha256": "f36aefde81709e98b4b0afd1f3d23b8c35a363156a0bdb15bc1bc5aee38bb4eb"
+    },
+    {
+     "path": "data/raw/hust/our_data/9-7.pkl",
+     "bytes": 63506208,
+     "sha256": "0f1401383e89d4c8bc6a8b5e28632902dabcd1691843a096e4cc8ccbea85f26b"
+    },
+    {
+     "path": "data/raw/hust/our_data/9-8.pkl",
+     "bytes": 64729587,
+     "sha256": "39a032f8eee51a46fed5f261a95fecf84bd50fd540a1176872b74f1be9b4c23d"
+    }
+   ],
+   "sampling_interval_s": {
+    "seconds": 5.0,
+    "p10": 5.0,
+    "p90": 5.0,
+    "segments": 400,
+    "method": "median per-cycle time step of the raw charge segments (sohkernel.raw_windows.iter_charge_curves, first 400 segments)"
+   },
+   "measured_at": "2026-09-06T01:22:33Z",
+   "data_dir": "/Users/liqingchuan/Documents/projects/SOH_eval/data"
+  },
+  "snl_lfp": {
+   "raw_sha256": "6ad3c579d290caab809a1e1a20a6859d00cab11a970b6505676513b970877c4e",
+   "raw_files": [
+    {
+     "path": "data/raw/snl_batterylife/READMEs.zip",
+     "bytes": 17166,
+     "sha256": "eb2eef9aa5bea0af47874afb73ba64243488fe364fd8e4d70d464b16c8310840"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_15C_0-100_0.5-2C_b.pkl",
+     "bytes": 19333931,
+     "sha256": "aa1def6be5f0d972b44181146a85824e709271d18e290db2a3663aa3fc6c6836"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-0.5C_a.pkl",
+     "bytes": 23475679,
+     "sha256": "d9d9d0b573c65c62fd42682c177226ad8df2ee8e42bac2d0fa8c94f9005a7d23"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-1C_a.pkl",
+     "bytes": 20834438,
+     "sha256": "18ea75ef289f4bfaf8b7e57625c0161a2424d844375f310524af409395f54ca2"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-1C_b.pkl",
+     "bytes": 28210901,
+     "sha256": "c8e62cf6f0237d70152e0382d449495dc219f6a0c1aaa178407c694160b6713b"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-1C_c.pkl",
+     "bytes": 18261017,
+     "sha256": "cb6143eae3ccd2f76dd3cde28308694fea349e951ec15ed925480b3fb00a88e6"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-1C_d.pkl",
+     "bytes": 18267335,
+     "sha256": "cc334061bb6db69095f63977ccfbf2b6993827cdd777b5729f3b085de3ad9026"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-2C_a.pkl",
+     "bytes": 18218594,
+     "sha256": "2497aa122e41992e584acb08af9fb8539f4a43e47b3ce149b4eba0555fc5beb7"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-2C_b.pkl",
+     "bytes": 20724253,
+     "sha256": "4bc9ecb950faebd30482253779ff90060cfb2afe99a694aa196c21e8459e9ee4"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-3C_a.pkl",
+     "bytes": 21657739,
+     "sha256": "e57fa1d6eacf453eae8ce9b0134baac727527e05e7df109e3c45e43b2762f910"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-3C_b.pkl",
+     "bytes": 19494502,
+     "sha256": "a3c571c916b5dc98289b8ba1dbcad55a5f9d0f40c957f776b90baae14d7472ed"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-3C_c.pkl",
+     "bytes": 16925129,
+     "sha256": "fbd54c77f85c3804735bc6876ed118b37e36b839155e1a274e777401d1c4595e"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-3C_d.pkl",
+     "bytes": 19775932,
+     "sha256": "a802cb5032be0b86ccdaed28ebbdfe7818c3624cec33a85f8c9cb50d28f6d622"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-1C_a.pkl",
+     "bytes": 22156769,
+     "sha256": "271103892f009cfddb2cddeed8cc9659423caab060e2ae1a3216f3a5751277a6"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-1C_b.pkl",
+     "bytes": 22626818,
+     "sha256": "3d23c2444c68f61f68c566fb80388e0a5e59dac1f1fc447a6a50d91c53efa394"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-1C_c.pkl",
+     "bytes": 22633772,
+     "sha256": "72bad7ff3991a7213bd753e1a4fce47f701def8653465869ee3e55c8049da429"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-1C_d.pkl",
+     "bytes": 25744271,
+     "sha256": "93add7117b90855079b330f414d048858bf5911b036832bc0992c4c2021f5d70"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-2C_a.pkl",
+     "bytes": 23644487,
+     "sha256": "fc77b3802bb72d04b4ad7781b4244228e3d40240b24bffab39a70f41325b4501"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-2C_b.pkl",
+     "bytes": 21249599,
+     "sha256": "fea252c48f622ccd39e3177f2e8064423ecc6bd38198d64351e2087b40bf8f14"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_15C_0-100_0.5-1C_a.pkl",
+     "bytes": 3381614,
+     "sha256": "1c0837ef95f4edf9c45e61b4f41a53dea63f65f471e96aca1b72dc2b86d93422"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_15C_0-100_0.5-1C_b.pkl",
+     "bytes": 5485112,
+     "sha256": "0e0ac80d59f0384051e116510ba07343a7dab66e77b48e1f6da0bd891ab72a31"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_15C_0-100_0.5-2C_a.pkl",
+     "bytes": 5247371,
+     "sha256": "4f7c678fee98a885208f3497f380e08bbac70e9e688c945dddefcdf9bc2f94ce"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_15C_0-100_0.5-2C_b.pkl",
+     "bytes": 4305254,
+     "sha256": "a387e60442167471509b540f0d0544fbd3a38b5170dce0ec6c9b7504685673d0"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-0.5C_a.pkl",
+     "bytes": 9208069,
+     "sha256": "05681af7e9af96481082df6b1303a873913fc96b946d7cd5a93f6bf822d7cd0c"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-0.5C_b.pkl",
+     "bytes": 12421918,
+     "sha256": "98400ba66944259f92ddf5e319c7dfcbd689e069cbeb941441c3df31086b1cb5"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-1C_a.pkl",
+     "bytes": 4519637,
+     "sha256": "bc990d99cf11a0c2a357e2a1ac7d04d1c51a3b92357d41b7875f243f30fc2ef2"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-1C_b.pkl",
+     "bytes": 3749108,
+     "sha256": "b540433717bd8866457868da7be1d08c042fe29281ba7747acc75d419c9e210d"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-1C_c.pkl",
+     "bytes": 3867896,
+     "sha256": "291150ecc4a2ee02644d7703234797897b142dec0c72c34c1701c0760ff457ad"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-1C_d.pkl",
+     "bytes": 4873355,
+     "sha256": "4cf48e9aae541e296e7c959bc7b59ff9f569597135373b1df4d2137aff302a0f"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-2C_a.pkl",
+     "bytes": 5319452,
+     "sha256": "5124371c46f0a1ca9e00031264d200f49bd8a662abd6612366c3de096efbc8e1"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-2C_b.pkl",
+     "bytes": 4341629,
+     "sha256": "17b1ea2ebd941dfc4bb64a91377fb5a3b5666a1f01c20ce146c271c7c89942f5"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_20-80_0.5-0.5C_a.pkl",
+     "bytes": 12591335,
+     "sha256": "d062e599ad12fa8b898d4b08a9e9bd548f94fee8c6c1c1be3f75d2c6f4459a90"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_20-80_0.5-0.5C_b.pkl",
+     "bytes": 13176338,
+     "sha256": "67dfa8ab34c6bcc257f85da4347a5eebbad7da532315ca4dd462265d06bbd52d"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_20-80_0.5-0.5C_c.pkl",
+     "bytes": 13046822,
+     "sha256": "bc3402d1612b669b9b079585786350eaee0c12843566155ec5d5dd9a3bbb86e4"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_20-80_0.5-0.5C_d.pkl",
+     "bytes": 13762322,
+     "sha256": "61fcd35de2c1b395f341d8cfa2bc66449203639665a0b33fa349428d58e322da"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-1C_a.pkl",
+     "bytes": 3684137,
+     "sha256": "5349f4f39872eb03f8899935cda80b1f9f7a08956dc65ba76dbb5a72b0cb200a"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-1C_b.pkl",
+     "bytes": 3400964,
+     "sha256": "c3e9eae6cd7c350ce16c03f32919a5d9cdb234f477923f2a03c9ec05f4b37f9b"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-1C_c.pkl",
+     "bytes": 3762254,
+     "sha256": "d72077a42980a5cebf042d39b236ee2fcdbe9c1e2dd2f11ac87e0c026d227b17"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-1C_d.pkl",
+     "bytes": 5242154,
+     "sha256": "0ad3eb68f43387fd62202ce2da5a199867d66af8ae189f75d87751817262ffa8"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-2C_a.pkl",
+     "bytes": 4923380,
+     "sha256": "1bc45175d094e394b5a93137a08e3d8bec412722e9008322883e33a6dc7e82d9"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-2C_b.pkl",
+     "bytes": 5782565,
+     "sha256": "11b006644a7e454522669738092a5be50cd865f08486d9a347a144797baf96a7"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_15C_0-100_0.5-1C_a.pkl",
+     "bytes": 2890163,
+     "sha256": "c7b621d196de30d0c85ae2d81972ff11b90e6cd57b9c54a3b895840a807a93b8"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_15C_0-100_0.5-1C_b.pkl",
+     "bytes": 2871848,
+     "sha256": "619e5b8d2c0a75c29fe3f1e98c6d019d9a526effaf0352a680616d97090ab51a"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_15C_0-100_0.5-2C_a.pkl",
+     "bytes": 2297414,
+     "sha256": "56fc03204faa863999ef647711d4cce3b362ec276927bf340180a862fadeec35"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_15C_0-100_0.5-2C_b.pkl",
+     "bytes": 2013785,
+     "sha256": "38e1f8bedca07791ffeeed24bd26f2cd2716100ade6c461c7f04a537e601bbc9"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-0.5C_b.pkl",
+     "bytes": 6286203,
+     "sha256": "b761469f639cc646a39317c8b33f3d48ebd9cbd7826cfc8ed610adbf50707afd"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-1C_a.pkl",
+     "bytes": 3802768,
+     "sha256": "1367319b8a53bcc906509e1a4b763c90f4adf18e39e52cf44ee1d5f1145733b1"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-1C_b.pkl",
+     "bytes": 5973229,
+     "sha256": "ee3018c472bd4624dee8c8fd34cc54a7f24c65b61c3de336ff131dcfab4ba3d2"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-1C_c.pkl",
+     "bytes": 3561496,
+     "sha256": "b19dcb682f27e052cfdba5c9707502f4861dc213f415b2e66da29004d1681532"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-1C_d.pkl",
+     "bytes": 4354660,
+     "sha256": "57976b729b0b93104a157fdea584078cb3b44cfbfe12e8e96408f9ddd6799574"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-2C_a.pkl",
+     "bytes": 5159584,
+     "sha256": "42087c07f581290e39b06a000a9c519af47c028201dcf69f776571474b485463"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-2C_b.pkl",
+     "bytes": 9815817,
+     "sha256": "96b906975c7ec9b5ea3b95999379c7da6c924b1536f18d05bfee6b58335711bb"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-3C_a.pkl",
+     "bytes": 3762835,
+     "sha256": "ee183cef12056235308612e22f86dbae85cf44a426655c2384df232957d11c32"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-3C_b.pkl",
+     "bytes": 3170200,
+     "sha256": "9f2a55e1e2785c540c941a6fe047ec9f4607636242f80fff4a417d0f4573321b"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-3C_c.pkl",
+     "bytes": 4551841,
+     "sha256": "def2f14d468efaa87b18aea21d4f2e815941d98d252c6c6457c9de3b857b811a"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-3C_d.pkl",
+     "bytes": 5378842,
+     "sha256": "57ad9ce02cd0cd6778ad7089619b64a16896c69a4ec10d89e64a895ab35b7a69"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-1C_a.pkl",
+     "bytes": 6175126,
+     "sha256": "1c90cfdc74d805cb701a63672d51a56e4ef4eec9a48e92bcf04ef39590f381e3"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-1C_b.pkl",
+     "bytes": 6333604,
+     "sha256": "dacd0a7b9ef2d8a92749a9300cbc7cb961156b88ec9c8231518f8fbffa39b7cc"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-1C_c.pkl",
+     "bytes": 5750653,
+     "sha256": "adf71ae95843cdde14bd9987c41e992877306d31d45e8c4b1400b16b7bea66b6"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-1C_d.pkl",
+     "bytes": 6029059,
+     "sha256": "d50f2c98ec363f63eb2830560773a07a0dfad4f28cf2a0196fa415d7df31c67f"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-2C_a.pkl",
+     "bytes": 5672344,
+     "sha256": "d6edd5ca388e140e0bbde6de46bb13cc75db3d4a2ed00d2e7d728b905e885cc5"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-2C_b.pkl",
+     "bytes": 4514368,
+     "sha256": "0ac075ab68eb004527698e7e0e4107ca235a7043b82802b57ef7461215050a8a"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL.zip",
+     "bytes": 115187861,
+     "sha256": "1ce27dc94d5d3a9a10ed875805a880c9c0701833915f1b78b09a759c72cfd57a"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/CALB_README.md",
+     "bytes": 1619,
+     "sha256": "5c0dfc4eb09c741183f0abc0c3710c556c8a4954a07333763b2c5c65ebf402ce"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/CALCE_README.md",
+     "bytes": 1176,
+     "sha256": "be17a5555897a18e3a54b0202e8c70185e31992361ee364be572ad418207319d"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/HNEI_README.md",
+     "bytes": 1133,
+     "sha256": "cb34a65984c1cc9120b8b90eab855dfc76446b736d1e9f9fa3fc972fa5687f03"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/HUST_README.md",
+     "bytes": 1154,
+     "sha256": "1836300144c1a2b3926b90ca8d0b14606769e97e1027764636914f3433d32899"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/ISU-ILCC_README.md",
+     "bytes": 1122,
+     "sha256": "e18ca91532a1707194f950fe938f9f2cb606959a4ba6f313d620ffcb26f9539b"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/MATR_README.md",
+     "bytes": 1371,
+     "sha256": "20576a27ab4d8dc5a8dff37df0e4d777880496f11a16c502f8fdf9dc58f3e6e8"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/MICH_EXP_README.md",
+     "bytes": 1110,
+     "sha256": "41f0b834424620b4e145cfe731101db38f1cc34ebf5a6c914f8c109a8621345f"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/MICH_README.md",
+     "bytes": 1108,
+     "sha256": "a00ebe44ddb57db4e9603b29a28828dae9cda478a2c74e0a83d0632141a95763"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/NA-ion_README.md",
+     "bytes": 8888,
+     "sha256": "274632d04a744a69cbc85c595fcee5f65c66089dd300a776b0fd7183974b5df4"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/RWTH_README.md",
+     "bytes": 1039,
+     "sha256": "929e1de38fbd55c956f8f7b89aa1e3677900ca249eb29685e1871472ee5badc7"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/SDU_README.md",
+     "bytes": 1194,
+     "sha256": "e97b2edfcef22697c445c3e1a443ea4a292dc791b827ba1b07ae224ca6bcbeea"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/SNL_README.md",
+     "bytes": 1123,
+     "sha256": "8162b49991e267b2f0e549ab75b0636c766edf5f940765b5a2c0be130020be50"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/Stanford_2_README.md",
+     "bytes": 1186,
+     "sha256": "31b2e27455ea92f808ff8e4d9b1da9edfa5cf3e5297558c24755b2f07feb9aac"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/Stanford_README.md",
+     "bytes": 1185,
+     "sha256": "c53a265a141c08f940b32ecce22fa42ec0a517b62dfe8ead97c633e2863fecda"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/Tongji_README.md",
+     "bytes": 1308,
+     "sha256": "8a1bbaad39b676bb75af4f7b6504efccb503bd7fbc5daab3feab2799ea40e151"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/UL_PUR_README.md",
+     "bytes": 1148,
+     "sha256": "52a0a4219e81038b4bc95fcd7a0de433653359d38fdefe4ce81f70574c15d0be"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/XJTU_README.md",
+     "bytes": 1139,
+     "sha256": "f7d218ab64dc15be3599464cd7c58a70dac5fd28be1e693f9d2d389fe78d747f"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/ZN-coin_README.md",
+     "bytes": 18523,
+     "sha256": "1103a37b192305a651e5140e485f9ea9f4e16d8aee3341cb0ffe913f6befba1f"
+    }
+   ],
+   "sampling_interval_s": {
+    "seconds": 120.024,
+    "p10": 120.024,
+    "p90": 120.024,
+    "segments": 400,
+    "method": "median per-cycle time step of the raw charge segments (sohkernel.raw_windows.iter_charge_curves, first 400 segments)"
+   },
+   "measured_at": "2026-09-06T01:22:34Z",
+   "data_dir": "/Users/liqingchuan/Documents/projects/SOH_eval/data"
+  },
+  "snl_nmc": {
+   "raw_sha256": "6ad3c579d290caab809a1e1a20a6859d00cab11a970b6505676513b970877c4e",
+   "raw_files": [
+    {
+     "path": "data/raw/snl_batterylife/READMEs.zip",
+     "bytes": 17166,
+     "sha256": "eb2eef9aa5bea0af47874afb73ba64243488fe364fd8e4d70d464b16c8310840"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_15C_0-100_0.5-2C_b.pkl",
+     "bytes": 19333931,
+     "sha256": "aa1def6be5f0d972b44181146a85824e709271d18e290db2a3663aa3fc6c6836"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-0.5C_a.pkl",
+     "bytes": 23475679,
+     "sha256": "d9d9d0b573c65c62fd42682c177226ad8df2ee8e42bac2d0fa8c94f9005a7d23"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-1C_a.pkl",
+     "bytes": 20834438,
+     "sha256": "18ea75ef289f4bfaf8b7e57625c0161a2424d844375f310524af409395f54ca2"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-1C_b.pkl",
+     "bytes": 28210901,
+     "sha256": "c8e62cf6f0237d70152e0382d449495dc219f6a0c1aaa178407c694160b6713b"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-1C_c.pkl",
+     "bytes": 18261017,
+     "sha256": "cb6143eae3ccd2f76dd3cde28308694fea349e951ec15ed925480b3fb00a88e6"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-1C_d.pkl",
+     "bytes": 18267335,
+     "sha256": "cc334061bb6db69095f63977ccfbf2b6993827cdd777b5729f3b085de3ad9026"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-2C_a.pkl",
+     "bytes": 18218594,
+     "sha256": "2497aa122e41992e584acb08af9fb8539f4a43e47b3ce149b4eba0555fc5beb7"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-2C_b.pkl",
+     "bytes": 20724253,
+     "sha256": "4bc9ecb950faebd30482253779ff90060cfb2afe99a694aa196c21e8459e9ee4"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-3C_a.pkl",
+     "bytes": 21657739,
+     "sha256": "e57fa1d6eacf453eae8ce9b0134baac727527e05e7df109e3c45e43b2762f910"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-3C_b.pkl",
+     "bytes": 19494502,
+     "sha256": "a3c571c916b5dc98289b8ba1dbcad55a5f9d0f40c957f776b90baae14d7472ed"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-3C_c.pkl",
+     "bytes": 16925129,
+     "sha256": "fbd54c77f85c3804735bc6876ed118b37e36b839155e1a274e777401d1c4595e"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-3C_d.pkl",
+     "bytes": 19775932,
+     "sha256": "a802cb5032be0b86ccdaed28ebbdfe7818c3624cec33a85f8c9cb50d28f6d622"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-1C_a.pkl",
+     "bytes": 22156769,
+     "sha256": "271103892f009cfddb2cddeed8cc9659423caab060e2ae1a3216f3a5751277a6"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-1C_b.pkl",
+     "bytes": 22626818,
+     "sha256": "3d23c2444c68f61f68c566fb80388e0a5e59dac1f1fc447a6a50d91c53efa394"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-1C_c.pkl",
+     "bytes": 22633772,
+     "sha256": "72bad7ff3991a7213bd753e1a4fce47f701def8653465869ee3e55c8049da429"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-1C_d.pkl",
+     "bytes": 25744271,
+     "sha256": "93add7117b90855079b330f414d048858bf5911b036832bc0992c4c2021f5d70"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-2C_a.pkl",
+     "bytes": 23644487,
+     "sha256": "fc77b3802bb72d04b4ad7781b4244228e3d40240b24bffab39a70f41325b4501"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-2C_b.pkl",
+     "bytes": 21249599,
+     "sha256": "fea252c48f622ccd39e3177f2e8064423ecc6bd38198d64351e2087b40bf8f14"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_15C_0-100_0.5-1C_a.pkl",
+     "bytes": 3381614,
+     "sha256": "1c0837ef95f4edf9c45e61b4f41a53dea63f65f471e96aca1b72dc2b86d93422"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_15C_0-100_0.5-1C_b.pkl",
+     "bytes": 5485112,
+     "sha256": "0e0ac80d59f0384051e116510ba07343a7dab66e77b48e1f6da0bd891ab72a31"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_15C_0-100_0.5-2C_a.pkl",
+     "bytes": 5247371,
+     "sha256": "4f7c678fee98a885208f3497f380e08bbac70e9e688c945dddefcdf9bc2f94ce"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_15C_0-100_0.5-2C_b.pkl",
+     "bytes": 4305254,
+     "sha256": "a387e60442167471509b540f0d0544fbd3a38b5170dce0ec6c9b7504685673d0"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-0.5C_a.pkl",
+     "bytes": 9208069,
+     "sha256": "05681af7e9af96481082df6b1303a873913fc96b946d7cd5a93f6bf822d7cd0c"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-0.5C_b.pkl",
+     "bytes": 12421918,
+     "sha256": "98400ba66944259f92ddf5e319c7dfcbd689e069cbeb941441c3df31086b1cb5"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-1C_a.pkl",
+     "bytes": 4519637,
+     "sha256": "bc990d99cf11a0c2a357e2a1ac7d04d1c51a3b92357d41b7875f243f30fc2ef2"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-1C_b.pkl",
+     "bytes": 3749108,
+     "sha256": "b540433717bd8866457868da7be1d08c042fe29281ba7747acc75d419c9e210d"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-1C_c.pkl",
+     "bytes": 3867896,
+     "sha256": "291150ecc4a2ee02644d7703234797897b142dec0c72c34c1701c0760ff457ad"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-1C_d.pkl",
+     "bytes": 4873355,
+     "sha256": "4cf48e9aae541e296e7c959bc7b59ff9f569597135373b1df4d2137aff302a0f"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-2C_a.pkl",
+     "bytes": 5319452,
+     "sha256": "5124371c46f0a1ca9e00031264d200f49bd8a662abd6612366c3de096efbc8e1"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-2C_b.pkl",
+     "bytes": 4341629,
+     "sha256": "17b1ea2ebd941dfc4bb64a91377fb5a3b5666a1f01c20ce146c271c7c89942f5"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_20-80_0.5-0.5C_a.pkl",
+     "bytes": 12591335,
+     "sha256": "d062e599ad12fa8b898d4b08a9e9bd548f94fee8c6c1c1be3f75d2c6f4459a90"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_20-80_0.5-0.5C_b.pkl",
+     "bytes": 13176338,
+     "sha256": "67dfa8ab34c6bcc257f85da4347a5eebbad7da532315ca4dd462265d06bbd52d"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_20-80_0.5-0.5C_c.pkl",
+     "bytes": 13046822,
+     "sha256": "bc3402d1612b669b9b079585786350eaee0c12843566155ec5d5dd9a3bbb86e4"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_20-80_0.5-0.5C_d.pkl",
+     "bytes": 13762322,
+     "sha256": "61fcd35de2c1b395f341d8cfa2bc66449203639665a0b33fa349428d58e322da"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-1C_a.pkl",
+     "bytes": 3684137,
+     "sha256": "5349f4f39872eb03f8899935cda80b1f9f7a08956dc65ba76dbb5a72b0cb200a"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-1C_b.pkl",
+     "bytes": 3400964,
+     "sha256": "c3e9eae6cd7c350ce16c03f32919a5d9cdb234f477923f2a03c9ec05f4b37f9b"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-1C_c.pkl",
+     "bytes": 3762254,
+     "sha256": "d72077a42980a5cebf042d39b236ee2fcdbe9c1e2dd2f11ac87e0c026d227b17"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-1C_d.pkl",
+     "bytes": 5242154,
+     "sha256": "0ad3eb68f43387fd62202ce2da5a199867d66af8ae189f75d87751817262ffa8"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-2C_a.pkl",
+     "bytes": 4923380,
+     "sha256": "1bc45175d094e394b5a93137a08e3d8bec412722e9008322883e33a6dc7e82d9"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-2C_b.pkl",
+     "bytes": 5782565,
+     "sha256": "11b006644a7e454522669738092a5be50cd865f08486d9a347a144797baf96a7"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_15C_0-100_0.5-1C_a.pkl",
+     "bytes": 2890163,
+     "sha256": "c7b621d196de30d0c85ae2d81972ff11b90e6cd57b9c54a3b895840a807a93b8"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_15C_0-100_0.5-1C_b.pkl",
+     "bytes": 2871848,
+     "sha256": "619e5b8d2c0a75c29fe3f1e98c6d019d9a526effaf0352a680616d97090ab51a"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_15C_0-100_0.5-2C_a.pkl",
+     "bytes": 2297414,
+     "sha256": "56fc03204faa863999ef647711d4cce3b362ec276927bf340180a862fadeec35"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_15C_0-100_0.5-2C_b.pkl",
+     "bytes": 2013785,
+     "sha256": "38e1f8bedca07791ffeeed24bd26f2cd2716100ade6c461c7f04a537e601bbc9"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-0.5C_b.pkl",
+     "bytes": 6286203,
+     "sha256": "b761469f639cc646a39317c8b33f3d48ebd9cbd7826cfc8ed610adbf50707afd"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-1C_a.pkl",
+     "bytes": 3802768,
+     "sha256": "1367319b8a53bcc906509e1a4b763c90f4adf18e39e52cf44ee1d5f1145733b1"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-1C_b.pkl",
+     "bytes": 5973229,
+     "sha256": "ee3018c472bd4624dee8c8fd34cc54a7f24c65b61c3de336ff131dcfab4ba3d2"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-1C_c.pkl",
+     "bytes": 3561496,
+     "sha256": "b19dcb682f27e052cfdba5c9707502f4861dc213f415b2e66da29004d1681532"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-1C_d.pkl",
+     "bytes": 4354660,
+     "sha256": "57976b729b0b93104a157fdea584078cb3b44cfbfe12e8e96408f9ddd6799574"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-2C_a.pkl",
+     "bytes": 5159584,
+     "sha256": "42087c07f581290e39b06a000a9c519af47c028201dcf69f776571474b485463"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-2C_b.pkl",
+     "bytes": 9815817,
+     "sha256": "96b906975c7ec9b5ea3b95999379c7da6c924b1536f18d05bfee6b58335711bb"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-3C_a.pkl",
+     "bytes": 3762835,
+     "sha256": "ee183cef12056235308612e22f86dbae85cf44a426655c2384df232957d11c32"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-3C_b.pkl",
+     "bytes": 3170200,
+     "sha256": "9f2a55e1e2785c540c941a6fe047ec9f4607636242f80fff4a417d0f4573321b"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-3C_c.pkl",
+     "bytes": 4551841,
+     "sha256": "def2f14d468efaa87b18aea21d4f2e815941d98d252c6c6457c9de3b857b811a"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-3C_d.pkl",
+     "bytes": 5378842,
+     "sha256": "57ad9ce02cd0cd6778ad7089619b64a16896c69a4ec10d89e64a895ab35b7a69"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-1C_a.pkl",
+     "bytes": 6175126,
+     "sha256": "1c90cfdc74d805cb701a63672d51a56e4ef4eec9a48e92bcf04ef39590f381e3"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-1C_b.pkl",
+     "bytes": 6333604,
+     "sha256": "dacd0a7b9ef2d8a92749a9300cbc7cb961156b88ec9c8231518f8fbffa39b7cc"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-1C_c.pkl",
+     "bytes": 5750653,
+     "sha256": "adf71ae95843cdde14bd9987c41e992877306d31d45e8c4b1400b16b7bea66b6"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-1C_d.pkl",
+     "bytes": 6029059,
+     "sha256": "d50f2c98ec363f63eb2830560773a07a0dfad4f28cf2a0196fa415d7df31c67f"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-2C_a.pkl",
+     "bytes": 5672344,
+     "sha256": "d6edd5ca388e140e0bbde6de46bb13cc75db3d4a2ed00d2e7d728b905e885cc5"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-2C_b.pkl",
+     "bytes": 4514368,
+     "sha256": "0ac075ab68eb004527698e7e0e4107ca235a7043b82802b57ef7461215050a8a"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL.zip",
+     "bytes": 115187861,
+     "sha256": "1ce27dc94d5d3a9a10ed875805a880c9c0701833915f1b78b09a759c72cfd57a"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/CALB_README.md",
+     "bytes": 1619,
+     "sha256": "5c0dfc4eb09c741183f0abc0c3710c556c8a4954a07333763b2c5c65ebf402ce"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/CALCE_README.md",
+     "bytes": 1176,
+     "sha256": "be17a5555897a18e3a54b0202e8c70185e31992361ee364be572ad418207319d"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/HNEI_README.md",
+     "bytes": 1133,
+     "sha256": "cb34a65984c1cc9120b8b90eab855dfc76446b736d1e9f9fa3fc972fa5687f03"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/HUST_README.md",
+     "bytes": 1154,
+     "sha256": "1836300144c1a2b3926b90ca8d0b14606769e97e1027764636914f3433d32899"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/ISU-ILCC_README.md",
+     "bytes": 1122,
+     "sha256": "e18ca91532a1707194f950fe938f9f2cb606959a4ba6f313d620ffcb26f9539b"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/MATR_README.md",
+     "bytes": 1371,
+     "sha256": "20576a27ab4d8dc5a8dff37df0e4d777880496f11a16c502f8fdf9dc58f3e6e8"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/MICH_EXP_README.md",
+     "bytes": 1110,
+     "sha256": "41f0b834424620b4e145cfe731101db38f1cc34ebf5a6c914f8c109a8621345f"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/MICH_README.md",
+     "bytes": 1108,
+     "sha256": "a00ebe44ddb57db4e9603b29a28828dae9cda478a2c74e0a83d0632141a95763"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/NA-ion_README.md",
+     "bytes": 8888,
+     "sha256": "274632d04a744a69cbc85c595fcee5f65c66089dd300a776b0fd7183974b5df4"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/RWTH_README.md",
+     "bytes": 1039,
+     "sha256": "929e1de38fbd55c956f8f7b89aa1e3677900ca249eb29685e1871472ee5badc7"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/SDU_README.md",
+     "bytes": 1194,
+     "sha256": "e97b2edfcef22697c445c3e1a443ea4a292dc791b827ba1b07ae224ca6bcbeea"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/SNL_README.md",
+     "bytes": 1123,
+     "sha256": "8162b49991e267b2f0e549ab75b0636c766edf5f940765b5a2c0be130020be50"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/Stanford_2_README.md",
+     "bytes": 1186,
+     "sha256": "31b2e27455ea92f808ff8e4d9b1da9edfa5cf3e5297558c24755b2f07feb9aac"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/Stanford_README.md",
+     "bytes": 1185,
+     "sha256": "c53a265a141c08f940b32ecce22fa42ec0a517b62dfe8ead97c633e2863fecda"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/Tongji_README.md",
+     "bytes": 1308,
+     "sha256": "8a1bbaad39b676bb75af4f7b6504efccb503bd7fbc5daab3feab2799ea40e151"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/UL_PUR_README.md",
+     "bytes": 1148,
+     "sha256": "52a0a4219e81038b4bc95fcd7a0de433653359d38fdefe4ce81f70574c15d0be"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/XJTU_README.md",
+     "bytes": 1139,
+     "sha256": "f7d218ab64dc15be3599464cd7c58a70dac5fd28be1e693f9d2d389fe78d747f"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/ZN-coin_README.md",
+     "bytes": 18523,
+     "sha256": "1103a37b192305a651e5140e485f9ea9f4e16d8aee3341cb0ffe913f6befba1f"
+    }
+   ],
+   "sampling_interval_s": {
+    "seconds": 120.024,
+    "p10": 120.024,
+    "p90": 120.024,
+    "segments": 400,
+    "method": "median per-cycle time step of the raw charge segments (sohkernel.raw_windows.iter_charge_curves, first 400 segments)"
+   },
+   "measured_at": "2026-09-06T01:22:34Z",
+   "data_dir": "/Users/liqingchuan/Documents/projects/SOH_eval/data"
+  },
+  "snl_nca": {
+   "raw_sha256": "6ad3c579d290caab809a1e1a20a6859d00cab11a970b6505676513b970877c4e",
+   "raw_files": [
+    {
+     "path": "data/raw/snl_batterylife/READMEs.zip",
+     "bytes": 17166,
+     "sha256": "eb2eef9aa5bea0af47874afb73ba64243488fe364fd8e4d70d464b16c8310840"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_15C_0-100_0.5-2C_b.pkl",
+     "bytes": 19333931,
+     "sha256": "aa1def6be5f0d972b44181146a85824e709271d18e290db2a3663aa3fc6c6836"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-0.5C_a.pkl",
+     "bytes": 23475679,
+     "sha256": "d9d9d0b573c65c62fd42682c177226ad8df2ee8e42bac2d0fa8c94f9005a7d23"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-1C_a.pkl",
+     "bytes": 20834438,
+     "sha256": "18ea75ef289f4bfaf8b7e57625c0161a2424d844375f310524af409395f54ca2"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-1C_b.pkl",
+     "bytes": 28210901,
+     "sha256": "c8e62cf6f0237d70152e0382d449495dc219f6a0c1aaa178407c694160b6713b"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-1C_c.pkl",
+     "bytes": 18261017,
+     "sha256": "cb6143eae3ccd2f76dd3cde28308694fea349e951ec15ed925480b3fb00a88e6"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-1C_d.pkl",
+     "bytes": 18267335,
+     "sha256": "cc334061bb6db69095f63977ccfbf2b6993827cdd777b5729f3b085de3ad9026"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-2C_a.pkl",
+     "bytes": 18218594,
+     "sha256": "2497aa122e41992e584acb08af9fb8539f4a43e47b3ce149b4eba0555fc5beb7"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-2C_b.pkl",
+     "bytes": 20724253,
+     "sha256": "4bc9ecb950faebd30482253779ff90060cfb2afe99a694aa196c21e8459e9ee4"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-3C_a.pkl",
+     "bytes": 21657739,
+     "sha256": "e57fa1d6eacf453eae8ce9b0134baac727527e05e7df109e3c45e43b2762f910"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-3C_b.pkl",
+     "bytes": 19494502,
+     "sha256": "a3c571c916b5dc98289b8ba1dbcad55a5f9d0f40c957f776b90baae14d7472ed"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-3C_c.pkl",
+     "bytes": 16925129,
+     "sha256": "fbd54c77f85c3804735bc6876ed118b37e36b839155e1a274e777401d1c4595e"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_25C_0-100_0.5-3C_d.pkl",
+     "bytes": 19775932,
+     "sha256": "a802cb5032be0b86ccdaed28ebbdfe7818c3624cec33a85f8c9cb50d28f6d622"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-1C_a.pkl",
+     "bytes": 22156769,
+     "sha256": "271103892f009cfddb2cddeed8cc9659423caab060e2ae1a3216f3a5751277a6"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-1C_b.pkl",
+     "bytes": 22626818,
+     "sha256": "3d23c2444c68f61f68c566fb80388e0a5e59dac1f1fc447a6a50d91c53efa394"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-1C_c.pkl",
+     "bytes": 22633772,
+     "sha256": "72bad7ff3991a7213bd753e1a4fce47f701def8653465869ee3e55c8049da429"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-1C_d.pkl",
+     "bytes": 25744271,
+     "sha256": "93add7117b90855079b330f414d048858bf5911b036832bc0992c4c2021f5d70"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-2C_a.pkl",
+     "bytes": 23644487,
+     "sha256": "fc77b3802bb72d04b4ad7781b4244228e3d40240b24bffab39a70f41325b4501"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_LFP_35C_0-100_0.5-2C_b.pkl",
+     "bytes": 21249599,
+     "sha256": "fea252c48f622ccd39e3177f2e8064423ecc6bd38198d64351e2087b40bf8f14"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_15C_0-100_0.5-1C_a.pkl",
+     "bytes": 3381614,
+     "sha256": "1c0837ef95f4edf9c45e61b4f41a53dea63f65f471e96aca1b72dc2b86d93422"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_15C_0-100_0.5-1C_b.pkl",
+     "bytes": 5485112,
+     "sha256": "0e0ac80d59f0384051e116510ba07343a7dab66e77b48e1f6da0bd891ab72a31"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_15C_0-100_0.5-2C_a.pkl",
+     "bytes": 5247371,
+     "sha256": "4f7c678fee98a885208f3497f380e08bbac70e9e688c945dddefcdf9bc2f94ce"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_15C_0-100_0.5-2C_b.pkl",
+     "bytes": 4305254,
+     "sha256": "a387e60442167471509b540f0d0544fbd3a38b5170dce0ec6c9b7504685673d0"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-0.5C_a.pkl",
+     "bytes": 9208069,
+     "sha256": "05681af7e9af96481082df6b1303a873913fc96b946d7cd5a93f6bf822d7cd0c"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-0.5C_b.pkl",
+     "bytes": 12421918,
+     "sha256": "98400ba66944259f92ddf5e319c7dfcbd689e069cbeb941441c3df31086b1cb5"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-1C_a.pkl",
+     "bytes": 4519637,
+     "sha256": "bc990d99cf11a0c2a357e2a1ac7d04d1c51a3b92357d41b7875f243f30fc2ef2"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-1C_b.pkl",
+     "bytes": 3749108,
+     "sha256": "b540433717bd8866457868da7be1d08c042fe29281ba7747acc75d419c9e210d"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-1C_c.pkl",
+     "bytes": 3867896,
+     "sha256": "291150ecc4a2ee02644d7703234797897b142dec0c72c34c1701c0760ff457ad"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-1C_d.pkl",
+     "bytes": 4873355,
+     "sha256": "4cf48e9aae541e296e7c959bc7b59ff9f569597135373b1df4d2137aff302a0f"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-2C_a.pkl",
+     "bytes": 5319452,
+     "sha256": "5124371c46f0a1ca9e00031264d200f49bd8a662abd6612366c3de096efbc8e1"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_0-100_0.5-2C_b.pkl",
+     "bytes": 4341629,
+     "sha256": "17b1ea2ebd941dfc4bb64a91377fb5a3b5666a1f01c20ce146c271c7c89942f5"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_20-80_0.5-0.5C_a.pkl",
+     "bytes": 12591335,
+     "sha256": "d062e599ad12fa8b898d4b08a9e9bd548f94fee8c6c1c1be3f75d2c6f4459a90"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_20-80_0.5-0.5C_b.pkl",
+     "bytes": 13176338,
+     "sha256": "67dfa8ab34c6bcc257f85da4347a5eebbad7da532315ca4dd462265d06bbd52d"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_20-80_0.5-0.5C_c.pkl",
+     "bytes": 13046822,
+     "sha256": "bc3402d1612b669b9b079585786350eaee0c12843566155ec5d5dd9a3bbb86e4"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_25C_20-80_0.5-0.5C_d.pkl",
+     "bytes": 13762322,
+     "sha256": "61fcd35de2c1b395f341d8cfa2bc66449203639665a0b33fa349428d58e322da"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-1C_a.pkl",
+     "bytes": 3684137,
+     "sha256": "5349f4f39872eb03f8899935cda80b1f9f7a08956dc65ba76dbb5a72b0cb200a"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-1C_b.pkl",
+     "bytes": 3400964,
+     "sha256": "c3e9eae6cd7c350ce16c03f32919a5d9cdb234f477923f2a03c9ec05f4b37f9b"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-1C_c.pkl",
+     "bytes": 3762254,
+     "sha256": "d72077a42980a5cebf042d39b236ee2fcdbe9c1e2dd2f11ac87e0c026d227b17"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-1C_d.pkl",
+     "bytes": 5242154,
+     "sha256": "0ad3eb68f43387fd62202ce2da5a199867d66af8ae189f75d87751817262ffa8"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-2C_a.pkl",
+     "bytes": 4923380,
+     "sha256": "1bc45175d094e394b5a93137a08e3d8bec412722e9008322883e33a6dc7e82d9"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NCA_35C_0-100_0.5-2C_b.pkl",
+     "bytes": 5782565,
+     "sha256": "11b006644a7e454522669738092a5be50cd865f08486d9a347a144797baf96a7"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_15C_0-100_0.5-1C_a.pkl",
+     "bytes": 2890163,
+     "sha256": "c7b621d196de30d0c85ae2d81972ff11b90e6cd57b9c54a3b895840a807a93b8"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_15C_0-100_0.5-1C_b.pkl",
+     "bytes": 2871848,
+     "sha256": "619e5b8d2c0a75c29fe3f1e98c6d019d9a526effaf0352a680616d97090ab51a"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_15C_0-100_0.5-2C_a.pkl",
+     "bytes": 2297414,
+     "sha256": "56fc03204faa863999ef647711d4cce3b362ec276927bf340180a862fadeec35"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_15C_0-100_0.5-2C_b.pkl",
+     "bytes": 2013785,
+     "sha256": "38e1f8bedca07791ffeeed24bd26f2cd2716100ade6c461c7f04a537e601bbc9"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-0.5C_b.pkl",
+     "bytes": 6286203,
+     "sha256": "b761469f639cc646a39317c8b33f3d48ebd9cbd7826cfc8ed610adbf50707afd"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-1C_a.pkl",
+     "bytes": 3802768,
+     "sha256": "1367319b8a53bcc906509e1a4b763c90f4adf18e39e52cf44ee1d5f1145733b1"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-1C_b.pkl",
+     "bytes": 5973229,
+     "sha256": "ee3018c472bd4624dee8c8fd34cc54a7f24c65b61c3de336ff131dcfab4ba3d2"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-1C_c.pkl",
+     "bytes": 3561496,
+     "sha256": "b19dcb682f27e052cfdba5c9707502f4861dc213f415b2e66da29004d1681532"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-1C_d.pkl",
+     "bytes": 4354660,
+     "sha256": "57976b729b0b93104a157fdea584078cb3b44cfbfe12e8e96408f9ddd6799574"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-2C_a.pkl",
+     "bytes": 5159584,
+     "sha256": "42087c07f581290e39b06a000a9c519af47c028201dcf69f776571474b485463"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-2C_b.pkl",
+     "bytes": 9815817,
+     "sha256": "96b906975c7ec9b5ea3b95999379c7da6c924b1536f18d05bfee6b58335711bb"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-3C_a.pkl",
+     "bytes": 3762835,
+     "sha256": "ee183cef12056235308612e22f86dbae85cf44a426655c2384df232957d11c32"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-3C_b.pkl",
+     "bytes": 3170200,
+     "sha256": "9f2a55e1e2785c540c941a6fe047ec9f4607636242f80fff4a417d0f4573321b"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-3C_c.pkl",
+     "bytes": 4551841,
+     "sha256": "def2f14d468efaa87b18aea21d4f2e815941d98d252c6c6457c9de3b857b811a"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_25C_0-100_0.5-3C_d.pkl",
+     "bytes": 5378842,
+     "sha256": "57ad9ce02cd0cd6778ad7089619b64a16896c69a4ec10d89e64a895ab35b7a69"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-1C_a.pkl",
+     "bytes": 6175126,
+     "sha256": "1c90cfdc74d805cb701a63672d51a56e4ef4eec9a48e92bcf04ef39590f381e3"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-1C_b.pkl",
+     "bytes": 6333604,
+     "sha256": "dacd0a7b9ef2d8a92749a9300cbc7cb961156b88ec9c8231518f8fbffa39b7cc"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-1C_c.pkl",
+     "bytes": 5750653,
+     "sha256": "adf71ae95843cdde14bd9987c41e992877306d31d45e8c4b1400b16b7bea66b6"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-1C_d.pkl",
+     "bytes": 6029059,
+     "sha256": "d50f2c98ec363f63eb2830560773a07a0dfad4f28cf2a0196fa415d7df31c67f"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-2C_a.pkl",
+     "bytes": 5672344,
+     "sha256": "d6edd5ca388e140e0bbde6de46bb13cc75db3d4a2ed00d2e7d728b905e885cc5"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL/SNL_18650_NMC_35C_0-100_0.5-2C_b.pkl",
+     "bytes": 4514368,
+     "sha256": "0ac075ab68eb004527698e7e0e4107ca235a7043b82802b57ef7461215050a8a"
+    },
+    {
+     "path": "data/raw/snl_batterylife/SNL.zip",
+     "bytes": 115187861,
+     "sha256": "1ce27dc94d5d3a9a10ed875805a880c9c0701833915f1b78b09a759c72cfd57a"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/CALB_README.md",
+     "bytes": 1619,
+     "sha256": "5c0dfc4eb09c741183f0abc0c3710c556c8a4954a07333763b2c5c65ebf402ce"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/CALCE_README.md",
+     "bytes": 1176,
+     "sha256": "be17a5555897a18e3a54b0202e8c70185e31992361ee364be572ad418207319d"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/HNEI_README.md",
+     "bytes": 1133,
+     "sha256": "cb34a65984c1cc9120b8b90eab855dfc76446b736d1e9f9fa3fc972fa5687f03"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/HUST_README.md",
+     "bytes": 1154,
+     "sha256": "1836300144c1a2b3926b90ca8d0b14606769e97e1027764636914f3433d32899"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/ISU-ILCC_README.md",
+     "bytes": 1122,
+     "sha256": "e18ca91532a1707194f950fe938f9f2cb606959a4ba6f313d620ffcb26f9539b"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/MATR_README.md",
+     "bytes": 1371,
+     "sha256": "20576a27ab4d8dc5a8dff37df0e4d777880496f11a16c502f8fdf9dc58f3e6e8"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/MICH_EXP_README.md",
+     "bytes": 1110,
+     "sha256": "41f0b834424620b4e145cfe731101db38f1cc34ebf5a6c914f8c109a8621345f"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/MICH_README.md",
+     "bytes": 1108,
+     "sha256": "a00ebe44ddb57db4e9603b29a28828dae9cda478a2c74e0a83d0632141a95763"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/NA-ion_README.md",
+     "bytes": 8888,
+     "sha256": "274632d04a744a69cbc85c595fcee5f65c66089dd300a776b0fd7183974b5df4"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/RWTH_README.md",
+     "bytes": 1039,
+     "sha256": "929e1de38fbd55c956f8f7b89aa1e3677900ca249eb29685e1871472ee5badc7"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/SDU_README.md",
+     "bytes": 1194,
+     "sha256": "e97b2edfcef22697c445c3e1a443ea4a292dc791b827ba1b07ae224ca6bcbeea"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/SNL_README.md",
+     "bytes": 1123,
+     "sha256": "8162b49991e267b2f0e549ab75b0636c766edf5f940765b5a2c0be130020be50"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/Stanford_2_README.md",
+     "bytes": 1186,
+     "sha256": "31b2e27455ea92f808ff8e4d9b1da9edfa5cf3e5297558c24755b2f07feb9aac"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/Stanford_README.md",
+     "bytes": 1185,
+     "sha256": "c53a265a141c08f940b32ecce22fa42ec0a517b62dfe8ead97c633e2863fecda"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/Tongji_README.md",
+     "bytes": 1308,
+     "sha256": "8a1bbaad39b676bb75af4f7b6504efccb503bd7fbc5daab3feab2799ea40e151"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/UL_PUR_README.md",
+     "bytes": 1148,
+     "sha256": "52a0a4219e81038b4bc95fcd7a0de433653359d38fdefe4ce81f70574c15d0be"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/XJTU_README.md",
+     "bytes": 1139,
+     "sha256": "f7d218ab64dc15be3599464cd7c58a70dac5fd28be1e693f9d2d389fe78d747f"
+    },
+    {
+     "path": "data/raw/snl_batterylife/readmes/READMEs/ZN-coin_README.md",
+     "bytes": 18523,
+     "sha256": "1103a37b192305a651e5140e485f9ea9f4e16d8aee3341cb0ffe913f6befba1f"
+    }
+   ],
+   "sampling_interval_s": {
+    "seconds": 120.024,
+    "p10": 120.024,
+    "p90": 120.024,
+    "segments": 400,
+    "method": "median per-cycle time step of the raw charge segments (sohkernel.raw_windows.iter_charge_curves, first 400 segments)"
+   },
+   "measured_at": "2026-09-06T01:22:35Z",
+   "data_dir": "/Users/liqingchuan/Documents/projects/SOH_eval/data"
+  },
+  "rwth_isea_public": {
+   "raw_sha256": "8311be3ed1652d36cd3101f59515021f9b6dc577dbbd8431943c089b904910d0",
+   "raw_files": [
+    {
+     "path": "work/public_sources/rwth-battery-degradation/Pre-processing Codes/Degradation_Prediction_Dataset_ISEA.mat",
+     "bytes": 18638565,
+     "sha256": "1b85bbef5098024ae508c6f097da2892a7027298505f4b3d7f7189e74825c272"
+    }
+   ],
+   "sampling_interval_s": {
+    "seconds": null,
+    "method": "not applicable: the ingested mirror .mat (Degradation_Prediction_Dataset_ISEA.mat) holds per-cycle capacity histories, not time series; the record's Rawdata.zip time series are not ingested"
+   },
+   "measured_at": "2026-09-06T01:25:00Z",
+   "data_dir": "/Users/liqingchuan/Documents/projects/SOH_eval/data"
+  }
+ }
+}

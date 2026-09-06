@@ -74,3 +74,30 @@ def test_signed_datasheets_agree_with_the_metadata_chemistry_table():
         assert sheets[name]["chemistry"]["cathode"] == DATASET_CHEMISTRY[name] == sheets[name]["chemistry"]["metadata_label"], name
     assert not is_signed(sheets["nasa"])
     assert DATASET_CHEMISTRY["rwth_isea_public"] == "NMC" and DATASET_C_RATED_AH["rwth_isea_public"] == 1.85
+
+
+def test_d12_survey_filled_sampling_provenance_and_licences_from_primary_sources():
+    """D12 (2026-09-05): the nine sheets carry measured sampling and raw provenance; only the fields no primary source
+    covers stay VERIFY (nasa chemistry, the hust cell model, uconn temperatures, the RWTH licence and profile)."""
+    from pathlib import Path
+
+    from sohkernel.datasheets import load_datasheets, unverified_fields
+
+    sheets = load_datasheets(Path(__file__).resolve().parents[2] / "data")
+    nine = ["calce_cs2", "hust", "nasa", "oxford", "rwth_isea_public", "snl_lfp", "snl_nca", "snl_nmc", "uconn"]
+    assert set(nine) <= set(sheets)
+    for name in nine:
+        sheet = sheets[name]
+        fields = set(unverified_fields(sheet))
+        assert "digests.raw" not in fields or name == "rwth_isea_public", name
+        assert not any(f.startswith("sampling.") for f in fields), (name, sorted(fields))
+        assert not any(f.startswith("windows") for f in fields), (name, sorted(fields))
+        assert sheet["provenance"]["raw_files"] or name == "rwth_isea_public", name
+        if name in ("hust", "snl_lfp", "snl_nmc", "snl_nca", "uconn", "calce_cs2", "oxford", "nasa"):
+            assert isinstance(sheet["sampling"]["rate_hz"], float) and sheet["sampling"]["interval_s"] > 0, name
+            assert "source.license" not in fields, name
+    assert sheets["hust"]["sampling"]["interval_s"] == 5.0 and sheets["uconn"]["sampling"]["interval_s"] == 1.0
+    assert sheets["snl_lfp"]["sampling"]["interval_s"] == 120.024 and sheets["calce_cs2"]["sampling"]["interval_s"] == 30.015
+    assert "chemistry.cathode" in unverified_fields(sheets["nasa"])
+    assert "source.license" in unverified_fields(sheets["rwth_isea_public"])
+    assert sheets["rwth_isea_public"]["sampling"]["rate_hz"] == "not applicable"

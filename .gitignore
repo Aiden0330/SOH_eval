@@ -17,6 +17,8 @@ data/**
 !data/manifest.json
 !data/datasheets/
 !data/datasheets/*.yaml
+# D12: measured raw digests and sampling intervals the sheets are rendered from
+!data/datasheets/_provenance.json
 .DS_Store
 logs/
 # Generated / synced assets (rebuild: scripts/sync_battery_dashboard_native.py, scripts/build_standalone_frontend.py)

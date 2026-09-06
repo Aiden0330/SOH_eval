@@ -1,14 +1,17 @@
 name: calce_cs2
-status: signed 2026-09-03 (chemistry verified by owner-delegated web review); remaining
-  VERIFY fields are non-chemistry
+status: signed 2026-09-03 (chemistry verified by owner-delegated web review); D12
+  survey 2026-09-05 filled sampling, provenance, licence text and cut-offs
 source:
   citation: 'CALCE Battery Research Group, University of Maryland: CS2 prismatic cells
     (Battery Data page); He, W., Williard, N., Osterman, M., Pecht, M. (2011). Prognostics
     of lithium-ion batteries based on Dempster-Shafer theory and the Bayesian Monte
     Carlo method. J. Power Sources 196(23), 10314-10321.'
   url: https://calce.umd.edu/battery-data
-  license: academic use; the page requests a citation
-  retrieved: 2026-09-03 (page fetched)
+  license: 'academic use with citation — CALCE Battery Data page (fetched 2026-09-05):
+    ''Use of this data for publication purposes should include references to the CALCE
+    article(s) that describe the experiments conducted to generating the data''; no
+    licence text'
+  retrieved: 2026-09-03 (page fetched); 2026-09-05 (terms and CS2 description re-fetched)
 chemistry:
   cathode: LCO
   anode: graphite (assumed; the CALCE page states only the cathode)
@@ -22,13 +25,15 @@ chemistry:
     sustained until the charging current dropped to below 0.05A''; ''discharge cut
     off voltage for these batteries was 2.7V''.'
 cell:
-  format: prismatic, 5.4 x 33.6 x 50.6 mm (CALCE page)
+  format: prismatic, 5.4 x 33.6 x 50.6 mm (CALCE page); tester Arbin BT2000, CADEX
+    for CS2_8 and CS2_21 (CALCE page)
   rated_capacity_ah: 1.1
   rated_source: 'CALCE page (CS2 ''Capacity Rating: 1100 mAh''; CX2 1350 mAh)'
 protocol:
   segments:
   - id: cc_charge
-    rate: 0.5C CC to 4.2 V, CV to 0.05 A (CALCE page)
+    rate: 0.5C CC to 4.2 V, CV to 0.05 A (CALCE page); measured 0.55 A = 0.5C, 4.20
+      V max in CS2_35 (2026-09-05)
   - id: discharge
     rate: '0.5C-1C per cell to 2.7 V (CALCE page: cut-off 2.7 V)'
   temperature_c:
@@ -40,7 +45,13 @@ label_anchor:
   reference_test: capacity of each discharge (Arbin file)
   label_source: calibration_capacity
 sampling:
-  rate_hz: VERIFY
+  rate_hz: 0.0333
+  interval_s: 30.015
+  interval_p10_s: 30.015
+  interval_p90_s: 30.015
+  segments_measured: 400
+  method: median per-cycle time step of the raw charge segments (sohkernel.raw_windows.iter_charge_curves,
+    first 400 segments) (scripts/measure_raw_provenance.py, 2026-09-06T01:22:29Z)
   channels:
   - V
   - I
@@ -53,9 +64,55 @@ windows:
   coverage_median: 0.371
   calibrated_on: '2026-08-27'
 digests:
-  raw: VERIFY
-  processed: 4f144b1a1c37cf4e429ff21ae8be7daa6fc5a44e18d23e69a059555511cd7715
+  raw: 1348e8bb716e16b47a1b90f608cb56d658967b0265fe35acca173b8ec194fb01
+  processed: 8684a72c971e469f208bea91037fbcac7eddb8bf10e7ce156d0ace2c48aff5ac
   curves: 5fd40a15bbfda861ed36de86d3ecc32708b8de86b69abec50254aa1190429915
+provenance:
+  raw_files:
+  - path: data/raw/calce/CS2_21.zip
+    bytes: 2685544
+    sha256: 28f998ffaee0de92d5b7554dfe5dccf51ef33ae1c3ae526f8b32f1d891c4deb4
+  - path: data/raw/calce/CS2_33.zip
+    bytes: 45345047
+    sha256: ce375e3826e840ff0986ceade0d324ba6515f0446697c947353aca097f232505
+  - path: data/raw/calce/CS2_34.zip
+    bytes: 43836986
+    sha256: 229dcdc836f140f746c26316569c357b346994fddd3be1223b1e457805c484b4
+  - path: data/raw/calce/CS2_35.zip
+    bytes: 37056519
+    sha256: 84d88cb98a43c02049f16c78806a78ec19084776ea5df8a4b7c2f8f7ba4589e5
+  - path: data/raw/calce/CS2_36.zip
+    bytes: 37881685
+    sha256: 2e674f58bb6dc005c73bef10e87edbbd97afd041dde77a1d461a3c4ecac1b027
+  - path: data/raw/calce/CS2_37.zip
+    bytes: 41513048
+    sha256: 8ed8aecbcbea2bcb17f455923a974be01ea21d7389210e1912d177de5b6af4a5
+  - path: data/raw/calce/CS2_38.zip
+    bytes: 42811100
+    sha256: 98787427c10478425efd4f54d823805724daff1d2fcbd822b3a2d7006a1051d8
+  - path: data/raw/calce/CS2_8.zip
+    bytes: 4350594
+    sha256: 3abf380169cd4afc46c944dc6496f2784465333e710161701515da3d3033e9ae
+  - path: data/raw/calce/CX2_33.zip
+    bytes: 86700450
+    sha256: f4dbca063a3731045b8a631f69532f7f43f0b3ada9736c0cfe3e07302d10b5da
+  - path: data/raw/calce/CX2_34.zip
+    bytes: 65932032
+    sha256: 6e4be14140071843891b6a7395c9561754b45036b17e840bae33d253f615939d
+  - path: data/raw/calce/CX2_35.zip
+    bytes: 96794651
+    sha256: 043e84ccd518f5e00fcee94ae8d2765ffe25fd11a87e028ad6903a8c61a8f15e
+  - path: data/raw/calce/CX2_36.zip
+    bytes: 73909895
+    sha256: 45b9249cd0353ea0285484868e5a74c54d43c8ed153bf2d40e9376e9a1daf6ad
+  - path: data/raw/calce/CX2_37.zip
+    bytes: 53311138
+    sha256: d7989beff30881e1d0d50bc2d7c028e8237ca402004ffcefe693bbce35b9776d
+  - path: data/raw/calce/CX2_38.zip
+    bytes: 69995480
+    sha256: 2bd64c8cc9ffe4f63664caf9ec51889ca32245c321151a361147755ad6f00e3f
+  measured_at: '2026-09-06T01:22:29Z'
+  reference: scripts/measure_raw_provenance.py -> data/datasheets/_provenance.json
 leak_scan:
   label_source_columns: []
   scanned_on: '2026-09-03'
@@ -64,6 +121,9 @@ held_out_ready: true
 known_issues:
 - charge_capacity_max in the processed table is the file-cumulative Arbin quantity,
   not per cycle (report finding G6)
+- 'raw provenance (D12): data/raw/calce/CS2_*.zip — Arbin xlsx per test date (30 s
+  logging, measured 2026-09-05); CS2_8 and CS2_21 are CADEX text logs the raw-curve
+  iterator skips'
 signed:
   by: owner-delegated web review 2026-09-03 (Claude Fable 5.1); sources in chemistry.evidence
   'on': '2026-09-03'
