@@ -43,6 +43,8 @@ Design doc: docs/superpowers/specs/2026-08-26-agent-guided-search-design.md §1.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 import numpy as np
 import pandas as pd
 
@@ -107,6 +109,13 @@ CALIBRATION_SCENARIOS = {
 }
 
 INTERVAL_MODES = ("model", "conformal")
+
+# What the calibration budget counts (Spec 12 §5, K13).  ``rows``: K rows chosen by the split
+# strategy, round-robin across units.  ``capacity_tests``: K field capacity tests per unit — the
+# labelled segments whose label comes from one of the unit's first K reference tests are calibration
+# (a deployment that has run K tests), the segments labelled by later tests are evaluation.  A test
+# budget is forward by construction and pairs only with the ``earliest`` strategy.
+CALIBRATION_UNITS = ("rows", "capacity_tests")
 
 _COV_RIDGE = 1e-6
 # Fewer evaluable rows than this after the calibration split makes the
@@ -198,7 +207,7 @@ def _spread_order(n: int) -> np.ndarray:
 
 
 def calibration_split(
-    table: pd.DataFrame, budget: int, strategy: str = "earliest"
+    table: pd.DataFrame, budget: int, strategy: str = "earliest", *, unit: str = "rows"
 ) -> tuple[np.ndarray, np.ndarray]:
     """Deterministic budget split, round-robin across cells.
 
@@ -207,9 +216,15 @@ def calibration_split(
     each cell's observed life (endpoints first, then binary midpoints) —
     the periodic-RPT-checkup scenario, which lets output/residual
     corrections see the degradation range instead of only the fresh plateau.
+    ``unit="capacity_tests"`` counts the budget in field capacity tests per
+    unit instead of rows (:func:`capacity_test_split`).
     """
     if strategy not in CALIBRATION_SPLITS:
         raise ValueError(f"unknown calibration split: {strategy}")
+    if unit not in CALIBRATION_UNITS:
+        raise ValueError(f"unknown calibration unit: {unit}")
+    if unit == "capacity_tests":
+        return capacity_test_split(table, budget, strategy)
     if budget <= 0:
         return np.zeros(len(table), dtype=bool), np.ones(len(table), dtype=bool)
     frame = table.reset_index(drop=True)
@@ -229,6 +244,72 @@ def calibration_split(
     calibration = np.zeros(len(frame), dtype=bool)
     calibration[priority.index[: min(budget, len(frame))]] = True
     return calibration, ~calibration
+
+
+def _first_k_label_times(table: pd.DataFrame, tests: int) -> tuple[np.ndarray, dict[str, int]]:
+    """Per row, whether its label comes from one of its unit's first K reference tests (distinct
+    ``label_time_s``, ascending); per unit, the number of distinct label times."""
+    cells = table["cell_id"].astype(str).to_numpy()
+    label_time = pd.to_numeric(table["label_time_s"], errors="coerce").to_numpy(dtype=float)
+    within = np.zeros(len(table), dtype=bool)
+    counts: dict[str, int] = {}
+    for cell in pd.unique(cells):
+        rows = np.flatnonzero(cells == cell)
+        times = np.unique(label_time[rows])
+        times = times[np.isfinite(times)]
+        counts[str(cell)] = int(len(times))
+        if len(times) and tests > 0:
+            within[rows] = np.isin(label_time[rows], times[:tests])
+    return within, counts
+
+
+def capacity_test_split(
+    table: pd.DataFrame, tests: int, strategy: str = "earliest"
+) -> tuple[np.ndarray, np.ndarray]:
+    """Spec 12 §5 (K13): the calibration budget counted in field capacity tests per unit.
+
+    The calibration rows of a unit are its labelled segments whose label comes from one of the
+    unit's first K reference tests (the K smallest distinct ``label_time_s``); with forward-only
+    labels these are the segments between the first test and the (K+1)-th, so every evaluation row
+    of the unit starts after every calibration row — a forward cut by construction, which is why
+    only the ``earliest`` strategy applies.  Segments before the first test (unlabelled) and segments
+    labelled by later tests are the evaluation side.  A unit with fewer than K tests puts all its
+    labelled rows in calibration and contributes no labelled evaluation row;
+    :func:`capacity_test_summary` reports those units.
+    """
+    if strategy != "earliest":
+        raise ValueError("calibration unit 'capacity_tests' is a forward cut: only the 'earliest' strategy applies")
+    required = ("cell_id", "label_time_s")
+    missing = [c for c in required if c not in table.columns]
+    if missing:
+        raise ValueError(
+            "calibration unit 'capacity_tests' needs a segment table with "
+            f"{list(required)} (Spec 12 §3 labels); missing {missing}"
+        )
+    if tests <= 0:
+        return np.zeros(len(table), dtype=bool), np.ones(len(table), dtype=bool)
+    frame = table.reset_index(drop=True)
+    calibration, _counts = _first_k_label_times(frame, int(tests))
+    return calibration, ~calibration
+
+
+def capacity_test_summary(table: pd.DataFrame, calibration_mask, tests: int) -> dict:
+    """What a capacity-test budget did: units, units with fewer than K tests, and the labelled row
+    counts on both sides — for the job record next to ``calibration_samples``."""
+    frame = table.reset_index(drop=True)
+    cal = np.asarray(calibration_mask, dtype=bool)
+    _within, counts = _first_k_label_times(frame, int(tests))
+    labeled = np.isfinite(pd.to_numeric(frame["soh"], errors="coerce").to_numpy(dtype=float)) if "soh" in frame.columns \
+        else np.zeros(len(frame), dtype=bool)
+    return {
+        "calibration_unit": "capacity_tests",
+        "calibration_tests": int(tests),
+        "units": len(counts),
+        "units_with_fewer_tests": int(sum(1 for n in counts.values() if n < int(tests))),
+        "calibration_labeled": int((cal & labeled).sum()),
+        "evaluation_labeled": int((~cal & labeled).sum()),
+        "evaluation_unlabeled": int((~cal & ~labeled).sum()),
+    }
 
 
 # A frozen model that predicts a near-constant on the calibration set gives
@@ -518,6 +599,259 @@ def residual_loo_predictions(
     return out
 
 
+# ---------------------------------------------------------------------------
+# The operator seam (Spec 12 §9, K13): fit on the calibration rows, apply anywhere
+# ---------------------------------------------------------------------------
+
+INTERVAL_SOURCES = ("model", "model_affine", "model_shifted", "calibration_conformal")
+
+
+def _strip_step(operator: str, step: str) -> str:
+    parts = [p for p in operator.split("+") if p != step]
+    return "+".join(parts) if parts else "none"
+
+
+@dataclass
+class FittedOperator:
+    """A deployment-legal operator fitted on one unit's calibration rows (the Spec 12 §9 seam).
+
+    Everything :func:`apply_operator` needs to reproduce the fit — on the calibration rows, on the
+    unit's evaluation rows, or on new query segments at serving: the CORAL map, the labelled
+    correction, whether the monotone projection runs, the conformal band, and the audit trail
+    (``applied`` / ``refused``).  :meth:`record` is the JSON-safe summary for a job record or an
+    estimate response.  ``interval_source`` says where the served band comes from: the frozen
+    model's own band (``model``), that band mapped through the affine recalibration
+    (``model_affine``), shifted by the realised per-row correction (``model_shifted``), or the
+    split-conformal band of the calibration residuals (``calibration_conformal``).
+    """
+
+    operator: str
+    interval: str
+    columns: list[str]
+    correction_columns: list[str]
+    coral: dict | None = None
+    correction: dict | None = None
+    monotone: bool = False
+    monotone_info: dict | None = None
+    conformal: dict | None = None
+    calibration_rows: int = 0
+    applied: list[str] = field(default_factory=list)
+    refused: list[str] = field(default_factory=list)
+
+    @property
+    def channel(self) -> str:
+        channel = OPERATOR_CHANNELS[self.operator]
+        if self.interval == "conformal":
+            channel += "; interval: split-conformal quantile from the same K calibration residuals"
+        return channel
+
+    @property
+    def verdict(self) -> str:
+        if self.operator == "none" and self.interval != "conformal":
+            return "not_applicable"
+        if self.applied and not self.refused:
+            return "applied"
+        return "partial" if self.applied else "refused"
+
+    @property
+    def interval_source(self) -> str:
+        if self.conformal is not None:
+            return "calibration_conformal"
+        if self.correction is not None and "residual" not in self.operator and not self.monotone:
+            return "model_affine"
+        if self.correction is not None or self.monotone:
+            return "model_shifted"
+        return "model"
+
+    def record(self) -> dict:
+        def trim(value: dict) -> dict:
+            return {k: v for k, v in value.items() if not isinstance(v, (list, np.ndarray)) or len(v) <= 12}
+
+        fitted: dict = {}
+        if self.coral is not None:
+            fitted["coral"] = {"columns": list(self.coral["columns"])}
+        if self.correction is not None:
+            fitted["residual" if "residual" in self.operator else "recalibration"] = trim(self.correction)
+        if self.monotone_info is not None:
+            fitted["monotone"] = dict(self.monotone_info)
+        if self.conformal is not None:
+            fitted["conformal"] = dict(self.conformal)
+        return {
+            "operator": self.operator, "channel": self.channel, "interval": self.interval,
+            "calibration_rows": int(self.calibration_rows), "applied": list(self.applied),
+            "refused": list(self.refused), "verdict": self.verdict, "interval_source": self.interval_source,
+            "fitted": fitted,
+        }
+
+
+def _guard(fitted: FittedOperator, strict: bool, message: str) -> None:
+    if strict:
+        raise ValueError(message)
+    fitted.refused.append(message)
+
+
+def fit_operator(
+    operator: str,
+    target: pd.DataFrame,
+    calibration_mask,
+    predict,
+    *,
+    columns: list[str],
+    interval: str = "model",
+    source_features: np.ndarray | None = None,
+    correction_columns: list[str] | None = None,
+    strict: bool = True,
+    skip_coral: bool = False,
+) -> FittedOperator:
+    """Fit ``operator`` around a frozen model on one target table — the Spec 12 §9 seam shared by the
+    evaluation ladder (:class:`InferenceAdapter`) and serving.
+
+    ``target`` holds every row of the unit: the calibration rows (``calibration_mask``) and the rows
+    the fit will be applied to (evaluation rows, or query segments at serving); ``cell_id`` and
+    ``cycle_index`` order the monotone projection, ``soh`` is read on the calibration rows only.
+    ``predict(rows) -> ndarray`` is the frozen model's prediction on rows carrying its feature
+    ``columns`` — the kernel never holds the model, the caller binds estimator and meta.
+    ``source_features`` is the training feature sample CORAL aligns to (its unlabeled channel);
+    ``correction_columns`` are the residual step's inputs (default: the model columns;
+    :func:`wide_residual_columns` for ``residual_wide``).  ``skip_coral`` tells the seam that the
+    caller has already aligned ``target`` (the adapter's ``prepare`` step).
+
+    ``strict=True`` raises the kernel guards (the ladder's rule: an operator that cannot be fitted is
+    not a rung); ``strict=False`` records them in ``refused`` and runs the remaining steps — serving
+    reports the refusal and never works around it (Spec 12 §9).
+    """
+    if operator not in ADAPTATION_OPERATORS:
+        raise ValueError(f"unknown adaptation operator: {operator}")
+    if interval not in INTERVAL_MODES:
+        raise ValueError(f"unknown interval mode: {interval}")
+    frame = target.reset_index(drop=True)
+    cal = np.asarray(calibration_mask, dtype=bool).reshape(-1)
+    if len(cal) != len(frame):
+        raise ValueError("calibration_mask must have one entry per target row")
+    columns = [c for c in columns if c in frame.columns]
+    fitted = FittedOperator(
+        operator=operator, interval=interval, columns=list(columns),
+        correction_columns=list(correction_columns) if correction_columns is not None else list(columns),
+        calibration_rows=int(cal.sum()),
+    )
+    adapted = frame
+    if "coral" in operator and not skip_coral:
+        try:
+            if source_features is None:
+                raise ValueError("CORAL needs the training feature sample (source_features) to align to")
+            fitted.coral = fit_coral(np.asarray(source_features, dtype=float), _feature_matrix(frame, columns), columns)
+            adapted = apply_coral(frame, fitted.coral)
+            fitted.applied.append("coral")
+        except ValueError as exc:
+            _guard(fitted, strict, f"coral: {exc}")
+    pred = np.asarray(predict(adapted), dtype=float).reshape(-1)
+    if len(pred) != len(frame):
+        raise ValueError("predict must return one value per target row")
+    truth = (
+        pd.to_numeric(frame["soh"], errors="coerce").to_numpy(dtype=float)
+        if "soh" in frame.columns else np.full(len(frame), np.nan)
+    )
+    corrected = pred.copy()
+    loo = None
+    needs_labels = "residual" in operator or "recalibration" in operator
+    if needs_labels and fitted.calibration_rows == 0:
+        _guard(fitted, strict, f"{operator}: needs calibration rows with labels; none were passed")
+    elif "residual" in operator:
+        try:
+            features = _feature_matrix(adapted, fitted.correction_columns)
+            model = fit_residual(features[cal], corrected[cal], truth[cal], fitted.correction_columns)
+            loo = residual_loo_predictions(features[cal], corrected[cal], truth[cal], model)
+            corrected = apply_residual(features, corrected, model)
+            fitted.correction = model
+            fitted.applied.append("residual")
+        except ValueError as exc:
+            _guard(fitted, strict, f"residual: {exc}")
+    elif "recalibration" in operator:
+        try:
+            recal = fit_recalibration(truth[cal], corrected[cal])
+            loo = recalibration_loo_predictions(truth[cal], corrected[cal], recal)
+            corrected = apply_recalibration(corrected, recal)
+            fitted.correction = recal
+            fitted.applied.append("recalibration")
+        except ValueError as exc:
+            _guard(fitted, strict, f"recalibration: {exc}")
+    before_monotone = corrected
+    if "monotone" in operator:
+        corrected, info = apply_monotone(adapted, corrected)
+        fitted.monotone = True
+        fitted.monotone_info = info
+        fitted.applied.append("monotone")
+    if interval == "conformal":
+        try:
+            if fitted.calibration_rows == 0:
+                raise ValueError("conformal interval needs calibration rows with labels")
+            # Carry the (label-free) monotone adjustment realised on each calibration row onto its
+            # leave-one-out prediction; without a labelled step the in-sample residuals are the band.
+            calibration_pred = corrected[cal] if loo is None else loo + (corrected[cal] - before_monotone[cal])
+            conformal = fit_conformal_interval(truth[cal], calibration_pred)
+            conformal["residual_source"] = "in_sample" if loo is None else "leave_one_out"
+            fitted.conformal = conformal
+            fitted.applied.append("conformal")
+        except ValueError as exc:
+            _guard(fitted, strict, f"conformal: {exc}")
+    return fitted
+
+
+def _operator_interval(fitted: FittedOperator, bounds, corrected: np.ndarray, correction: np.ndarray):
+    """The served band for ``corrected`` predictions per ``fitted.interval_source``."""
+    if fitted.conformal is not None:
+        return apply_conformal_interval(corrected, fitted.conformal)
+    if bounds is None:
+        return None
+    lower = np.asarray(bounds[0], dtype=float).reshape(-1)
+    upper = np.asarray(bounds[1], dtype=float).reshape(-1)
+    source = fitted.interval_source
+    if source == "model_affine":
+        lower = apply_recalibration(lower, fitted.correction)
+        upper = apply_recalibration(upper, fitted.correction)
+        if float(fitted.correction.get("slope", 1.0)) < 0:
+            lower, upper = upper, lower
+    elif source == "model_shifted":
+        lower, upper = lower + correction, upper + correction
+    return lower, upper
+
+
+def apply_operator(
+    fitted: FittedOperator, rows: pd.DataFrame, predict, predict_interval=None
+) -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray] | None, dict]:
+    """Apply a fitted operator to ``rows`` — the unit's evaluation rows, the calibration rows
+    themselves, or new query segments at serving: CORAL on the feature columns, the frozen model
+    through ``predict`` (and ``predict_interval(rows) -> (lower, upper)`` for its own band), the
+    labelled correction, the monotone projection over each unit's ``cycle_index`` order, and the band
+    per ``fitted.interval_source``.  Returns ``(prediction, (lower, upper) or None, record)``; the
+    record is :meth:`FittedOperator.record` plus the row count and the mean absolute correction.
+    """
+    frame = rows.reset_index(drop=True)
+    adapted = apply_coral(frame, fitted.coral) if fitted.coral is not None else frame
+    pred = np.asarray(predict(adapted), dtype=float).reshape(-1)
+    if len(pred) != len(frame):
+        raise ValueError("predict must return one value per row")
+    bounds = predict_interval(adapted) if predict_interval is not None else None
+    corrected = pred.copy()
+    if fitted.correction is not None:
+        if "residual" in fitted.operator:
+            corrected = apply_residual(_feature_matrix(adapted, fitted.correction_columns), corrected, fitted.correction)
+        else:
+            corrected = apply_recalibration(corrected, fitted.correction)
+    if fitted.monotone:
+        corrected, _info = apply_monotone(adapted, corrected)
+    correction = corrected - pred
+    served = _operator_interval(fitted, bounds, corrected, correction)
+    finite = np.isfinite(correction)
+    record = {
+        **fitted.record(), "rows": int(len(frame)),
+        "correction_mean_abs": float(np.mean(np.abs(correction[finite]))) if finite.any() else 0.0,
+    }
+    if served is None and fitted.interval_source != "calibration_conformal":
+        record["interval_source"] = "none"
+    return corrected, served, record
+
+
 class InferenceAdapter:
     """Applies a deployment-legal operator inside the audited inference run.
 
@@ -536,6 +870,7 @@ class InferenceAdapter:
         calibration_budget: int = 32,
         calibration_split: str = "earliest",
         interval: str = "model",
+        calibration_unit: str = "rows",
     ):
         if operator not in ADAPTATION_OPERATORS:
             raise ValueError(f"unknown adaptation operator: {operator}")
@@ -543,13 +878,20 @@ class InferenceAdapter:
             raise ValueError(f"unknown calibration split: {calibration_split}")
         if interval not in INTERVAL_MODES:
             raise ValueError(f"unknown interval mode: {interval}")
+        if calibration_unit not in CALIBRATION_UNITS:
+            raise ValueError(f"unknown calibration unit: {calibration_unit}")
+        if calibration_unit == "capacity_tests" and calibration_split != "earliest":
+            raise ValueError("calibration unit 'capacity_tests' is a forward cut: only the 'earliest' split applies")
         self.service = service
         self.operator = operator
         self.calibration_budget = max(0, int(calibration_budget))
         self.calibration_split = calibration_split
+        self.calibration_unit = calibration_unit
         self.interval = interval
         self._source_cache: dict[str, np.ndarray] = {}
+        self._model_columns: list[str] = []
         self._feature_columns: list[str] = []
+        self._fitted: FittedOperator | None = None
         self._last_correction: np.ndarray | None = None
         self._last_pred: np.ndarray | None = None
         self._conformal: dict | None = None
@@ -585,6 +927,7 @@ class InferenceAdapter:
             info["interval"] = "conformal"
         adapted = group
         model_columns = [c for c in loaded.feature_columns() if c in group.columns]
+        self._model_columns = model_columns
         self._feature_columns = (
             wide_residual_columns(group, model_columns)
             if "residual_wide" in self.operator
@@ -601,7 +944,7 @@ class InferenceAdapter:
         # the identical evaluation rows (the search's shared-subset rule).
         budget = self.calibration_budget
         calibration_mask, evaluation_mask = calibration_split(
-            adapted, budget, self.calibration_split
+            adapted, budget, self.calibration_split, unit=self.calibration_unit
         )
         if budget > 0 and int(evaluation_mask.sum()) < _MIN_EVALUATION_ROWS:
             raise ValueError(
@@ -612,6 +955,9 @@ class InferenceAdapter:
         info["calibration_samples"] = int(calibration_mask.sum())
         if budget > 0:
             info["calibration_split"] = self.calibration_split
+            info["calibration_unit"] = self.calibration_unit
+            if self.calibration_unit == "capacity_tests":
+                info.update(capacity_test_summary(adapted, calibration_mask, budget))
             info["calibration_scenario"] = CALIBRATION_SCENARIOS[self.calibration_split]
             info["supports_forward_claim"] = self.calibration_split == "earliest"
             if not self._uses_labeled_budget:
@@ -622,83 +968,35 @@ class InferenceAdapter:
         return adapted, calibration_mask, info
 
     def recalibrate(self, group: pd.DataFrame, pred: np.ndarray, calibration_mask) -> tuple[np.ndarray, dict]:
+        """The labelled correction, the monotone projection and the conformal band through the
+        seam (:func:`fit_operator`, strict: a guard that trips is the rung's error); CORAL was
+        applied in :meth:`prepare`.  Returns the corrected predictions and the fitted parameters."""
         raw = np.asarray(pred, dtype=float)
-        corrected = raw
-        result: dict = {}
-        self._last_correction = None
-        loo_calibration_pred = None
-        if "residual" in self.operator:
-            truth = pd.to_numeric(group["soh"], errors="coerce").to_numpy(dtype=float)
-            features = _feature_matrix(group, self._feature_columns)
-            model = fit_residual(
-                features[calibration_mask],
-                corrected[calibration_mask],
-                truth[calibration_mask],
-                self._feature_columns,
-            )
-            if self.interval == "conformal":
-                loo_calibration_pred = residual_loo_predictions(
-                    features[calibration_mask],
-                    corrected[calibration_mask],
-                    truth[calibration_mask],
-                    model,
-                )
-            corrected = apply_residual(features, corrected, model)
-            result = dict(model)
-        elif "recalibration" in self.operator:
-            truth = pd.to_numeric(group["soh"], errors="coerce").to_numpy(dtype=float)
-            recal = fit_recalibration(truth[calibration_mask], corrected[calibration_mask])
-            if self.interval == "conformal":
-                loo_calibration_pred = recalibration_loo_predictions(
-                    truth[calibration_mask], corrected[calibration_mask], recal
-                )
-            corrected = apply_recalibration(corrected, recal)
-            result = dict(recal)
-        before_monotone = corrected
-        if "monotone" in self.operator:
-            corrected, monotone_info = apply_monotone(group, corrected)
-            result["monotone"] = monotone_info
+        fitted = fit_operator(
+            self.operator, group, calibration_mask, lambda _rows: raw,
+            columns=self._model_columns, interval=self.interval,
+            correction_columns=self._feature_columns, strict=True, skip_coral=True,
+        )
+        corrected, _bounds, _record = apply_operator(fitted, group, lambda _rows: raw)
+        result: dict = dict(fitted.correction) if fitted.correction is not None else {}
+        if fitted.monotone_info is not None:
+            result["monotone"] = dict(fitted.monotone_info)
+        if fitted.conformal is not None:
+            result["conformal"] = dict(fitted.conformal)
+        self._fitted = fitted
         self._last_correction = corrected - raw
         self._last_pred = corrected
-        self._conformal = None
-        if self.interval == "conformal":
-            truth = pd.to_numeric(group["soh"], errors="coerce").to_numpy(dtype=float)
-            calibration_pred = corrected[calibration_mask]
-            residual_source = "in_sample"
-            if loo_calibration_pred is not None:
-                # Carry the (label-free) monotone adjustment realized on each
-                # calibration row onto its leave-one-out prediction.
-                calibration_pred = loo_calibration_pred + (
-                    corrected[calibration_mask] - before_monotone[calibration_mask]
-                )
-                residual_source = "leave_one_out"
-            self._conformal = fit_conformal_interval(truth[calibration_mask], calibration_pred)
-            self._conformal["residual_source"] = residual_source
-            result["conformal"] = dict(self._conformal)
+        self._conformal = fitted.conformal
         return corrected, result
 
     def recalibrate_interval(self, interval, recal: dict):
-        if self.interval == "conformal":
-            # Pure conformal band around the final corrected prediction —
-            # replaces (or creates, for models without native intervals)
-            # the interval entirely.
-            if self._conformal is None or self._last_pred is None:
-                return interval
-            return apply_conformal_interval(self._last_pred, self._conformal)
-        if interval is None:
-            return None
-        if "residual" in self.operator or "monotone" in self.operator:
-            # Feature-level / projection corrections have no closed affine
-            # form; shift the bounds by the realized per-row correction
-            # (width preserved).
-            if self._last_correction is None:
-                return interval
-            return interval[0] + self._last_correction, interval[1] + self._last_correction
-        lower = apply_recalibration(interval[0], recal)
-        upper = apply_recalibration(interval[1], recal)
-        if float(recal.get("slope", 1.0)) < 0:
-            lower, upper = upper, lower
-        return lower, upper
+        fitted = self._fitted
+        if fitted is None or self._last_pred is None:
+            return interval
+        if self.interval == "conformal" and fitted.conformal is None:
+            return interval
+        correction = self._last_correction if self._last_correction is not None else np.zeros_like(self._last_pred)
+        return _operator_interval(fitted, interval, self._last_pred, correction)
 
     def _source_features(self, loaded, binding: dict, columns: list[str]) -> np.ndarray:
         from .data import DatasetLoader
