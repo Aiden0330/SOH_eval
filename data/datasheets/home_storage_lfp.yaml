@@ -1,6 +1,6 @@
 name: home_storage_lfp
-status: draft 2026-09-05 (D7) — the deployment proxy; chemistry from the authors'
-  metadata; unsigned until the owner reviews
+status: signed 2026-09-07 (D7; the deployment proxy; owner-delegated review of the
+  chemistry from the authors' metadata; drafted 2026-09-05)
 supervision: sparse_field
 source:
   citation: 'Figgener, J., Hecht, C., Haberschusz, D., Bors, J., Spreuer, K. G., Kairies,
@@ -17,13 +17,17 @@ source:
   license: 'CC BY 4.0 (Zenodo record 12091223: cc-by-4.0)'
   retrieved: 2026-09-05 (Zenodo API; six of the eight LFP zips were truncated by the
     first download and resumed until their md5 matched)
+  redistribution: redistributable with attribution under CC BY 4.0 (derived tables
+    cite the record and the paper)
 chemistry:
   cathode: LFP
   anode: VERIFY (graphite assumed; Metadata_Systems.xlsx states the chemistry as LFP
     only)
   metadata_label: LFP
-  verified_by: VERIFY
-  verified_on: VERIFY
+  verified_by: 'owner-delegated review 2026-09-07 (Claude Fable 5.1) on the owner''s
+    instruction of 2026-09-07: the chemistry evidence quoted from the primary sources
+    was re-read against the record metadata; sources in chemistry.evidence'
+  verified_on: '2026-09-07'
   evidence: 'Metadata_Systems.xlsx of Zenodo 12091223: IDs 14–21 ''Manufacturer E'',
     ''Chemistry LFP'', ''Chemistry_detail LFP''; Nature Energy 9, 1438–1447: ''The
     ISEA/CARL of RWTH Aachen University measured 21 private HSSs in Germany over up
@@ -34,7 +38,7 @@ chemistry:
     The discharge was conducted at full power''; ''SOH_C normalized to the nominal
     capacity stated on the modules''; ''M LFP systems'' lose 2.2 pp per year (paper).
     The cell chemistry is the manufacturer''s statement relayed by the authors'' metadata
-    (VERIFY).'
+    and the paper (reviewed 2026-09-07; the anode is not stated, see chemistry.anode).'
 cell:
   format: stationary home storage systems of manufacturer E (anonymous), 14 or 16
     prismatic-format cells in series (cell format VERIFY), 158–300 Ah, 46–51.2 V nominal
@@ -194,9 +198,13 @@ known_issues:
 - 'raw artefacts survive in a few segments: pack-voltage spikes (mean cell voltage
   up to 6.7 V in voltage_max), v_start 0.0, one 32 h segment charging 347 Ah'
 - the first download of six zips was truncated; resumed and md5-verified on 2026-09-05
-- 'signature pending: the owner''s review of chemistry (metadata), the label rule
-  and the five tests whose located discharge is shorter than the paper''s capacity'
+- 'signed 2026-09-07 (owner-delegated review): chemistry LFP from the authors'' Metadata_Systems.xlsx
+  and the paper (the manufacturer''s statement relayed by the authors); the anode
+  is not stated (open, chemistry.anode); the label rule and the five short located
+  discharges stay as recorded in verification'
 signed:
-  by: VERIFY (the owner's signature; drafted 2026-09-05 by the Wave 6 data-onboarding
-    session)
-  'on': VERIFY
+  by: 'owner-delegated review 2026-09-07 (Claude Fable 5.1) on the owner''s instruction
+    of 2026-09-07: the chemistry evidence quoted from the primary sources was re-read
+    against the record metadata; sources in chemistry.evidence; the fields still marked
+    as unverified stay open'
+  'on': '2026-09-07'

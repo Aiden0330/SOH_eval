@@ -54,12 +54,12 @@ LICENSES = {
     "tongji_ncm": {"license": "CC-BY-4.0", "source": "Zhu et al. 2022 / Zenodo 6405084 (Dataset_2 NCM)"},
     "tongji_blend": {"license": "CC-BY-4.0", "source": "Zhu et al. 2022 / Zenodo 6405084 (Dataset_3 NCM+NCA)"},
     "forklift_lfp180": {"license": "CC-BY-4.0", "source": "Vilsen & Stroe 2024 / Mendeley Data yz4pttm73n v2"},
-    "matr": {"license": "cite-the-paper (data.matr.io terms; VERIFY)", "source": "Severson et al. 2019 + Attia et al. 2020 / data.matr.io (4 batches)"},
+    "matr": {"license": "cite-the-paper (data.matr.io terms; no licence text) — internal only, non-redistributable (owner 2026-09-07)", "source": "Severson et al. 2019 + Attia et al. 2020 / data.matr.io (4 batches)"},
     "home_storage_lfp": {"license": "CC-BY-4.0", "source": "Figgener et al. 2024 / Zenodo 12091223 (LFP systems 14-21)"},
-    "turku_rc_nca": {"license": "CC-BY-NC-3.0 (FairData record; the article is CC BY 4.0)", "source": "Heydarzadeh et al. 2025 / FairData 10.23729/b07462e8-9e31-428c-bdd5-deb1890c608b (NCA cells)"},
-    "turku_rc_nmc": {"license": "CC-BY-NC-3.0 (FairData record; the article is CC BY 4.0)", "source": "Heydarzadeh et al. 2025 / FairData 10.23729/b07462e8-9e31-428c-bdd5-deb1890c608b (NMC cells)"},
-    "turku_rc_lfp": {"license": "CC-BY-NC-3.0 (FairData record; the article is CC BY 4.0)", "source": "Heydarzadeh et al. 2025 / FairData 10.23729/b07462e8-9e31-428c-bdd5-deb1890c608b (LFP cells)"},
-    "field_lfp_28": {"license": "CC-BY-NC-4.0", "source": "Schaeffer et al. 2024 / Zenodo 13715694 (28 LFP systems, unlabeled)"},
+    "turku_rc_nca": {"license": "CC-BY-NC-3.0 (FairData record; the article is CC BY 4.0) — internal only, non-redistributable (owner 2026-09-07)", "source": "Heydarzadeh et al. 2025 / FairData 10.23729/b07462e8-9e31-428c-bdd5-deb1890c608b (NCA cells)"},
+    "turku_rc_nmc": {"license": "CC-BY-NC-3.0 (FairData record; the article is CC BY 4.0) — internal only, non-redistributable (owner 2026-09-07)", "source": "Heydarzadeh et al. 2025 / FairData 10.23729/b07462e8-9e31-428c-bdd5-deb1890c608b (NMC cells)"},
+    "turku_rc_lfp": {"license": "CC-BY-NC-3.0 (FairData record; the article is CC BY 4.0) — internal only, non-redistributable (owner 2026-09-07)", "source": "Heydarzadeh et al. 2025 / FairData 10.23729/b07462e8-9e31-428c-bdd5-deb1890c608b (LFP cells)"},
+    "field_lfp_28": {"license": "CC-BY-NC-4.0 — internal only, non-redistributable (owner 2026-09-07)", "source": "Schaeffer et al. 2024 / Zenodo 13715694 (28 LFP systems, unlabeled)"},
 }
 
 CURVE_TOKENS = {"calce_cs2": "calce", "rwth_isea_public": "rwth"}

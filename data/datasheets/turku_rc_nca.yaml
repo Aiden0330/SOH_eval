@@ -1,6 +1,6 @@
 name: turku_rc_nca
-status: draft 2026-09-05 (D3 re-scoped) — chemistry from the paper's Table 1; licence
-  CC BY-NC 3.0 (VERIFY); unsigned until the owner reviews
+status: unsigned — cathode chemistry in dispute between the article and the manufacturer's
+  documents (review 2026-09-07); the owner decides; drafted 2026-09-05 (D3 re-scoped)
 supervision: sparse_field
 source:
   citation: 'Heydarzadeh, M., Toivola, T., Vega-Garita, V., Immonen, E. (2025). Dataset
@@ -12,13 +12,24 @@ source:
     cycler export is not fetched); ingested by scripts/ingest_turku_rc.py (D3 re-scoped,
     2026-09-05).'
   url: https://etsin.fairdata.fi/dataset/f60a7388-99b6-4637-96d5-8610a7f71612
-  license: 'CC BY-NC 3.0 (the FairData record''s access-rights licence; the Data in
-    Brief article is CC BY 4.0). The Wave 6 plan assumed CC BY 4.0: non-commercial
-    terms — VERIFY redistribution of derived tables'
+  license: 'CC BY-NC 3.0 (the FairData record''s access-rights licence, Metax re-read
+    2026-09-07; the Data in Brief article is CC BY 4.0) — non-commercial; owner''s
+    decision 2026-09-07: internal evaluation only, non-redistributable'
   retrieved: 2026-09-05 (Etsin download authorization per file; the sha256 of every
     DATASET file matches the Metax file list)
+  redistribution: 'internal evaluation only, non-redistributable (owner''s decision
+    2026-09-07): the derived tables, curves and window banks stay in this repository''s
+    data directory, no released artifact, claim pack or leaderboard record redistributes
+    them, and the set is cited with its record and paper wherever a result depends
+    on it'
 chemistry:
-  cathode: NCA
+  cathode: 'NCA (the article) — VERIFY: the article assigns NCA to the Samsung ICR18650-26J
+    (Data in Brief 60, 111531, §1 and §3, re-read 2026-09-07 from the Europe PMC full
+    text); Samsung SDI''s specification ICR18650-26J1 v1.0 records the chemistry as
+    a tick box (LCO / LMO / NCA / NCM) that the text export does not resolve, and
+    vendor databases (Cell Saviors, DNK Power) list the 26J as NMC (LiNiCoMnO2); the
+    kernel label stays NCA (the article) until the owner decides; no chemistry-transfer
+    claim may cite this set meanwhile'
   anode: VERIFY (not stated in the article; graphite assumed)
   metadata_label: NCA
   verified_by: VERIFY
@@ -34,7 +45,13 @@ chemistry:
     performed … Following the HPPC tests, reference constant current discharges at
     1C is served as benchmarks''; ''every 200 cycles, the RC data is updated''; 1
     Hz sampling, Chroma battery test system. The anode material is not stated in the
-    article (VERIFY).'
+    article (see chemistry.anode). Review 2026-09-07: the article assigns NCA to the
+    Samsung ICR18650-26J (Data in Brief 60, 111531, §1 and §3, re-read 2026-09-07
+    from the Europe PMC full text); Samsung SDI''s specification ICR18650-26J1 v1.0
+    records the chemistry as a tick box (LCO / LMO / NCA / NCM) that the text export
+    does not resolve, and vendor databases (Cell Saviors, DNK Power) list the 26J
+    as NMC (LiNiCoMnO2); the kernel label stays NCA (the article) until the owner
+    decides; no chemistry-transfer claim may cite this set meanwhile'
 cell:
   format: 18650 (Samsung ICR18650-26J, 2.55 Ah, 3.63 V)
   rated_capacity_ah: 2.55
@@ -159,16 +176,22 @@ leak_scan:
     - hi_* (K12 indicators)
 held_out_ready: true
 known_issues:
-- non-commercial repository licence (CC BY-NC 3.0) — redistribution of derived tables
-  needs the owner's decision
+- 'non-commercial repository licence (CC BY-NC 3.0) — owner 2026-09-07: internal evaluation
+  only, non-redistributable'
 - the first ~20 cycles of every cell are unlabeled (before the first 1C reference)
 - identity / label-time columns correlate with the monotone fade (R² up to 0.97 on
   the two NMC cells) — never features
 - three cells carry one extra 'Reference Cycles' entry (skipped)
 - NCA_CELL_4 ends at soh 0.20 (inside the QC bounds)
-- 'signature pending: the owner''s review of chemistry (paper Table 1), the anode
-  and the licence'
+- 'NOT signed 2026-09-07 — cathode chemistry in dispute: the article assigns NCA to
+  the Samsung ICR18650-26J (Data in Brief 60, 111531, §1 and §3, re-read 2026-09-07
+  from the Europe PMC full text); Samsung SDI''s specification ICR18650-26J1 v1.0
+  records the chemistry as a tick box (LCO / LMO / NCA / NCM) that the text export
+  does not resolve, and vendor databases (Cell Saviors, DNK Power) list the 26J as
+  NMC (LiNiCoMnO2); the kernel label stays NCA (the article) until the owner decides;
+  no chemistry-transfer claim may cite this set meanwhile'
 signed:
-  by: VERIFY (the owner's signature; drafted 2026-09-05 by the Wave 6 data-onboarding
-    session)
+  by: 'VERIFY (the owner''s decision: the article and the manufacturer''s documents
+    disagree on the cathode chemistry — chemistry.evidence and known_issues quote
+    both; reviewed 2026-09-07)'
   'on': VERIFY

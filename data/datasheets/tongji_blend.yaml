@@ -1,6 +1,6 @@
 name: tongji_blend
-status: draft 2026-09-05 (D2) — chemistry and rated capacity quoted from the paper;
-  unsigned until the owner reviews
+status: signed 2026-09-07 (D2; owner-delegated review of the chemistry and rated capacity
+  quoted from the paper; drafted 2026-09-05)
 supervision: soh_supervised
 source:
   citation: 'Zhu, J., Wang, Y., Huang, Y., Bhushan Gopaluni, R., Cao, Y., Heere, M.,
@@ -13,12 +13,16 @@ source:
   license: 'CC BY 4.0 (Zenodo record 6405084 metadata: cc-by-4.0)'
   retrieved: 2026-09-05 (Zenodo API record; Dataset_3_NCM_NCA_battery.zip md5 d11e68e410a638058906af5e2f5f60f3
     verified against the record)
+  redistribution: redistributable with attribution under CC BY 4.0 (derived tables
+    cite the record and the paper)
 chemistry:
-  cathode: NCM+NCA blend (42 wt% Li(NiCoMn)O2 / 58 wt% Li(NiCoAl)O2)
+  cathode: NMC/NCA
   anode: graphite (paper Methods)
   metadata_label: NMC/NCA
-  verified_by: VERIFY
-  verified_on: VERIFY
+  verified_by: 'owner-delegated review 2026-09-07 (Claude Fable 5.1) on the owner''s
+    instruction of 2026-09-07: the chemistry evidence quoted from the primary sources
+    was re-read against the record metadata; sources in chemistry.evidence'
+  verified_on: '2026-09-07'
   evidence: 'Nature Communications 13, 2261, Methods (''Cell selection and cycling''):
     ''The positive electrode of the INR18650-25R battery is the blend of 42 (3) wt.%
     Li(NiCoMn)O2 - 58 (3) wt.% Li(NiCoAl)O2, and the negative electrode is graphite''
@@ -130,8 +134,10 @@ known_issues:
   or logging cycles)'
 - relaxation features (the paper's own feature source) are not extracted; K12 §4.6
   lists them for the segment work
-- 'signature pending: the owner''s review of chemistry (quoted from the paper) and
-  rated capacity'
+- 'signed 2026-09-07 (owner-delegated review): the chemistry and rated capacity quoted
+  from the paper''s Methods and Table 1; the Zenodo record names the three datasets
+  NCA / NCM / NCM+NCA; the chemistry.cathode field carries the kernel label, the authors''
+  electrode compositions are in chemistry.evidence'
 - the kernel label is NMC/NCA (metadata); the K12 indicator windows resolve on NMC
   (3.70–4.10 V)
 - affine R² of q_win_ah against soh is 0.89 on this window (the authors report a linear
@@ -139,6 +145,8 @@ known_issues:
 - cycled in 2020 by a different experimenter than Datasets 1–2 (paper); 60 min relaxation
   at 30 s sampling
 signed:
-  by: VERIFY (the owner's signature; drafted 2026-09-05 by the Wave 6 data-onboarding
-    session)
-  'on': VERIFY
+  by: 'owner-delegated review 2026-09-07 (Claude Fable 5.1) on the owner''s instruction
+    of 2026-09-07: the chemistry evidence quoted from the primary sources was re-read
+    against the record metadata; sources in chemistry.evidence; the fields still marked
+    as unverified stay open'
+  'on': '2026-09-07'

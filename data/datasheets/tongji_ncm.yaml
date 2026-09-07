@@ -1,6 +1,6 @@
 name: tongji_ncm
-status: draft 2026-09-05 (D2) — chemistry and rated capacity quoted from the paper;
-  unsigned until the owner reviews
+status: signed 2026-09-07 (D2; owner-delegated review of the chemistry and rated capacity
+  quoted from the paper; drafted 2026-09-05)
 supervision: soh_supervised
 source:
   citation: 'Zhu, J., Wang, Y., Huang, Y., Bhushan Gopaluni, R., Cao, Y., Heere, M.,
@@ -13,12 +13,16 @@ source:
   license: 'CC BY 4.0 (Zenodo record 6405084 metadata: cc-by-4.0)'
   retrieved: 2026-09-05 (Zenodo API record; Dataset_2_NCM_battery.zip md5 a05c485df92f4af560d1d8d7f659ce1b
     verified against the record)
+  redistribution: redistributable with attribution under CC BY 4.0 (derived tables
+    cite the record and the paper)
 chemistry:
-  cathode: NCM (NMC)
+  cathode: NMC
   anode: graphite with ~2 wt% Si (paper Methods, citing Sorensen et al.)
   metadata_label: NMC
-  verified_by: VERIFY
-  verified_on: VERIFY
+  verified_by: 'owner-delegated review 2026-09-07 (Claude Fable 5.1) on the owner''s
+    instruction of 2026-09-07: the chemistry evidence quoted from the primary sources
+    was re-read against the record metadata; sources in chemistry.evidence'
+  verified_on: '2026-09-07'
   evidence: 'Nature Communications 13, 2261, Methods (''Cell selection and cycling''):
     ''… the INR18650-MJ1 battery … Li(Ni0.83Co0.11Mn0.07)O2'' … ''The INR18650-MJ1
     is named as NCM battery.'' Nature Communications 13, 2261, Methods: ''constant
@@ -129,10 +133,14 @@ known_issues:
   of test (soh down to 0.006); inside the QC bounds'
 - relaxation features (the paper's own feature source) are not extracted; K12 §4.6
   lists them for the segment work
-- 'signature pending: the owner''s review of chemistry (quoted from the paper) and
-  rated capacity'
+- 'signed 2026-09-07 (owner-delegated review): the chemistry and rated capacity quoted
+  from the paper''s Methods and Table 1; the Zenodo record names the three datasets
+  NCA / NCM / NCM+NCA; the chemistry.cathode field carries the kernel label, the authors''
+  electrode compositions are in chemistry.evidence'
 - the kernel label is NMC (metadata) for the authors' NCM
 signed:
-  by: VERIFY (the owner's signature; drafted 2026-09-05 by the Wave 6 data-onboarding
-    session)
-  'on': VERIFY
+  by: 'owner-delegated review 2026-09-07 (Claude Fable 5.1) on the owner''s instruction
+    of 2026-09-07: the chemistry evidence quoted from the primary sources was re-read
+    against the record metadata; sources in chemistry.evidence; the fields still marked
+    as unverified stay open'
+  'on': '2026-09-07'

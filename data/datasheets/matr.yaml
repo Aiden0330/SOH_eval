@@ -1,6 +1,7 @@
 name: matr
-status: draft 2026-09-05 (D9) — chemistry and rated capacity from the papers; licence
-  VERIFY; unsigned until the owner reviews
+status: 'signed 2026-09-07 (D9; owner-delegated review of the chemistry from the papers;
+  no licence text: internal only, non-redistributable by the owner''s decision; drafted
+  2026-09-05)'
 supervision: soh_supervised
 source:
   citation: 'Severson, K. A., Attia, P. M., Jin, N., Perkins, N., Jiang, B., Yang,
@@ -13,22 +14,31 @@ source:
     (MATLAB v7.3 batches MATR_batch_<date>.mat); ingested by scripts/ingest_matr.py
     (D9, 2026-09-05).'
   url: https://data.matr.io/1/
-  license: 'VERIFY (data.matr.io terms: cite the papers; no licence text found on
-    the record pages)'
+  license: 'no licence text (data.matr.io terms: cite the papers; no licence text
+    on the record pages, survey 2026-09-05) — owner''s decision 2026-09-07: internal
+    evaluation only, non-redistributable'
   retrieved: 2026-09-05 (four batches, 10.9 GB; the site publishes no checksums —
     VERIFY)
+  redistribution: 'internal evaluation only, non-redistributable (owner''s decision
+    2026-09-07): the derived tables, curves and window banks stay in this repository''s
+    data directory, no released artifact, claim pack or leaderboard record redistributes
+    them, and the set is cited with its record and paper wherever a result depends
+    on it'
 chemistry:
   cathode: LFP
   anode: graphite
   metadata_label: LFP
-  verified_by: VERIFY
-  verified_on: VERIFY
+  verified_by: 'owner-delegated review 2026-09-07 (Claude Fable 5.1) on the owner''s
+    instruction of 2026-09-07: the chemistry evidence quoted from the primary sources
+    was re-read against the record metadata; sources in chemistry.evidence'
+  verified_on: '2026-09-07'
   evidence: 'Severson et al. 2019, Methods: commercial A123 Systems APR18650M1A LFP/graphite
     cells (1.1 Ah nominal, 3.3 V), cycled in a 30 °C chamber with one- and two-step
     fast-charging policies to 80 % SOC followed by 1C CC-CV to 3.6 V, 4C discharge
     to 2.0 V; Attia et al. 2020 use the same cell and cycler for the closed-loop batches.
     The batch files carry the policy strings (e.g. ''3.6C(80%)-3.6C'') per cell. Cell
-    identity and chemistry are stated in the papers, not in the files (VERIFY).'
+    identity and chemistry are stated in the papers, not in the files (the papers
+    are the primary source; reviewed 2026-09-07).'
 cell:
   format: 18650 (A123 Systems APR18650M1A, 1.1 Ah nominal; Severson 2019 Methods)
   rated_capacity_ah: 1.1
@@ -138,9 +148,12 @@ known_issues:
   %
 - only one of the Attia et al. 2020 batches (2019-01-24, 45 cells) is on disk; the
   plan's 233-cell count needs the other batches
-- 'signature pending: the owner''s review of chemistry (papers) and the licence (data.matr.io
-  terms)'
+- 'signed 2026-09-07 (owner-delegated review): A123 APR18650M1A LFP/graphite and 1.1
+  Ah from Severson et al. 2019 Methods; no licence text — internal evaluation only,
+  non-redistributable by the owner''s decision of 2026-09-07'
 signed:
-  by: VERIFY (the owner's signature; drafted 2026-09-05 by the Wave 6 data-onboarding
-    session)
-  'on': VERIFY
+  by: 'owner-delegated review 2026-09-07 (Claude Fable 5.1) on the owner''s instruction
+    of 2026-09-07: the chemistry evidence quoted from the primary sources was re-read
+    against the record metadata; sources in chemistry.evidence; the fields still marked
+    as unverified stay open'
+  'on': '2026-09-07'

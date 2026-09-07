@@ -61,10 +61,14 @@ def unverified_fields(sheet: Mapping[str, Any], prefix: str = "") -> list[str]:
 
 
 def chemistry_verified(sheet: Mapping[str, Any]) -> bool:
+    """The cathode chemistry — the kernel's label (``metadata.DATASET_CHEMISTRY``) — has a primary source and a reviewer:
+    no ``chemistry.*`` field other than ``chemistry.anode`` is VERIFY.  The anode may stay open (2026-09-07): the label
+    rule, the partial-window spans and the lcho folds key on the cathode, and several primary sources name the cathode only."""
     chemistry = sheet.get("chemistry") or {}
     if not isinstance(chemistry, Mapping):
         return False
-    return not any(field.startswith("chemistry.") for field in unverified_fields({"chemistry": dict(chemistry)}))
+    return not any(field.startswith("chemistry.") and field != "chemistry.anode"
+                   for field in unverified_fields({"chemistry": dict(chemistry)}))
 
 
 def is_signed(sheet: Mapping[str, Any]) -> bool:

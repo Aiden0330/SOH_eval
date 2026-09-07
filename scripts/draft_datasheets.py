@@ -278,6 +278,28 @@ FACTS["snl_nca"] = {
 # ---------------------------------------------------------------------------------------------------------
 DRAFT_DATE = "2026-09-05"
 UNSIGNED_W6 = {"by": "VERIFY (the owner's signature; drafted 2026-09-05 by the Wave 6 data-onboarding session)", "on": V}
+# 2026-09-07: the owner's instruction "sign" — an owner-delegated review of every Wave 6 sheet's chemistry evidence against the
+# record metadata (Zenodo / Metax / the archive READMEs / the manufacturers' documents), and the owner's decision that the
+# non-commercial sets and MATR stay internal-only and non-redistributable.  Sheets whose sources disagree stay unsigned.
+SIGN_DATE = "2026-09-07"
+REVIEWED_W6 = ("owner-delegated review 2026-09-07 (Claude Fable 5.1) on the owner's instruction of 2026-09-07: the chemistry evidence quoted "
+               "from the primary sources was re-read against the record metadata; sources in chemistry.evidence")
+SIGNED_W6 = {"by": REVIEWED_W6 + "; the fields still marked as unverified stay open", "on": SIGN_DATE}
+UNSIGNED_CONFLICT = {"by": ("VERIFY (the owner's decision: the article and the manufacturer's documents disagree on the cathode chemistry — "
+                            "chemistry.evidence and known_issues quote both; reviewed 2026-09-07)"), "on": V}
+INTERNAL_ONLY = ("internal evaluation only, non-redistributable (owner's decision 2026-09-07): the derived tables, curves and window banks stay "
+                 "in this repository's data directory, no released artifact, claim pack or leaderboard record redistributes them, and the set "
+                 "is cited with its record and paper wherever a result depends on it")
+REDIST_CC_BY = "redistributable with attribution under CC BY 4.0 (derived tables cite the record and the paper)"
+# The review's findings on the two Samsung cells of the Turku set (2026-09-07): the article and the manufacturer's documents disagree.
+CONFLICT_26J = ("the article assigns NCA to the Samsung ICR18650-26J (Data in Brief 60, 111531, §1 and §3, re-read 2026-09-07 from the Europe PMC "
+                "full text); Samsung SDI's specification ICR18650-26J1 v1.0 records the chemistry as a tick box (LCO / LMO / NCA / NCM) that the text "
+                "export does not resolve, and vendor databases (Cell Saviors, DNK Power) list the 26J as NMC (LiNiCoMnO2); the kernel label stays NCA "
+                "(the article) until the owner decides; no chemistry-transfer claim may cite this set meanwhile")
+CONFLICT_40T = ("the article assigns NMC to the Samsung INR21700-40T and cites the Samsung specification as its source; Samsung SDI's safety data sheet "
+                "for the INR21700-40T (2019-01-01, rev. 01) lists the cathode as 'lithiated metal oxide (Cobalt, Nickel)' with lithium nickel oxide "
+                "25-35 %, cobalt lithium dioxide 1-5 % and aluminium lithium oxide 0.1-1 % and no manganese compound — the composition of an NCA cell; "
+                "the kernel label stays NMC (the article) until the owner decides; no chemistry-transfer claim may cite this set meanwhile")
 STANDARD_CLASSES = {
     "identity": ["dataset", "cell_id", "cycle_index"],
     "label": ["soh"],
@@ -312,7 +334,7 @@ def _tongji(name, *, zip_name, md5, cathode, cathode_text, model, rated, cutoff_
         "license": "CC BY 4.0 (Zenodo record 6405084 metadata: cc-by-4.0)",
         "retrieved": f"{DRAFT_DATE} (Zenodo API record; {zip_name} md5 {md5} verified against the record)",
         "cathode": cathode, "anode": "graphite with ~2 wt% Si (paper Methods, citing Sorensen et al.)" if name != "tongji_blend" else "graphite (paper Methods)",
-        "verified_by": V, "verified_on": V,
+        "verified_by": REVIEWED_W6, "verified_on": SIGN_DATE, "redistribution": REDIST_CC_BY,
         "format": f"18650 ({model})", "rated_capacity_ah": rated,
         "rated_source": f"paper Table 1 (nominal capacity {rated} Ah; 1C = {rated} A)",
         "chemistry_evidence": (f"Nature Communications 13, 2261, Methods ('Cell selection and cycling'): {cathode_text} " + TONGJI_PROTOCOL),
@@ -335,8 +357,10 @@ def _tongji(name, *, zip_name, md5, cathode, cathode_text, model, rated, cutoff_
         "known_issues": ["no temperature channel in the CSVs: temperature_mean is the chamber setpoint from the cell name (CY25/35/45)",
                          f"{low_rows}",
                          "relaxation features (the paper's own feature source) are not extracted; K12 §4.6 lists them for the segment work",
-                         "signature pending: the owner's review of chemistry (quoted from the paper) and rated capacity"] + extra_issues,
-        "signed": dict(UNSIGNED_W6), "status": f"draft {DRAFT_DATE} (D2) — chemistry and rated capacity quoted from the paper; unsigned until the owner reviews",
+                         "signed 2026-09-07 (owner-delegated review): the chemistry and rated capacity quoted from the paper's Methods and Table 1; "
+                         "the Zenodo record names the three datasets NCA / NCM / NCM+NCA; the chemistry.cathode field carries the kernel label, "
+                         "the authors' electrode compositions are in chemistry.evidence"] + extra_issues,
+        "signed": dict(SIGNED_W6), "status": f"signed {SIGN_DATE} (D2; owner-delegated review of the chemistry and rated capacity quoted from the paper; drafted {DRAFT_DATE})",
     }
 
 FACTS["tongji_nca"] = _tongji("tongji_nca", zip_name="Dataset_1_NCA_battery.zip", md5="cbd6d7eab2a296b52385e025e8d0f42a", cathode="NCA",
@@ -346,14 +370,14 @@ FACTS["tongji_nca"] = _tongji("tongji_nca", zip_name="Dataset_1_NCA_battery.zip"
     window=(3.65, 4.10), coverage=0.432, rows=22913, soh_first="0.879–0.961 (median 0.936: the 1C discharge capacity of a 3.5 Ah nominal cell)",
     low_rows="268 rows with soh < 0.5: cells of the 35 °C and 45 °C groups collapse at end of test (soh down to 0.004); inside the QC bounds [0, 1.3) — review before any EOL-band claim",
     extra_issues=["the 25 °C 1C-charge cells (CY25-1_1) fail within 29–60 cycles (the paper: 71 % after ~50 cycles)"])
-FACTS["tongji_ncm"] = _tongji("tongji_ncm", zip_name="Dataset_2_NCM_battery.zip", md5="a05c485df92f4af560d1d8d7f659ce1b", cathode="NCM (NMC)",
+FACTS["tongji_ncm"] = _tongji("tongji_ncm", zip_name="Dataset_2_NCM_battery.zip", md5="a05c485df92f4af560d1d8d7f659ce1b", cathode="NMC",
     cathode_text="'… the INR18650-MJ1 battery … Li(Ni0.83Co0.11Mn0.07)O2' … 'The INR18650-MJ1 is named as NCM battery.'",
     model="Samsung INR18650-MJ1, 3.5 Ah, 3.6 V", rated=3.5, cutoff_low=2.5, cells=55,
     conditions={"25C_0.5C_1C": 23, "35C_0.5C_1C": 4, "45C_0.5C_1C": 28},
     window=(3.65, 4.10), coverage=0.436, rows=28003, soh_first="0.899–0.957 (median 0.939)",
     low_rows="195 rows with soh < 0.5: the four 35 °C cells and two 45 °C cells collapse at end of test (soh down to 0.006); inside the QC bounds",
     extra_issues=["the kernel label is NMC (metadata) for the authors' NCM"])
-FACTS["tongji_blend"] = _tongji("tongji_blend", zip_name="Dataset_3_NCM_NCA_battery.zip", md5="d11e68e410a638058906af5e2f5f60f3", cathode="NCM+NCA blend (42 wt% Li(NiCoMn)O2 / 58 wt% Li(NiCoAl)O2)",
+FACTS["tongji_blend"] = _tongji("tongji_blend", zip_name="Dataset_3_NCM_NCA_battery.zip", md5="d11e68e410a638058906af5e2f5f60f3", cathode="NMC/NCA",
     cathode_text="'The positive electrode of the INR18650-25R battery is the blend of 42 (3) wt.% Li(NiCoMn)O2 - 58 (3) wt.% Li(NiCoAl)O2, and the negative electrode is graphite' … 'The INR18650-25R is named as NCM + NCA battery according to the positive electrode.'",
     model="Samsung INR18650-25R, 2.5 Ah, 3.6 V", rated=2.5, cutoff_low=2.5, cells=9,
     conditions={"25C_0.5C_1C": 3, "25C_0.5C_2C": 3, "25C_0.5C_4C": 3},
@@ -372,7 +396,7 @@ FACTS["forklift_lfp180"] = {
                  "321 files, 4.89 GB uncompressed); ingested by scripts/ingest_forklift_lfp180.py (D8, 2026-09-05) through sohkernel.segments (K13)."),
     "url": "https://doi.org/10.17632/yz4pttm73n.2", "license": "CC BY 4.0 (Mendeley record)",
     "retrieved": f"{DRAFT_DATE} (zip integrity tested: no errors; the record publishes no checksum — VERIFY)",
-    "cathode": "LFP", "anode": "graphite", "verified_by": V, "verified_on": V,
+    "cathode": "LFP", "anode": "graphite", "verified_by": REVIEWED_W6, "verified_on": SIGN_DATE, "redistribution": REDIST_CC_BY,
     "format": "prismatic, 180 Ah, 3.2 V nominal, 2.5–3.65 V (paper Table 3); manufacturer and model not named (VERIFY)",
     "rated_capacity_ah": 180.0, "rated_source": "paper Table 3 ('Nominal capacity 180 Ah', 'Nominal voltage 3.2 V', 'Maximum voltage 3.65 V', 'Minimum voltage 2.5 V')",
     "chemistry_evidence": ("Data in Brief 52, 109861, §3: 'The Li-ion batteries used in this study are prismatic cells using lithium iron phosphate (LFP) and "
@@ -404,8 +428,9 @@ FACTS["forklift_lfp180"] = {
     "known_issues": ["soh > 1 at beginning of life (C/4 capacity 190.7 Ah vs the 180 Ah nominal; QC keeps rows below 1.3)",
                      "segments never span a file part; rests at part boundaries are unknown (NaN)",
                      "the RPT temperature is 25 °C while the segments are at 45/40/35 °C",
-                     "signature pending: the owner's review of chemistry (paper Table 3) and the C/4 label rule"],
-    "signed": dict(UNSIGNED_W6), "status": f"draft {DRAFT_DATE} (D8) — chemistry and rated capacity quoted from the paper; unsigned until the owner reviews",
+                     "signed 2026-09-07 (owner-delegated review): chemistry LFP/graphite and 180 Ah from Data in Brief 52, 109861 §3 and Table 3; the C/4 label "
+                     "rule as verified by hand above; the cell model stays unnamed (open, cell.format)"],
+    "signed": dict(SIGNED_W6), "status": f"signed {SIGN_DATE} (D8; owner-delegated review of the chemistry and rated capacity quoted from the paper; drafted {DRAFT_DATE})",
 }
 # <<< dataset-block: forklift_lfp180
 
@@ -417,15 +442,18 @@ FACTS["matr"] = {
                  "(2020). Closed-loop optimization of fast-charging protocols for batteries with machine learning. Nature 578, 397–402, "
                  "DOI 10.1038/s41586-020-1994-5 (batch 2019-01-24). Data: data.matr.io (MATLAB v7.3 batches MATR_batch_<date>.mat); ingested by "
                  "scripts/ingest_matr.py (D9, 2026-09-05)."),
-    "url": "https://data.matr.io/1/", "license": "VERIFY (data.matr.io terms: cite the papers; no licence text found on the record pages)",
+    "url": "https://data.matr.io/1/",
+    "license": "no licence text (data.matr.io terms: cite the papers; no licence text on the record pages, survey 2026-09-05) — owner's decision 2026-09-07: internal evaluation only, non-redistributable",
+    "redistribution": INTERNAL_ONLY,
     "retrieved": f"{DRAFT_DATE} (four batches, 10.9 GB; the site publishes no checksums — VERIFY)",
-    "cathode": "LFP", "anode": "graphite", "verified_by": V, "verified_on": V,
+    "cathode": "LFP", "anode": "graphite", "verified_by": REVIEWED_W6, "verified_on": SIGN_DATE,
     "format": "18650 (A123 Systems APR18650M1A, 1.1 Ah nominal; Severson 2019 Methods)", "rated_capacity_ah": 1.1,
     "rated_source": "Severson et al. 2019 (A123 APR18650M1A, nominal capacity 1.1 Ah; cycle life defined at 0.88 Ah = 80 %)",
     "chemistry_evidence": ("Severson et al. 2019, Methods: commercial A123 Systems APR18650M1A LFP/graphite cells (1.1 Ah nominal, 3.3 V), cycled in a "
                            "30 °C chamber with one- and two-step fast-charging policies to 80 % SOC followed by 1C CC-CV to 3.6 V, 4C discharge to 2.0 V; "
                            "Attia et al. 2020 use the same cell and cycler for the closed-loop batches. The batch files carry the policy strings "
-                           "(e.g. '3.6C(80%)-3.6C') per cell. Cell identity and chemistry are stated in the papers, not in the files (VERIFY)."),
+                           "(e.g. '3.6C(80%)-3.6C') per cell. Cell identity and chemistry are stated in the papers, not in the files (the papers are the "
+                           "primary source; reviewed 2026-09-07)."),
     "segments": [{"id": "fast_charge", "rate": "one- or two-step CC fast charge (3.6C–8C) to 80 % SOC, then 1C CC to 3.6 V and CV (papers); charge segment = samples with I > 0.01 A"},
                  {"id": "discharge", "rate": "4C CC to 2.0 V (papers)"}],
     "temperature_c": [30],
@@ -445,8 +473,9 @@ FACTS["matr"] = {
                      "the first summary entry of every batch-1 cell is zero (dropped: no label)",
                      "q_win_ah covers ≈ 80 % of rated (wide-window warning) because no plateau window fits the fast-charge protocols; the K12 LFP span 3.30–3.40 V covers a median 14 %",
                      "only one of the Attia et al. 2020 batches (2019-01-24, 45 cells) is on disk; the plan's 233-cell count needs the other batches",
-                     "signature pending: the owner's review of chemistry (papers) and the licence (data.matr.io terms)"],
-    "signed": dict(UNSIGNED_W6), "status": f"draft {DRAFT_DATE} (D9) — chemistry and rated capacity from the papers; licence VERIFY; unsigned until the owner reviews",
+                     "signed 2026-09-07 (owner-delegated review): A123 APR18650M1A LFP/graphite and 1.1 Ah from Severson et al. 2019 Methods; no licence text — "
+                     "internal evaluation only, non-redistributable by the owner's decision of 2026-09-07"],
+    "signed": dict(SIGNED_W6), "status": f"signed {SIGN_DATE} (D9; owner-delegated review of the chemistry from the papers; no licence text: internal only, non-redistributable by the owner's decision; drafted {DRAFT_DATE})",
 }
 # <<< dataset-block: matr
 # >>> dataset-block: turku
@@ -461,16 +490,27 @@ TURKU_EVIDENCE = ("Data in Brief 60, 111531: 'four ICR18650-26J (NCA), two INR21
                   "the following Steps 1 to 4: 1) CC-CV charge at a constant 1C. 2) CC discharge at 1C. 3) HPPC discharge at 0.5C, 1C, and 2C. "
                   "4) User-defined (RC) discharge profile to reach the cut-off voltage'; 'After every set of 20 cycles, HPPC tests are performed … "
                   "Following the HPPC tests, reference constant current discharges at 1C is served as benchmarks'; 'every 200 cycles, the RC data is "
-                  "updated'; 1 Hz sampling, Chroma battery test system. The anode material is not stated in the article (VERIFY).")
+                  "updated'; 1 Hz sampling, Chroma battery test system. The anode material is not stated in the article (see chemistry.anode).")
 
-def _turku(name, *, chem, cathode, model, fmt, rated, cutoff, cells, window, coverage, rows, labeled, refs_per_cell, ref_range, soh_range, extra):
+def _turku(name, *, chem, cathode, model, fmt, rated, cutoff, cells, window, coverage, rows, labeled, refs_per_cell, ref_range, soh_range, extra,
+           conflict=None, anode="VERIFY (not stated in the article; graphite assumed)"):
+    """``conflict``: the review's finding when the article and the manufacturer's documents disagree on the cathode — the sheet then
+    stays unsigned with the cathode marked VERIFY and both sources quoted."""
+    signed_note = ("signed 2026-09-07 (owner-delegated review): the cathode from the paper's Table 1, consistent with the cell model and its cut-offs; "
+                   "the anode stays open where the article does not state it; licence CC BY-NC 3.0 — internal only, non-redistributable (owner 2026-09-07)"
+                   if conflict is None else
+                   f"NOT signed 2026-09-07 — cathode chemistry in dispute: {conflict}")
     return {
         "citation": TURKU_CITATION, "url": "https://etsin.fairdata.fi/dataset/f60a7388-99b6-4637-96d5-8610a7f71612",
-        "license": "CC BY-NC 3.0 (the FairData record's access-rights licence; the Data in Brief article is CC BY 4.0). The Wave 6 plan assumed CC BY 4.0: non-commercial terms — VERIFY redistribution of derived tables",
+        "license": "CC BY-NC 3.0 (the FairData record's access-rights licence, Metax re-read 2026-09-07; the Data in Brief article is CC BY 4.0) — non-commercial; owner's decision 2026-09-07: internal evaluation only, non-redistributable",
+        "redistribution": INTERNAL_ONLY,
         "retrieved": f"{DRAFT_DATE} (Etsin download authorization per file; the sha256 of every DATASET file matches the Metax file list)",
-        "cathode": cathode, "anode": "VERIFY (not stated in the article; graphite assumed)", "verified_by": V, "verified_on": V,
+        "cathode": cathode if conflict is None else f"{cathode} (the article) — VERIFY: {conflict}",
+        "anode": anode,
+        "verified_by": REVIEWED_W6 if conflict is None else V, "verified_on": SIGN_DATE if conflict is None else V,
         "format": f"{fmt} ({model})", "rated_capacity_ah": rated, "rated_source": f"paper Table 1 (Q_nom {rated} Ah)",
-        "chemistry_evidence": TURKU_EVIDENCE,
+        "chemistry_evidence": TURKU_EVIDENCE + (" Review 2026-09-07: " + conflict if conflict else
+                                                " Review 2026-09-07: the LFP assignment of the JGNE JGPFR26650 (3.2 V nominal, 3.6 V charge cut-off, 2.5 V discharge cut-off) is consistent with the model and the cut-offs."),
         "segments": [{"id": "cc_cv_charge", "rate": f"1C CC to {cutoff[1]} V, CV to the cut-off current (paper Table 1–2); the row's feature source = the cycle entry's largest charging span (Spec 12 §2 spans, samples above 0.01 A)"},
                      {"id": "rc_discharge", "rate": f"randomized setpoints of one minute each (0.5–5C; NCA up to 2C) from the full state to {cutoff[0]} V (paper)"},
                      {"id": "reference", "rate": "1C constant-current discharge to the cut-off after the HPPC tests, every ~20 cycles (label source)"}],
@@ -488,11 +528,14 @@ def _turku(name, *, chem, cathode, model, fmt, rated, cutoff, cells, window, cov
                          "cells_vs_paper_table_1": "4 NCA / 2 NMC / 2 LFP as in the paper",
                          "soh_range": soh_range},
         "column_classes": SEGMENT_CLASSES, "scanned_on": DRAFT_DATE,
-        "known_issues": ["non-commercial repository licence (CC BY-NC 3.0) — redistribution of derived tables needs the owner's decision",
+        "known_issues": ["non-commercial repository licence (CC BY-NC 3.0) — owner 2026-09-07: internal evaluation only, non-redistributable",
                          "the first ~20 cycles of every cell are unlabeled (before the first 1C reference)",
                          "identity / label-time columns correlate with the monotone fade (R² up to 0.97 on the two NMC cells) — never features"] + extra.get("issues", []) +
-                        ["signature pending: the owner's review of chemistry (paper Table 1), the anode and the licence"],
-        "signed": dict(UNSIGNED_W6), "status": f"draft {DRAFT_DATE} (D3 re-scoped) — chemistry from the paper's Table 1; licence CC BY-NC 3.0 (VERIFY); unsigned until the owner reviews",
+                        [signed_note],
+        "signed": dict(SIGNED_W6) if conflict is None else dict(UNSIGNED_CONFLICT),
+        "status": (f"signed {SIGN_DATE} (D3 re-scoped; owner-delegated review of the cathode from the paper's Table 1; internal only, non-redistributable; drafted {DRAFT_DATE})"
+                   if conflict is None else
+                   f"unsigned — cathode chemistry in dispute between the article and the manufacturer's documents (review {SIGN_DATE}); the owner decides; drafted {DRAFT_DATE} (D3 re-scoped)"),
     }
 
 FACTS["turku_rc_nca"] = _turku("turku_rc_nca", chem="NCA", cathode="NCA", model="Samsung ICR18650-26J, 2.55 Ah, 3.63 V", fmt="18650", rated=2.55, cutoff=(2.75, 4.2), cells=4,
@@ -500,12 +543,14 @@ FACTS["turku_rc_nca"] = _turku("turku_rc_nca", chem="NCA", cathode="NCA", model=
     ref_range={"NCA_CELL_1": "2.524 → 1.692", "NCA_CELL_2": "2.508 → 2.174", "NCA_CELL_3": "2.484 → 2.100", "NCA_CELL_4": "2.522 → 0.466"},
     soh_range="0.20–0.99 (NCA_CELL_4 collapses to 0.466 Ah at the end)",
     extra={"window_note": "the mid-charge window of the SNL NCA set (max coverage 0.63, affine R² 0.49)",
-           "issues": ["three cells carry one extra 'Reference Cycles' entry (skipped)", "NCA_CELL_4 ends at soh 0.20 (inside the QC bounds)"]})
+           "issues": ["three cells carry one extra 'Reference Cycles' entry (skipped)", "NCA_CELL_4 ends at soh 0.20 (inside the QC bounds)"]},
+    conflict=CONFLICT_26J)
 FACTS["turku_rc_nmc"] = _turku("turku_rc_nmc", chem="NMC", cathode="NMC", model="Samsung INR21700-40T, 4.0 Ah, 3.6 V", fmt="21700", rated=4.0, cutoff=(2.5, 4.2), cells=2,
     window=(3.80, 4.15), coverage=0.408, rows=1031, labeled=980, refs_per_cell={"NMC_CELL_1": 25, "NMC_CELL_2": 24},
     ref_range={"NMC_CELL_1": "3.902 → 3.339", "NMC_CELL_2": "3.914 → 3.342"}, soh_range="0.83–0.98",
     extra={"window_note": "[3.65, 4.10] V (the SNL NMC window) reaches affine R² 0.97 on these two cells with a near-linear fade; [3.80, 4.15] V (R² 0.35, max coverage 0.44) keeps margin below the 0.995 threshold",
-           "issues": ["two cells only: every fold that holds one out trains on one"]})
+           "issues": ["two cells only: every fold that holds one out trains on one"]},
+    conflict=CONFLICT_40T, anode="graphite (Samsung SDI safety data sheet for the INR21700-40T: 'based on intercalation graphite'; the article does not state it)")
 FACTS["turku_rc_lfp"] = _turku("turku_rc_lfp", chem="LFP", cathode="LFP", model="JGNE JGPFR26650, 3.0 Ah, 3.2 V", fmt="26650", rated=3.0, cutoff=(2.5, 3.6), cells=2,
     window=(3.30, 3.40), coverage=0.446, rows=1114, labeled=1054, refs_per_cell={"LFP_CELL_1": 26, "LFP_CELL_2": 27},
     ref_range={"LFP_CELL_1": "2.783 → 2.525", "LFP_CELL_2": "2.771 → 2.454"}, soh_range="0.82–0.93 (the 3.0 Ah nominal is above the cells' 1C capacity)",
@@ -519,9 +564,11 @@ FACTS["field_lfp_28"] = {
                  "DOI 10.1016/j.xcrp.2024.102258. Dataset: Lithium-Ion Battery Field Data: 28 LFP battery systems with 8 cells in series, up to 5 "
                  "years of operation, Zenodo 13715694 v1.0.0 (field_data.zip, md5 827f508740c4154b7ff7b15de3b2c75d, 28 data_sys_<ID>.csv); "
                  "ingested by scripts/ingest_field_lfp_28.py (D10, 2026-09-05) through sohkernel.segments (K13)."),
-    "url": "https://doi.org/10.5281/zenodo.13715694", "license": "CC BY-NC 4.0 (Zenodo record and README) — non-commercial; never training or claims (Wave 6 plan §2)",
+    "url": "https://doi.org/10.5281/zenodo.13715694",
+    "license": "CC BY-NC 4.0 (Zenodo record and README, re-read 2026-09-07) — non-commercial; never training or claims (Wave 6 plan §2); owner's decision 2026-09-07: internal evaluation only, non-redistributable",
+    "redistribution": INTERNAL_ONLY,
     "retrieved": f"{DRAFT_DATE} (Zenodo API record; the zip md5 verified against the record)",
-    "cathode": "LFP", "anode": "VERIFY (graphite assumed; the README states the cathode only)", "verified_by": V, "verified_on": V,
+    "cathode": "LFP", "anode": "VERIFY (graphite assumed; the README states the cathode only)", "verified_by": REVIEWED_W6, "verified_on": SIGN_DATE,
     "format": "prismatic, 8 cells in series per 24 V system, ≈ 160 Ah nominal (README: 'Nominal capacity approx. 160 Ah'); manufacturer and cell model anonymous (VERIFY)",
     "rated_capacity_ah": 160.0, "rated_source": "Zenodo README ('Nominal voltage: 24 V', 'Nominal capacity approx. 160 Ah') — approximate; the label-free coverage descriptors use it",
     "chemistry_evidence": ("Zenodo 13715694 README: 'Cathode chemistry: LFP'; '28 portable 24V lithium iron phosphate (LFP) battery systems with "
@@ -548,13 +595,14 @@ FACTS["field_lfp_28"] = {
     "verification": {"sign_convention": "checked on data_sys_3: SOC rises (+0.006 %/sample) and the cell voltage rises with I > 5 A, both fall with I < −5 A; 99.8 % of the extracted segments end at a higher cell voltage than they start",
                      "raw_artifacts": "I_Battery holds infinite readings and cell voltages drop to 0.1–0.3 V in some records (sensor dropouts): non-finite currents count as rest in the kernel; the voltage artefacts remain in voltage_min / v_start of a few segments"},
     "column_classes": SEGMENT_CLASSES, "scanned_on": DRAFT_DATE, "held_out_ready": False,
-    "known_issues": ["non-commercial licence (CC BY-NC 4.0): inference, audit and drift only; never training or claims",
+    "known_issues": ["non-commercial licence (CC BY-NC 4.0): inference, audit and drift only; never training or claims; owner 2026-09-07: internal evaluation only, non-redistributable",
                      "no labels: soh, label_source, label_time_s and label_age_s are NaN in every row (unlabeled_field)",
                      "biased sample: returned systems only (README)",
                      "cell voltage sensor dropouts (values near 0 V) survive in a few segments' voltage_min and v_start",
                      "the pack current is shared by the eight cells of a system: the eight rows of one segment differ only in voltage and temperature",
-                     "signature pending: the owner's review of chemistry (README) and the approximate rated capacity"],
-    "signed": dict(UNSIGNED_W6), "status": f"draft {DRAFT_DATE} (D10) — unlabeled field set, CC BY-NC 4.0; unsigned until the owner reviews",
+                     "signed 2026-09-07 (owner-delegated review): cathode LFP from the Zenodo README ('Cathode chemistry: LFP') and the record description; "
+                     "the anode is not stated (open, chemistry.anode); the 160 Ah nominal stays approximate"],
+    "signed": dict(SIGNED_W6), "status": f"signed {SIGN_DATE} (D10; owner-delegated review of the cathode from the README; unlabeled field set, CC BY-NC 4.0, internal only, non-redistributable; drafted {DRAFT_DATE})",
 }
 # <<< dataset-block: field_lfp_28
 # >>> dataset-block: home_storage_lfp
@@ -568,7 +616,8 @@ FACTS["home_storage_lfp"] = {
                  "ingested by scripts/ingest_home_storage_lfp.py (D7, 2026-09-05) through sohkernel.segments (K13)."),
     "url": "https://doi.org/10.5281/zenodo.12091223", "license": "CC BY 4.0 (Zenodo record 12091223: cc-by-4.0)",
     "retrieved": f"{DRAFT_DATE} (Zenodo API; six of the eight LFP zips were truncated by the first download and resumed until their md5 matched)",
-    "cathode": "LFP", "anode": "VERIFY (graphite assumed; Metadata_Systems.xlsx states the chemistry as LFP only)", "verified_by": V, "verified_on": V,
+    "cathode": "LFP", "anode": "VERIFY (graphite assumed; Metadata_Systems.xlsx states the chemistry as LFP only)", "verified_by": REVIEWED_W6, "verified_on": SIGN_DATE,
+    "redistribution": REDIST_CC_BY,
     "format": "stationary home storage systems of manufacturer E (anonymous), 14 or 16 prismatic-format cells in series (cell format VERIFY), 158–300 Ah, 46–51.2 V nominal (Metadata_Systems.xlsx)",
     "rated_capacity_ah": "per system: sys14 158, sys15 195, sys16 158, sys17 158, sys18 158, sys19 200, sys20 200, sys21 300 (Metadata_Systems.xlsx Capacity_nominal_in_Ah; sohkernel.metadata.CELL_PREFIX_C_RATED_AH)",
     "rated_source": "Metadata_Systems.xlsx (Capacity_nominal_in_Ah, Voltage_nominal_in_V, Cell_number_in_series 16 for IDs 14–18 and 14 for IDs 19–21, Manufacturer E, Chemistry LFP)",
@@ -578,7 +627,7 @@ FACTS["home_storage_lfp"] = {
                            "description); 'Regular field capacity tests were conducted during the whole measurement period. For this, the HSSs were first "
                            "fully charged and then fully discharged. The discharge was conducted at full power'; 'SOH_C normalized to the nominal capacity "
                            "stated on the modules'; 'M LFP systems' lose 2.2 pp per year (paper). The cell chemistry is the manufacturer's statement relayed "
-                           "by the authors' metadata (VERIFY)."),
+                           "by the authors' metadata and the paper (reviewed 2026-09-07; the anode is not stated, see chemistry.anode)."),
     "segments": [{"id": "field_charge", "rate": "charging segments of the system current (PV charging, Spec 12 §2 defaults with the system's rated capacity): median 0.19 C, coefficient of variation 0.39, 66 min median, ending at a mean cell voltage of 3.34 V (median)"},
                  {"id": "capacity_test", "rate": "the field capacity test: a full charge, then a full-power discharge (≈ 0.3–0.4 C, 2–3 h) to the end-of-discharge voltage (label source; the discharge starting at the recorded start time)"}],
     "temperature_c": ["VERIFY (field; battery housing temperature median 24 °C, 1–42 °C over the segments)"],
@@ -604,8 +653,9 @@ FACTS["home_storage_lfp"] = {
                      "two to four tests per labeled system over 3–8 years; a 180-day age bound labels 29 % of the segments",
                      "raw artefacts survive in a few segments: pack-voltage spikes (mean cell voltage up to 6.7 V in voltage_max), v_start 0.0, one 32 h segment charging 347 Ah",
                      "the first download of six zips was truncated; resumed and md5-verified on 2026-09-05",
-                     "signature pending: the owner's review of chemistry (metadata), the label rule and the five tests whose located discharge is shorter than the paper's capacity"],
-    "signed": dict(UNSIGNED_W6), "status": f"draft {DRAFT_DATE} (D7) — the deployment proxy; chemistry from the authors' metadata; unsigned until the owner reviews",
+                     "signed 2026-09-07 (owner-delegated review): chemistry LFP from the authors' Metadata_Systems.xlsx and the paper (the manufacturer's statement relayed "
+                     "by the authors); the anode is not stated (open, chemistry.anode); the label rule and the five short located discharges stay as recorded in verification"],
+    "signed": dict(SIGNED_W6), "status": f"signed {SIGN_DATE} (D7; the deployment proxy; owner-delegated review of the chemistry from the authors' metadata; drafted {DRAFT_DATE})",
 }
 # <<< dataset-block: home_storage_lfp
 LEAK_INVENTORY = {"hust": ["charge_capacity_max"], "oxford": ["charge_capacity_max"], "uconn": ["charge_capacity_max"],
@@ -664,7 +714,8 @@ def main(argv=None) -> int:
             "name": name,
             "status": facts["status"],
             "supervision": entry.get("supervision") or facts.get("supervision") or "soh_supervised",
-            "source": {"citation": facts["citation"], "url": facts["url"], "license": facts["license"], "retrieved": facts["retrieved"]},
+            "source": {"citation": facts["citation"], "url": facts["url"], "license": facts["license"], "retrieved": facts["retrieved"],
+                       **({"redistribution": facts["redistribution"]} if facts.get("redistribution") else {})},
             "chemistry": {"cathode": facts["cathode"], "anode": facts["anode"], "metadata_label": DATASET_CHEMISTRY.get(name, "unknown"),
                           "verified_by": facts["verified_by"], "verified_on": facts["verified_on"], "evidence": facts["chemistry_evidence"]},
             "cell": {"format": facts["format"], "rated_capacity_ah": facts.get("rated_capacity_ah", rated if rated == rated else V), "rated_source": facts["rated_source"]},

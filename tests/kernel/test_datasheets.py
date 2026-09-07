@@ -23,6 +23,12 @@ def test_unverified_fields_walks_nested_structures():
     assert {"chemistry.cathode", "chemistry.verified_by", "windows[1].v_lo", "signed.by"} <= set(fields)
     assert not chemistry_verified(sheet) and not is_signed(sheet)
     assert chemistry_verified(_sheet("y", verified_by="owner")) and is_signed(_sheet("y", verified_by="owner", signed_by="owner"))
+    # the anode may stay open (2026-09-07): the kernel's chemistry label is the cathode
+    open_anode = _sheet("z", verified_by="owner")
+    open_anode["chemistry"]["anode"] = "VERIFY (not stated by the source)"
+    assert chemistry_verified(open_anode) and "chemistry.anode" in unverified_fields(open_anode)
+    open_anode["chemistry"]["cathode"] = "NCA (the article) — VERIFY: the manufacturer's sheet says otherwise"
+    assert not chemistry_verified(open_anode)
 
 
 def test_repo_datasheet_drafts_exist_and_nasa_chemistry_is_unverified():
@@ -68,12 +74,31 @@ def test_signed_datasheets_agree_with_the_metadata_chemistry_table():
     if not sheets:
         pytest.skip("datasheets not present")
     verified = {name for name, sheet in sheets.items() if chemistry_verified(sheet)}
-    assert verified == {"calce_cs2", "hust", "oxford", "snl_lfp", "uconn", "rwth_isea_public", "snl_nmc", "snl_nca"}
+    assert verified == {"calce_cs2", "hust", "oxford", "snl_lfp", "uconn", "rwth_isea_public", "snl_nmc", "snl_nca",
+                        # Wave 6, signed by owner-delegated review on 2026-09-07 (the owner's instruction "sign")
+                        "tongji_nca", "tongji_ncm", "tongji_blend", "forklift_lfp180", "matr", "turku_rc_lfp", "field_lfp_28", "home_storage_lfp"}
     for name in verified:
         assert is_signed(sheets[name]), name
         assert sheets[name]["chemistry"]["cathode"] == DATASET_CHEMISTRY[name] == sheets[name]["chemistry"]["metadata_label"], name
     assert not is_signed(sheets["nasa"])
+    for name in ("turku_rc_nca", "turku_rc_nmc"):   # the article and the manufacturer's documents disagree: unsigned until the owner decides
+        assert not chemistry_verified(sheets[name]) and not is_signed(sheets[name]), name
+        assert "chemistry.cathode" in unverified_fields(sheets[name]) and "Samsung SDI" in sheets[name]["chemistry"]["cathode"], name
     assert DATASET_CHEMISTRY["rwth_isea_public"] == "NMC" and DATASET_C_RATED_AH["rwth_isea_public"] == 1.85
+
+
+def test_owner_decision_2026_09_07_internal_only_sets_and_the_wave_6_signatures():
+    """The non-commercial sets and MATR stay internal-only and non-redistributable (owner 2026-09-07); the CC BY 4.0 sets say so."""
+    sheets = load_datasheets(Path(__file__).resolve().parents[2] / "data")
+    if not sheets:
+        pytest.skip("datasheets not present")
+    for name in ("turku_rc_nca", "turku_rc_nmc", "turku_rc_lfp", "field_lfp_28", "matr"):
+        assert sheets[name]["source"]["redistribution"].startswith("internal evaluation only, non-redistributable"), name
+        assert "non-redistributable" in sheets[name]["source"]["license"], name
+    for name in ("tongji_nca", "tongji_ncm", "tongji_blend", "forklift_lfp180", "home_storage_lfp"):
+        assert "CC BY 4.0" in sheets[name]["source"]["redistribution"], name
+    assert "source.license" not in unverified_fields(sheets["matr"]) and "source.license" not in unverified_fields(sheets["turku_rc_lfp"])
+    assert sheets["tongji_ncm"]["chemistry"]["cathode"] == "NMC" and sheets["tongji_blend"]["chemistry"]["cathode"] == "NMC/NCA"
 
 
 def test_d12_survey_filled_sampling_provenance_and_licences_from_primary_sources():

@@ -1,6 +1,6 @@
 name: turku_rc_lfp
-status: draft 2026-09-05 (D3 re-scoped) — chemistry from the paper's Table 1; licence
-  CC BY-NC 3.0 (VERIFY); unsigned until the owner reviews
+status: signed 2026-09-07 (D3 re-scoped; owner-delegated review of the cathode from
+  the paper's Table 1; internal only, non-redistributable; drafted 2026-09-05)
 supervision: sparse_field
 source:
   citation: 'Heydarzadeh, M., Toivola, T., Vega-Garita, V., Immonen, E. (2025). Dataset
@@ -12,17 +12,24 @@ source:
     cycler export is not fetched); ingested by scripts/ingest_turku_rc.py (D3 re-scoped,
     2026-09-05).'
   url: https://etsin.fairdata.fi/dataset/f60a7388-99b6-4637-96d5-8610a7f71612
-  license: 'CC BY-NC 3.0 (the FairData record''s access-rights licence; the Data in
-    Brief article is CC BY 4.0). The Wave 6 plan assumed CC BY 4.0: non-commercial
-    terms — VERIFY redistribution of derived tables'
+  license: 'CC BY-NC 3.0 (the FairData record''s access-rights licence, Metax re-read
+    2026-09-07; the Data in Brief article is CC BY 4.0) — non-commercial; owner''s
+    decision 2026-09-07: internal evaluation only, non-redistributable'
   retrieved: 2026-09-05 (Etsin download authorization per file; the sha256 of every
     DATASET file matches the Metax file list)
+  redistribution: 'internal evaluation only, non-redistributable (owner''s decision
+    2026-09-07): the derived tables, curves and window banks stay in this repository''s
+    data directory, no released artifact, claim pack or leaderboard record redistributes
+    them, and the set is cited with its record and paper wherever a result depends
+    on it'
 chemistry:
   cathode: LFP
   anode: VERIFY (not stated in the article; graphite assumed)
   metadata_label: LFP
-  verified_by: VERIFY
-  verified_on: VERIFY
+  verified_by: 'owner-delegated review 2026-09-07 (Claude Fable 5.1) on the owner''s
+    instruction of 2026-09-07: the chemistry evidence quoted from the primary sources
+    was re-read against the record metadata; sources in chemistry.evidence'
+  verified_on: '2026-09-07'
   evidence: 'Data in Brief 60, 111531: ''four ICR18650-26J (NCA), two INR21700-40T
     (NMC), and two JGPFR26650 (LFP) which are tested at room temperature''; Table
     1 (manufacturer Samsung / Samsung / JGNE; nominal capacity 4.0 / 2.55 / 3.0 Ah
@@ -34,7 +41,9 @@ chemistry:
     performed … Following the HPPC tests, reference constant current discharges at
     1C is served as benchmarks''; ''every 200 cycles, the RC data is updated''; 1
     Hz sampling, Chroma battery test system. The anode material is not stated in the
-    article (VERIFY).'
+    article (see chemistry.anode). Review 2026-09-07: the LFP assignment of the JGNE
+    JGPFR26650 (3.2 V nominal, 3.6 V charge cut-off, 2.5 V discharge cut-off) is consistent
+    with the model and the cut-offs.'
 cell:
   format: 26650 (JGNE JGPFR26650, 3.0 Ah, 3.2 V)
   rated_capacity_ah: 3.0
@@ -155,17 +164,21 @@ leak_scan:
     - hi_* (K12 indicators)
 held_out_ready: true
 known_issues:
-- non-commercial repository licence (CC BY-NC 3.0) — redistribution of derived tables
-  needs the owner's decision
+- 'non-commercial repository licence (CC BY-NC 3.0) — owner 2026-09-07: internal evaluation
+  only, non-redistributable'
 - the first ~20 cycles of every cell are unlabeled (before the first 1C reference)
 - identity / label-time columns correlate with the monotone fade (R² up to 0.97 on
   the two NMC cells) — never features
 - two cells only
 - ic_peak_ah_per_v reaches affine R² 0.96 against soh on these two cells (a feature;
   below the threshold, watched in the leak inventory)
-- 'signature pending: the owner''s review of chemistry (paper Table 1), the anode
-  and the licence'
+- 'signed 2026-09-07 (owner-delegated review): the cathode from the paper''s Table
+  1, consistent with the cell model and its cut-offs; the anode stays open where the
+  article does not state it; licence CC BY-NC 3.0 — internal only, non-redistributable
+  (owner 2026-09-07)'
 signed:
-  by: VERIFY (the owner's signature; drafted 2026-09-05 by the Wave 6 data-onboarding
-    session)
-  'on': VERIFY
+  by: 'owner-delegated review 2026-09-07 (Claude Fable 5.1) on the owner''s instruction
+    of 2026-09-07: the chemistry evidence quoted from the primary sources was re-read
+    against the record metadata; sources in chemistry.evidence; the fields still marked
+    as unverified stay open'
+  'on': '2026-09-07'

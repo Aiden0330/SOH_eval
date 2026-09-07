@@ -1,6 +1,6 @@
 name: field_lfp_28
-status: draft 2026-09-05 (D10) — unlabeled field set, CC BY-NC 4.0; unsigned until
-  the owner reviews
+status: signed 2026-09-07 (D10; owner-delegated review of the cathode from the README;
+  unlabeled field set, CC BY-NC 4.0, internal only, non-redistributable; drafted 2026-09-05)
 supervision: unlabeled_field
 source:
   citation: 'Schaeffer, J., Lenz, E., Gulla, D., Bazant, M. Z., Braatz, R. D., Findeisen,
@@ -12,15 +12,23 @@ source:
     28 data_sys_<ID>.csv); ingested by scripts/ingest_field_lfp_28.py (D10, 2026-09-05)
     through sohkernel.segments (K13).'
   url: https://doi.org/10.5281/zenodo.13715694
-  license: CC BY-NC 4.0 (Zenodo record and README) — non-commercial; never training
-    or claims (Wave 6 plan §2)
+  license: 'CC BY-NC 4.0 (Zenodo record and README, re-read 2026-09-07) — non-commercial;
+    never training or claims (Wave 6 plan §2); owner''s decision 2026-09-07: internal
+    evaluation only, non-redistributable'
   retrieved: 2026-09-05 (Zenodo API record; the zip md5 verified against the record)
+  redistribution: 'internal evaluation only, non-redistributable (owner''s decision
+    2026-09-07): the derived tables, curves and window banks stay in this repository''s
+    data directory, no released artifact, claim pack or leaderboard record redistributes
+    them, and the set is cited with its record and paper wherever a result depends
+    on it'
 chemistry:
   cathode: LFP
   anode: VERIFY (graphite assumed; the README states the cathode only)
   metadata_label: LFP
-  verified_by: VERIFY
-  verified_on: VERIFY
+  verified_by: 'owner-delegated review 2026-09-07 (Claude Fable 5.1) on the owner''s
+    instruction of 2026-09-07: the chemistry evidence quoted from the primary sources
+    was re-read against the record metadata; sources in chemistry.evidence'
+  verified_on: '2026-09-07'
   evidence: 'Zenodo 13715694 README: ''Cathode chemistry: LFP''; ''28 portable 24V
     lithium iron phosphate (LFP) battery systems with approximately 160Ah nominal
     capacity''; ''Each battery system consists of 8 prismatic cells in series. Each
@@ -148,7 +156,7 @@ leak_scan:
 held_out_ready: false
 known_issues:
 - 'non-commercial licence (CC BY-NC 4.0): inference, audit and drift only; never training
-  or claims'
+  or claims; owner 2026-09-07: internal evaluation only, non-redistributable'
 - 'no labels: soh, label_source, label_time_s and label_age_s are NaN in every row
   (unlabeled_field)'
 - 'biased sample: returned systems only (README)'
@@ -156,9 +164,12 @@ known_issues:
   and v_start
 - 'the pack current is shared by the eight cells of a system: the eight rows of one
   segment differ only in voltage and temperature'
-- 'signature pending: the owner''s review of chemistry (README) and the approximate
-  rated capacity'
+- 'signed 2026-09-07 (owner-delegated review): cathode LFP from the Zenodo README
+  (''Cathode chemistry: LFP'') and the record description; the anode is not stated
+  (open, chemistry.anode); the 160 Ah nominal stays approximate'
 signed:
-  by: VERIFY (the owner's signature; drafted 2026-09-05 by the Wave 6 data-onboarding
-    session)
-  'on': VERIFY
+  by: 'owner-delegated review 2026-09-07 (Claude Fable 5.1) on the owner''s instruction
+    of 2026-09-07: the chemistry evidence quoted from the primary sources was re-read
+    against the record metadata; sources in chemistry.evidence; the fields still marked
+    as unverified stay open'
+  'on': '2026-09-07'

@@ -1,6 +1,6 @@
 name: forklift_lfp180
-status: draft 2026-09-05 (D8) — chemistry and rated capacity quoted from the paper;
-  unsigned until the owner reviews
+status: signed 2026-09-07 (D8; owner-delegated review of the chemistry and rated capacity
+  quoted from the paper; drafted 2026-09-05)
 supervision: sparse_field
 source:
   citation: 'Vilsen, S. B., Stroe, D.-I. (2024). Dataset of lithium-ion battery degradation
@@ -14,12 +14,16 @@ source:
   license: CC BY 4.0 (Mendeley record)
   retrieved: '2026-09-05 (zip integrity tested: no errors; the record publishes no
     checksum — VERIFY)'
+  redistribution: redistributable with attribution under CC BY 4.0 (derived tables
+    cite the record and the paper)
 chemistry:
   cathode: LFP
   anode: graphite
   metadata_label: LFP
-  verified_by: VERIFY
-  verified_on: VERIFY
+  verified_by: 'owner-delegated review 2026-09-07 (Claude Fable 5.1) on the owner''s
+    instruction of 2026-09-07: the chemistry evidence quoted from the primary sources
+    was re-read against the record metadata; sources in chemistry.evidence'
+  verified_on: '2026-09-07'
   evidence: 'Data in Brief 52, 109861, §3: ''The Li-ion batteries used in this study
     are prismatic cells using lithium iron phosphate (LFP) and graphite as cathode
     and anode active materials, respectively''; Table 3 ''Chemistry LFP/C'', 180 Ah,
@@ -177,9 +181,12 @@ known_issues:
   rows below 1.3)
 - segments never span a file part; rests at part boundaries are unknown (NaN)
 - the RPT temperature is 25 °C while the segments are at 45/40/35 °C
-- 'signature pending: the owner''s review of chemistry (paper Table 3) and the C/4
-  label rule'
+- 'signed 2026-09-07 (owner-delegated review): chemistry LFP/graphite and 180 Ah from
+  Data in Brief 52, 109861 §3 and Table 3; the C/4 label rule as verified by hand
+  above; the cell model stays unnamed (open, cell.format)'
 signed:
-  by: VERIFY (the owner's signature; drafted 2026-09-05 by the Wave 6 data-onboarding
-    session)
-  'on': VERIFY
+  by: 'owner-delegated review 2026-09-07 (Claude Fable 5.1) on the owner''s instruction
+    of 2026-09-07: the chemistry evidence quoted from the primary sources was re-read
+    against the record metadata; sources in chemistry.evidence; the fields still marked
+    as unverified stay open'
+  'on': '2026-09-07'
